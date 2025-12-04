@@ -5,8 +5,8 @@
         public static readonly List<FamilyMember> AllowedUsers = new()
         {
             new FamilyMember { Name = "Markus", Email = "markussvenoy@gmail.com", AvatarColor = "#6366f1" },
-            //new FamilyMember { Name = "Siv", Email = "siv@example.com", AvatarColor = "#ec4899" },  // Update with real email
-            //new FamilyMember { Name = "Elias", Email = "elias@example.com", AvatarColor = "#10b981" }  // Update with real email
+            new FamilyMember { Name = "Siv", Email = "sivanitanerland@gmail.com", AvatarColor = "#ec4899" },  // Update with real email
+            new FamilyMember { Name = "Elias", Email = "eliassvenoy@gmail.com", AvatarColor = "#10b981" }  // Update with real email
         };
 
         public static readonly List<string> FamilyNames = new() { "Markus", "Siv", "Elias" };
