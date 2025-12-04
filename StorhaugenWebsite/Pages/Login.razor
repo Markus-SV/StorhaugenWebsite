@@ -63,7 +63,7 @@
         await AuthService.InitializeAsync();
         if (AuthService.IsAuthorized)
         {
-            Navigation.NavigateTo("/");
+            Navigation.NavigateTo("");
         }
     }
 
@@ -77,7 +77,7 @@
 
         if (success)
         {
-            Navigation.NavigateTo("/");
+            Navigation.NavigateTo("");
         }
         else
         {
