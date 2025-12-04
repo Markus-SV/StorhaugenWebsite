@@ -186,7 +186,7 @@ else
             await AuthService.InitializeAsync();
             if (!AuthService.IsAuthorized)
             {
-                Navigation.NavigateTo("/login");
+                Navigation.NavigateTo("login");
                 return;
             }
         }
@@ -295,7 +295,7 @@ else
             await FoodService.AddFoodAsync(_newFood);
 
             Snackbar.Add("Meal saved successfully!", Severity.Success);
-            Navigation.NavigateTo("/");
+            Navigation.NavigateTo("");
         }
         catch (Exception ex)
         {

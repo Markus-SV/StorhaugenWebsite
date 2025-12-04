@@ -121,7 +121,7 @@ else
             </div>
             <h2 class="empty-state-title">No meals yet</h2>
             <p class="empty-state-text">Start by adding your first family dinner!</p>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/add" StartIcon="@Icons.Material.Rounded.Add">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="add" StartIcon="@Icons.Material.Rounded.Add">
                 Add First Meal
             </MudButton>
         </div>
@@ -256,7 +256,7 @@ else
             await AuthService.InitializeAsync();
             if (!AuthService.IsAuthorized)
             {
-                Navigation.NavigateTo("/login");
+                Navigation.NavigateTo("login");
             }
             else
             {
@@ -329,7 +329,7 @@ else
 
     private void OpenFoodDetail(FoodItem food)
     {
-        Navigation.NavigateTo($"/food/{food.Id}");
+        Navigation.NavigateTo($"food/{food.Id}");
     }
 
     private string GetRatingClass(double rating)
