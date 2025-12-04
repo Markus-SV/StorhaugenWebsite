@@ -3,39 +3,57 @@
 @inject NavigationManager Navigation
 
 <MudLayout>
-    <MudAppBar Elevation="1" Dense="true" Class="app-bar-glass">
-        <MudIconButton Icon="@Icons.Material.Filled.RestaurantMenu" Color="Color.Inherit" />
-        <MudText Typo="Typo.h6" Class="ml-2 font-weight-bold">Storhaugen Eats</MudText>
+    <MudAppBar Elevation="0" Class="app-header">
+        <div class="d-flex align-center gap-2">
+            <div class="brand-icon">
+                <MudIcon Icon="@Icons.Material.Rounded.DinnerDining" Size="Size.Small" />
+            </div>
+            <MudText Typo="Typo.h6" Class="brand-text">Storhaugen</MudText>
+        </div>
         <MudSpacer />
         @if (AuthService.IsAuthorized)
         {
-            <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Inherit" Dense="true" AnchorOrigin="Origin.BottomRight">
-                <MudMenuItem Icon="@Icons.Material.Filled.Home" OnClick="@(() => Navigation.NavigateTo("/"))">Home</MudMenuItem>
-                <MudMenuItem Icon="@Icons.Material.Filled.Add" OnClick="@(() => Navigation.NavigateTo("/add"))">Add Food</MudMenuItem>
-                <MudMenuItem Icon="@Icons.Material.Filled.Archive" OnClick="@(() => Navigation.NavigateTo("/archived"))">Archived</MudMenuItem>
+            <MudMenu Icon="@Icons.Material.Rounded.Person" Color="Color.Inherit" Dense="true" AnchorOrigin="Origin.BottomRight">
+                <MudMenuItem Disabled="true">
+                    <div class="d-flex align-center gap-2 py-1">
+                        <MudAvatar Size="Size.Small" Style="@($"background: {GetMemberColor(AuthService.CurrentUser?.Name ?? "")}")">
+                            @(AuthService.CurrentUser?.Name?[0] ?? '?')
+                        </MudAvatar>
+                        <MudText Typo="Typo.body2">@AuthService.CurrentUser?.Name</MudText>
+                    </div>
+                </MudMenuItem>
                 <MudDivider />
-                <MudMenuItem Icon="@Icons.Material.Filled.Logout" OnClick="Logout">Logout (@AuthService.CurrentUser?.Name)</MudMenuItem>
+                <MudMenuItem Icon="@Icons.Material.Rounded.Logout" OnClick="Logout">Sign out</MudMenuItem>
             </MudMenu>
         }
     </MudAppBar>
 
-    <MudMainContent Class="pt-14 pb-16">
-        <MudContainer MaxWidth="MaxWidth.Medium" Class="pa-4">
+    <MudMainContent Class="main-content">
+        <MudContainer MaxWidth="MaxWidth.Small" Class="page-container">
             @Body
         </MudContainer>
     </MudMainContent>
 
     @if (AuthService.IsAuthorized)
     {
-        <MudAppBar Bottom="true" Dense="true" Fixed="true" Class="bottom-nav-glass">
-            <MudSpacer />
-            <MudIconButton Icon="@Icons.Material.Filled.Home" Color="@GetNavColor("/")" OnClick="@(() => Navigation.NavigateTo("/"))" />
-            <MudSpacer />
-            <MudIconButton Icon="@Icons.Material.Filled.AddCircle" Color="@GetNavColor("/add")" Size="Size.Large" OnClick="@(() => Navigation.NavigateTo("/add"))" />
-            <MudSpacer />
-            <MudIconButton Icon="@Icons.Material.Filled.Archive" Color="@GetNavColor("/archived")" OnClick="@(() => Navigation.NavigateTo("/archived"))" />
-            <MudSpacer />
-        </MudAppBar>
+        <div class="bottom-nav">
+            <div class="bottom-nav-inner">
+                <button class="nav-item @(IsActive("/") ? "active" : "")" @onclick="@(() => Navigate("/"))">
+                    <MudIcon Icon="@(IsActive("/") ? Icons.Material.Rounded.Home : Icons.Material.Outlined.Home)" Size="Size.Small" />
+                    <span>Home</span>
+                </button>
+                <button class="nav-item nav-item-add @(IsActive("/add") ? "active" : "")" @onclick="@(() => Navigate("/add"))">
+                    <div class="add-button">
+                        <MudIcon Icon="@Icons.Material.Rounded.Add" Size="Size.Medium" />
+                    </div>
+                    <span>Add</span>
+                </button>
+                <button class="nav-item @(IsActive("/archived") ? "active" : "")" @onclick="@(() => Navigate("/archived"))">
+                    <MudIcon Icon="@(IsActive("/archived") ? Icons.Material.Rounded.Inventory2 : Icons.Material.Outlined.Inventory2)" Size="Size.Small" />
+                    <span>Archive</span>
+                </button>
+            </div>
+        </div>
     }
 </MudLayout>
 
@@ -45,11 +63,27 @@
         AuthService.OnAuthStateChanged += StateHasChanged;
     }
 
-    private Color GetNavColor(string path)
+    private bool IsActive(string path)
     {
-        return Navigation.Uri.EndsWith(path) || (path == "/" && Navigation.Uri.EndsWith(Navigation.BaseUri))
-            ? Color.Primary
-            : Color.Default;
+        var currentPath = Navigation.ToBaseRelativePath(Navigation.Uri);
+        if (string.IsNullOrEmpty(currentPath) && path == "/") return true;
+        return $"/{currentPath}".StartsWith(path) && path != "/" || (path == "/" && string.IsNullOrEmpty(currentPath));
+    }
+
+    private void Navigate(string path)
+    {
+        Navigation.NavigateTo(path);
+    }
+
+    private string GetMemberColor(string name)
+    {
+        return name switch
+        {
+            "Markus" => "#E07A2E",
+            "Siv" => "#2D5A45",
+            "Elias" => "#4A7C9B",
+            _ => "#6B5D4D"
+        };
     }
 
     private async Task Logout()

@@ -1,9 +1,7 @@
 ﻿@page "/add"
-
 @using Microsoft.AspNetCore.Components.Forms
 @using StorhaugenWebsite.Models
 @using StorhaugenWebsite.Services
-
 @inject IAuthService AuthService
 @inject IFoodService FoodService
 @inject NavigationManager Navigation
@@ -11,142 +9,160 @@
 
 @if (!AuthService.IsAuthorized)
 {
-    <MudContainer Class="d-flex flex-column align-center justify-center" Style="min-height: 60vh;">
-        <MudText Typo="Typo.h5" Class="mb-4">Please log in to continue</MudText>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/login">Go to Login</MudButton>
-    </MudContainer>
+    <div class="login-container">
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <MudIcon Icon="@Icons.Material.Rounded.Lock" Size="Size.Large" />
+            </div>
+            <h2 class="empty-state-title">Please sign in</h2>
+            <p class="empty-state-text">You need to be signed in to add meals</p>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/login" Size="Size.Large">
+                Go to Login
+            </MudButton>
+        </div>
+    </div>
 }
 else
 {
-    <div class="mb-4">
-        <MudText Typo="Typo.h5" Class="font-weight-bold mb-1">
-            ➕ Add New Meal
-        </MudText>
-        <MudText Typo="Typo.body2" Color="Color.Secondary">
-            Rate tonight's dinner with the family
-        </MudText>
+    <!-- Page Header -->
+    <div class="page-header">
+        <h1 class="page-title">Add Meal</h1>
+        <p class="page-subtitle">Rate tonight's dinner with the family</p>
     </div>
 
-    <MudPaper Class="pa-4 rounded-lg" Elevation="2">
-        @if (!string.IsNullOrEmpty(_errorMessage))
-        {
-            <MudAlert Severity="Severity.Error" Class="mb-4" Dense="true" ShowCloseIcon="true" CloseIconClicked="@(() => _errorMessage = null)">
-                @_errorMessage
-            </MudAlert>
-        }
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-4" Dense="true" ShowCloseIcon="true" CloseIconClicked="@(() => _errorMessage = null)"
+                  Style="border-radius: 12px;">
+            @_errorMessage
+        </MudAlert>
+    }
 
-        <!-- Food Name -->
+    <!-- Meal Details Section -->
+    <div class="form-section">
+        <p class="form-section-title">Meal Details</p>
+
         <MudTextField @bind-Value="_newFood.Name"
                       Label="What did we eat?"
                       Variant="Variant.Outlined"
                       Placeholder="e.g., Taco Tuesday, Grandma's Lasagna"
                       Class="mb-4"
-                      Required="true" />
+                      Required="true"
+                      Style="--mud-default-borderradius: 12px;" />
 
-        <!-- Description -->
         <MudTextField @bind-Value="_newFood.Description"
                       Label="Notes (optional)"
                       Variant="Variant.Outlined"
                       Placeholder="Recipe link, ingredients, or notes..."
                       Lines="2"
-                      Class="mb-4" />
+                      Style="--mud-default-borderradius: 12px;" />
+    </div>
 
-        <!-- Image Upload -->
-        <MudText Typo="Typo.subtitle2" Class="mb-2">Photos</MudText>
-        <MudPaper Outlined="true" Class="pa-4 mb-4 rounded-lg">
-            @if (_imagePreviewUrls.Any())
-            {
-                <div class="d-flex gap-2 flex-wrap mb-3">
-                    @for (int i = 0; i < _imagePreviewUrls.Count; i++)
-                    {
-                        var index = i;
-                        <div class="position-relative">
-                            <MudImage Src="@_imagePreviewUrls[index]"
-                                      Width="80" Height="80"
-                                      ObjectFit="ObjectFit.Cover"
-                                      Class="rounded-lg" />
-                            <MudIconButton Icon="@Icons.Material.Filled.Close"
-                                           Size="Size.Small"
-                                           Color="Color.Error"
-                                           OnClick="@(() => RemoveImage(index))"
-                                           Class="position-absolute"
-                                           Style="top: -8px; right: -8px; background: white;" />
-                        </div>
-                    }
-                </div>
-            }
-            <MudFileUpload T="IReadOnlyList<IBrowserFile>"
-                           FilesChanged="OnImagesSelected"
-                           Accept=".png,.jpg,.jpeg,.webp"
-                           MaximumFileCount="5">
-                <ActivatorContent>
-                    <MudButton Variant="Variant.Outlined"
-                               Color="Color.Primary"
-                               StartIcon="@Icons.Material.Filled.PhotoCamera"
-                               FullWidth="true">
-                        @(_imagePreviewUrls.Any() ? "Add More Photos" : "Add Photos")
-                    </MudButton>
-                </ActivatorContent>
-            </MudFileUpload>
-        </MudPaper>
+    <!-- Photo Section -->
+    <div class="form-section">
+        <p class="form-section-title">Photos</p>
 
-        <!-- Ratings -->
-        <MudText Typo="Typo.subtitle2" Class="mb-3">Rate the meal (0-10)</MudText>
-        @foreach (var member in AppConfig.FamilyNames)
+        @if (_imagePreviewUrls.Any())
         {
-            <MudPaper Outlined="true" Class="pa-3 mb-3 rounded-lg" Style="@($"border-color: {GetMemberColor(member)}40")">
-                <div class="d-flex align-center justify-space-between mb-2">
-                    <div class="d-flex align-center gap-2">
-                        <MudAvatar Size="Size.Small" Style="@($"background-color: {GetMemberColor(member)}")">
-                            @member[0]
-                        </MudAvatar>
-                        <MudText Typo="Typo.subtitle2">@member</MudText>
-                    </div>
-                    <MudSwitch T="bool"
-                               Value="@_ratingsEnabled[member]"
-                               ValueChanged="@((bool v) => ToggleRating(member, v))"
-                               Color="Color.Primary" />
-                </div>
-                @if (_ratingsEnabled[member])
+            <div class="image-preview-grid">
+                @for (int i = 0; i < _imagePreviewUrls.Count; i++)
                 {
-                    <div class="d-flex align-center gap-2">
-                        <MudSlider T="int"
-                                   Value="@GetRatingValue(member)"
-                                   ValueChanged="@((int v) => SetRating(member, v))"
-                                   Min="0" Max="10" Step="1"
-                                   Color="Color.Primary"
-                                   Class="flex-grow-1" />
-                        <MudChip T="string"
-                                 Color="@GetRatingColor(GetRatingValue(member))"
-                                 Size="Size.Small"
-                                 Style="min-width: 40px;">
-                            @GetRatingValue(member)
-                        </MudChip>
+                    var index = i;
+                    <div class="image-preview-item">
+                        <img src="@_imagePreviewUrls[index]" alt="Preview" />
+                        <button class="image-preview-remove" @onclick="@(() => RemoveImage(index))">
+                            <MudIcon Icon="@Icons.Material.Rounded.Close" Size="Size.Small" />
+                        </button>
                     </div>
                 }
-            </MudPaper>
+            </div>
         }
 
-        <!-- Submit Button -->
-        <MudButton Variant="Variant.Filled"
-                   Color="Color.Primary"
-                   Size="Size.Large"
-                   FullWidth="true"
-                   OnClick="SubmitFood"
-                   Disabled="_isSubmitting"
-                   Class="mt-2">
-            @if (_isSubmitting)
-            {
-                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                <span>Saving...</span>
-            }
-            else
-            {
-                <MudIcon Icon="@Icons.Material.Filled.Save" Class="mr-2" />
-                <span>Save Meal</span>
-            }
-        </MudButton>
-    </MudPaper>
+        <MudFileUpload T="IReadOnlyList<IBrowserFile>"
+                       FilesChanged="OnImagesSelected"
+                       Accept=".png,.jpg,.jpeg,.webp"
+                       MaximumFileCount="5">
+            <ActivatorContent>
+                <div class="image-upload-area">
+                    <MudIcon Icon="@Icons.Material.Rounded.AddAPhoto" Size="Size.Large" Color="Color.Primary" Class="mb-2" />
+                    <p style="margin: 0; font-weight: 500;">
+                        @(_imagePreviewUrls.Any() ? "Add more photos" : "Tap to add photos")
+                    </p>
+                    <p style="margin: 4px 0 0; font-size: 0.8rem; color: var(--mud-palette-text-secondary);">
+                        Up to 5 images
+                    </p>
+                </div>
+            </ActivatorContent>
+        </MudFileUpload>
+    </div>
+
+    <!-- Ratings Section -->
+    <div class="form-section">
+        <p class="form-section-title">Ratings</p>
+
+        @foreach (var member in AppConfig.FamilyNames)
+        {
+            var currentMember = member;
+            var isEnabled = _ratingsEnabled[currentMember];
+            var ratingValue = GetRatingValue(currentMember);
+
+            <div class="rating-member-card">
+                <div class="rating-member-header">
+                    <div class="rating-member-info">
+                        <div class="rating-member-avatar" style="@($"background: {GetMemberColor(currentMember)}")">
+                            @currentMember[0]
+                        </div>
+                        <div>
+                            <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">@currentMember</MudText>
+                            @if (AuthService.CurrentUser?.Name == currentMember)
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Primary">(You)</MudText>
+                            }
+                        </div>
+                    </div>
+                    <MudSwitch T="bool"
+                               Value="@isEnabled"
+                               ValueChanged="@((bool v) => ToggleRating(currentMember, v))"
+                               Color="Color.Primary" />
+                </div>
+
+                @if (isEnabled)
+                {
+                    <div class="rating-slider-container">
+                        <MudSlider T="int"
+                                   Value="@ratingValue"
+                                   ValueChanged="@((int v) => SetRating(currentMember, v))"
+                                   Min="0" Max="10" Step="1"
+                                   Color="Color.Primary"
+                                   Style="flex: 1;" />
+                        <div class="rating-value-display" style="@($"background: {GetRatingBackground(ratingValue)}; color: {GetRatingTextColor(ratingValue)}")">
+                            @ratingValue
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <!-- Submit Button -->
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               Size="Size.Large"
+               FullWidth="true"
+               OnClick="SubmitFood"
+               Disabled="_isSubmitting"
+               Style="border-radius: 14px; padding: 14px; margin-top: 8px;">
+        @if (_isSubmitting)
+        {
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" Color="Color.Surface" />
+            <span>Saving...</span>
+        }
+        else
+        {
+            <MudIcon Icon="@Icons.Material.Rounded.Check" Class="mr-2" />
+            <span>Save Meal</span>
+        }
+    </MudButton>
 }
 
 @code {
@@ -175,7 +191,6 @@ else
             }
         }
 
-        // Pre-enable rating for current user
         if (AuthService.CurrentUser != null)
         {
             _ratingsEnabled[AuthService.CurrentUser.Name] = true;
@@ -279,7 +294,7 @@ else
 
             await FoodService.AddFoodAsync(_newFood);
 
-            Snackbar.Add("Meal saved successfully! 🎉", Severity.Success);
+            Snackbar.Add("Meal saved successfully!", Severity.Success);
             Navigation.NavigateTo("/");
         }
         catch (Exception ex)
@@ -296,20 +311,30 @@ else
     {
         return name switch
         {
-            "Markus" => "#6366f1",
-            "Siv" => "#ec4899",
-            "Elias" => "#10b981",
-            _ => "#94a3b8"
+            "Markus" => "#E07A2E",
+            "Siv" => "#2D5A45",
+            "Elias" => "#4A7C9B",
+            _ => "#6B5D4D"
         };
     }
 
-    private Color GetRatingColor(int rating)
+    private string GetRatingBackground(int rating)
     {
         return rating switch
         {
-            >= 8 => Color.Success,
-            >= 5 => Color.Warning,
-            _ => Color.Error
+            >= 8 => "rgba(45, 90, 69, 0.15)",
+            >= 5 => "rgba(212, 160, 23, 0.15)",
+            _ => "rgba(196, 69, 54, 0.15)"
+        };
+    }
+
+    private string GetRatingTextColor(int rating)
+    {
+        return rating switch
+        {
+            >= 8 => "#2D5A45",
+            >= 5 => "#A17D00",
+            _ => "#C44536"
         };
     }
 }
