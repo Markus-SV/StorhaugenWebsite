@@ -7,6 +7,11 @@
     <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
   </PropertyGroup>
 
+	<Target Name="Make404" AfterTargets="Publish">
+		<Copy SourceFiles="$(PublishDir)wwwroot\index.html"
+			  DestinationFiles="$(PublishDir)wwwroot\404.html" />
+	</Target>
+
   <ItemGroup>
     <Content Remove="Components\AddFood.razor" />
     <Content Remove="Components\Archived.razor" />
