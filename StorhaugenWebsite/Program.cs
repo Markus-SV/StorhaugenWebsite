@@ -18,5 +18,7 @@ builder.Services.AddMudServices();
 builder.Services.AddScoped<IFirebaseBroker, FirebaseBroker>();
 builder.Services.AddScoped<IFoodService, FoodService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IDeviceStateService, DeviceStateService>();
+builder.Services.AddScoped<IThemeService, ThemeService>();
 
 await builder.Build().RunAsync();

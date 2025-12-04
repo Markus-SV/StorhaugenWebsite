@@ -13,18 +13,10 @@
         <MudSpacer />
         @if (AuthService.IsAuthorized)
         {
-            <MudMenu Icon="@Icons.Material.Rounded.Person" Color="Color.Inherit" Dense="true" AnchorOrigin="Origin.BottomRight">
-                <MudMenuItem Disabled="true">
-                    <div class="d-flex align-center gap-2 py-1">
-                        <MudAvatar Size="Size.Small" Style="@($"background: {GetMemberColor(AuthService.CurrentUser?.Name ?? "")}")">
-                            @(AuthService.CurrentUser?.Name?[0] ?? '?')
-                        </MudAvatar>
-                        <MudText Typo="Typo.body2">@AuthService.CurrentUser?.Name</MudText>
-                    </div>
-                </MudMenuItem>
-                <MudDivider />
-                <MudMenuItem Icon="@Icons.Material.Rounded.Logout" OnClick="Logout">Sign out</MudMenuItem>
-            </MudMenu>
+            <MudIconButton Icon="@Icons.Material.Rounded.Settings"
+                           Color="Color.Inherit"
+                           OnClick="@(() => Navigation.NavigateTo("/settings"))"
+                           Size="Size.Small" />
         }
     </MudAppBar>
 
@@ -73,23 +65,6 @@
     private void Navigate(string path)
     {
         Navigation.NavigateTo(path);
-    }
-
-    private string GetMemberColor(string name)
-    {
-        return name switch
-        {
-            "Markus" => "#E07A2E",
-            "Siv" => "#2D5A45",
-            "Elias" => "#4A7C9B",
-            _ => "#6B5D4D"
-        };
-    }
-
-    private async Task Logout()
-    {
-        await AuthService.LogoutAsync();
-        Navigation.NavigateTo("/login");
     }
 
     public void Dispose()
