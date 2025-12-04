@@ -1,0 +1,78 @@
+﻿@page "/"
+@inject IJSRuntime JSRuntime
+
+<h1>Food Rater 🍔</h1>
+
+@if (userEmail == null)
+{
+    <button class="btn btn-primary" @onclick="Login">Log in with Google to Add Food</button>
+}
+else
+{
+    <p>Logged in as: <strong>@userEmail</strong></p>
+
+    <div class="card p-3 my-3">
+        <input class="form-control mb-2" placeholder="Food Name" @bind="newFoodName" />
+        <input class="form-control mb-2" type="number" placeholder="Rating (1-5)" @bind="newFoodRating" />
+        <button class="btn btn-success" @onclick="AddFood">Add Food</button>
+    </div>
+}
+
+<h3>Food List</h3>
+<ul>
+    @foreach (var food in foodList)
+    {
+        <li>@food.Name - ⭐ @food.Rating</li>
+    }
+</ul>
+
+@code {
+    private string? userEmail;
+    private string newFoodName = "";
+    private int newFoodRating = 5;
+    private List<FoodItem> foodList = new();
+
+    // Simple class to hold data
+    public class FoodItem
+    {
+        public string Name { get; set; }
+        public int Rating { get; set; }
+    }
+
+    private IJSObjectReference? module;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Import the JS module
+        module = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./firebaseInterop.js");
+        await LoadFoods();
+    }
+
+    private async Task Login()
+    {
+        if (module != null)
+        {
+            userEmail = await module.InvokeAsync<string>("loginWithGoogle");
+            StateHasChanged();
+        }
+    }
+
+    private async Task AddFood()
+    {
+        if (module != null && !string.IsNullOrWhiteSpace(newFoodName))
+        {
+            await module.InvokeVoidAsync("addFoodItem", newFoodName, newFoodRating);
+            newFoodName = ""; // Reset form
+            await LoadFoods(); // Refresh list
+        }
+    }
+
+    private async Task LoadFoods()
+    {
+        if (module != null)
+        {
+            foodList = await module.InvokeAsync<List<FoodItem>>("getFoodItems");
+            StateHasChanged();
+        }
+    }
+}
