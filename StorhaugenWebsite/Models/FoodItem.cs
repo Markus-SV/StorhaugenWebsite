@@ -4,24 +4,39 @@
     {
         public string Id { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
-        public string Description { get; set; } = string.Empty;
-        public DateTime Date { get; set; } = DateTime.Now;
-        public bool IsArchived { get; set; } = false;
-
-        // List of image URLs from Firebase Storage
+        public string? Description { get; set; }
         public List<string> ImageUrls { get; set; } = new();
+        public Dictionary<string, int?> Ratings { get; set; } = new()
+        {
+            { "Markus", null },
+            { "Siv", null },
+            { "Elias", null }
+        };
+        public DateTime DateAdded { get; set; } = DateTime.UtcNow;
+        public string AddedBy { get; set; } = string.Empty;
+        public bool IsArchived { get; set; } = false;
+        public DateTime? ArchivedDate { get; set; }
+        public string? ArchivedBy { get; set; }
 
-        // List of ratings from specific users
-        public List<UserRating> Ratings { get; set; } = new();
+        public double AverageRating
+        {
+            get
+            {
+                var validRatings = Ratings.Values.Where(r => r.HasValue).Select(r => r!.Value).ToList();
+                return validRatings.Count > 0 ? validRatings.Average() : 0;
+            }
+        }
 
-        // Helper to get average
-        public double AverageRating => Ratings.Any() ? Ratings.Average(r => r.Score) : 0;
+        public int GetRatingForPerson(string person)
+        {
+            return Ratings.TryGetValue(person, out var rating) ? rating ?? 0 : 0;
+        }
     }
 
-    public class UserRating
+    public class FamilyMember
     {
-        public string UserEmail { get; set; } = string.Empty;
-        public string DisplayName { get; set; } = string.Empty; // "Markus", "Siv", "Elias"
-        public int Score { get; set; } // 0-10
+        public string Name { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string? AvatarColor { get; set; }
     }
 }

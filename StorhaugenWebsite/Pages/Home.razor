@@ -1,73 +1,212 @@
 ﻿@page "/"
+@using MudBlazor
 @using StorhaugenWebsite.Models
 @using StorhaugenWebsite.Services
+@inject IAuthService AuthService
 @inject IFoodService FoodService
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
 
-<h1>Food Rater 🍔</h1>
-
-@if (userEmail == null)
+@if (!AuthService.IsAuthorized)
 {
-    <button class="btn btn-primary" @onclick="Login">Log in with Google to Add Food</button>
+    <MudContainer Class="d-flex flex-column align-center justify-center" Style="min-height: 60vh;">
+        <MudText Typo="Typo.h5" Class="mb-4">Please log in to continue</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/login">Go to Login</MudButton>
+    </MudContainer>
 }
 else
 {
-    <p>Logged in as: <strong>@userEmail</strong></p>
-
-    <div class="card p-3 my-3">
-        @if (!string.IsNullOrEmpty(errorMessage))
-        {
-            <div class="alert alert-danger">@errorMessage</div>
-        }
-
-        <input class="form-control mb-2" placeholder="Food Name" @bind="newFood.Name" />
-        <input class="form-control mb-2" type="number" placeholder="Rating (1-5)" @bind="newFood.Rating" />
-        <button class="btn btn-success" @onclick="AddFood">Add Food</button>
+    <div class="mb-4">
+        <MudText Typo="Typo.h5" Class="font-weight-bold mb-2">
+            🍽️ Our Dinners
+        </MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">
+            @_foodItems.Count meals rated by the family
+        </MudText>
     </div>
+
+    <!-- Sort Controls -->
+    <MudPaper Class="pa-3 mb-4 rounded-lg" Elevation="0" Style="background: var(--mud-palette-surface);">
+        <div class="d-flex align-center gap-2 flex-wrap">
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mr-2">Sort by:</MudText>
+            <MudChipSet T="string" SelectedValue="_currentSort" SelectedValueChanged="OnSortChanged" Mandatory="true">
+                <MudChip Value="@("date")" Size="Size.Small" Variant="Variant.Text" Color="Color.Primary">Date</MudChip>
+                <MudChip Value="@("average")" Size="Size.Small" Variant="Variant.Text" Color="Color.Primary">Average</MudChip>
+                <MudChip Value="@("markus")" Size="Size.Small" Variant="Variant.Text" Color="Color.Primary">Markus</MudChip>
+                <MudChip Value="@("siv")" Size="Size.Small" Variant="Variant.Text" Color="Color.Primary">Siv</MudChip>
+                <MudChip Value="@("elias")" Size="Size.Small" Variant="Variant.Text" Color="Color.Primary">Elias</MudChip>
+            </MudChipSet>
+            <MudIconButton Icon="@(_sortDescending ? Icons.Material.Filled.ArrowDownward : Icons.Material.Filled.ArrowUpward)" 
+                           Size="Size.Small" 
+                           OnClick="ToggleSortDirection" />
+        </div>
+    </MudPaper>
+
+    <!-- Loading State -->
+    @if (_isLoading)
+    {
+        <div class="d-flex flex-column gap-3">
+            @for (int i = 0; i < 3; i++)
+            {
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="120px" Class="rounded-lg" />
+            }
+        </div>
+    }
+    else if (!_foodItems.Any())
+    {
+        <MudPaper Class="pa-8 text-center rounded-lg" Elevation="0">
+            <MudIcon Icon="@Icons.Material.Filled.NoFood" Size="Size.Large" Color="Color.Secondary" Class="mb-4" />
+            <MudText Typo="Typo.h6" Class="mb-2">No meals yet</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">Start by adding your first family dinner!</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/add" StartIcon="@Icons.Material.Filled.Add">
+                Add First Meal
+            </MudButton>
+        </MudPaper>
+    }
+    else
+    {
+        <div class="d-flex flex-column gap-3">
+            @foreach (var food in GetSortedFoods())
+            {
+                <MudCard Class="food-card rounded-lg cursor-pointer" Elevation="2" @onclick="() => OpenFoodDetail(food)">
+                    <div class="d-flex">
+                        @if (food.ImageUrls.Any())
+                        {
+                            <MudImage Src="@food.ImageUrls.First()" 
+                                      Alt="@food.Name" 
+                                      ObjectFit="ObjectFit.Cover"
+                                      Width="100" Height="100"
+                                      Class="rounded-l-lg" />
+                        }
+                        else
+                        {
+                            <div class="d-flex align-center justify-center" style="width: 100px; height: 100px; background: var(--mud-palette-background);">
+                                <MudIcon Icon="@Icons.Material.Filled.Restaurant" Size="Size.Large" Color="Color.Secondary" />
+                            </div>
+                        }
+                        <MudCardContent Class="flex-grow-1 pa-3">
+                            <div class="d-flex justify-space-between align-start mb-2">
+                                <MudText Typo="Typo.subtitle1" Class="font-weight-bold">@food.Name</MudText>
+                                <MudChip T="string" Size="Size.Small" Color="@GetRatingColor(food.AverageRating)" Class="ml-2">
+                                    @food.AverageRating.ToString("0.0")
+                                </MudChip>
+                            </div>
+                            <div class="d-flex gap-2 flex-wrap">
+                                @foreach (var member in Models.AppConfig.FamilyNames)
+                                {
+                                    var rating = food.GetRatingForPerson(member);
+                                    var hasRating = food.Ratings.TryGetValue(member, out var r) && r.HasValue;
+                                    <MudChip T="string" Size="Size.Small" 
+                                             Variant="@(hasRating ? Variant.Filled : Variant.Outlined)"
+                                             Style="@($"background-color: {GetMemberColor(member)}20; color: {GetMemberColor(member)}")">
+                                        @member[0]: @(hasRating ? rating.ToString() : "-")
+                                    </MudChip>
+                                }
+                            </div>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+                                @food.DateAdded.ToString("MMM dd, yyyy")
+                            </MudText>
+                        </MudCardContent>
+                    </div>
+                </MudCard>
+            }
+        </div>
+    }
 }
 
-<h3>Food List</h3>
-<ul>
-    @foreach (var food in foodList)
-    {
-        <li>@food.Name - ⭐ @food.Rating</li>
-    }
-</ul>
-
 @code {
-    private string? userEmail;
-    private string? errorMessage;
-    private FoodItem newFood = new() { Rating = 5 }; // Use the model directly for binding
-    private List<FoodItem> foodList = new();
+    private List<FoodItem> _foodItems = new();
+    private bool _isLoading = true;
+    private string _currentSort = "date";
+    private bool _sortDescending = true;
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadFoods();
-    }
-
-    private async Task Login()
-    {
-        userEmail = await FoodService.LoginAsync();
-    }
-
-    private async Task AddFood()
-    {
-        try
+        AuthService.OnAuthStateChanged += async () => await InvokeAsync(StateHasChanged);
+        
+        if (AuthService.IsAuthorized)
         {
-            errorMessage = null;
-            await FoodService.SubmitFoodReviewAsync(newFood);
-
-            // Reset form
-            newFood = new() { Rating = 5 };
             await LoadFoods();
         }
-        catch (Exception ex)
+        else
         {
-            errorMessage = ex.Message;
+            await AuthService.InitializeAsync();
+            if (!AuthService.IsAuthorized)
+            {
+                Navigation.NavigateTo("/login");
+            }
+            else
+            {
+                await LoadFoods();
+            }
         }
     }
 
     private async Task LoadFoods()
     {
-        foodList = await FoodService.RetrieveAllFoodsAsync();
+        _isLoading = true;
+        _foodItems = await FoodService.GetAllFoodsAsync(false);
+        _isLoading = false;
+    }
+
+    private void OnSortChanged(string sort)
+    {
+        _currentSort = sort;
+    }
+
+    private void ToggleSortDirection()
+    {
+        _sortDescending = !_sortDescending;
+    }
+
+    private IEnumerable<FoodItem> GetSortedFoods()
+    {
+        IEnumerable<FoodItem> sorted = _currentSort switch
+        {
+            "date" => _sortDescending 
+                ? _foodItems.OrderByDescending(f => f.DateAdded) 
+                : _foodItems.OrderBy(f => f.DateAdded),
+            "average" => _sortDescending 
+                ? _foodItems.OrderByDescending(f => f.AverageRating) 
+                : _foodItems.OrderBy(f => f.AverageRating),
+            "markus" => _sortDescending 
+                ? _foodItems.OrderByDescending(f => f.GetRatingForPerson("Markus")) 
+                : _foodItems.OrderBy(f => f.GetRatingForPerson("Markus")),
+            "siv" => _sortDescending 
+                ? _foodItems.OrderByDescending(f => f.GetRatingForPerson("Siv")) 
+                : _foodItems.OrderBy(f => f.GetRatingForPerson("Siv")),
+            "elias" => _sortDescending 
+                ? _foodItems.OrderByDescending(f => f.GetRatingForPerson("Elias")) 
+                : _foodItems.OrderBy(f => f.GetRatingForPerson("Elias")),
+            _ => _foodItems.OrderByDescending(f => f.DateAdded)
+        };
+        return sorted;
+    }
+
+    private void OpenFoodDetail(FoodItem food)
+    {
+        Navigation.NavigateTo($"/food/{food.Id}");
+    }
+
+    private Color GetRatingColor(double rating)
+    {
+        return rating switch
+        {
+            >= 8 => Color.Success,
+            >= 5 => Color.Warning,
+            _ => Color.Error
+        };
+    }
+
+    private string GetMemberColor(string name)
+    {
+        return name switch
+        {
+            "Markus" => "#6366f1",
+            "Siv" => "#ec4899",
+            "Elias" => "#10b981",
+            _ => "#94a3b8"
+        };
     }
 }

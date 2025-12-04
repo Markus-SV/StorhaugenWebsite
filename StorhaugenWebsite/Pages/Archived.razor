@@ -1,0 +1,149 @@
+﻿@page "/archived"
+@inject IAuthService AuthService
+@inject IFoodService FoodService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+@if (!AuthService.IsAuthorized)
+{
+    <MudContainer Class="d-flex flex-column align-center justify-center" Style="min-height: 60vh;">
+        <MudText Typo="Typo.h5" Class="mb-4">Please log in to continue</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/login">Go to Login</MudButton>
+    </MudContainer>
+}
+else
+{
+    <div class="mb-4">
+        <MudButton Variant="Variant.Text"
+                   Color="Color.Default"
+                   StartIcon="@Icons.Material.Filled.ArrowBack"
+                   OnClick="@(() => Navigation.NavigateTo("/"))"
+                   Class="mb-2">
+            Back
+        </MudButton>
+        <MudText Typo="Typo.h5" Class="font-weight-bold mb-1">
+            📦 Archived Meals
+        </MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">
+            @_archivedItems.Count archived meals
+        </MudText>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="d-flex flex-column gap-3">
+            @for (int i = 0; i < 3; i++)
+            {
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="100px" Class="rounded-lg" />
+            }
+        </div>
+    }
+    else if (!_archivedItems.Any())
+    {
+        <MudPaper Class="pa-8 text-center rounded-lg" Elevation="0">
+            <MudIcon Icon="@Icons.Material.Filled.Inventory2" Size="Size.Large" Color="Color.Secondary" Class="mb-4" />
+            <MudText Typo="Typo.h6" Class="mb-2">No archived meals</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Archived meals will appear here
+            </MudText>
+        </MudPaper>
+    }
+    else
+    {
+        <div class="d-flex flex-column gap-3">
+            @foreach (var food in _archivedItems.OrderByDescending(f => f.ArchivedDate))
+            {
+                var currentFood = food;
+                <MudCard Class="food-card rounded-lg" Elevation="1" Style="opacity: 0.8;">
+                    <div class="d-flex">
+                        @if (currentFood.ImageUrls.Any())
+                        {
+                            <MudImage Src="@currentFood.ImageUrls.First()"
+                                      Alt="@currentFood.Name"
+                                      ObjectFit="ObjectFit.Cover"
+                                      Width="80" Height="80"
+                                      Class="rounded-l-lg"
+                                      Style="filter: grayscale(50%);" />
+                        }
+                        else
+                        {
+                            <div class="d-flex align-center justify-center" style="width: 80px; height: 80px; background: var(--mud-palette-background);">
+                                <MudIcon Icon="@Icons.Material.Filled.Restaurant" Color="Color.Secondary" />
+                            </div>
+                        }
+                        <MudCardContent Class="flex-grow-1 pa-3">
+                            <div class="d-flex justify-space-between align-start">
+                                <div>
+                                    <MudText Typo="Typo.subtitle1" Class="font-weight-medium">@currentFood.Name</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        Archived @(currentFood.ArchivedDate?.ToString("MMM dd, yyyy") ?? "")
+                                        @if (!string.IsNullOrEmpty(currentFood.ArchivedBy))
+                                        {
+                                            <span> by @currentFood.ArchivedBy</span>
+                                        }
+                                    </MudText>
+                                </div>
+                                <div class="d-flex gap-1">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Visibility"
+                                                   Size="Size.Small"
+                                                   OnClick="@(() => ViewFood(currentFood))" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Restore"
+                                                   Size="Size.Small"
+                                                   Color="Color.Primary"
+                                                   OnClick="@(() => RestoreFood(currentFood))" />
+                                </div>
+                            </div>
+                        </MudCardContent>
+                    </div>
+                </MudCard>
+            }
+        </div>
+    }
+}
+
+@code {
+    private List<FoodItem> _archivedItems = new();
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthorized)
+        {
+            await AuthService.InitializeAsync();
+            if (!AuthService.IsAuthorized)
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+        }
+
+        await LoadArchivedItems();
+    }
+
+    private async Task LoadArchivedItems()
+    {
+        _isLoading = true;
+        var allItems = await FoodService.GetAllFoodsAsync(includeArchived: true);
+        _archivedItems = allItems.Where(f => f.IsArchived).ToList();
+        _isLoading = false;
+    }
+
+    private void ViewFood(FoodItem food)
+    {
+        Navigation.NavigateTo($"/food/{food.Id}");
+    }
+
+    private async Task RestoreFood(FoodItem food)
+    {
+        try
+        {
+            await FoodService.RestoreFoodAsync(food.Id);
+            _archivedItems.Remove(food);
+            Snackbar.Add($"'{food.Name}' restored! 🎉", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+    }
+}

@@ -1,6 +1,131 @@
-﻿<Router AppAssembly="@typeof(App).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+﻿@using StorhaugenWebsite.Shared
+@using MudBlazor
+
+<MudThemeProvider @ref="_themeProvider" @bind-IsDarkMode="@_isDarkMode" Theme="_theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<Router AppAssembly="@typeof(App).Assembly">
     <Found Context="routeData">
-        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)"/>
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
         <FocusOnNavigate RouteData="@routeData" Selector="h1" />
     </Found>
+    <NotFound>
+        <PageTitle>Not found</PageTitle>
+        <LayoutView Layout="@typeof(MainLayout)">
+            <MudContainer MaxWidth="MaxWidth.Small" Class="d-flex flex-column align-center justify-center" Style="height: 60vh;">
+                <MudIcon Icon="@Icons.Material.Filled.SearchOff" Size="Size.Large" Color="Color.Secondary" Class="mb-4" />
+                <MudText Typo="Typo.h4" Class="mb-2">Page Not Found</MudText>
+                <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-4">The page you're looking for doesn't exist.</MudText>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/">Go Home</MudButton>
+            </MudContainer>
+        </LayoutView>
+    </NotFound>
 </Router>
+
+@code {
+    private MudThemeProvider? _themeProvider;
+    private bool _isDarkMode = true;
+
+    private MudTheme _theme = new MudTheme()
+    {
+        PaletteLight = new PaletteLight()
+        {
+            Primary = "#6366f1",
+            Secondary = "#ec4899",
+            Tertiary = "#10b981",
+            Background = "#f8fafc",
+            Surface = "#ffffff",
+            AppbarBackground = "#ffffff",
+            AppbarText = "#1e293b",
+            TextPrimary = "#1e293b",
+            TextSecondary = "#64748b"
+        },
+        PaletteDark = new PaletteDark()
+        {
+            Primary = "#818cf8",
+            Secondary = "#f472b6",
+            Tertiary = "#34d399",
+            Background = "#0f172a",
+            Surface = "#1e293b",
+            AppbarBackground = "#1e293b",
+            AppbarText = "#f1f5f9",
+            TextPrimary = "#f1f5f9",
+            TextSecondary = "#94a3b8"
+        },
+        Typography = new Typography()
+        {
+            // FIX: Use DefaultTypography, Body1Typography, etc.
+            Default = new DefaultTypography()
+            {
+                FontFamily = new[] { "Inter", "system-ui", "sans-serif" },
+                FontSize = "1rem",
+                FontWeight = "400",
+                LineHeight = "1.5",
+                LetterSpacing = ".00938em"
+            },
+            Body1 = new Body1Typography()
+            {
+                FontFamily = new[] { "Inter", "system-ui", "sans-serif" },
+                FontSize = "1rem",
+                FontWeight = "400",
+                LineHeight = "1.5",
+                LetterSpacing = ".00938em"
+            },
+            Body2 = new Body2Typography()
+            {
+                FontFamily = new[] { "Inter", "system-ui", "sans-serif" },
+                FontSize = "0.875rem",
+                FontWeight = "400",
+                LineHeight = "1.43",
+                LetterSpacing = ".01071em"
+            },
+            H1 = new H1Typography()
+            {
+                FontFamily = new[] { "Inter", "system-ui", "sans-serif" },
+                FontWeight = "700",
+                FontSize = "6rem",
+                LineHeight = "1.167",
+                LetterSpacing = "-.01562em"
+            },
+            H2 = new H2Typography()
+            {
+                FontFamily = new[] { "Inter", "system-ui", "sans-serif" },
+                FontWeight = "700",
+                FontSize = "3.75rem",
+                LineHeight = "1.2",
+                LetterSpacing = "-.00833em"
+            },
+            H3 = new H3Typography()
+            {
+                FontFamily = new[] { "Inter", "system-ui", "sans-serif" },
+                FontWeight = "600",
+                FontSize = "3rem",
+                LineHeight = "1.167",
+                LetterSpacing = "0"
+            },
+            Button = new ButtonTypography()
+            {
+                FontFamily = new[] { "Inter", "system-ui", "sans-serif" },
+                FontWeight = "500",
+                FontSize = "0.875rem",
+                LineHeight = "1.75",
+                LetterSpacing = ".02857em"
+            }
+        },
+        LayoutProperties = new LayoutProperties()
+        {
+            DefaultBorderRadius = "12px"
+        }
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _themeProvider != null)
+        {
+            _isDarkMode = await _themeProvider.GetSystemDarkModeAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+}

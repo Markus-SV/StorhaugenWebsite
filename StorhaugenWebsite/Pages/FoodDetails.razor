@@ -1,0 +1,339 @@
+﻿@page "/food/{Id}"
+@inject IAuthService AuthService
+@inject IFoodService FoodService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+@if (!AuthService.IsAuthorized)
+{
+    <MudContainer Class="d-flex flex-column align-center justify-center" Style="min-height: 60vh;">
+        <MudText Typo="Typo.h5" Class="mb-4">Please log in to continue</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/login">Go to Login</MudButton>
+    </MudContainer>
+}
+else if (_isLoading)
+{
+    <div class="d-flex flex-column gap-3">
+        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="250px" Class="rounded-lg" />
+        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="100px" Class="rounded-lg" />
+        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="200px" Class="rounded-lg" />
+    </div>
+}
+else if (_food == null)
+{
+    <MudPaper Class="pa-8 text-center rounded-lg" Elevation="0">
+        <MudIcon Icon="@Icons.Material.Filled.SearchOff" Size="Size.Large" Color="Color.Secondary" Class="mb-4" />
+        <MudText Typo="Typo.h6" Class="mb-2">Meal not found</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/">Back to Home</MudButton>
+    </MudPaper>
+}
+else
+{
+    <!-- Back Button -->
+    <MudButton Variant="Variant.Text" 
+               Color="Color.Default"
+               StartIcon="@Icons.Material.Filled.ArrowBack"
+               OnClick="@(() => Navigation.NavigateTo("/"))"
+               Class="mb-3">
+        Back
+    </MudButton>
+
+    <!-- Image Carousel -->
+    @if (_food.ImageUrls.Any())
+    {
+        <MudCarousel TData="object" Class="rounded-xl mb-4"
+                     Style="height: 250px;"
+                     ShowArrows="@(_food.ImageUrls.Count > 1)"
+                     ShowBullets="@(_food.ImageUrls.Count > 1)"
+                     EnableSwipeGesture="true"
+                     AutoCycle="false">
+            @foreach (var imageUrl in _food.ImageUrls)
+            {
+                <MudCarouselItem>
+                    <MudImage Src="@imageUrl"
+                              Alt="@_food.Name"
+                              ObjectFit="ObjectFit.Cover"
+                              Height="250"
+                              Style="width: 100%;"
+                              Class="rounded-xl" />
+                </MudCarouselItem>
+            }
+        </MudCarousel>
+    }
+    else
+    {
+        <MudPaper Class="d-flex align-center justify-center rounded-xl mb-4" 
+                  Style="height: 150px; background: var(--mud-palette-background);">
+            <MudIcon Icon="@Icons.Material.Filled.Restaurant" Size="Size.Large" Color="Color.Secondary" />
+        </MudPaper>
+    }
+
+    <!-- Food Info Card -->
+    <MudPaper Class="pa-4 rounded-lg mb-4" Elevation="2">
+        <div class="d-flex justify-space-between align-start mb-3">
+            <div>
+                <MudText Typo="Typo.h5" Class="font-weight-bold">@_food.Name</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    Added by @_food.AddedBy • @_food.DateAdded.ToString("MMMM dd, yyyy")
+                </MudText>
+            </div>
+            <MudChip T="string" Size="Size.Large" Color="@GetRatingColor(_food.AverageRating)">
+                <MudIcon Icon="@Icons.Material.Filled.Star" Class="mr-1" Size="Size.Small" />
+                @_food.AverageRating.ToString("0.0")
+            </MudChip>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_food.Description))
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                @_food.Description
+            </MudText>
+        }
+
+        @if (_food.IsArchived)
+        {
+            <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-3">
+                This meal is archived
+            </MudAlert>
+        }
+    </MudPaper>
+
+    <!-- Ratings Section -->
+    <MudText Typo="Typo.h6" Class="font-weight-bold mb-3">Ratings</MudText>
+    
+    @foreach (var member in AppConfig.FamilyNames)
+    {
+        var currentMember = member;
+        var hasRating = _food.Ratings.TryGetValue(currentMember, out var currentRating) && currentRating.HasValue;
+        var ratingValue = hasRating ? currentRating!.Value : 0;
+        var isCurrentUser = AuthService.CurrentUser?.Name == currentMember;
+
+        <MudPaper Outlined="true" 
+                  Class="pa-4 mb-3 rounded-lg" 
+                  Style="@($"border-color: {GetMemberColor(currentMember)}40")">
+            <div class="d-flex align-center justify-space-between mb-2">
+                <div class="d-flex align-center gap-2">
+                    <MudAvatar Size="Size.Medium" Style="@($"background-color: {GetMemberColor(currentMember)}")">
+                        @currentMember[0]
+                    </MudAvatar>
+                    <div>
+                        <MudText Typo="Typo.subtitle1" Class="font-weight-medium">@currentMember</MudText>
+                        @if (isCurrentUser)
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Primary">(You)</MudText>
+                        }
+                    </div>
+                </div>
+                @if (hasRating)
+                {
+                    <MudChip T="string" 
+                             Size="Size.Large" 
+                             Color="@GetRatingColor(ratingValue)"
+                             Style="min-width: 50px;">
+                        @ratingValue
+                    </MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Size="Size.Large" Variant="Variant.Outlined">
+                        Not rated
+                    </MudChip>
+                }
+            </div>
+
+            @if (_editingRating == currentMember)
+            {
+                <div class="d-flex align-center gap-2 mt-3">
+                    <MudSlider T="int" 
+                               @bind-Value="_tempRating"
+                               Min="0" Max="10" Step="1"
+                               Color="Color.Primary"
+                               Class="flex-grow-1" />
+                    <MudChip T="string" Color="@GetRatingColor(_tempRating)" Size="Size.Small">
+                        @_tempRating
+                    </MudChip>
+                </div>
+                <div class="d-flex gap-2 mt-2">
+                    <MudButton Variant="Variant.Filled" 
+                               Color="Color.Primary" 
+                               Size="Size.Small"
+                               OnClick="@(() => SaveRating(currentMember))"
+                               Disabled="_isSaving">
+                        Save
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" 
+                               Size="Size.Small"
+                               OnClick="CancelEdit">
+                        Cancel
+                    </MudButton>
+                </div>
+            }
+            else if (isCurrentUser || !hasRating)
+            {
+                <MudButton Variant="Variant.Text" 
+                           Color="Color.Primary"
+                           Size="Size.Small"
+                           StartIcon="@(hasRating ? Icons.Material.Filled.Edit : Icons.Material.Filled.AddCircle)"
+                           OnClick="@(() => StartEditRating(currentMember, ratingValue))"
+                           Class="mt-2">
+                    @(hasRating ? "Edit Rating" : "Add Rating")
+                </MudButton>
+            }
+        </MudPaper>
+    }
+
+    <!-- Action Buttons -->
+    <MudPaper Class="pa-4 rounded-lg mt-4" Elevation="0" Style="background: transparent;">
+        @if (!_food.IsArchived)
+        {
+            <MudButton Variant="Variant.Outlined" 
+                       Color="Color.Error"
+                       FullWidth="true"
+                       StartIcon="@Icons.Material.Filled.Archive"
+                       OnClick="ArchiveFood">
+                Archive This Meal
+            </MudButton>
+        }
+        else
+        {
+            <MudButton Variant="Variant.Filled" 
+                       Color="Color.Primary"
+                       FullWidth="true"
+                       StartIcon="@Icons.Material.Filled.Restore"
+                       OnClick="RestoreFood">
+                Restore This Meal
+            </MudButton>
+        }
+    </MudPaper>
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = string.Empty;
+
+    private FoodItem? _food;
+    private bool _isLoading = true;
+    private string? _editingRating;
+    private int _tempRating = 5;
+    private bool _isSaving = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthorized)
+        {
+            await AuthService.InitializeAsync();
+            if (!AuthService.IsAuthorized)
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+        }
+
+        await LoadFood();
+    }
+
+    private async Task LoadFood()
+    {
+        _isLoading = true;
+        _food = await FoodService.GetFoodByIdAsync(Id);
+        _isLoading = false;
+    }
+
+    private void StartEditRating(string member, int currentValue)
+    {
+        _editingRating = member;
+        _tempRating = currentValue > 0 ? currentValue : 5;
+    }
+
+    private void CancelEdit()
+    {
+        _editingRating = null;
+    }
+
+    private async Task SaveRating(string member)
+    {
+        if (_food == null) return;
+
+        _isSaving = true;
+        try
+        {
+            await FoodService.UpdateRatingAsync(_food.Id, member, _tempRating);
+            _food.Ratings[member] = _tempRating;
+            _editingRating = null;
+            Snackbar.Add("Rating saved! ⭐", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task ArchiveFood()
+    {
+        if (_food == null) return;
+
+        var result = await DialogService.ShowMessageBox(
+            "Archive Meal",
+            "Are you sure you want to archive this meal? It can be restored later.",
+            yesText: "Archive",
+            cancelText: "Cancel");
+
+        if (result == true)
+        {
+            try
+            {
+                await FoodService.ArchiveFoodAsync(_food.Id, AuthService.CurrentUser?.Name ?? "Unknown");
+                Snackbar.Add("Meal archived 📦", Severity.Info);
+                Navigation.NavigateTo("/");
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task RestoreFood()
+    {
+        if (_food == null) return;
+
+        try
+        {
+            await FoodService.RestoreFoodAsync(_food.Id);
+            _food.IsArchived = false;
+            Snackbar.Add("Meal restored! 🎉", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private string GetMemberColor(string name)
+    {
+        return name switch
+        {
+            "Markus" => "#6366f1",
+            "Siv" => "#ec4899",
+            "Elias" => "#10b981",
+            _ => "#94a3b8"
+        };
+    }
+
+    private Color GetRatingColor(double rating)
+    {
+        return rating switch
+        {
+            >= 8 => Color.Success,
+            >= 5 => Color.Warning,
+            _ => Color.Error
+        };
+    }
+
+    private Color GetRatingColor(int rating) => GetRatingColor((double)rating);
+}
