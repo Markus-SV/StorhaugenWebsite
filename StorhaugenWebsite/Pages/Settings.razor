@@ -24,7 +24,7 @@ else
 {
     <!-- Header -->
     <div class="detail-header">
-        <button class="detail-back-btn" @onclick="@(() => Navigation.NavigateTo("/"))">
+        <button class="detail-back-btn" @onclick="@(() => Navigation.NavigateTo(""))">
             <MudIcon Icon="@Icons.Material.Rounded.ArrowBack" Size="Size.Small" />
             Back
         </button>
@@ -215,7 +215,7 @@ else
             await AuthService.InitializeAsync();
             if (!AuthService.IsAuthorized)
             {
-                Navigation.NavigateTo("/login");
+                Navigation.NavigateTo("login");
                 return;
             }
         }
@@ -264,6 +264,6 @@ else
     private async Task Logout()
     {
         await AuthService.LogoutAsync();
-        Navigation.NavigateTo("/login");
+        Navigation.NavigateTo("login");
     }
 }
