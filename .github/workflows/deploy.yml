@@ -1,0 +1,38 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy-to-github-pages:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      # Set up .NET
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # Publish the app
+      - name: Publish .NET Project
+        run: dotnet publish -c Release -o release --nologo
+
+      # IMPORTANT: Fix for GitHub Pages routing
+      # Copies index.html to 404.html so refreshing works
+      - name: Copy index.html to 404.html
+        run: cp release/wwwroot/index.html release/wwwroot/404.html
+
+      # IMPORTANT: Add .nojekyll to allow Blazor files
+      - name: Add .nojekyll
+        run: touch release/wwwroot/.nojekyll
+
+      # Deploy
+      - name: Deploy to GitHub Pages
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: release/wwwroot
