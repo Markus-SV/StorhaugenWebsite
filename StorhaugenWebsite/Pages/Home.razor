@@ -1,5 +1,7 @@
 ﻿@page "/"
-@inject IJSRuntime JSRuntime
+@using StorhaugenWebsite.Models
+@using StorhaugenWebsite.Services
+@inject IFoodService FoodService
 
 <h1>Food Rater 🍔</h1>
 
@@ -12,8 +14,13 @@ else
     <p>Logged in as: <strong>@userEmail</strong></p>
 
     <div class="card p-3 my-3">
-        <input class="form-control mb-2" placeholder="Food Name" @bind="newFoodName" />
-        <input class="form-control mb-2" type="number" placeholder="Rating (1-5)" @bind="newFoodRating" />
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger">@errorMessage</div>
+        }
+
+        <input class="form-control mb-2" placeholder="Food Name" @bind="newFood.Name" />
+        <input class="form-control mb-2" type="number" placeholder="Rating (1-5)" @bind="newFood.Rating" />
         <button class="btn btn-success" @onclick="AddFood">Add Food</button>
     </div>
 }
@@ -28,51 +35,39 @@ else
 
 @code {
     private string? userEmail;
-    private string newFoodName = "";
-    private int newFoodRating = 5;
+    private string? errorMessage;
+    private FoodItem newFood = new() { Rating = 5 }; // Use the model directly for binding
     private List<FoodItem> foodList = new();
-
-    // Simple class to hold data
-    public class FoodItem
-    {
-        public string Name { get; set; }
-        public int Rating { get; set; }
-    }
-
-    private IJSObjectReference? module;
 
     protected override async Task OnInitializedAsync()
     {
-        // Import the JS module
-        module = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./firebaseInterop.js");
         await LoadFoods();
     }
 
     private async Task Login()
     {
-        if (module != null)
-        {
-            userEmail = await module.InvokeAsync<string>("loginWithGoogle");
-            StateHasChanged();
-        }
+        userEmail = await FoodService.LoginAsync();
     }
 
     private async Task AddFood()
     {
-        if (module != null && !string.IsNullOrWhiteSpace(newFoodName))
+        try
         {
-            await module.InvokeVoidAsync("addFoodItem", newFoodName, newFoodRating);
-            newFoodName = ""; // Reset form
-            await LoadFoods(); // Refresh list
+            errorMessage = null;
+            await FoodService.SubmitFoodReviewAsync(newFood);
+
+            // Reset form
+            newFood = new() { Rating = 5 };
+            await LoadFoods();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
         }
     }
 
     private async Task LoadFoods()
     {
-        if (module != null)
-        {
-            foodList = await module.InvokeAsync<List<FoodItem>>("getFoodItems");
-            StateHasChanged();
-        }
+        foodList = await FoodService.RetrieveAllFoodsAsync();
     }
 }
