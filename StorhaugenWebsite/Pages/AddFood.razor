@@ -219,58 +219,52 @@
 
     private async Task OnImagesSelected(IReadOnlyList<IBrowserFile> files)
     {
-        // Track if we are adding the very first image to trigger OCR
         bool isFirstImage = _imageData.Count == 0;
 
         foreach (var file in files)
         {
-            if (_imageData.Count >= 5)
-            {
-                Snackbar.Add("Maximum 5 images allowed", Severity.Warning);
-                break;
-            }
+            if (_imageData.Count >= 5) break;
 
             try
             {
-                var buffer = new byte[file.Size];
-                // Increased size limit slightly for high-res mobile photos
-                await file.OpenReadStream(maxAllowedSize: 15 * 1024 * 1024).ReadAsync(buffer);
-                _imageData.Add(buffer);
+                // STEG 1: Lag en liten versjon for OCR og forhåndsvisning (Sparer minne i nettleseren)
+                var resizedFile = await file.RequestImageFileAsync("image/jpeg", 1024, 1024);
+                var smallBuffer = new byte[resizedFile.Size];
+                await resizedFile.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024).ReadAsync(smallBuffer);
+
+                var smallBase64 = Convert.ToBase64String(smallBuffer);
+                var previewUrl = $"data:image/jpeg;base64,{smallBase64}";
+
+                // Legg til den LILLE versjonen i listen som vises på skjermen (så UI ikke lagger)
+                _imagePreviewUrls.Add(previewUrl);
                 _imageNames.Add(file.Name);
 
-                var base64 = Convert.ToBase64String(buffer);
-                var dataUrl = $"data:{file.ContentType};base64,{base64}";
-                _imagePreviewUrls.Add(dataUrl);
+                // STEG 2: Les inn ORIGINALEN for opplasting (Høy kvalitet)
+                // OBS: Vi øker grensen til 20 MB her for å tåle store mobilbilder
+                var originalBuffer = new byte[file.Size];
+                await file.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024).ReadAsync(originalBuffer);
 
-                // --- FIX STARTER HER ---
+                // Vi legger ORIGINALEN i listen som skal sendes til serveren
+                _imageData.Add(originalBuffer);
 
-                // 1. Oppdater UI med en gang slik at bildet vises for brukeren
+                // Oppdater UI slik at bildet vises med en gang
                 StateHasChanged();
-
-                // 2. Vent bittelitt (50ms) for å la UI-tråden tegne ferdig før vi kjører tung logikk
                 await Task.Delay(50);
 
-                // 3. Kjør OCR trygt. Hvis denne feiler pga størrelse, har brukeren i alle fall bildet sitt.
+                // STEG 3: Kjør OCR på den LILLE versjonen (Raskt!)
                 if (isFirstImage && string.IsNullOrWhiteSpace(_newFood.Name))
                 {
-                    // Vi wrapper denne i en egen try/catch her for å være helt sikre på at
-                    // en OCR-feil ikke stopper loopen eller ødelegger opplastingen.
-                    try
-                    {
-                        // Kaller metoden uten await (fire-and-forget), men vi vet nå at bildet allerede vises.
-                        _ = TryAutoFillTitle(dataUrl);
-                        isFirstImage = false;
-                    }
-                    catch (Exception ocrEx)
-                    {
-                        Console.WriteLine($"OCR failed to start: {ocrEx.Message}");
-                    }
+                    // Vi sender previewUrl (den lille) til OCR
+                    _ = TryAutoFillTitle(previewUrl);
+                    isFirstImage = false;
                 }
-                // --- FIX SLUTTER HER ---
             }
             catch (Exception ex)
             {
-                Snackbar.Add($"Error loading image: {ex.Message}", Severity.Error);
+                Console.WriteLine($"Feil ved innlesing: {ex}");
+                // Hvis originalen er for stor for minnet på telefonen, vil den krasje her.
+                // Da får brukeren en beskjed.
+                Snackbar.Add($"Bildet var for stort for nettleseren: {ex.Message}", Severity.Warning);
             }
         }
     }
