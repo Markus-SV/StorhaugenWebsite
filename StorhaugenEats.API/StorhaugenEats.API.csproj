@@ -20,17 +20,17 @@
 
     <!-- Supabase Client -->
     <PackageReference Include="supabase-csharp" Version="0.16.2" />
-    <PackageReference Include="Supabase.Gotrue" Version="4.2.4" />
+    <PackageReference Include="Supabase.Gotrue" Version="6.0.3" />
     <PackageReference Include="Supabase.Storage" Version="2.0.0" />
 
     <!-- HTTP Client for HelloFresh scraper -->
-    <PackageReference Include="HtmlAgilityPack" Version="1.11.57" />
+    <PackageReference Include="HtmlAgilityPack" Version="1.12.4" />
 
     <!-- Authentication -->
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
 
     <!-- JSON -->
-    <PackageReference Include="System.Text.Json" Version="8.0.0" />
+    <PackageReference Include="System.Text.Json" Version="10.0.0" />
   </ItemGroup>
 
 </Project>

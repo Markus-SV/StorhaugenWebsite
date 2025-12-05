@@ -43,8 +43,7 @@ builder.Services.AddScoped<IGlobalRecipeService, GlobalRecipeService>();
 builder.Services.AddScoped<IHouseholdRecipeService, HouseholdRecipeService>();
 builder.Services.AddScoped<IRatingService, RatingService>();
 builder.Services.AddScoped<IStorageService, SupabaseStorageService>();
-builder.Services.AddSingleton<IHelloFreshScraperService, HelloFreshScraperService>();
-
+builder.Services.AddScoped<IHelloFreshScraperService, HelloFreshScraperService>();
 // HTTP Client for scraper
 builder.Services.AddHttpClient<IHelloFreshScraperService, HelloFreshScraperService>();
 
