@@ -103,4 +103,11 @@ app.MapControllers();
 // Health check endpoint
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
 
+// Database connection test endpoint
+app.MapGet("/test-connections", async (IConfiguration configuration) =>
+{
+    await StorhaugenEats.API.ConnectionTester.TestAllConnectionsAsync(configuration);
+    return Results.Ok(new { message = "Check console output for connection test results" });
+});
+
 app.Run();
