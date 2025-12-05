@@ -207,28 +207,11 @@ public class HelloFreshScraperService : IHelloFreshScraperService
                 description = descElement.GetString();
             }
 
-            // Extract image URL and re-host it
+            // Extract image URL (use HelloFresh URL directly to reduce requests)
             string? imageUrl = null;
             if (recipeElement.TryGetProperty("imageLink", out var imageElement))
             {
-                var originalImageUrl = imageElement.GetString();
-                if (!string.IsNullOrEmpty(originalImageUrl))
-                {
-                    try
-                    {
-                        // Re-host image to Supabase Storage
-                        imageUrl = await _storageService.UploadImageFromUrlAsync(
-                            originalImageUrl,
-                            $"{uuid}.jpg",
-                            "hellofresh"
-                        );
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Failed to upload image for {uuid}: {ex.Message}");
-                        imageUrl = originalImageUrl; // Fallback to original URL
-                    }
-                }
+                imageUrl = imageElement.GetString();
             }
 
             // Extract ingredients
@@ -261,9 +244,30 @@ public class HelloFreshScraperService : IHelloFreshScraperService
             {
                 nutritionData = new Dictionary<string, object>();
 
-                foreach (var prop in nutritionElement.EnumerateObject())
+                // Handle both array and object formats
+                if (nutritionElement.ValueKind == JsonValueKind.Array)
                 {
-                    nutritionData[prop.Name] = prop.Value.ToString();
+                    // Nutrition is an array of objects
+                    foreach (var item in nutritionElement.EnumerateArray())
+                    {
+                        if (item.TryGetProperty("name", out var nameEl) &&
+                            item.TryGetProperty("amount", out var amountEl))
+                        {
+                            var name = nameEl.GetString();
+                            if (!string.IsNullOrEmpty(name))
+                            {
+                                nutritionData[name] = amountEl.ToString();
+                            }
+                        }
+                    }
+                }
+                else if (nutritionElement.ValueKind == JsonValueKind.Object)
+                {
+                    // Nutrition is an object
+                    foreach (var prop in nutritionElement.EnumerateObject())
+                    {
+                        nutritionData[prop.Name] = prop.Value.ToString();
+                    }
                 }
             }
 
