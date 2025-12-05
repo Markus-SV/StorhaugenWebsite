@@ -235,27 +235,33 @@
 
             try
             {
-                // VIKTIG: Be om en nedskalert versjon fra nettleseren (Max 1600x1600)
-                // Dette hindrer iPhone i å krasje pga minnebruk.
-                var resizedFile = await file.RequestImageFileAsync("image/jpeg", 1600, 1600);
+                // OCR FIX: Vi bruker 1500x1500px for å sikre at små bokstaver blir tydelige nok
+                var resizedFile = await file.RequestImageFileAsync("image/jpeg", 1500, 1500);
 
-                // Les den lille filen (mye tryggere enn originalfilen)
-                var buffer = new byte[resizedFile.Size];
-                await resizedFile.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).ReadAsync(buffer);
+                var smallBuffer = new byte[resizedFile.Size];
+                await resizedFile.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024).ReadAsync(smallBuffer);
 
-                // Lag preview URL
-                var base64 = Convert.ToBase64String(buffer);
-                var previewUrl = $"data:image/jpeg;base64,{base64}";
+                var smallBase64 = Convert.ToBase64String(smallBuffer);
+                var previewUrl = $"data:image/jpeg;base64,{smallBase64}";
 
                 _imagePreviewUrls.Add(previewUrl);
                 _imageNames.Add(file.Name);
 
-                // Vi bruker den nedskalerte bufferen til opplasting også
-                _imageData.Add(buffer);
+                try
+                {
+                    var originalBuffer = new byte[file.Size];
+                    await file.OpenReadStream(maxAllowedSize: 30 * 1024 * 1024).ReadAsync(originalBuffer);
+                    _imageData.Add(originalBuffer);
+                }
+                catch
+                {
+                    _imageData.Add(smallBuffer);
+                    Snackbar.Add("Originalbildet var for stort, bruker komprimert versjon.", Severity.Info);
+                }
 
                 StateHasChanged();
+                await Task.Delay(100);
 
-                // Start OCR hvis det er første bilde
                 if (isFirstImage && string.IsNullOrWhiteSpace(_newFood.Name))
                 {
                     _ = TryAutoFillTitle(previewUrl);
@@ -264,15 +270,14 @@
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Feil ved bilde: {ex.Message}");
-                Snackbar.Add("Kunne ikke laste bilde (for stort eller feil format).", Severity.Warning);
+                Console.WriteLine($"Critical error: {ex}");
             }
         }
     }
 
     private async Task TryAutoFillTitle(string dataUrl)
     {
-        if (dataUrl.Length > 10 * 1024 * 1024) return; // Sikkerhet
+        if (dataUrl.Length > 10 * 1024 * 1024) return;
 
         _isReadingText = true;
         StateHasChanged();
@@ -283,47 +288,59 @@
 
             if (!string.IsNullOrWhiteSpace(rawText))
             {
-                // 1. Splitt opp i linjer
+                // 1. Splitt opp i linjer (Nå fungerer dette faktisk, siden vi fikset JS)
                 var lines = rawText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
 
                 foreach (var line in lines)
                 {
                     var cleanLine = line.Trim();
 
-                    // 2. Grunnleggende filter
+                    // Hopp over åpenbar støy
                     if (cleanLine.Length < 3) continue;
                     if (cleanLine.Contains("HELLO FRESH", StringComparison.OrdinalIgnoreCase)) continue;
 
-                    // 3. Vask bort "støy" (porsjoner, tid, parenteser)
-                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\d+\s*[Pp](ers|orsjoner)?", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    // 2. REGEX-VASK: Fjern metadata (4P, 40-50 min, kcal, osv)
+                    // Fjerner "4P", "2 porsjoner" osv.
+                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\d+\s*(P|pers|porsjoner)", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    // Fjerner "40 min", "40-50 min"
                     cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\d+(?:-\d+)?\s*min", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    // Fjerner parenteser med innhold, f.eks. "(med ris)" hvis det er støy
                     cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\([^)]*\)", "");
 
                     cleanLine = cleanLine.Trim();
 
-                    // 4. Kutt setningen ved stoppord
-                    var stopWords = new[] { " servert ", " med ", " og ", " toppet " };
+                    // 3. STOPP-ORD: Kutt setningen hvis den blir for lang beskrivelse
+                    // Hvis linjen starter med "Stekt kyllingfilet med...", kutt ved "med".
+                    var stopWords = new[] { " med ", " og ", " servert ", " toppet ", " i " };
                     foreach (var word in stopWords)
                     {
                         int index = cleanLine.IndexOf(word, StringComparison.OrdinalIgnoreCase);
                         if (index > 0)
                         {
+                            // Beholder kun det som er FØR stoppordet
                             cleanLine = cleanLine.Substring(0, index).Trim();
                             break;
                         }
                     }
 
-                    // 5. Autokorrektur
+                    // 4. Autokorrektur (Fuzzy match)
                     cleanLine = AutoCorrectText(cleanLine);
+
+                    // Spesifikk fiks for "Sto" -> "Stekt" hvis autokorrekt bommer
                     if (cleanLine.StartsWith("Sto ", StringComparison.OrdinalIgnoreCase))
                         cleanLine = "Stekt " + cleanLine.Substring(4);
 
-                    // 6. Sjekk om det ser ut som en tittel
-                    if (cleanLine.Length > 3 && cleanLine.Length < 50 && !cleanLine.Any(char.IsDigit))
+                    // 5. VALIDERING: Er dette en god tittel?
+                    // En god tittel er sjelden kjempelang (mer enn 40 tegn) og inneholder ikke masse tall.
+                    if (cleanLine.Length > 3 && cleanLine.Length < 40 && !cleanLine.Any(char.IsDigit))
                     {
                         _newFood.Name = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\s+", " ").Trim();
-                        Snackbar.Add("Fant tittel!", Severity.Success);
-                        break;
+
+                        // Valgfritt: Legg resten av teksten i notatfeltet?
+                        // _newFood.Description = rawText;
+
+                        Snackbar.Add($"Fant tittel: {_newFood.Name}", Severity.Success);
+                        break; // Vi fant den første gode linjen, stopp søket!
                     }
                 }
             }
