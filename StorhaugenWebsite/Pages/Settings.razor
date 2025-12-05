@@ -5,121 +5,77 @@
 @inject IDeviceStateService DeviceState
 @inject NavigationManager Navigation
 
-@if (!AuthService.IsAuthorized)
-{
-    <div class="login-container">
-        <div class="empty-state">
-            <div class="empty-state-icon">
-                <MudIcon Icon="@Icons.Material.Rounded.Lock" Size="Size.Large" />
-            </div>
-            <h2 class="empty-state-title">Please sign in</h2>
-            <p class="empty-state-text">You need to be signed in to access settings</p>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="login" Size="Size.Large">
-                Go to Login
-            </MudButton>
-        </div>
-    </div>
-}
-else
-{
-    <!-- Header -->
-    <div class="detail-header">
-        <button class="detail-back-btn" @onclick="@(() => Navigation.NavigateTo(""))">
-            <MudIcon Icon="@Icons.Material.Rounded.ArrowBack" Size="Size.Small" />
-            Back
-        </button>
-    </div>
+<div class="d-flex align-center gap-3 mb-6">
+    <h1 class="page-title" style="margin-bottom: 0; font-size: 1.5rem;">Settings</h1>
+    <p class="page-subtitle" style="margin: 0;">Customize your experience</p>
+</div>
 
-    <div class="page-header">
-        <h1 class="page-title">Settings</h1>
-        <p class="page-subtitle">Customize your experience</p>
-    </div>
+<div class="form-section">
+    <p class="form-section-title">Appearance</p>
 
-    <!-- Appearance Section -->
-    <div class="form-section">
-        <p class="form-section-title">Appearance</p>
-
-        <MudSelect T="string"
-                   Label="Color Theme"
-                   Value="@_currentTheme"
-                   ValueChanged="OnThemeChanged"
-                   Variant="Variant.Outlined"
-                   Class="theme-select"
-                   AnchorOrigin="Origin.BottomLeft"
-                   Style="margin-bottom: 16px;">
-            @foreach (var themeName in ThemeService.GetAvailableThemes())
-            {
-                var colors = ThemeService.GetThemeColors(themeName);
-                <MudSelectItem Value="@themeName">
-                    <div class="theme-preview-container">
-                        <div class="mini-website" style="background: @colors.Background; border-color: @colors.Divider;">
-                            <div class="mini-appbar" style="background: @colors.AppbarBackground;"></div>
-                            <div class="mini-sidebar" style="background: @colors.BackgroundGrey;"></div>
-                            <div class="mini-content" style="background: @colors.Surface;">
-                                <div class="mini-primary" style="background: @colors.Primary;"></div>
-                                <div class="mini-text" style="background: @colors.TextPrimary;"></div>
-                                <div class="mini-text-sm" style="background: @colors.TextSecondary;"></div>
-                            </div>
+    <MudSelect T="string"
+               Label="Color Theme"
+               Value="@_currentTheme"
+               ValueChanged="OnThemeChanged"
+               Variant="Variant.Outlined"
+               Class="theme-select"
+               AnchorOrigin="Origin.BottomLeft"
+               Style="margin-bottom: 16px;">
+        @foreach (var themeName in ThemeService.GetAvailableThemes())
+        {
+            var colors = ThemeService.GetThemeColors(themeName);
+            <MudSelectItem Value="@themeName">
+                <div class="theme-preview-container">
+                    <div class="mini-website" style="background: @colors.Background; border-color: @colors.Divider;">
+                        <div class="mini-appbar" style="background: @colors.AppbarBackground;"></div>
+                        <div class="mini-sidebar" style="background: @colors.BackgroundGrey;"></div>
+                        <div class="mini-content" style="background: @colors.Surface;">
+                            <div class="mini-primary" style="background: @colors.Primary;"></div>
+                            <div class="mini-text" style="background: @colors.TextPrimary;"></div>
+                            <div class="mini-text-sm" style="background: @colors.TextSecondary;"></div>
                         </div>
-                        <span class="theme-name">@GetThemeDisplayName(themeName)</span>
                     </div>
-                </MudSelectItem>
-            }
-        </MudSelect>
-
-        <div class="setting-row">
-            <div class="setting-info">
-                <MudText Typo="Typo.body1" Style="font-weight: 500;">Default View</MudText>
-                <MudText Typo="Typo.caption" Color="Color.Secondary">Choose how meals are displayed on the home page</MudText>
-            </div>
-            <div class="view-toggle" style="margin-left: auto;">
-                <button class="view-toggle-btn @(_viewMode == "card" ? "active" : "")" @onclick="@(() => SetViewMode("card"))">
-                    <MudIcon Icon="@Icons.Material.Rounded.GridView" Size="Size.Small" />
-                </button>
-                <button class="view-toggle-btn @(_viewMode == "list" ? "active" : "")" @onclick="@(() => SetViewMode("list"))">
-                    <MudIcon Icon="@Icons.Material.Rounded.ViewList" Size="Size.Small" />
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Account Section -->
-    <div class="form-section">
-        <p class="form-section-title">Account</p>
-
-        <div class="setting-row">
-            <div class="d-flex align-center gap-3">
-                <MudAvatar Size="Size.Medium" Style="@($"background: {GetMemberColor(AuthService.CurrentUser?.Name ?? "")}")">
-                    @(AuthService.CurrentUser?.Name?[0] ?? '?')
-                </MudAvatar>
-                <div>
-                    <MudText Typo="Typo.body1" Style="font-weight: 500;">@AuthService.CurrentUser?.Name</MudText>
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">@AuthService.CurrentUserEmail</MudText>
+                    <span class="theme-name">@GetThemeDisplayName(themeName)</span>
                 </div>
+            </MudSelectItem>
+        }
+    </MudSelect>
+</div>
+
+<div class="form-section">
+    <p class="form-section-title">Account</p>
+
+    <div class="setting-row">
+        <div class="d-flex align-center gap-3">
+            <MudAvatar Size="Size.Medium" Style="@($"background: {GetMemberColor(AuthService.CurrentUser?.Name ?? "")}")">
+                @(AuthService.CurrentUser?.Name?[0] ?? '?')
+            </MudAvatar>
+            <div>
+                <MudText Typo="Typo.body1" Style="font-weight: 500;">@AuthService.CurrentUser?.Name</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">@AuthService.CurrentUserEmail</MudText>
             </div>
         </div>
-
-        <MudButton Variant="Variant.Outlined"
-                   Color="Color.Error"
-                   FullWidth="true"
-                   StartIcon="@Icons.Material.Rounded.Logout"
-                   OnClick="Logout"
-                   Style="border-radius: 12px; margin-top: 16px;">
-            Sign Out
-        </MudButton>
     </div>
 
-    <!-- About Section -->
-    <div class="form-section">
-        <p class="form-section-title">About</p>
+    <MudButton Variant="Variant.Outlined"
+               Color="Color.Error"
+               FullWidth="true"
+               StartIcon="@Icons.Material.Rounded.Logout"
+               OnClick="Logout"
+               Style="border-radius: 12px; margin-top: 16px;">
+        Sign Out
+    </MudButton>
+</div>
 
-        <div class="setting-row" style="flex-direction: column; align-items: flex-start; gap: 4px;">
-            <MudText Typo="Typo.body1" Style="font-weight: 500;">Storhaugen Eats</MudText>
-            <MudText Typo="Typo.caption" Color="Color.Secondary">Version 1.0.0</MudText>
-            <MudText Typo="Typo.caption" Color="Color.Secondary">A family dinner rating app</MudText>
-        </div>
+<div class="form-section">
+    <p class="form-section-title">About</p>
+
+    <div class="setting-row" style="flex-direction: column; align-items: flex-start; gap: 4px;">
+        <MudText Typo="Typo.body1" Style="font-weight: 500;">Storhaugen Eats</MudText>
+        <MudText Typo="Typo.caption" Color="Color.Secondary">Version 1.0.0</MudText>
     </div>
-}
+</div>
+
 
 <style>
     .theme-select .mud-input-slot {
@@ -131,6 +87,7 @@ else
         display: flex;
         align-items: center;
         gap: 12px;
+        margin-top: 8px;
     }
 
     .theme-name {

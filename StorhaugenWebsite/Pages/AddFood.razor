@@ -7,27 +7,12 @@
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 
-@if (!AuthService.IsAuthorized)
-{
-    <div class="login-container">
-        <div class="empty-state">
-            <div class="empty-state-icon">
-                <MudIcon Icon="@Icons.Material.Rounded.Lock" Size="Size.Large" />
-            </div>
-            <h2 class="empty-state-title">Please sign in</h2>
-            <p class="empty-state-text">You need to be signed in to add meals</p>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="login" Size="Size.Large">
-                Go to Login
-            </MudButton>
+
+    <div class="d-flex justify-space-between align-center mb-6">
+        <div>
+            <h1 class="page-title" style="margin-bottom: 4px;">Add Meal</h1>
+            <p class="page-subtitle">Rate tonight's dinner with the family</p>
         </div>
-    </div>
-}
-else
-{
-    <!-- Page Header -->
-    <div class="page-header">
-        <h1 class="page-title">Add Meal</h1>
-        <p class="page-subtitle">Rate tonight's dinner with the family</p>
     </div>
 
     @if (!string.IsNullOrEmpty(_errorMessage))
@@ -38,7 +23,6 @@ else
         </MudAlert>
     }
 
-    <!-- Meal Details Section -->
     <div class="form-section">
         <p class="form-section-title">Meal Details</p>
 
@@ -58,7 +42,6 @@ else
                       Style="--mud-default-borderradius: 12px;" />
     </div>
 
-    <!-- Photo Section -->
     <div class="form-section">
         <p class="form-section-title">Photos</p>
 
@@ -113,13 +96,12 @@ else
                 </MudButton>
             </ActivatorContent>
         </MudFileUpload>
-        
+
         <p style="margin: 8px 0 0; font-size: 0.8rem; color: var(--mud-palette-text-secondary); text-align: center;">
             Up to 5 images
         </p>
     </div>
 
-    <!-- Ratings Section -->
     <div class="form-section">
         <p class="form-section-title">Ratings</p>
 
@@ -167,7 +149,6 @@ else
         }
     </div>
 
-    <!-- Submit Button -->
     <MudButton Variant="Variant.Filled"
                Color="Color.Primary"
                Size="Size.Large"
@@ -186,7 +167,7 @@ else
             <span>Save Meal</span>
         }
     </MudButton>
-}
+
 
 @code {
     private FoodItem _newFood = new();

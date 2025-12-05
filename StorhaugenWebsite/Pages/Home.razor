@@ -2,239 +2,214 @@
 @using MudBlazor
 @using StorhaugenWebsite.Models
 @using StorhaugenWebsite.Services
+@using StorhaugenWebsite.Shared
 @inject IAuthService AuthService
 @inject IFoodService FoodService
 @inject NavigationManager Navigation
+@inject IDeviceStateService DeviceState
 
-@if (!AuthService.IsAuthorized)
-{
-    <div class="login-container">
-        <div class="empty-state">
-            <div class="empty-state-icon">
-                <MudIcon Icon="@Icons.Material.Rounded.Lock" Size="Size.Large" />
+
+<div class="d-flex justify-space-between align-center mb-4">
+    <MudMenu AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
+        <ActivatorContent>
+            <div class="sort-dropdown">
+                <MudIcon Icon="@Icons.Material.Rounded.Sort" Size="Size.Small" />
+                <span>@GetSortLabel()</span>
+                <MudIcon Icon="@(_sortDescending? Icons.Material.Rounded.ArrowDownward : Icons.Material.Rounded.ArrowUpward)" Size="Size.Small" />
             </div>
-            <h2 class="empty-state-title">Please sign in</h2>
-            <p class="empty-state-text">You need to be signed in to view meals</p>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="login" Size="Size.Large">
-                Go to Login
-            </MudButton>
+        </ActivatorContent>
+        <ChildContent>
+            <MudMenuItem OnClick="@(() => SetSort("date"))">
+                <div class="d-flex align-center gap-2">
+                    <MudIcon Icon="@Icons.Material.Rounded.CalendarMonth" Size="Size.Small" />
+                    <span>Date</span>
+                    @if (_currentSort == "date")
+                    {
+                        <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Color="Color.Primary" />
+                    }
+                </div>
+            </MudMenuItem>
+            <MudMenuItem OnClick="@(() => SetSort("average"))">
+                <div class="d-flex align-center gap-2">
+                    <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
+                    <span>Average</span>
+                    @if (_currentSort == "average")
+                    {
+                        <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Color="Color.Primary" />
+                    }
+                </div>
+            </MudMenuItem>
+            <MudDivider />
+            @foreach (var member in AppConfig.FamilyNames)
+            {
+                var m = member;
+                <MudMenuItem OnClick="@(() => SetSort(m.ToLower()))">
+                    <div class="d-flex align-center gap-2">
+                        <div class="member-rating-avatar" style="@($"background: {GetMemberColor(m)}; width: 20px; height: 20px; font-size: 0.65rem;")">@m[0]</div>
+                        <span>@m</span>
+                        @if (_currentSort == m.ToLower())
+                        {
+                            <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Color="Color.Primary" />
+                        }
+                    </div>
+                </MudMenuItem>
+            }
+            <MudDivider />
+            <MudMenuItem OnClick="ToggleSortDirection">
+                <div class="d-flex align-center gap-2">
+                    <MudIcon Icon="@(_sortDescending? Icons.Material.Rounded.ArrowUpward : Icons.Material.Rounded.ArrowDownward)" Size="Size.Small" />
+                    <span>@(_sortDescending ? "Ascending" : "Descending")</span>
+                </div>
+            </MudMenuItem>
+        </ChildContent>
+    </MudMenu>
+
+    <div class="view-toggle">
+        <button class="view-toggle-btn @(_viewMode == "card" ? "active" : "")" @onclick="@(() => SetViewMode("card"))">
+            <MudIcon Icon="@Icons.Material.Rounded.GridView" Size="Size.Small" />
+        </button>
+        <button class="view-toggle-btn @(_viewMode == "list" ? "active" : "")" @onclick="@(() => SetViewMode("list"))">
+            <MudIcon Icon="@Icons.Material.Rounded.ViewList" Size="Size.Small" />
+        </button>
+    </div>
+
+</div>
+
+@if (_isLoading)
+{
+    <div class="d-flex flex-column gap-3">
+        @for (int i = 0; i < 3; i++)
+        {
+            <div class="skeleton-card">
+                <div class="skeleton-image"></div>
+                <div class="skeleton-content">
+                    <div class="skeleton-text title"></div>
+                    <div class="skeleton-text subtitle"></div>
+                </div>
+            </div>
+        }
+    </div>
+}
+else if (!_foodItems.Any())
+{
+    <div class="empty-state">
+        <div class="empty-state-icon">
+            <MudIcon Icon="@Icons.Material.Rounded.DinnerDining" Size="Size.Large" />
         </div>
+        <h2 class="empty-state-title">No meals yet</h2>
+        <p class="empty-state-text">Start by adding your first family dinner!</p>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="add" StartIcon="@Icons.Material.Rounded.Add">
+            Add First Meal
+        </MudButton>
     </div>
 }
 else
 {
-    <!-- Page Header -->
-    <div class="page-header">
-        <h1 class="page-title">Our Dinners</h1>
-        <p class="page-subtitle">@_foodItems.Count meals rated by the family</p>
-    </div>
-
-    <!-- Controls -->
-    <div class="view-toggle-container">
-        <!-- Sort Dropdown -->
-        <MudMenu AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
-            <ActivatorContent>
-                <div class="sort-dropdown">
-                    <MudIcon Icon="@Icons.Material.Rounded.Sort" Size="Size.Small" />
-                    <span>@GetSortLabel()</span>
-                    <MudIcon Icon="@(_sortDescending? Icons.Material.Rounded.ArrowDownward : Icons.Material.Rounded.ArrowUpward)" Size="Size.Small" />
-                </div>
-            </ActivatorContent>
-            <ChildContent>
-                <MudMenuItem OnClick="@(() => SetSort("date"))">
-                    <div class="d-flex align-center gap-2">
-                        <MudIcon Icon="@Icons.Material.Rounded.CalendarMonth" Size="Size.Small" />
-                        <span>Date</span>
-                        @if (_currentSort == "date")
-                        {
-                            <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Color="Color.Primary" />
-                        }
-                    </div>
-                </MudMenuItem>
-                <MudMenuItem OnClick="@(() => SetSort("average"))">
-                    <div class="d-flex align-center gap-2">
-                        <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
-                        <span>Average</span>
-                        @if (_currentSort == "average")
-                        {
-                            <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Color="Color.Primary" />
-                        }
-                    </div>
-                </MudMenuItem>
-                <MudDivider />
-                @foreach (var member in AppConfig.FamilyNames)
-                {
-                    var m = member;
-                    <MudMenuItem OnClick="@(() => SetSort(m.ToLower()))">
-                        <div class="d-flex align-center gap-2">
-                            <div class="member-rating-avatar" style="@($"background: {GetMemberColor(m)}; width: 20px; height: 20px; font-size: 0.65rem;")">@m[0]</div>
-                            <span>@m</span>
-                            @if (_currentSort == m.ToLower())
+    @if (_viewMode == "card")
+    {
+        <div class="d-flex flex-column gap-4">
+            @{
+                var index = 0;
+            }
+            @foreach (var food in GetSortedFoods())
+            {
+                var currentFood = food;
+                var delay = index++;
+                <div class="food-card animate-in animate-delay-@Math.Min(delay, 4)" @onclick="() => OpenFoodDetail(currentFood)">
+                    @if (currentFood.ImageUrls.Any())
+                    {
+                        <img src="@currentFood.ImageUrls.First()" alt="@currentFood.Name" class="food-card-image" />
+                    }
+                    else
+                    {
+                        <div class="food-card-placeholder">
+                            <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" />
+                        </div>
+                    }
+                    <div class="food-card-content">
+                        <div class="d-flex justify-space-between align-start gap-3">
+                            <h3 class="food-card-title">@currentFood.Name</h3>
+                            <span class="rating-badge @GetRatingClass(currentFood.AverageRating)">
+                                <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
+                                @currentFood.AverageRating.ToString("0.0")
+                            </span>
+                        </div>
+                        <div class="member-ratings">
+                            @foreach (var member in AppConfig.FamilyNames)
                             {
-                                <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Color="Color.Primary" />
+                                var hasRating = currentFood.Ratings.TryGetValue(member, out var r) && r.HasValue;
+                                <div class="member-rating @member.ToLower()">
+                                    <div class="member-rating-avatar">@member[0]</div>
+                                    @if (hasRating)
+                                    {
+                                        <span class="member-rating-value">@r</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="member-rating-empty">–</span>
+                                    }
+                                </div>
                             }
                         </div>
-                    </MudMenuItem>
-                }
-                <MudDivider />
-                <MudMenuItem OnClick="ToggleSortDirection">
-                    <div class="d-flex align-center gap-2">
-                        <MudIcon Icon="@(_sortDescending? Icons.Material.Rounded.ArrowUpward : Icons.Material.Rounded.ArrowDownward)" Size="Size.Small" />
-                        <span>@(_sortDescending ? "Ascending" : "Descending")</span>
-                    </div>
-                </MudMenuItem>
-            </ChildContent>
-        </MudMenu>
-
-        <!-- View Toggle -->
-        <div class="view-toggle">
-            <button class="view-toggle-btn @(_viewMode == "card" ? "active" : "")" @onclick="@(() => _viewMode = "card")">
-                <MudIcon Icon="@Icons.Material.Rounded.GridView" Size="Size.Small" />
-            </button>
-            <button class="view-toggle-btn @(_viewMode == "list" ? "active" : "")" @onclick="@(() => _viewMode = "list")">
-                <MudIcon Icon="@Icons.Material.Rounded.ViewList" Size="Size.Small" />
-            </button>
-        </div>
-    </div>
-
-    <!-- Loading State -->
-    @if (_isLoading)
-    {
-        <div class="d-flex flex-column gap-3">
-            @for (int i = 0; i < 3; i++)
-            {
-                <div class="skeleton-card">
-                    <div class="skeleton-image"></div>
-                    <div class="skeleton-content">
-                        <div class="skeleton-text title"></div>
-                        <div class="skeleton-text subtitle"></div>
+                        <p class="food-card-meta">@currentFood.DateAdded.ToString("MMM dd, yyyy")</p>
                     </div>
                 </div>
             }
         </div>
     }
-    else if (!_foodItems.Any())
-    {
-        <div class="empty-state">
-            <div class="empty-state-icon">
-                <MudIcon Icon="@Icons.Material.Rounded.DinnerDining" Size="Size.Large" />
-            </div>
-            <h2 class="empty-state-title">No meals yet</h2>
-            <p class="empty-state-text">Start by adding your first family dinner!</p>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="add" StartIcon="@Icons.Material.Rounded.Add">
-                Add First Meal
-            </MudButton>
-        </div>
-    }
     else
     {
-        @if (_viewMode == "card")
-        {
-            <!-- Card View -->
-            <div class="d-flex flex-column gap-4">
-                @{
-                    var index = 0;
-                }
-                @foreach (var food in GetSortedFoods())
-                {
-                    var currentFood = food;
-                    var delay = index++;
-                    <div class="food-card animate-in animate-delay-@Math.Min(delay, 4)" @onclick="() => OpenFoodDetail(currentFood)">
-                        @if (currentFood.ImageUrls.Any())
-                        {
-                            <img src="@currentFood.ImageUrls.First()" alt="@currentFood.Name" class="food-card-image" />
-                        }
-                        else
-                        {
-                            <div class="food-card-placeholder">
-                                <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" />
-                            </div>
-                        }
-                        <div class="food-card-content">
-                            <div class="d-flex justify-space-between align-start gap-3">
-                                <h3 class="food-card-title">@currentFood.Name</h3>
-                                <span class="rating-badge @GetRatingClass(currentFood.AverageRating)">
-                                    <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
-                                    @currentFood.AverageRating.ToString("0.0")
-                                </span>
-                            </div>
-                            <div class="member-ratings">
-                                @foreach (var member in AppConfig.FamilyNames)
-                                {
-                                    var hasRating = currentFood.Ratings.TryGetValue(member, out var r) && r.HasValue;
-                                    <div class="member-rating @member.ToLower()">
-                                        <div class="member-rating-avatar">@member[0]</div>
-                                        @if (hasRating)
-                                        {
-                                            <span class="member-rating-value">@r</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="member-rating-empty">–</span>
-                                        }
-                                    </div>
-                                }
-                            </div>
-                            <p class="food-card-meta">@currentFood.DateAdded.ToString("MMM dd, yyyy")</p>
+        <div class="d-flex flex-column gap-2">
+            @{
+                var listIndex = 0;
+            }
+            @foreach (var food in GetSortedFoods())
+            {
+                var currentFood = food;
+                var delay = listIndex++;
+                <div class="food-list-item animate-in animate-delay-@Math.Min(delay, 4)" @onclick="() => OpenFoodDetail(currentFood)">
+                    @if (currentFood.ImageUrls.Any())
+                    {
+                        <img src="@currentFood.ImageUrls.First()" alt="@currentFood.Name" class="food-list-image" />
+                    }
+                    else
+                    {
+                        <div class="food-list-placeholder">
+                            <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small" />
                         </div>
+                    }
+                    <div class="food-list-content">
+                        <h3 class="food-list-title">@currentFood.Name</h3>
+                        <div class="member-ratings">
+                            @foreach (var member in AppConfig.FamilyNames)
+                            {
+                                var hasRating = currentFood.Ratings.TryGetValue(member, out var r) && r.HasValue;
+                                <div class="member-rating @member.ToLower()">
+                                    <div class="member-rating-avatar">@member[0]</div>
+                                    @if (hasRating)
+                                    {
+                                        <span class="member-rating-value">@r</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="member-rating-empty">–</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                        <p class="food-list-date">@currentFood.DateAdded.ToString("MMM dd")</p>
                     </div>
-                }
-            </div>
-        }
-        else
-        {
-            <!-- List View -->
-            <div class="d-flex flex-column gap-2">
-                @{
-                    var listIndex = 0;
-                }
-                @foreach (var food in GetSortedFoods())
-                {
-                    var currentFood = food;
-                    var delay = listIndex++;
-                    <div class="food-list-item animate-in animate-delay-@Math.Min(delay, 4)" @onclick="() => OpenFoodDetail(currentFood)">
-                        @if (currentFood.ImageUrls.Any())
-                        {
-                            <img src="@currentFood.ImageUrls.First()" alt="@currentFood.Name" class="food-list-image" />
-                        }
-                        else
-                        {
-                            <div class="food-list-placeholder">
-                                <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small" />
-                            </div>
-                        }
-                        <div class="food-list-content">
-                            <h3 class="food-list-title">@currentFood.Name</h3>
-                            <div class="member-ratings">
-                                @foreach (var member in AppConfig.FamilyNames)
-                                {
-                                    var hasRating = currentFood.Ratings.TryGetValue(member, out var r) && r.HasValue;
-                                    <div class="member-rating @member.ToLower()">
-                                        <div class="member-rating-avatar">@member[0]</div>
-                                        @if (hasRating)
-                                        {
-                                            <span class="member-rating-value">@r</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="member-rating-empty">–</span>
-                                        }
-                                    </div>
-                                }
-                            </div>
-                            <p class="food-list-date">@currentFood.DateAdded.ToString("MMM dd")</p>
-                        </div>
-                        <div class="food-list-rating">
-                            <span class="rating-badge @GetRatingClass(currentFood.AverageRating)">
-                                @currentFood.AverageRating.ToString("0.0")
-                            </span>
-                        </div>
+                    <div class="food-list-rating">
+                        <span class="rating-badge @GetRatingClass(currentFood.AverageRating)">
+                            @currentFood.AverageRating.ToString("0.0")
+                        </span>
                     </div>
-                }
-            </div>
-        }
+                </div>
+            }
+        </div>
     }
 }
+
 
 @code {
     private List<FoodItem> _foodItems = new();
@@ -246,6 +221,11 @@ else
     protected override async Task OnInitializedAsync()
     {
         AuthService.OnAuthStateChanged += async () => await InvokeAsync(StateHasChanged);
+
+        // Load saved preferences
+        _viewMode = DeviceState.Settings.ViewMode ?? "card";
+        _currentSort = DeviceState.Settings.SortBy ?? "date";
+        _sortDescending = DeviceState.Settings.SortDescending;
 
         if (AuthService.IsAuthorized)
         {
@@ -272,7 +252,14 @@ else
         _isLoading = false;
     }
 
-    private void SetSort(string sort)
+    private async Task SetViewMode(string mode)
+    {
+        _viewMode = mode;
+        // Save preference using DeviceStateService
+        await DeviceState.SetViewModeAsync(mode);
+    }
+
+    private async Task SetSort(string sort)
     {
         if (_currentSort == sort)
         {
@@ -283,11 +270,16 @@ else
             _currentSort = sort;
             _sortDescending = true;
         }
+
+        // Save sort preference
+        await DeviceState.SetSortAsync(_currentSort, _sortDescending);
     }
 
-    private void ToggleSortDirection()
+    private async Task ToggleSortDirection()
     {
         _sortDescending = !_sortDescending;
+        // Save sort preference
+        await DeviceState.SetSortAsync(_currentSort, _sortDescending);
     }
 
     private string GetSortLabel()

@@ -36,6 +36,14 @@ namespace StorhaugenWebsite.Services
             }
         }
 
+        public async Task SetSortAsync(string sortBy, bool descending)
+        {
+            Settings.SortBy = sortBy;
+            Settings.SortDescending = descending;
+            await SaveSettingsAsync();
+            OnSettingsChanged?.Invoke();
+        }
+
         public async Task SetThemeAsync(string theme)
         {
             Settings.Theme = theme;
@@ -58,7 +66,7 @@ namespace StorhaugenWebsite.Services
             }
             catch
             {
-                return "light";
+                return "dark";
             }
         }
 

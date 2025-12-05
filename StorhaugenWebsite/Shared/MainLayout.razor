@@ -1,6 +1,7 @@
 ﻿@inherits LayoutComponentBase
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
+@using StorhaugenWebsite.Shared
 
 <MudLayout>
     <MudAppBar Elevation="0" Class="app-header">
@@ -22,7 +23,14 @@
 
     <MudMainContent Class="main-content">
         <MudContainer MaxWidth="MaxWidth.Small" Class="page-container">
-            @Body
+            @if (IsAccessAllowed())
+            {
+                @Body
+            }
+            else
+            {
+                <Authorization Text="You need to be a family member to access this page." />
+            }
         </MudContainer>
     </MudMainContent>
 
@@ -53,19 +61,42 @@
     protected override void OnInitialized()
     {
         AuthService.OnAuthStateChanged += StateHasChanged;
+        // Also listen to navigation changes to re-evaluate IsAccessAllowed on every page turn
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        StateHasChanged();
+    }
+
+    // Logic to decide if we show the page content or the Lock Screen
+    private bool IsAccessAllowed()
+    {
+        // 1. If user is fully authorized (Family member), allow everything
+        if (AuthService.IsAuthorized) return true;
+
+        // 2. If not authorized, check which page they are on
+        var currentPath = Navigation.ToBaseRelativePath(Navigation.Uri).ToLower();
+
+        // 3. Allow "Public" pages (Home and Login)
+        // Empty string "" is Home. "login" is Login.
+        if (string.IsNullOrEmpty(currentPath) || currentPath.StartsWith("login"))
+        {
+            return true;
+        }
+
+        // 4. Block everything else (Add, Archive, Settings)
+        return false;
     }
 
     private bool IsActive(string path)
     {
         var currentPath = Navigation.ToBaseRelativePath(Navigation.Uri);
-
-        // Home
         if (string.IsNullOrEmpty(path))
             return string.IsNullOrEmpty(currentPath);
-
         return currentPath.StartsWith(path, StringComparison.OrdinalIgnoreCase);
     }
-
 
     private void Navigate(string path)
     {
@@ -75,5 +106,6 @@
     public void Dispose()
     {
         AuthService.OnAuthStateChanged -= StateHasChanged;
+        Navigation.LocationChanged -= OnLocationChanged;
     }
 }

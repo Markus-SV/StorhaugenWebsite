@@ -43,15 +43,9 @@ namespace StorhaugenWebsite.Services
                     return (false, "Login was cancelled or failed.");
                 }
 
-                if (!AppConfig.IsAllowedEmail(email))
-                {
-                    // Sign out unauthorized user
-                    await _firebaseBroker.SignOutAsync();
-                    return (false, $"Sorry, {email} is not authorized to use this app. Only family members can access it.");
-                }
-
                 CurrentUserEmail = email;
                 OnAuthStateChanged?.Invoke();
+
                 return (true, null);
             }
             catch (Exception ex)

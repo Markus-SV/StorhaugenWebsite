@@ -2,7 +2,9 @@
 {
     public class DeviceSettings
     {
-        public string Theme { get; set; } = "Light";
-        public string ViewMode { get; set; } = "card"; // card or list
+        public string Theme { get; set; } = "Dark";
+        public string ViewMode { get; set; } = "list";
+        public string SortBy { get; set; } = "date";
+        public bool SortDescending { get; set; } = true;
     }
 }
