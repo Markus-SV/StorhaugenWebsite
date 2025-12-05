@@ -79,17 +79,18 @@ else
         }
 
         <MudFileUpload T="IReadOnlyList<IBrowserFile>"
+                       @ref="@_fileUpload"
                        FilesChanged="OnImagesSelected"
                        Accept="image/*"
                        MaximumFileCount="5"
-                       AdditionalAttributes="@(new Dictionary<string, object> { { "capture", "environment" } })">
+                       UserAttributes="@(new Dictionary<string, object> { { "capture", "environment" } })">
             <ActivatorContent>
-                <MudButton HtmlTag="label"
-                           Variant="Variant.Filled"
+                <MudButton Variant="Variant.Filled"
                            Color="Color.Primary"
                            StartIcon="@Icons.Material.Rounded.CameraAlt"
                            Size="Size.Large"
                            FullWidth="true"
+                           OnClick="@(() => _fileUpload?.OpenFilePickerAsync())"
                            Style="border-radius: 12px; height: 56px; margin-bottom: 12px;">
                     Take Photo
                 </MudButton>
@@ -97,21 +98,22 @@ else
         </MudFileUpload>
 
         <MudFileUpload T="IReadOnlyList<IBrowserFile>"
+                       @ref="@_galleryUpload"
                        FilesChanged="OnImagesSelected"
                        Accept=".png,.jpg,.jpeg,.webp"
                        MaximumFileCount="5">
             <ActivatorContent>
-                <MudButton HtmlTag="label"
-                           Variant="Variant.Outlined"
+                <MudButton Variant="Variant.Outlined"
                            Color="Color.Secondary"
                            StartIcon="@Icons.Material.Rounded.PhotoLibrary"
                            FullWidth="true"
+                           OnClick="@(() => _galleryUpload?.OpenFilePickerAsync())"
                            Style="border-radius: 12px; border-style: dashed; border-width: 2px;">
                     Upload from Gallery
                 </MudButton>
             </ActivatorContent>
         </MudFileUpload>
-
+        
         <p style="margin: 8px 0 0; font-size: 0.8rem; color: var(--mud-palette-text-secondary); text-align: center;">
             Up to 5 images
         </p>
@@ -188,6 +190,8 @@ else
 
 @code {
     private FoodItem _newFood = new();
+    private MudFileUpload<IReadOnlyList<IBrowserFile>>? _fileUpload;
+    private MudFileUpload<IReadOnlyList<IBrowserFile>>? _galleryUpload;
     private bool _isSubmitting = false;
     private string? _errorMessage;
     private List<string> _imagePreviewUrls = new();
