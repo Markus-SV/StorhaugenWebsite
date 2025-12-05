@@ -4,7 +4,14 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Storhaugen Eats</title>
-    <base href="/" />
+    <script>
+        // Sjekker om vi kjører på localhost eller 127.0.0.1
+        var path = window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1')
+            ? '/'
+            : '/StorhaugenWebsite/'; // Navnet på repoet/mappen din i production
+
+        document.write('<base href="' + path + '" />');
+    </script>
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="favicon.png" />
     <link rel="apple-touch-icon" href="icon-192.png" />
