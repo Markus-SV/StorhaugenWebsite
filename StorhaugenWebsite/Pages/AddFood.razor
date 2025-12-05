@@ -294,12 +294,10 @@
                 {
                     var cleanLine = line.Trim();
 
-                    // Hopp over åpenbar støy
+                    // 1. Grovsortering: Hopp over linjer som er åpenbart for korte
                     if (cleanLine.Length < 3) continue;
 
-                    // --- HER ER ENDRINGEN ---
-                    // Vi fjerner ordene HELLO og FRESH uavhengig av hverandre.
-                    // \b betyr "word boundary", så vi ikke ødelegger ord som "Othello".
+                    // 2. FJERN "HELLO FRESH" (Uavhengig av rekkefølge)
                     cleanLine = System.Text.RegularExpressions.Regex.Replace(
                         cleanLine,
                         @"\b(HELLO|FRESH)\b",
@@ -307,18 +305,20 @@
                         System.Text.RegularExpressions.RegexOptions.IgnoreCase
                     );
 
-                    // Fjern eventuelle tegn som står igjen først (f.eks "- " eller ": ")
-                    cleanLine = cleanLine.TrimStart(' ', '-', ':', '.');
-                    // ------------------------
+                    // 3. NYTT: RENS STARTEN AV LINJEN (Fikser "4 HELLO..." og "y Rask...")
+                    // Fjerner alt som ikke er bokstaver fra starten (tall, punktum, streker)
+                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"^[\d\W_]+", "");
+                    // Fjerner enslige bokstaver helt i starten (f.eks "y Rask" -> "Rask")
+                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"^\b[a-zA-Z]\b\s+", "");
 
-                    // 2. REGEX-VASK: Fjern metadata (4P, 40-50 min, kcal, osv)
+                    // 4. FJERN METADATA (Porsjoner, tid, parenteser)
                     cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\d+\s*(P|pers|porsjoner)", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                     cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\d+(?:-\d+)?\s*min", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                     cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\([^)]*\)", "");
 
                     cleanLine = cleanLine.Trim();
 
-                    // 3. STOPP-ORD
+                    // 5. STOPP-ORD (Kutter setningen ved beskrivelser)
                     var stopWords = new[] { " med ", " og ", " servert ", " toppet ", " i " };
                     foreach (var word in stopWords)
                     {
@@ -330,18 +330,21 @@
                         }
                     }
 
-                    // 4. Autokorrektur
+                    // 6. Autokorrektur
                     cleanLine = AutoCorrectText(cleanLine);
 
+                    // Manuelle fikser
                     if (cleanLine.StartsWith("Sto ", StringComparison.OrdinalIgnoreCase))
                         cleanLine = "Stekt " + cleanLine.Substring(4);
 
-                    // 5. VALIDERING
-                    if (cleanLine.Length > 3 && cleanLine.Length < 45 && !cleanLine.Any(char.IsDigit))
+                    // 7. ENDELIG SJEKK
+                    // Nå som vi har vasket bort "4" i starten, vil ikke "4 HELLO..." feile på sjekken lenger.
+                    // Vi tillater tittelen så lenge den ikke inneholder *flere* tall.
+                    if (cleanLine.Length > 3 && cleanLine.Length < 60 && !cleanLine.Any(char.IsDigit))
                     {
                         _newFood.Name = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\s+", " ").Trim();
                         Snackbar.Add($"Fant tittel: {_newFood.Name}", Severity.Success);
-                        break;
+                        break; // Suksess!
                     }
                 }
             }
