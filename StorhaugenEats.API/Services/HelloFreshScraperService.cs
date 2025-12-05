@@ -222,17 +222,18 @@ public class HelloFreshScraperService : IHelloFreshScraperService
                 {
                     var ingredient = new Dictionary<string, string>();
 
+                    // Safely extract each property, handling both string and number types
                     if (ing.TryGetProperty("name", out var ingName))
-                        ingredient["name"] = ingName.GetString() ?? "";
+                        ingredient["name"] = SafeGetString(ingName);
 
                     if (ing.TryGetProperty("quantity", out var quantity))
-                        ingredient["amount"] = quantity.GetString() ?? "";
+                        ingredient["amount"] = SafeGetString(quantity);
 
                     if (ing.TryGetProperty("unit", out var unit))
-                        ingredient["unit"] = unit.GetString() ?? "";
+                        ingredient["unit"] = SafeGetString(unit);
 
                     if (ing.TryGetProperty("imagePath", out var ingImage))
-                        ingredient["image"] = ingImage.GetString() ?? "";
+                        ingredient["image"] = SafeGetString(ingImage);
 
                     ingredients.Add(ingredient);
                 }
@@ -256,7 +257,14 @@ public class HelloFreshScraperService : IHelloFreshScraperService
                             var name = nameEl.GetString();
                             if (!string.IsNullOrEmpty(name))
                             {
-                                nutritionData[name] = amountEl.ToString();
+                                // Safely extract amount value based on its type
+                                object amountValue = amountEl.ValueKind switch
+                                {
+                                    JsonValueKind.Number => amountEl.GetDouble(),
+                                    JsonValueKind.String => amountEl.GetString() ?? "",
+                                    _ => amountEl.GetRawText()
+                                };
+                                nutritionData[name] = amountValue;
                             }
                         }
                     }
@@ -266,7 +274,14 @@ public class HelloFreshScraperService : IHelloFreshScraperService
                     // Nutrition is an object
                     foreach (var prop in nutritionElement.EnumerateObject())
                     {
-                        nutritionData[prop.Name] = prop.Value.ToString();
+                        // Safely extract value based on its type
+                        object value = prop.Value.ValueKind switch
+                        {
+                            JsonValueKind.Number => prop.Value.GetDouble(),
+                            JsonValueKind.String => prop.Value.GetString() ?? "",
+                            _ => prop.Value.GetRawText()
+                        };
+                        nutritionData[prop.Name] = value;
                     }
                 }
             }
@@ -275,20 +290,30 @@ public class HelloFreshScraperService : IHelloFreshScraperService
             int? cookTime = null;
             if (recipeElement.TryGetProperty("prepTime", out var prepTimeElement))
             {
-                if (prepTimeElement.TryGetInt32(out var time))
+                // Handle both number and string formats
+                if (prepTimeElement.ValueKind == JsonValueKind.Number)
                 {
-                    cookTime = time;
+                    cookTime = prepTimeElement.GetInt32();
                 }
-                else
+                else if (prepTimeElement.ValueKind == JsonValueKind.String)
                 {
-                    // Sometimes it's a string like "PT20M"
+                    // Sometimes it's a string like "PT20M" or just a number as string
                     var timeStr = prepTimeElement.GetString();
                     if (!string.IsNullOrEmpty(timeStr))
                     {
-                        var match = Regex.Match(timeStr, @"\d+");
-                        if (match.Success && int.TryParse(match.Value, out var parsedTime))
+                        // Try parsing as direct number first
+                        if (int.TryParse(timeStr, out var directParse))
                         {
-                            cookTime = parsedTime;
+                            cookTime = directParse;
+                        }
+                        else
+                        {
+                            // Try extracting from ISO 8601 duration format
+                            var match = Regex.Match(timeStr, @"\d+");
+                            if (match.Success && int.TryParse(match.Value, out var parsedTime))
+                            {
+                                cookTime = parsedTime;
+                            }
                         }
                     }
                 }
@@ -298,16 +323,25 @@ public class HelloFreshScraperService : IHelloFreshScraperService
             string? difficulty = null;
             if (recipeElement.TryGetProperty("difficulty", out var difficultyElement))
             {
-                if (difficultyElement.TryGetInt32(out var diffValue))
+                int diffValue = 0;
+
+                // Handle both number and string formats
+                if (difficultyElement.ValueKind == JsonValueKind.Number)
                 {
-                    difficulty = diffValue switch
-                    {
-                        1 => "Easy",
-                        2 => "Medium",
-                        3 => "Hard",
-                        _ => "Easy"
-                    };
+                    diffValue = difficultyElement.GetInt32();
                 }
+                else if (difficultyElement.ValueKind == JsonValueKind.String)
+                {
+                    int.TryParse(difficultyElement.GetString(), out diffValue);
+                }
+
+                difficulty = diffValue switch
+                {
+                    1 => "Easy",
+                    2 => "Medium",
+                    3 => "Hard",
+                    _ => "Easy"
+                };
             }
 
             return new GlobalRecipe
@@ -353,5 +387,21 @@ public class HelloFreshScraperService : IHelloFreshScraperService
         }
 
         return weeks;
+    }
+
+    /// <summary>
+    /// Safely extract string value from JsonElement, handling both string and number types
+    /// </summary>
+    private string SafeGetString(JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.String => element.GetString() ?? "",
+            JsonValueKind.Number => element.GetDecimal().ToString(CultureInfo.InvariantCulture),
+            JsonValueKind.True => "true",
+            JsonValueKind.False => "false",
+            JsonValueKind.Null => "",
+            _ => element.GetRawText()
+        };
     }
 }
