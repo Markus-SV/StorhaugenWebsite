@@ -181,29 +181,35 @@ public class HelloFreshScraperService : IHelloFreshScraperService
     {
         try
         {
-            // Extract basic data
-            if (!course.TryGetProperty("id", out var idElement) ||
-                !course.TryGetProperty("name", out var nameElement))
+            // Extract the recipe object from the course
+            if (!course.TryGetProperty("recipe", out var recipeElement))
             {
                 return null;
             }
 
-            var uuid = idElement.GetString();
+            // Extract basic data from recipe object
+            if (!recipeElement.TryGetProperty("uuid", out var uuidElement) ||
+                !recipeElement.TryGetProperty("name", out var nameElement))
+            {
+                return null;
+            }
+
+            var uuid = uuidElement.GetString();
             var title = nameElement.GetString();
 
             if (string.IsNullOrEmpty(uuid) || string.IsNullOrEmpty(title))
                 return null;
 
-            // Extract description
+            // Extract description (use headline as description)
             string? description = null;
-            if (course.TryGetProperty("description", out var descElement))
+            if (recipeElement.TryGetProperty("headline", out var descElement))
             {
                 description = descElement.GetString();
             }
 
             // Extract image URL and re-host it
             string? imageUrl = null;
-            if (course.TryGetProperty("imageLink", out var imageElement))
+            if (recipeElement.TryGetProperty("imageLink", out var imageElement))
             {
                 var originalImageUrl = imageElement.GetString();
                 if (!string.IsNullOrEmpty(originalImageUrl))
@@ -227,7 +233,7 @@ public class HelloFreshScraperService : IHelloFreshScraperService
 
             // Extract ingredients
             var ingredients = new List<object>();
-            if (course.TryGetProperty("ingredients", out var ingredientsElement))
+            if (recipeElement.TryGetProperty("ingredients", out var ingredientsElement))
             {
                 foreach (var ing in ingredientsElement.EnumerateArray())
                 {
@@ -251,7 +257,7 @@ public class HelloFreshScraperService : IHelloFreshScraperService
 
             // Extract nutrition data
             Dictionary<string, object>? nutritionData = null;
-            if (course.TryGetProperty("nutrition", out var nutritionElement))
+            if (recipeElement.TryGetProperty("nutrition", out var nutritionElement))
             {
                 nutritionData = new Dictionary<string, object>();
 
@@ -263,7 +269,7 @@ public class HelloFreshScraperService : IHelloFreshScraperService
 
             // Extract cook time
             int? cookTime = null;
-            if (course.TryGetProperty("prepTime", out var prepTimeElement))
+            if (recipeElement.TryGetProperty("prepTime", out var prepTimeElement))
             {
                 if (prepTimeElement.TryGetInt32(out var time))
                 {
@@ -271,7 +277,7 @@ public class HelloFreshScraperService : IHelloFreshScraperService
                 }
                 else
                 {
-                    // Sometimes it's a string like "30 min"
+                    // Sometimes it's a string like "PT20M"
                     var timeStr = prepTimeElement.GetString();
                     if (!string.IsNullOrEmpty(timeStr))
                     {
@@ -286,9 +292,18 @@ public class HelloFreshScraperService : IHelloFreshScraperService
 
             // Extract difficulty
             string? difficulty = null;
-            if (course.TryGetProperty("difficulty", out var difficultyElement))
+            if (recipeElement.TryGetProperty("difficulty", out var difficultyElement))
             {
-                difficulty = difficultyElement.GetString();
+                if (difficultyElement.TryGetInt32(out var diffValue))
+                {
+                    difficulty = diffValue switch
+                    {
+                        1 => "Easy",
+                        2 => "Medium",
+                        3 => "Hard",
+                        _ => "Easy"
+                    };
+                }
             }
 
             return new GlobalRecipe
