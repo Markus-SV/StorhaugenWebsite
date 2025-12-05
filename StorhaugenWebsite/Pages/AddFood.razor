@@ -288,7 +288,6 @@
 
             if (!string.IsNullOrWhiteSpace(rawText))
             {
-                // 1. Splitt opp i linjer (Nå fungerer dette faktisk, siden vi fikset JS)
                 var lines = rawText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
 
                 foreach (var line in lines)
@@ -297,50 +296,52 @@
 
                     // Hopp over åpenbar støy
                     if (cleanLine.Length < 3) continue;
-                    if (cleanLine.Contains("HELLO FRESH", StringComparison.OrdinalIgnoreCase)) continue;
+
+                    // --- HER ER ENDRINGEN ---
+                    // Vi fjerner ordene HELLO og FRESH uavhengig av hverandre.
+                    // \b betyr "word boundary", så vi ikke ødelegger ord som "Othello".
+                    cleanLine = System.Text.RegularExpressions.Regex.Replace(
+                        cleanLine,
+                        @"\b(HELLO|FRESH)\b",
+                        "",
+                        System.Text.RegularExpressions.RegexOptions.IgnoreCase
+                    );
+
+                    // Fjern eventuelle tegn som står igjen først (f.eks "- " eller ": ")
+                    cleanLine = cleanLine.TrimStart(' ', '-', ':', '.');
+                    // ------------------------
 
                     // 2. REGEX-VASK: Fjern metadata (4P, 40-50 min, kcal, osv)
-                    // Fjerner "4P", "2 porsjoner" osv.
                     cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\d+\s*(P|pers|porsjoner)", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                    // Fjerner "40 min", "40-50 min"
                     cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\d+(?:-\d+)?\s*min", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                    // Fjerner parenteser med innhold, f.eks. "(med ris)" hvis det er støy
                     cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\([^)]*\)", "");
 
                     cleanLine = cleanLine.Trim();
 
-                    // 3. STOPP-ORD: Kutt setningen hvis den blir for lang beskrivelse
-                    // Hvis linjen starter med "Stekt kyllingfilet med...", kutt ved "med".
+                    // 3. STOPP-ORD
                     var stopWords = new[] { " med ", " og ", " servert ", " toppet ", " i " };
                     foreach (var word in stopWords)
                     {
                         int index = cleanLine.IndexOf(word, StringComparison.OrdinalIgnoreCase);
                         if (index > 0)
                         {
-                            // Beholder kun det som er FØR stoppordet
                             cleanLine = cleanLine.Substring(0, index).Trim();
                             break;
                         }
                     }
 
-                    // 4. Autokorrektur (Fuzzy match)
+                    // 4. Autokorrektur
                     cleanLine = AutoCorrectText(cleanLine);
 
-                    // Spesifikk fiks for "Sto" -> "Stekt" hvis autokorrekt bommer
                     if (cleanLine.StartsWith("Sto ", StringComparison.OrdinalIgnoreCase))
                         cleanLine = "Stekt " + cleanLine.Substring(4);
 
-                    // 5. VALIDERING: Er dette en god tittel?
-                    // En god tittel er sjelden kjempelang (mer enn 40 tegn) og inneholder ikke masse tall.
-                    if (cleanLine.Length > 3 && cleanLine.Length < 40 && !cleanLine.Any(char.IsDigit))
+                    // 5. VALIDERING
+                    if (cleanLine.Length > 3 && cleanLine.Length < 45 && !cleanLine.Any(char.IsDigit))
                     {
                         _newFood.Name = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\s+", " ").Trim();
-
-                        // Valgfritt: Legg resten av teksten i notatfeltet?
-                        // _newFood.Description = rawText;
-
                         Snackbar.Add($"Fant tittel: {_newFood.Name}", Severity.Success);
-                        break; // Vi fant den første gode linjen, stopp søket!
+                        break;
                     }
                 }
             }
