@@ -20,7 +20,7 @@ public class HelloFreshController : ControllerBase
     }
 
     [HttpPost("sync")]
-    [Authorize] // Require authentication for manual sync
+    [AllowAnonymous] // Allow unauthenticated access for testing
     public async Task<IActionResult> TriggerSync([FromQuery] bool force = false)
     {
         try
