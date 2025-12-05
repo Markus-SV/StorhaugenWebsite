@@ -4,7 +4,14 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Storhaugen Eats</title>
-    <base href="/" />
+    <script>
+        // Sjekker om vi kjører på localhost eller 127.0.0.1
+        var path = window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1')
+            ? '/'
+            : '/StorhaugenWebsite/'; // Navnet på repoet/mappen din i production
+
+        document.write('<base href="' + path + '" />');
+    </script>
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="favicon.png" />
     <link rel="apple-touch-icon" href="icon-192.png" />
@@ -46,7 +53,7 @@
     <script type="importmap">{
   "imports": {
     "./_framework/blazor.webassembly.js": "./_framework/blazor.webassembly.66stpp682q.js",
-    "./_framework/dotnet.js": "./_framework/dotnet.4bab4tyfxm.js",
+    "./_framework/dotnet.js": "./_framework/dotnet.dy4m1javts.js",
     "./_framework/dotnet.native.js": "./_framework/dotnet.native.xanz2e7ksm.js",
     "./_framework/dotnet.runtime.js": "./_framework/dotnet.runtime.o0qy896u8v.js"
   },
@@ -54,8 +61,8 @@
   "integrity": {
     "./_framework/blazor.webassembly.66stpp682q.js": "sha256-3lCWrko3zwspV40aQhs2S/IMkRSarnHRKIdkHhuXIBA=",
     "./_framework/blazor.webassembly.js": "sha256-3lCWrko3zwspV40aQhs2S/IMkRSarnHRKIdkHhuXIBA=",
-    "./_framework/dotnet.4bab4tyfxm.js": "sha256-EP+dupr1lXmXtSsPkm6oG58M2FQOtc3IPy9qdUe2Ea8=",
-    "./_framework/dotnet.js": "sha256-EP+dupr1lXmXtSsPkm6oG58M2FQOtc3IPy9qdUe2Ea8=",
+    "./_framework/dotnet.dy4m1javts.js": "sha256-le/A4b9gT84HafTQvPkdvUvPIhESVVy3q9F2Eteqh60=",
+    "./_framework/dotnet.js": "sha256-le/A4b9gT84HafTQvPkdvUvPIhESVVy3q9F2Eteqh60=",
     "./_framework/dotnet.native.js": "sha256-uQpMf2vCY3ZTY+nV2gmp8VdAe67PW6h1gInkE7r/PLY=",
     "./_framework/dotnet.native.xanz2e7ksm.js": "sha256-uQpMf2vCY3ZTY+nV2gmp8VdAe67PW6h1gInkE7r/PLY=",
     "./_framework/dotnet.runtime.js": "sha256-yJvgPPUUvavYVmu9VD/fYtMcoEnLVaB0Cr7JAE29btw=",
