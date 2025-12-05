@@ -1,20 +1,22 @@
-﻿// wwwroot/js/ocrInterop.js
-window.ocrInterop = {
+﻿window.ocrInterop = {
     recognizeTextFromImage: async (imageSource) => {
         console.log("Starting OCR...");
         try {
-            // 1. Create a worker (assuming English text for now)
-            const worker = await Tesseract.createWorker('eng');
+            // Endring 1: Vi legger til 'nor' for norsk språkstøtte
+            // Dette laster ned litt mer data første gang, men gir mye bedre resultat på norske matvarer.
+            const worker = await Tesseract.createWorker(['eng', 'nor']);
 
-            // 2. Recognize text. This scans the whole image.
-            // (For future optimization, we could restrict this to just the top 25% of the image)
+            // Endring 2: Vi setter parametere for å prøve å finne tekst selv om det er litt rotete
+            // PSM 1 betyr "Automatic page segmentation with OSD" (Orientation detection)
+            // Dette KAN hjelpe på roterte bilder, men fungerer ikke alltid perfekt i nettleseren.
+            await worker.setParameters({
+                tessedit_pageseg_mode: '1', 
+            });
+
             const ret = await worker.recognize(imageSource);
             console.log("OCR result:", ret.data.text);
 
-            // 3. Terminate worker to free memory
             await worker.terminate();
-
-            // 4. Return the raw text found
             return ret.data.text;
         } catch (error) {
             console.error("OCR Error:", error);

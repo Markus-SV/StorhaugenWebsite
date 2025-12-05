@@ -227,44 +227,50 @@
 
             try
             {
-                // STEG 1: Lag en liten versjon for OCR og forhåndsvisning (Sparer minne i nettleseren)
-                var resizedFile = await file.RequestImageFileAsync("image/jpeg", 1024, 1024);
+                // MOBIL-FIX: Vi går ned til 800x800.
+                // Dette er fortsatt mer enn nok for å lese tekst, men sparer mye minne på iPhone/Android.
+                var resizedFile = await file.RequestImageFileAsync("image/jpeg", 800, 800);
+
                 var smallBuffer = new byte[resizedFile.Size];
                 await resizedFile.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024).ReadAsync(smallBuffer);
 
                 var smallBase64 = Convert.ToBase64String(smallBuffer);
                 var previewUrl = $"data:image/jpeg;base64,{smallBase64}";
 
-                // Legg til den LILLE versjonen i listen som vises på skjermen (så UI ikke lagger)
+                // Legg til i listen for visning
                 _imagePreviewUrls.Add(previewUrl);
                 _imageNames.Add(file.Name);
 
-                // STEG 2: Les inn ORIGINALEN for opplasting (Høy kvalitet)
-                // OBS: Vi øker grensen til 20 MB her for å tåle store mobilbilder
-                var originalBuffer = new byte[file.Size];
-                await file.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024).ReadAsync(originalBuffer);
+                // --- ORIGINALFIL ---
+                // Vi laster opp originalen til serveren (høy kvalitet)
+                // OBS: Vi setter en try/catch her også, i tilfelle originalen er gigantisk (50MB+)
+                try
+                {
+                    var originalBuffer = new byte[file.Size];
+                    // Økt grense til 30MB for tunge mobilbilder
+                    await file.OpenReadStream(maxAllowedSize: 30 * 1024 * 1024).ReadAsync(originalBuffer);
+                    _imageData.Add(originalBuffer);
+                }
+                catch
+                {
+                    // Hvis originalen feiler, bruk den lille versjonen som backup så vi i alle fall får lagret
+                    _imageData.Add(smallBuffer);
+                    Snackbar.Add("Originalbildet var for stort, bruker komprimert versjon.", Severity.Info);
+                }
 
-                // Vi legger ORIGINALEN i listen som skal sendes til serveren
-                _imageData.Add(originalBuffer);
-
-                // Oppdater UI slik at bildet vises med en gang
                 StateHasChanged();
-                await Task.Delay(50);
+                await Task.Delay(100); // Økt pause litt for å la mobilen puste
 
-                // STEG 3: Kjør OCR på den LILLE versjonen (Raskt!)
+                // --- OCR ---
                 if (isFirstImage && string.IsNullOrWhiteSpace(_newFood.Name))
                 {
-                    // Vi sender previewUrl (den lille) til OCR
                     _ = TryAutoFillTitle(previewUrl);
                     isFirstImage = false;
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Feil ved innlesing: {ex}");
-                // Hvis originalen er for stor for minnet på telefonen, vil den krasje her.
-                // Da får brukeren en beskjed.
-                Snackbar.Add($"Bildet var for stort for nettleseren: {ex.Message}", Severity.Warning);
+                Console.WriteLine($"Critical error: {ex}");
             }
         }
     }
