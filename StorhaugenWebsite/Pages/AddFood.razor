@@ -80,20 +80,39 @@ else
 
         <MudFileUpload T="IReadOnlyList<IBrowserFile>"
                        FilesChanged="OnImagesSelected"
+                       Accept="image/*"
+                       MaximumFileCount="5"
+                       AdditionalAttributes="@(new Dictionary<string, object> { { "capture", "environment" } })">
+            <ActivatorContent>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Rounded.CameraAlt"
+                           Size="Size.Large"
+                           FullWidth="true"
+                           Style="border-radius: 12px; height: 56px; margin-bottom: 12px;">
+                    Take Photo
+                </MudButton>
+            </ActivatorContent>
+        </MudFileUpload>
+
+        <MudFileUpload T="IReadOnlyList<IBrowserFile>"
+                       FilesChanged="OnImagesSelected"
                        Accept=".png,.jpg,.jpeg,.webp"
                        MaximumFileCount="5">
             <ActivatorContent>
-                <div class="image-upload-area">
-                    <MudIcon Icon="@Icons.Material.Rounded.AddAPhoto" Size="Size.Large" Color="Color.Primary" Class="mb-2" />
-                    <p style="margin: 0; font-weight: 500;">
-                        @(_imagePreviewUrls.Any() ? "Add more photos" : "Tap to add photos")
-                    </p>
-                    <p style="margin: 4px 0 0; font-size: 0.8rem; color: var(--mud-palette-text-secondary);">
-                        Up to 5 images
-                    </p>
-                </div>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Secondary"
+                           StartIcon="@Icons.Material.Rounded.PhotoLibrary"
+                           FullWidth="true"
+                           Style="border-radius: 12px; border-style: dashed; border-width: 2px;">
+                    Upload from Gallery
+                </MudButton>
             </ActivatorContent>
         </MudFileUpload>
+
+        <p style="margin: 8px 0 0; font-size: 0.8rem; color: var(--mud-palette-text-secondary); text-align: center;">
+            Up to 5 images
+        </p>
     </div>
 
     <!-- Ratings Section -->
