@@ -1,0 +1,150 @@
+/* App Header */
+.app-header {
+    background: var(--mud-palette-surface) !important;
+    border-bottom: 1px solid var(--mud-palette-divider);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.brand-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--mud-palette-primary), var(--mud-palette-primary-darken));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+}
+
+.brand-text {
+    font-family: 'Fraunces', Georgia, serif !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.02em;
+}
+
+/* Main Content */
+.main-content {
+    background: var(--mud-palette-background);
+    min-height: 100vh;
+    padding-top: var(--app-bar-height);
+    padding-bottom: calc(var(--bottom-nav-height) + 12px);
+}
+
+.page-container {
+    padding: var(--page-padding) !important;
+    max-width: 540px !important;
+}
+
+@media (max-width: 600px) {
+    .page-container {
+        padding: 16px !important;
+    }
+}
+
+/* Bottom Navigation */
+.bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1100;
+    /* Removed top/bottom padding here to let the inner container control height */
+    padding: 0 12px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    background: transparent;
+    pointer-events: none;
+    display: flex;
+    justify-content: center;
+}
+
+.bottom-nav-inner {
+    width: 100%;
+    max-width: 320px; /* Reduced width for a cleaner look */
+    background: var(--mud-palette-surface);
+    border-radius: 24px;
+    /* Much tighter padding (Top/Bottom: 6px, Left/Right: 20px) */
+    padding: 6px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    /* refined shadow */
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 0 0 1px var(--mud-palette-divider);
+    pointer-events: auto;
+    height: var(--bottom-nav-height);
+    backdrop-filter: blur(12px);
+}
+
+/* Dark mode specific shadow */
+::deep .mud-theme-dark .bottom-nav-inner {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px; /* Tighter gap */
+    padding: 0 12px;
+    border: none;
+    background: transparent;
+    color: var(--mud-palette-text-secondary);
+    cursor: pointer;
+    transition: var(--transition-fast);
+    border-radius: 12px;
+    height: 100%; /* Fill the container height */
+}
+
+    .nav-item span {
+        font-size: 10px; /* Smaller font */
+        font-weight: 600;
+        letter-spacing: 0.02em;
+    }
+
+    .nav-item:hover {
+        color: var(--mud-palette-text-primary);
+    }
+
+    .nav-item.active {
+        color: var(--mud-palette-primary);
+    }
+
+/* The Add Button Container */
+.nav-item-add {
+    position: relative;
+    padding: 0 8px;
+}
+
+/* The Orange Button Itself */
+.add-button {
+    width: 42px; /* Reduced from 48px */
+    height: 42px; /* Reduced from 48px */
+    border-radius: 14px;
+    background: linear-gradient(135deg, var(--mud-palette-primary), var(--mud-palette-primary-darken));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    box-shadow: 0 4px 12px rgba(224, 122, 46, 0.35);
+    transition: var(--transition-smooth);
+    margin-bottom: 0; /* Remove margin */
+}
+
+/* Hide the text label ONLY for the Add button to save vertical space */
+.nav-item-add span {
+    display: none;
+}
+
+::deep .mud-theme-dark .add-button {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.nav-item-add:hover .add-button {
+    transform: scale(1.05);
+    box-shadow: 0 6px 16px rgba(224, 122, 46, 0.5);
+}
+
+.nav-item-add:active .add-button {
+    transform: scale(0.95);
+}

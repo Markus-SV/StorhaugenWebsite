@@ -1,0 +1,340 @@
+/* ==========================================================================
+   ADD & EDIT FOOD FORMS
+   Contains styles for input sections, rating sliders, and image uploads.
+   ========================================================================== */
+
+/* Form Styles */
+.form-section {
+    background: var(--mud-palette-surface);
+    border-radius: var(--card-radius);
+    padding: 20px;
+    margin-bottom: 16px;
+    border: 1px solid var(--mud-palette-divider);
+}
+
+.form-section-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--mud-palette-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 16px;
+}
+
+/* Rating Slider */
+.rating-member-card {
+    background: var(--mud-palette-background);
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 12px;
+}
+
+.rating-member-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.rating-member-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.rating-member-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.rating-slider-container {
+    margin-top: 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.rating-value-display {
+    min-width: 44px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1rem;
+}
+
+/* Image Upload */
+.image-upload-area {
+    border: 2px dashed var(--mud-palette-divider);
+    border-radius: 14px;
+    padding: 24px;
+    text-align: center;
+    transition: var(--transition-fast);
+    cursor: pointer;
+}
+
+    .image-upload-area:hover {
+        border-color: var(--mud-palette-primary);
+        background: rgba(224, 122, 46, 0.04);
+    }
+
+.image-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.image-preview-item {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+    .image-preview-item img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+.image-preview-remove {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-fast);
+}
+
+    .image-preview-remove:hover {
+        background: var(--mud-palette-error);
+    }
+
+
+/* ==========================================================================
+   FOOD LIST / INDEX PAGE
+   Contains headers, view toggles, sorting, empty states, and skeletons.
+   ========================================================================== */
+
+/* Page Headers */
+.page-header {
+    margin-bottom: 24px;
+}
+
+.page-title {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--mud-palette-text-primary);
+    margin-bottom: 4px;
+    letter-spacing: -0.02em;
+}
+
+.page-subtitle {
+    font-size: 0.9rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+/* View Toggle */
+.view-toggle-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    gap: 12px;
+}
+
+.view-toggle {
+    display: flex;
+    background: var(--mud-palette-surface);
+    border-radius: 12px;
+    padding: 4px;
+    border: 1px solid var(--mud-palette-divider);
+}
+
+.view-toggle-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 36px;
+    border: none;
+    background: transparent;
+    color: var(--mud-palette-text-secondary);
+    cursor: pointer;
+    border-radius: 8px;
+    transition: var(--transition-fast);
+}
+
+    .view-toggle-btn:hover {
+        background: var(--mud-palette-divider-light);
+    }
+
+    .view-toggle-btn.active {
+        background: var(--mud-palette-primary);
+        color: white;
+    }
+
+/* Sort Dropdown */
+.sort-dropdown {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--mud-palette-surface);
+    border: 1px solid var(--mud-palette-divider);
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: var(--mud-palette-text-secondary);
+    transition: var(--transition-fast);
+}
+
+    .sort-dropdown:hover {
+        border-color: var(--mud-palette-primary);
+    }
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 60px 24px;
+}
+
+.empty-state-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: var(--mud-palette-divider-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    color: var(--mud-palette-text-secondary);
+}
+
+.empty-state-title {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.empty-state-text {
+    color: var(--mud-palette-text-secondary);
+    margin-bottom: 24px;
+}
+
+/* Skeleton Loading */
+.skeleton-card {
+    background: var(--mud-palette-surface);
+    border-radius: var(--card-radius);
+    overflow: hidden;
+    border: 1px solid var(--mud-palette-divider);
+}
+
+.skeleton-image {
+    aspect-ratio: 16/10;
+    background: linear-gradient(90deg, var(--mud-palette-divider-light) 25%, var(--mud-palette-divider) 50%, var(--mud-palette-divider-light) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+}
+
+.skeleton-content {
+    padding: 16px;
+}
+
+.skeleton-text {
+    height: 14px;
+    border-radius: 6px;
+    background: var(--mud-palette-divider-light);
+    margin-bottom: 10px;
+}
+
+    .skeleton-text.title {
+        height: 20px;
+        width: 60%;
+    }
+
+    .skeleton-text.subtitle {
+        width: 40%;
+    }
+
+
+/* ==========================================================================
+   FOOD DETAILS PAGE
+   Contains styles for the detail view, carousel, and description text.
+   ========================================================================== */
+
+.detail-header {
+    margin-bottom: 20px;
+}
+
+.detail-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: var(--mud-palette-surface);
+    border: 1px solid var(--mud-palette-divider);
+    border-radius: 10px;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    font-family: 'DM Sans', system-ui, sans-serif;
+}
+
+    .detail-back-btn:hover {
+        border-color: var(--mud-palette-primary);
+        color: var(--mud-palette-primary);
+    }
+
+.detail-image-carousel {
+    border-radius: var(--card-radius);
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+.detail-info-card {
+    background: var(--mud-palette-surface);
+    border-radius: var(--card-radius);
+    padding: 20px;
+    margin-bottom: 20px;
+    border: 1px solid var(--mud-palette-divider);
+}
+
+.detail-title {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.detail-meta {
+    font-size: 0.85rem;
+    color: var(--mud-palette-text-secondary);
+    margin-bottom: 12px;
+}
+
+.detail-description {
+    color: var(--mud-palette-text-secondary);
+    line-height: 1.6;
+}
