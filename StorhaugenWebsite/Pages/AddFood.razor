@@ -78,41 +78,44 @@ else
             </div>
         }
 
-        <MudFileUpload T="IReadOnlyList<IBrowserFile>"
-                       @ref="@_fileUpload"
-                       FilesChanged="OnImagesSelected"
-                       Accept="image/*"
-                       MaximumFileCount="5"
-                       UserAttributes="@(new Dictionary<string, object> { { "capture", "environment" } })">
-            <ActivatorContent>
-                <MudButton Variant="Variant.Filled"
-                           Color="Color.Primary"
-                           StartIcon="@Icons.Material.Rounded.CameraAlt"
-                           Size="Size.Large"
-                           FullWidth="true"
-                           OnClick="@(() => _fileUpload?.OpenFilePickerAsync())"
-                           Style="border-radius: 12px; height: 56px; margin-bottom: 12px;">
-                    Take Photo
-                </MudButton>
-            </ActivatorContent>
-        </MudFileUpload>
+        <MudStack Row="true" Spacing="2" Class="w-100">
 
-        <MudFileUpload T="IReadOnlyList<IBrowserFile>"
-                       @ref="@_galleryUpload"
-                       FilesChanged="OnImagesSelected"
-                       Accept=".png,.jpg,.jpeg,.webp"
-                       MaximumFileCount="5">
-            <ActivatorContent>
-                <MudButton Variant="Variant.Outlined"
-                           Color="Color.Secondary"
-                           StartIcon="@Icons.Material.Rounded.PhotoLibrary"
-                           FullWidth="true"
-                           OnClick="@(() => _galleryUpload?.OpenFilePickerAsync())"
-                           Style="border-radius: 12px; border-style: dashed; border-width: 2px;">
-                    Upload from Gallery
-                </MudButton>
-            </ActivatorContent>
-        </MudFileUpload>
+    <MudFileUpload T="IReadOnlyList<IBrowserFile>"
+                   @ref="@_fileUpload"
+                   FilesChanged="OnImagesSelected"
+                   Accept="image/*"
+                   MaximumFileCount="5"
+                   Class="flex-1"> <ActivatorContent>
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Rounded.CameraAlt"
+                       Size="Size.Large"
+                       FullWidth="true"
+                       OnClick="@(() => _fileUpload?.OpenFilePickerAsync())"
+                       Style="border-radius: 12px; height: 56px;">
+                Take Photo
+            </MudButton>
+        </ActivatorContent>
+    </MudFileUpload>
+
+    <MudFileUpload T="IReadOnlyList<IBrowserFile>"
+                   @ref="@_galleryUpload"
+                   FilesChanged="OnImagesSelected"
+                   Accept=".png,.jpg,.jpeg,.webp"
+                   MaximumFileCount="5"
+                   Class="flex-1"> <ActivatorContent>
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Rounded.PhotoLibrary"
+                       FullWidth="true"
+                       OnClick="@(() => _galleryUpload?.OpenFilePickerAsync())"
+                       Style="border-radius: 12px; height: 56px; border-style: dashed; border-width: 2px;">
+                Gallery
+            </MudButton>
+        </ActivatorContent>
+    </MudFileUpload>
+
+</MudStack>
         
         <p style="margin: 8px 0 0; font-size: 0.8rem; color: var(--mud-palette-text-secondary); text-align: center;">
             Up to 5 images
