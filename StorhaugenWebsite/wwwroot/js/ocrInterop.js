@@ -1,16 +1,16 @@
 ﻿window.ocrInterop = {
     recognizeTextFromImage: async (imageSource) => {
-        console.log("Starting Smart OCR...");
+        console.log("Starting Robust OCR...");
 
-        // Hjelpefunksjon for å rotere bilde (bruker Canvas)
-        const rotateBase64 = (base64, degrees) => {
+        // Hjelpefunksjon: Roterer bildet OG gjør det om til svart/hvitt for bedre kontrast
+        const processImage = (base64, degrees) => {
             return new Promise((resolve) => {
                 const img = new Image();
                 img.onload = () => {
                     const canvas = document.createElement("canvas");
                     const ctx = canvas.getContext("2d");
 
-                    // Bytt høyde/bredde hvis vi roterer 90 grader
+                    // 1. Sett riktig størrelse basert på rotasjon
                     if (degrees === 90 || degrees === 270) {
                         canvas.width = img.height;
                         canvas.height = img.width;
@@ -19,12 +19,26 @@
                         canvas.height = img.height;
                     }
 
-                    // Flytt origo til midten og roter
+                    // 2. Roter Canvas
                     ctx.translate(canvas.width / 2, canvas.height / 2);
                     ctx.rotate(degrees * Math.PI / 180);
                     ctx.drawImage(img, -img.width / 2, -img.height / 2);
 
-                    resolve(canvas.toDataURL("image/jpeg"));
+                    // 3. Gjør om til Grayscale (Svart/Hvitt) for bedre OCR
+                    // Dette henter pikseldataene og fjerner farge
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const data = imageData.data;
+                    for (let i = 0; i < data.length; i += 4) {
+                        const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                        // Øk kontrasten: Hvis lys, gjør helt hvit. Hvis mørk, gjør helt sort.
+                        const contrast = avg > 120 ? 255 : 0;
+                        data[i] = contrast; // R
+                        data[i + 1] = contrast; // G
+                        data[i + 2] = contrast; // B
+                    }
+                    ctx.putImageData(imageData, 0, 0);
+
+                    resolve(canvas.toDataURL("image/jpeg", 0.9));
                 };
                 img.src = base64;
             });
@@ -32,39 +46,43 @@
 
         try {
             const worker = await Tesseract.createWorker(['nor', 'eng']);
-
-            // PSM 3 er standard og tryggest for blandet innhold
             await worker.setParameters({
-                tessedit_pageseg_mode: '3',
+                tessedit_pageseg_mode: '3', // Auto segmentation
+                tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZÆØÅabcdefghijklmnopqrstuvwxyzæøå0123456789-, ' // Filtrer bort støy-tegn
             });
 
-            // --- FORSØK 1: Original retning ---
-            let ret = await worker.recognize(imageSource);
-            console.log("Attempt 1 (Original):", ret.data.text.substring(0, 20) + "...", "Confidence:", ret.data.confidence);
+            let bestResult = { text: "", confidence: 0 };
 
-            // Sjekk om resultatet er dårlig (Lav confidence eller veldig kort tekst)
-            // Hello Fresh titler er vanligvis tydelige, så confidence bør være over 70.
-            if (ret.data.confidence < 75 || ret.data.text.length < 5) {
+            // Vi tester disse vinklene i rekkefølge
+            const anglesToTest = [0, 90, 270]; // 180 er sjeldent nødvendig, men kan legges til
 
-                console.log("Low confidence. Rotating image 90 degrees and retrying...");
+            for (let angle of anglesToTest) {
+                console.log(`Processing angle: ${angle}°...`);
 
-                // Roter bildet 90 grader (med klokka)
-                const rotatedImage = await rotateBase64(imageSource, 90);
+                const processedImage = await processImage(imageSource, angle);
+                const ret = await worker.recognize(processedImage);
 
-                // --- FORSØK 2: Rotert 90 grader ---
-                const ret2 = await worker.recognize(rotatedImage);
-                console.log("Attempt 2 (Rotated 90):", ret2.data.text.substring(0, 20) + "...", "Confidence:", ret2.data.confidence);
+                console.log(`Result ${angle}°: "${ret.data.text.replace(/\n/g, ' ').substring(0, 20)}..." (Conf: ${ret.data.confidence})`);
 
-                // Hvis dette resultatet er bedre, bruk det
-                if (ret2.data.confidence > ret.data.confidence) {
-                    ret = ret2;
+                // Vi lagrer det resultatet som har høyest selvtillit
+                if (ret.data.confidence > bestResult.confidence) {
+                    bestResult = {
+                        text: ret.data.text,
+                        confidence: ret.data.confidence
+                    };
                 }
 
-                // (Valgfritt: Man kan legge til en sjekk for 270 grader her også hvis man ofte holder telefonen "feil" vei)
+                // Hvis vi treffer "jackpot" (veldig høy confidence), avslutt tidlig for å spare tid
+                if (ret.data.confidence > 85 && ret.data.text.length > 5) {
+                    console.log("High confidence match found, stopping search.");
+                    break;
+                }
             }
 
             await worker.terminate();
-            return ret.data.text;
+
+            console.log("Winner text:", bestResult.text);
+            return bestResult.text;
 
         } catch (error) {
             console.error("OCR Error:", error);

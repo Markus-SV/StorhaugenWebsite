@@ -229,7 +229,7 @@
             {
                 // MOBIL-FIX: Vi går ned til 800x800.
                 // Dette er fortsatt mer enn nok for å lese tekst, men sparer mye minne på iPhone/Android.
-                var resizedFile = await file.RequestImageFileAsync("image/jpeg", 1200, 1200);
+                var resizedFile = await file.RequestImageFileAsync("image/jpeg", 1500, 1500);
 
                 var smallBuffer = new byte[resizedFile.Size];
                 await resizedFile.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024).ReadAsync(smallBuffer);
