@@ -21,4 +21,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IDeviceStateService, DeviceStateService>();
 builder.Services.AddScoped<IThemeService, ThemeService>();
 
+// Program.cs
+builder.Services.AddScoped<IOcrService, TesseractOcrService>();
+
 await builder.Build().RunAsync();
