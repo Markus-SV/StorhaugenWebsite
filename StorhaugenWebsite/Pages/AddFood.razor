@@ -242,17 +242,31 @@
                 var dataUrl = $"data:{file.ContentType};base64,{base64}";
                 _imagePreviewUrls.Add(dataUrl);
 
-                // --- TRIGGER OCR ---
-                // If it's the first image and name is empty, try to read the title
+                // --- FIX STARTER HER ---
+
+                // 1. Oppdater UI med en gang slik at bildet vises for brukeren
+                StateHasChanged();
+
+                // 2. Vent bittelitt (50ms) for å la UI-tråden tegne ferdig før vi kjører tung logikk
+                await Task.Delay(50);
+
+                // 3. Kjør OCR trygt. Hvis denne feiler pga størrelse, har brukeren i alle fall bildet sitt.
                 if (isFirstImage && string.IsNullOrWhiteSpace(_newFood.Name))
                 {
-                    // Call without await to keep UI responsive
-                    _ = TryAutoFillTitle(dataUrl);
-                    isFirstImage = false;
+                    // Vi wrapper denne i en egen try/catch her for å være helt sikre på at
+                    // en OCR-feil ikke stopper loopen eller ødelegger opplastingen.
+                    try
+                    {
+                        // Kaller metoden uten await (fire-and-forget), men vi vet nå at bildet allerede vises.
+                        _ = TryAutoFillTitle(dataUrl);
+                        isFirstImage = false;
+                    }
+                    catch (Exception ocrEx)
+                    {
+                        Console.WriteLine($"OCR failed to start: {ocrEx.Message}");
+                    }
                 }
-                // -------------------
-
-                StateHasChanged();
+                // --- FIX SLUTTER HER ---
             }
             catch (Exception ex)
             {
@@ -263,6 +277,12 @@
 
     private async Task TryAutoFillTitle(string dataUrl)
     {
+        if (dataUrl.Length > 10 * 1024 * 1024) 
+    {
+        Console.WriteLine("Image too large for OCR, skipping.");
+        return;
+    }
+        
         _isReadingText = true;
         StateHasChanged();
 
