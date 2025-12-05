@@ -11,4 +11,6 @@ public interface IGlobalRecipeService
     Task<GlobalRecipe> UpdateAsync(GlobalRecipe recipe);
     Task<bool> DeleteAsync(Guid id);
     Task UpsertHellofreshRecipeAsync(GlobalRecipe recipe);
+    Task<Dictionary<string, GlobalRecipe>> GetHellofreshRecipesByUuidsAsync(IEnumerable<string> uuids);
+    Task BatchUpsertHellofreshRecipesAsync(IEnumerable<GlobalRecipe> recipes);
 }

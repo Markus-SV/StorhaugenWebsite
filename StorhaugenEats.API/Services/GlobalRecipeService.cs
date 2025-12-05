@@ -99,4 +99,62 @@ public class GlobalRecipeService : IGlobalRecipeService
             await _context.SaveChangesAsync();
         }
     }
+
+    public async Task<Dictionary<string, GlobalRecipe>> GetHellofreshRecipesByUuidsAsync(IEnumerable<string> uuids)
+    {
+        var recipes = await _context.GlobalRecipes
+            .Where(gr => gr.IsHellofresh && uuids.Contains(gr.HellofreshUuid!))
+            .ToListAsync();
+
+        return recipes.ToDictionary(r => r.HellofreshUuid!, r => r);
+    }
+
+    public async Task BatchUpsertHellofreshRecipesAsync(IEnumerable<GlobalRecipe> recipes)
+    {
+        var recipeList = recipes.ToList();
+        if (!recipeList.Any()) return;
+
+        // Get all UUIDs from incoming recipes
+        var uuids = recipeList.Select(r => r.HellofreshUuid!).ToList();
+
+        // Fetch all existing recipes in one query
+        var existingRecipes = await GetHellofreshRecipesByUuidsAsync(uuids);
+
+        var toAdd = new List<GlobalRecipe>();
+        var toUpdate = new List<GlobalRecipe>();
+
+        foreach (var recipe in recipeList)
+        {
+            if (existingRecipes.TryGetValue(recipe.HellofreshUuid!, out var existing))
+            {
+                // Update existing
+                existing.Title = recipe.Title;
+                existing.Description = recipe.Description;
+                existing.ImageUrl = recipe.ImageUrl;
+                existing.Ingredients = recipe.Ingredients;
+                existing.NutritionData = recipe.NutritionData;
+                existing.CookTimeMinutes = recipe.CookTimeMinutes;
+                existing.Difficulty = recipe.Difficulty;
+                existing.UpdatedAt = DateTime.UtcNow;
+                toUpdate.Add(existing);
+            }
+            else
+            {
+                // Insert new
+                recipe.IsHellofresh = true;
+                recipe.CreatedAt = DateTime.UtcNow;
+                recipe.UpdatedAt = DateTime.UtcNow;
+                toAdd.Add(recipe);
+            }
+        }
+
+        // Batch add new recipes
+        if (toAdd.Any())
+        {
+            await _context.GlobalRecipes.AddRangeAsync(toAdd);
+        }
+
+        // Save all changes in one transaction
+        await _context.SaveChangesAsync();
+    }
 }

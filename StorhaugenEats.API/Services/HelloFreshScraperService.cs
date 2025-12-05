@@ -83,10 +83,9 @@ public class HelloFreshScraperService : IHelloFreshScraperService
             var weeks = GenerateWeeks(weeksToFetch);
             syncLog.WeeksSynced = string.Join(",", weeks);
 
-            int recipesAdded = 0;
-            int recipesUpdated = 0;
+            // Step 3: Fetch data for all weeks and collect recipes
+            var allRecipes = new List<GlobalRecipe>();
 
-            // Step 3: Fetch data for each week
             foreach (var week in weeks)
             {
                 var url = $"{BaseUrl}/_next/data/{buildId}/menus/{week}.json";
@@ -94,16 +93,31 @@ public class HelloFreshScraperService : IHelloFreshScraperService
                 try
                 {
                     var json = await _httpClient.GetStringAsync(url);
-                    var (added, updated) = await ProcessWeekDataAsync(json, week);
-
-                    recipesAdded += added;
-                    recipesUpdated += updated;
+                    var weekRecipes = await ParseWeekDataAsync(json, week);
+                    allRecipes.AddRange(weekRecipes);
                 }
                 catch (Exception ex)
                 {
                     // Log error but continue with other weeks
                     Console.WriteLine($"Error fetching week {week}: {ex.Message}");
                 }
+            }
+
+            // Step 4: Batch upsert all recipes in one operation
+            int recipesAdded = 0;
+            int recipesUpdated = 0;
+
+            if (allRecipes.Any())
+            {
+                // Get existing recipes to count adds vs updates
+                var uuids = allRecipes.Select(r => r.HellofreshUuid!).ToList();
+                var existing = await _globalRecipeService.GetHellofreshRecipesByUuidsAsync(uuids);
+
+                recipesAdded = allRecipes.Count(r => !existing.ContainsKey(r.HellofreshUuid!));
+                recipesUpdated = allRecipes.Count(r => existing.ContainsKey(r.HellofreshUuid!));
+
+                // Batch upsert
+                await _globalRecipeService.BatchUpsertHellofreshRecipesAsync(allRecipes);
             }
 
             syncLog.RecipesAdded = recipesAdded;
@@ -129,20 +143,19 @@ public class HelloFreshScraperService : IHelloFreshScraperService
         }
     }
 
-    private async Task<(int added, int updated)> ProcessWeekDataAsync(string jsonData, string week)
+    private async Task<List<GlobalRecipe>> ParseWeekDataAsync(string jsonData, string week)
     {
+        var recipes = new List<GlobalRecipe>();
+
         using var doc = JsonDocument.Parse(jsonData);
         var root = doc.RootElement;
-
-        int added = 0;
-        int updated = 0;
 
         // Navigate to courses: pageProps.ssrPayload.courses
         if (!root.TryGetProperty("pageProps", out var pageProps) ||
             !pageProps.TryGetProperty("ssrPayload", out var ssrPayload) ||
             !ssrPayload.TryGetProperty("courses", out var courses))
         {
-            return (0, 0);
+            return recipes;
         }
 
         foreach (var course in courses.EnumerateArray())
@@ -154,18 +167,7 @@ public class HelloFreshScraperService : IHelloFreshScraperService
 
                 if (recipe != null)
                 {
-                    var existing = await _globalRecipeService.GetByHellofreshUuidAsync(recipe.HellofreshUuid!);
-
-                    if (existing == null)
-                    {
-                        await _globalRecipeService.UpsertHellofreshRecipeAsync(recipe);
-                        added++;
-                    }
-                    else
-                    {
-                        await _globalRecipeService.UpsertHellofreshRecipeAsync(recipe);
-                        updated++;
-                    }
+                    recipes.Add(recipe);
                 }
             }
             catch (Exception ex)
@@ -174,7 +176,7 @@ public class HelloFreshScraperService : IHelloFreshScraperService
             }
         }
 
-        return (added, updated);
+        return recipes;
     }
 
     private async Task<GlobalRecipe?> ParseHelloFreshRecipeAsync(JsonElement course)
