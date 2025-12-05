@@ -24,21 +24,26 @@
                     ctx.rotate(degrees * Math.PI / 180);
                     ctx.drawImage(img, -img.width / 2, -img.height / 2);
 
-                    // 3. Gjør om til Grayscale (Svart/Hvitt) for bedre OCR
-                    // Dette henter pikseldataene og fjerner farge
+                    // ... inni processImage funksjonen ...
+
+                    // 3. Gjør om til Grayscale (Bedre for tynne bokstaver enn hard kontrast)
                     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                     const data = imageData.data;
+
                     for (let i = 0; i < data.length; i += 4) {
-                        const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-                        // Øk kontrasten: Hvis lys, gjør helt hvit. Hvis mørk, gjør helt sort.
-                        const contrast = avg > 120 ? 255 : 0;
-                        data[i] = contrast; // R
-                        data[i + 1] = contrast; // G
-                        data[i + 2] = contrast; // B
+                        // Standard formel for å gjøre farger om til gråtoner som øyet ser dem
+                        const avg = (0.299 * data[i]) + (0.587 * data[i + 1]) + (0.114 * data[i + 2]);
+
+                        data[i] = avg; // R
+                        data[i + 1] = avg; // G
+                        data[i + 2] = avg; // B
+                        // Vi rører ikke Alpha (gjennomsiktighet)
                     }
+
                     ctx.putImageData(imageData, 0, 0);
 
-                    resolve(canvas.toDataURL("image/jpeg", 0.9));
+                    // Vi øker kvaliteten til 1.0 (maks) for å ikke miste detaljer i komprimering
+                    resolve(canvas.toDataURL("image/jpeg", 1.0));
                 };
                 img.src = base64;
             });
