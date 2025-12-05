@@ -6,6 +6,7 @@
 @inject IFoodService FoodService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
+@inject IOcrService OcrService
 
 @if (!AuthService.IsAuthorized)
 {
@@ -24,7 +25,6 @@
 }
 else
 {
-    <!-- Page Header -->
     <div class="page-header">
         <h1 class="page-title">Add Meal</h1>
         <p class="page-subtitle">Rate tonight's dinner with the family</p>
@@ -38,17 +38,24 @@ else
         </MudAlert>
     }
 
-    <!-- Meal Details Section -->
     <div class="form-section">
         <p class="form-section-title">Meal Details</p>
 
-        <MudTextField @bind-Value="_newFood.Name"
-                      Label="What did we eat?"
-                      Variant="Variant.Outlined"
-                      Placeholder="e.g., Taco Tuesday, Grandma's Lasagna"
-                      Class="mb-4"
-                      Required="true"
-                      Style="--mud-default-borderradius: 12px;" />
+        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+            <MudTextField @bind-Value="_newFood.Name"
+                          Label="What did we eat?"
+                          Variant="Variant.Outlined"
+                          Placeholder="e.g., Taco Tuesday, Grandma's Lasagna"
+                          Required="true"
+                          Disabled="_isReadingText"
+                          Style="--mud-default-borderradius: 12px; flex-grow: 1;" />
+
+            @if (_isReadingText)
+            {
+                <MudProgressCircular Color="Color.Primary" Size="Size.Small" Indeterminate="true" Class="ml-2" />
+                <MudText Typo="Typo.caption" Class="ml-1" Color="Color.Secondary">Reading...</MudText>
+            }
+        </MudStack>
 
         <MudTextField @bind-Value="_newFood.Description"
                       Label="Notes (optional)"
@@ -58,7 +65,6 @@ else
                       Style="--mud-default-borderradius: 12px;" />
     </div>
 
-    <!-- Photo Section -->
     <div class="form-section">
         <p class="form-section-title">Photos</p>
 
@@ -79,50 +85,49 @@ else
         }
 
         <MudStack Row="true" Spacing="2" Class="w-100">
+            <MudFileUpload T="IReadOnlyList<IBrowserFile>"
+                           @ref="@_fileUpload"
+                           FilesChanged="OnImagesSelected"
+                           Accept="image/*"
+                           MaximumFileCount="5"
+                           Class="flex-1">
+                <ActivatorContent>
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Rounded.CameraAlt"
+                               Size="Size.Large"
+                               FullWidth="true"
+                               OnClick="@(() => _fileUpload?.OpenFilePickerAsync())"
+                               Style="border-radius: 12px; height: 56px;">
+                        Take Photo
+                    </MudButton>
+                </ActivatorContent>
+            </MudFileUpload>
 
-    <MudFileUpload T="IReadOnlyList<IBrowserFile>"
-                   @ref="@_fileUpload"
-                   FilesChanged="OnImagesSelected"
-                   Accept="image/*"
-                   MaximumFileCount="5"
-                   Class="flex-1"> <ActivatorContent>
-            <MudButton Variant="Variant.Filled"
-                       Color="Color.Primary"
-                       StartIcon="@Icons.Material.Rounded.CameraAlt"
-                       Size="Size.Large"
-                       FullWidth="true"
-                       OnClick="@(() => _fileUpload?.OpenFilePickerAsync())"
-                       Style="border-radius: 12px; height: 56px;">
-                Take Photo
-            </MudButton>
-        </ActivatorContent>
-    </MudFileUpload>
+            <MudFileUpload T="IReadOnlyList<IBrowserFile>"
+                           @ref="@_galleryUpload"
+                           FilesChanged="OnImagesSelected"
+                           Accept=".png,.jpg,.jpeg,.webp"
+                           MaximumFileCount="5"
+                           Class="flex-1">
+                <ActivatorContent>
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Secondary"
+                               StartIcon="@Icons.Material.Rounded.PhotoLibrary"
+                               FullWidth="true"
+                               OnClick="@(() => _galleryUpload?.OpenFilePickerAsync())"
+                               Style="border-radius: 12px; height: 56px; border-style: dashed; border-width: 2px;">
+                        Gallery
+                    </MudButton>
+                </ActivatorContent>
+            </MudFileUpload>
+        </MudStack>
 
-    <MudFileUpload T="IReadOnlyList<IBrowserFile>"
-                   @ref="@_galleryUpload"
-                   FilesChanged="OnImagesSelected"
-                   Accept=".png,.jpg,.jpeg,.webp"
-                   MaximumFileCount="5"
-                   Class="flex-1"> <ActivatorContent>
-            <MudButton Variant="Variant.Outlined"
-                       Color="Color.Secondary"
-                       StartIcon="@Icons.Material.Rounded.PhotoLibrary"
-                       FullWidth="true"
-                       OnClick="@(() => _galleryUpload?.OpenFilePickerAsync())"
-                       Style="border-radius: 12px; height: 56px; border-style: dashed; border-width: 2px;">
-                Gallery
-            </MudButton>
-        </ActivatorContent>
-    </MudFileUpload>
-
-</MudStack>
-        
         <p style="margin: 8px 0 0; font-size: 0.8rem; color: var(--mud-palette-text-secondary); text-align: center;">
             Up to 5 images
         </p>
     </div>
 
-    <!-- Ratings Section -->
     <div class="form-section">
         <p class="form-section-title">Ratings</p>
 
@@ -170,7 +175,6 @@ else
         }
     </div>
 
-    <!-- Submit Button -->
     <MudButton Variant="Variant.Filled"
                Color="Color.Primary"
                Size="Size.Large"
@@ -196,6 +200,7 @@ else
     private MudFileUpload<IReadOnlyList<IBrowserFile>>? _fileUpload;
     private MudFileUpload<IReadOnlyList<IBrowserFile>>? _galleryUpload;
     private bool _isSubmitting = false;
+    private bool _isReadingText = false; // New loading state for OCR
     private string? _errorMessage;
     private List<string> _imagePreviewUrls = new();
     private List<byte[]> _imageData = new();
@@ -228,6 +233,9 @@ else
 
     private async Task OnImagesSelected(IReadOnlyList<IBrowserFile> files)
     {
+        // Track if we are adding the very first image to trigger OCR
+        bool isFirstImage = _imageData.Count == 0;
+
         foreach (var file in files)
         {
             if (_imageData.Count >= 5)
@@ -239,19 +247,66 @@ else
             try
             {
                 var buffer = new byte[file.Size];
-                await file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).ReadAsync(buffer);
+                // Increased size limit slightly for high-res mobile photos
+                await file.OpenReadStream(maxAllowedSize: 15 * 1024 * 1024).ReadAsync(buffer);
                 _imageData.Add(buffer);
                 _imageNames.Add(file.Name);
 
                 var base64 = Convert.ToBase64String(buffer);
                 var dataUrl = $"data:{file.ContentType};base64,{base64}";
                 _imagePreviewUrls.Add(dataUrl);
+
+                // --- TRIGGER OCR ---
+                // If it's the first image and name is empty, try to read the title
+                if (isFirstImage && string.IsNullOrWhiteSpace(_newFood.Name))
+                {
+                    // Call without await to keep UI responsive
+                    _ = TryAutoFillTitle(dataUrl);
+                    isFirstImage = false;
+                }
+                // -------------------
+
                 StateHasChanged();
             }
             catch (Exception ex)
             {
                 Snackbar.Add($"Error loading image: {ex.Message}", Severity.Error);
             }
+        }
+    }
+
+    private async Task TryAutoFillTitle(string dataUrl)
+    {
+        _isReadingText = true;
+        StateHasChanged();
+
+        try
+        {
+            var rawText = await OcrService.RecognizeTextAsync(dataUrl);
+
+            if (!string.IsNullOrWhiteSpace(rawText))
+            {
+                // Split by lines and find the first non-empty one with significant length
+                var lines = rawText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+                var firstSignificantLine = lines.FirstOrDefault(l => l.Trim().Length > 3);
+
+                if (!string.IsNullOrWhiteSpace(firstSignificantLine))
+                {
+                    // Clean extra spaces
+                    _newFood.Name = System.Text.RegularExpressions.Regex.Replace(firstSignificantLine, @"\s+", " ").Trim();
+                    Snackbar.Add("Auto-filled title from photo", Severity.Success);
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Silently fail or simple warning. It's an optional feature.
+            // Snackbar.Add("Could not read text from image", Severity.Warning);
+        }
+        finally
+        {
+            _isReadingText = false;
+            StateHasChanged();
         }
     }
 
