@@ -84,7 +84,8 @@ else
                        MaximumFileCount="5"
                        AdditionalAttributes="@(new Dictionary<string, object> { { "capture", "environment" } })">
             <ActivatorContent>
-                <MudButton Variant="Variant.Filled"
+                <MudButton HtmlTag="label"
+                           Variant="Variant.Filled"
                            Color="Color.Primary"
                            StartIcon="@Icons.Material.Rounded.CameraAlt"
                            Size="Size.Large"
@@ -100,7 +101,8 @@ else
                        Accept=".png,.jpg,.jpeg,.webp"
                        MaximumFileCount="5">
             <ActivatorContent>
-                <MudButton Variant="Variant.Outlined"
+                <MudButton HtmlTag="label"
+                           Variant="Variant.Outlined"
                            Color="Color.Secondary"
                            StartIcon="@Icons.Material.Rounded.PhotoLibrary"
                            FullWidth="true"
