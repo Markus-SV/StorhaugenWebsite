@@ -5,6 +5,7 @@ using StorhaugenEats.API.Data;
 using StorhaugenEats.API.DTOs;
 using StorhaugenEats.API.Models;
 using StorhaugenEats.API.Services;
+using StorhaugenEats.API.Helpers;
 
 namespace StorhaugenEats.API.Controllers;
 
@@ -45,11 +46,12 @@ public class HouseholdRecipesController : ControllerBase
             query = query.Where(hr => !hr.IsArchived);
 
         var recipes = await query
-            .OrderByDescending(hr => hr.DateAdded)
-            .Select(hr => MapToDto(hr))
+            .OrderByDescending(hr => hr.CreatedAt)
             .ToListAsync();
 
-        return Ok(recipes);
+        var recipeDtos = recipes.Select(hr => MapToDto(hr)).ToList();
+
+        return Ok(recipeDtos);
     }
 
     /// <summary>
@@ -101,27 +103,27 @@ public class HouseholdRecipesController : ControllerBase
             recipe = new HouseholdRecipe
             {
                 HouseholdId = user.CurrentHouseholdId.Value,
-                GlobalRecipeId = dto.GlobalRecipeId.Value,
-                IsForked = dto.Fork,
+                GlobalRecipeId = dto.Fork ? null : dto.GlobalRecipeId.Value,
                 PersonalNotes = dto.PersonalNotes,
                 AddedByUserId = userId,
-                DateAdded = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
                 IsArchived = false
             };
 
             if (dto.Fork)
             {
                 // Fork: Copy data from global recipe
-                recipe.Name = dto.Name ?? globalRecipe.Name;
-                recipe.Description = dto.Description ?? globalRecipe.Description;
-                recipe.ImageUrls = dto.ImageUrls?.Count > 0 ? dto.ImageUrls : globalRecipe.ImageUrls;
+                recipe.LocalTitle = dto.Name ?? globalRecipe.Title;
+                recipe.LocalDescription = dto.Description ?? globalRecipe.Description;
+                recipe.LocalImageUrls = dto.ImageUrls?.Count > 0 ? JsonHelper.ListToJson(dto.ImageUrls) : globalRecipe.ImageUrls;
             }
             else
             {
                 // Link: Use global recipe data, only store personal notes
-                recipe.Name = null; // Will use global recipe name
-                recipe.Description = null;
-                recipe.ImageUrls = new List<string>();
+                recipe.LocalTitle = null; // Will use global recipe title
+                recipe.LocalDescription = null;
+                recipe.LocalImageUrls = null;
             }
 
             // Increment global recipe counter
@@ -134,14 +136,15 @@ public class HouseholdRecipesController : ControllerBase
             recipe = new HouseholdRecipe
             {
                 HouseholdId = user.CurrentHouseholdId.Value,
-                Name = dto.Name,
-                Description = dto.Description,
-                ImageUrls = dto.ImageUrls ?? new List<string>(),
+                LocalTitle = dto.Name,
+                LocalDescription = dto.Description,
+                LocalImageUrls = JsonHelper.ListToJson(dto.ImageUrls ?? new List<string>()),
                 PersonalNotes = dto.PersonalNotes,
                 AddedByUserId = userId,
-                DateAdded = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
                 IsArchived = false,
-                IsForked = false
+                GlobalRecipeId = null
             };
         }
 
@@ -184,24 +187,24 @@ public class HouseholdRecipesController : ControllerBase
         if (dto.Name != null)
         {
             // Can only update name if recipe is forked or custom (not linked to global)
-            if (recipe.GlobalRecipeId == null || recipe.IsForked)
-                recipe.Name = dto.Name;
+            if (recipe.GlobalRecipeId == null)
+                recipe.LocalTitle = dto.Name;
             else
                 return BadRequest(new { message = "Cannot update name of linked recipe. Fork it first." });
         }
 
         if (dto.Description != null)
         {
-            if (recipe.GlobalRecipeId == null || recipe.IsForked)
-                recipe.Description = dto.Description;
+            if (recipe.GlobalRecipeId == null)
+                recipe.LocalDescription = dto.Description;
             else
                 return BadRequest(new { message = "Cannot update description of linked recipe. Fork it first." });
         }
 
         if (dto.ImageUrls != null)
         {
-            if (recipe.GlobalRecipeId == null || recipe.IsForked)
-                recipe.ImageUrls = dto.ImageUrls;
+            if (recipe.GlobalRecipeId == null)
+                recipe.LocalImageUrls = JsonHelper.ListToJson(dto.ImageUrls);
             else
                 return BadRequest(new { message = "Cannot update images of linked recipe. Fork it first." });
         }
@@ -275,7 +278,7 @@ public class HouseholdRecipesController : ControllerBase
     /// Rate a recipe (0-10 scale)
     /// </summary>
     [HttpPost("{id}/rate")]
-    public async Task<ActionResult<HouseholdRecipeDto>> RateRecipe(int id, [FromBody] RateRecipeDto dto)
+    public async Task<ActionResult<HouseholdRecipeDto>> RateRecipe(Guid id, [FromBody] RateRecipeDto dto)
     {
         if (dto.Rating < 0 || dto.Rating > 10)
             return BadRequest(new { message = "Rating must be between 0 and 10" });
@@ -302,7 +305,7 @@ public class HouseholdRecipesController : ControllerBase
         if (existingRating != null)
         {
             // Update existing rating
-            existingRating.RatingValue = dto.Rating;
+            existingRating.Score = dto.Rating;
             existingRating.CreatedAt = DateTime.UtcNow; // Update timestamp
         }
         else
@@ -312,7 +315,7 @@ public class HouseholdRecipesController : ControllerBase
             {
                 HouseholdRecipeId = id,
                 UserId = userId,
-                RatingValue = dto.Rating,
+                Score = dto.Rating,
                 CreatedAt = DateTime.UtcNow
             };
             _context.Ratings.Add(newRating);
@@ -329,10 +332,10 @@ public class HouseholdRecipesController : ControllerBase
                 // Recalculate global average
                 var allRatings = await _context.Ratings
                     .Where(r => r.HouseholdRecipe!.GlobalRecipeId == recipe.GlobalRecipeId.Value)
-                    .Select(r => r.RatingValue)
+                    .Select(r => r.Score)
                     .ToListAsync();
 
-                globalRecipe.AverageRating = allRatings.Count > 0 ? allRatings.Average() : 0;
+                globalRecipe.AverageRating = allRatings.Count > 0 ? (decimal)allRatings.Average() : 0;
                 globalRecipe.TotalRatings = allRatings.Count;
                 globalRecipe.UpdatedAt = DateTime.UtcNow;
 
@@ -354,7 +357,7 @@ public class HouseholdRecipesController : ControllerBase
     /// Fork a linked recipe (convert to editable copy)
     /// </summary>
     [HttpPost("{id}/fork")]
-    public async Task<ActionResult<HouseholdRecipeDto>> ForkRecipe(int id)
+    public async Task<ActionResult<HouseholdRecipeDto>> ForkRecipe(Guid id)
     {
         var userId = await _currentUserService.GetOrCreateUserIdAsync();
         var user = await _context.Users.FindAsync(userId);
@@ -374,15 +377,15 @@ public class HouseholdRecipesController : ControllerBase
         if (recipe.GlobalRecipeId == null)
             return BadRequest(new { message = "Recipe is not linked to a global recipe" });
 
-        if (recipe.IsForked)
+        if (!recipe.GlobalRecipeId.HasValue)
             return BadRequest(new { message = "Recipe is already forked" });
 
-        // Copy data from global recipe
+        // Copy data from global recipe and remove link (making it forked)
         var globalRecipe = recipe.GlobalRecipe;
-        recipe.Name = globalRecipe!.Name;
-        recipe.Description = globalRecipe.Description;
-        recipe.ImageUrls = globalRecipe.ImageUrls;
-        recipe.IsForked = true;
+        recipe.LocalTitle = globalRecipe!.Title;
+        recipe.LocalDescription = globalRecipe.Description;
+        recipe.LocalImageUrls = globalRecipe.ImageUrls;
+        recipe.GlobalRecipeId = null; // Remove link to make it forked
 
         await _context.SaveChangesAsync();
 
@@ -422,23 +425,28 @@ public class HouseholdRecipesController : ControllerBase
         // Calculate average rating from household members
         var ratings = recipe.Ratings?
             .GroupBy(r => r.User.DisplayName)
-            .ToDictionary(g => g.Key, g => (int?)g.First().RatingValue)
+            .ToDictionary(g => g.Key, g => (int?)g.First().Score)
             ?? new Dictionary<string, int?>();
 
         var averageRating = ratings.Values.Where(r => r.HasValue).Any()
             ? ratings.Values.Where(r => r.HasValue).Average(r => r!.Value)
             : 0;
 
+        // Get image URLs - prefer local, fallback to global
+        var localImageUrls = recipe.LocalImageUrls != null ? JsonHelper.JsonToList(recipe.LocalImageUrls) : new List<string>();
+        var globalImageUrls = recipe.GlobalRecipe?.ImageUrls != null ? JsonHelper.JsonToList(recipe.GlobalRecipe.ImageUrls) : new List<string>();
+        var imageUrls = localImageUrls.Count > 0 ? localImageUrls : globalImageUrls;
+
         return new HouseholdRecipeDto
         {
             Id = recipe.Id,
             HouseholdId = recipe.HouseholdId,
-            Name = recipe.Name ?? recipe.GlobalRecipe?.Name ?? "Unknown",
-            Description = recipe.Description ?? recipe.GlobalRecipe?.Description,
-            ImageUrls = recipe.ImageUrls?.Count > 0 ? recipe.ImageUrls : (recipe.GlobalRecipe?.ImageUrls ?? new List<string>()),
+            Name = recipe.LocalTitle ?? recipe.GlobalRecipe?.Title ?? "Unknown",
+            Description = recipe.LocalDescription ?? recipe.GlobalRecipe?.Description,
+            ImageUrls = imageUrls,
             Ratings = ratings,
             AverageRating = averageRating,
-            DateAdded = recipe.DateAdded,
+            DateAdded = recipe.CreatedAt,
             AddedByUserId = recipe.AddedByUserId,
             AddedByName = recipe.AddedBy?.DisplayName,
             IsArchived = recipe.IsArchived,
@@ -446,8 +454,8 @@ public class HouseholdRecipesController : ControllerBase
             ArchivedByUserId = recipe.ArchivedByUserId,
             ArchivedByName = recipe.ArchivedBy?.DisplayName,
             GlobalRecipeId = recipe.GlobalRecipeId,
-            GlobalRecipeName = recipe.GlobalRecipe?.Name,
-            IsForked = recipe.IsForked,
+            GlobalRecipeName = recipe.GlobalRecipe?.Title,
+            IsForked = !recipe.GlobalRecipeId.HasValue,
             PersonalNotes = recipe.PersonalNotes
         };
     }

@@ -5,6 +5,7 @@ using StorhaugenEats.API.Data;
 using StorhaugenEats.API.DTOs;
 using StorhaugenEats.API.Models;
 using StorhaugenEats.API.Services;
+using StorhaugenEats.API.Helpers;
 
 namespace StorhaugenEats.API.Controllers;
 
@@ -41,7 +42,7 @@ public class GlobalRecipesController : ControllerBase
         {
             var searchLower = query.Search.ToLower();
             queryable = queryable.Where(gr =>
-                gr.Name.ToLower().Contains(searchLower) ||
+                gr.Title.ToLower().Contains(searchLower) ||
                 (gr.Description != null && gr.Description.ToLower().Contains(searchLower))
             );
         }
@@ -67,14 +68,9 @@ public class GlobalRecipesController : ControllerBase
         }
 
         // Filter: Tags (if any tag matches)
-        if (query.Tags != null && query.Tags.Count > 0)
-        {
-            foreach (var tag in query.Tags)
-            {
-                var tagLower = tag.ToLower();
-                queryable = queryable.Where(gr => gr.Tags.Any(t => t.ToLower() == tagLower));
-            }
-        }
+        // Note: Tags are stored as JSON strings, so we need to filter in memory after fetching
+        // TODO: Implement PostgreSQL JSONB queries for better performance
+        var filterTags = query.Tags != null && query.Tags.Count > 0 ? query.Tags : null;
 
         // Get total count before pagination
         var totalCount = await queryable.CountAsync();
@@ -85,7 +81,7 @@ public class GlobalRecipesController : ControllerBase
             "newest" => queryable.OrderByDescending(gr => gr.CreatedAt),
             "rating" => queryable.OrderByDescending(gr => gr.AverageRating).ThenByDescending(gr => gr.TotalRatings),
             "popular" => queryable.OrderByDescending(gr => gr.TotalTimesAdded),
-            "name" => queryable.OrderBy(gr => gr.Name),
+            "name" => queryable.OrderBy(gr => gr.Title),
             _ => queryable.OrderByDescending(gr => gr.TotalTimesAdded) // Default: popular
         };
 
@@ -93,12 +89,23 @@ public class GlobalRecipesController : ControllerBase
         var recipes = await queryable
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
-            .Select(gr => MapToDto(gr))
             .ToListAsync();
+
+        // Apply tag filtering in memory if needed
+        if (filterTags != null)
+        {
+            recipes = recipes.Where(gr =>
+            {
+                var recipeTags = JsonHelper.JsonToList(gr.Tags);
+                return filterTags.Any(tag => recipeTags.Any(t => t.Equals(tag, StringComparison.OrdinalIgnoreCase)));
+            }).ToList();
+        }
+
+        var recipeDtos = recipes.Select(gr => MapToDto(gr)).ToList();
 
         return Ok(new GlobalRecipePagedResult
         {
-            Recipes = recipes,
+            Recipes = recipeDtos,
             TotalCount = totalCount,
             Page = query.Page,
             PageSize = query.PageSize
@@ -140,15 +147,16 @@ public class GlobalRecipesController : ControllerBase
         var recipes = await _context.GlobalRecipes
             .Include(gr => gr.CreatedByUser)
             .Where(gr =>
-                gr.Name.ToLower().Contains(searchLower) ||
+                gr.Title.ToLower().Contains(searchLower) ||
                 (gr.Description != null && gr.Description.ToLower().Contains(searchLower))
             )
             .OrderByDescending(gr => gr.TotalTimesAdded)
             .Take(limit)
-            .Select(gr => MapToDto(gr))
             .ToListAsync();
 
-        return Ok(recipes);
+        var recipeDtos = recipes.Select(gr => MapToDto(gr)).ToList();
+
+        return Ok(recipeDtos);
     }
 
     /// <summary>
@@ -172,19 +180,20 @@ public class GlobalRecipesController : ControllerBase
         {
             "newest" => query.OrderByDescending(gr => gr.CreatedAt),
             "rating" => query.OrderByDescending(gr => gr.AverageRating),
-            "name" => query.OrderBy(gr => gr.Name),
+            "name" => query.OrderBy(gr => gr.Title),
             _ => query.OrderByDescending(gr => gr.CreatedAt)
         };
 
         var recipes = await query
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(gr => MapToDto(gr))
             .ToListAsync();
+
+        var recipeDtos = recipes.Select(gr => MapToDto(gr)).ToList();
 
         return Ok(new GlobalRecipePagedResult
         {
-            Recipes = recipes,
+            Recipes = recipeDtos,
             TotalCount = totalCount,
             Page = page,
             PageSize = pageSize
@@ -202,10 +211,10 @@ public class GlobalRecipesController : ControllerBase
 
         var recipe = new GlobalRecipe
         {
-            Name = dto.Name,
+            Title = dto.Name,
             Description = dto.Description,
             ImageUrl = dto.ImageUrl,
-            ImageUrls = dto.ImageUrls,
+            ImageUrls = JsonHelper.ListToJson(dto.ImageUrls),
             Ingredients = dto.Ingredients,
             NutritionData = dto.NutritionData,
             PrepTimeMinutes = dto.PrepTimeMinutes,
@@ -213,7 +222,7 @@ public class GlobalRecipesController : ControllerBase
             TotalTimeMinutes = (dto.PrepTimeMinutes ?? 0) + (dto.CookTimeMinutes ?? 0),
             Servings = dto.Servings,
             Difficulty = dto.Difficulty,
-            Tags = dto.Tags,
+            Tags = JsonHelper.ListToJson(dto.Tags),
             Cuisine = dto.Cuisine,
             IsHellofresh = false,
             CreatedByUserId = userId,
@@ -259,10 +268,10 @@ public class GlobalRecipesController : ControllerBase
         if (recipe.IsHellofresh)
             return BadRequest(new { message = "Cannot update HelloFresh recipes" });
 
-        recipe.Name = dto.Name;
+        recipe.Title = dto.Name;
         recipe.Description = dto.Description;
         recipe.ImageUrl = dto.ImageUrl;
-        recipe.ImageUrls = dto.ImageUrls;
+        recipe.ImageUrls = JsonHelper.ListToJson(dto.ImageUrls);
         recipe.Ingredients = dto.Ingredients;
         recipe.NutritionData = dto.NutritionData;
         recipe.PrepTimeMinutes = dto.PrepTimeMinutes;
@@ -270,7 +279,7 @@ public class GlobalRecipesController : ControllerBase
         recipe.TotalTimeMinutes = (dto.PrepTimeMinutes ?? 0) + (dto.CookTimeMinutes ?? 0);
         recipe.Servings = dto.Servings;
         recipe.Difficulty = dto.Difficulty;
-        recipe.Tags = dto.Tags;
+        recipe.Tags = JsonHelper.ListToJson(dto.Tags);
         recipe.Cuisine = dto.Cuisine;
         recipe.UpdatedAt = DateTime.UtcNow;
 
@@ -333,12 +342,17 @@ public class GlobalRecipesController : ControllerBase
             .OrderBy(d => d)
             .ToListAsync();
 
-        var allTags = await _context.GlobalRecipes
-            .Where(gr => gr.Tags.Count > 0)
-            .SelectMany(gr => gr.Tags)
+        // Extract tags from JSON strings (done in memory)
+        var allRecipes = await _context.GlobalRecipes
+            .Where(gr => gr.Tags != null && gr.Tags != "[]")
+            .Select(gr => gr.Tags)
+            .ToListAsync();
+
+        var allTags = allRecipes
+            .SelectMany(jsonTags => JsonHelper.JsonToList(jsonTags))
             .Distinct()
             .OrderBy(t => t)
-            .ToListAsync();
+            .ToList();
 
         return Ok(new
         {
@@ -353,10 +367,10 @@ public class GlobalRecipesController : ControllerBase
         return new GlobalRecipeDto
         {
             Id = recipe.Id,
-            Name = recipe.Name,
+            Name = recipe.Title,
             Description = recipe.Description,
             ImageUrl = recipe.ImageUrl,
-            ImageUrls = recipe.ImageUrls,
+            ImageUrls = JsonHelper.JsonToList(recipe.ImageUrls),
             Ingredients = recipe.Ingredients,
             NutritionData = recipe.NutritionData,
             PrepTimeMinutes = recipe.PrepTimeMinutes,
@@ -364,14 +378,14 @@ public class GlobalRecipesController : ControllerBase
             TotalTimeMinutes = recipe.TotalTimeMinutes,
             Servings = recipe.Servings,
             Difficulty = recipe.Difficulty,
-            Tags = recipe.Tags,
+            Tags = JsonHelper.JsonToList(recipe.Tags),
             Cuisine = recipe.Cuisine,
             IsHellofresh = recipe.IsHellofresh,
             HellofreshUuid = recipe.HellofreshUuid,
             HellofreshSlug = recipe.HellofreshSlug,
             CreatedByUserId = recipe.CreatedByUserId,
             CreatedByUserName = recipe.CreatedByUser?.DisplayName,
-            AverageRating = recipe.AverageRating,
+            AverageRating = (double)recipe.AverageRating,
             TotalRatings = recipe.TotalRatings,
             TotalTimesAdded = recipe.TotalTimesAdded,
             CreatedAt = recipe.CreatedAt

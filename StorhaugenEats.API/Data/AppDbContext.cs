@@ -163,8 +163,7 @@ public class AppDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Status).IsRequired().HasMaxLength(20).HasDefaultValue("pending");
             entity.Property(e => e.MergeRequested).HasDefaultValue(false);
-
-            entity.HasIndex(e => new { e.HouseholdId, e.InvitedUserId }).IsUnique();
+            entity.Property(e => e.InvitedEmail).HasMaxLength(255);
 
             entity.HasOne(e => e.Household)
                 .WithMany()
@@ -174,7 +173,8 @@ public class AppDbContext : DbContext
             entity.HasOne(e => e.InvitedUser)
                 .WithMany()
                 .HasForeignKey(e => e.InvitedUserId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.SetNull)
+                .IsRequired(false);
 
             entity.HasOne(e => e.InvitedByUser)
                 .WithMany()

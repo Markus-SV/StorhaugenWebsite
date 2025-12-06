@@ -138,7 +138,7 @@ public class HouseholdsController : ControllerBase
         var userId = await _currentUserService.GetOrCreateUserIdAsync();
 
         var household = await _context.Households
-            .FirstOrDefaultAsync(h => h.Id == id && h.CreatedById == userId);
+            .FirstOrDefaultAsync(h => h.Id == id && h.LeaderId == userId);
 
         if (household == null)
             return NotFound(new { message = "Household not found or you are not the creator" });
@@ -155,7 +155,7 @@ public class HouseholdsController : ControllerBase
     /// Send an invitation to join the household
     /// </summary>
     [HttpPost("{id}/invites")]
-    public async Task<ActionResult<HouseholdInviteDto>> InviteToHousehold(int id, [FromBody] InviteToHouseholdDto dto)
+    public async Task<ActionResult<HouseholdInviteDto>> InviteToHousehold(Guid id, [FromBody] InviteToHouseholdDto dto)
     {
         var userId = await _currentUserService.GetOrCreateUserIdAsync();
 
@@ -181,10 +181,11 @@ public class HouseholdsController : ControllerBase
         var invite = new HouseholdInvite
         {
             HouseholdId = id,
-            InvitedById = userId,
+            InvitedByUserId = userId,
             InvitedEmail = dto.Email,
             Status = "pending",
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
 
         _context.HouseholdInvites.Add(invite);
@@ -222,9 +223,9 @@ public class HouseholdsController : ControllerBase
                 Id = i.Id,
                 HouseholdId = i.HouseholdId,
                 HouseholdName = i.Household.Name,
-                InvitedById = i.InvitedById,
-                InvitedByName = i.InvitedBy.DisplayName,
-                InvitedEmail = i.InvitedEmail,
+                InvitedById = i.InvitedByUserId,
+                InvitedByName = i.InvitedByUser.DisplayName,
+                InvitedEmail = i.InvitedEmail ?? string.Empty,
                 Status = i.Status,
                 CreatedAt = i.CreatedAt
             })
@@ -237,7 +238,7 @@ public class HouseholdsController : ControllerBase
     /// Accept an invitation
     /// </summary>
     [HttpPost("invites/{inviteId}/accept")]
-    public async Task<ActionResult<HouseholdDto>> AcceptInvite(int inviteId)
+    public async Task<ActionResult<HouseholdDto>> AcceptInvite(Guid inviteId)
     {
         var userId = await _currentUserService.GetOrCreateUserIdAsync();
         var email = _currentUserService.GetUserEmail();
@@ -264,7 +265,7 @@ public class HouseholdsController : ControllerBase
 
         // Update invite status
         invite.Status = "accepted";
-        invite.AcceptedAt = DateTime.UtcNow;
+        invite.UpdatedAt = DateTime.UtcNow;
 
         // Set as user's current household
         var user = await _context.Users.FindAsync(userId);
@@ -283,7 +284,7 @@ public class HouseholdsController : ControllerBase
     /// Reject an invitation
     /// </summary>
     [HttpPost("invites/{inviteId}/reject")]
-    public async Task<IActionResult> RejectInvite(int inviteId)
+    public async Task<IActionResult> RejectInvite(Guid inviteId)
     {
         var email = _currentUserService.GetUserEmail();
 
@@ -341,7 +342,7 @@ public class HouseholdsController : ControllerBase
 
         // Check if user is the creator and there are other members
         var household = await _context.Households.FindAsync(id);
-        if (household?.CreatedById == userId)
+        if (household?.LeaderId == userId)
         {
             var memberCount = await _context.HouseholdMembers.CountAsync(hm => hm.HouseholdId == id);
             if (memberCount > 1)

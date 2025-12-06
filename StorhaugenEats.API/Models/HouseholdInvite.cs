@@ -14,9 +14,12 @@ public class HouseholdInvite
     [Column("household_id")]
     public Guid HouseholdId { get; set; }
 
-    [Required]
     [Column("invited_user_id")]
-    public Guid InvitedUserId { get; set; }
+    public Guid? InvitedUserId { get; set; }
+
+    [Column("invited_email")]
+    [MaxLength(255)]
+    public string? InvitedEmail { get; set; }
 
     [Required]
     [Column("invited_by_user_id")]
@@ -38,13 +41,10 @@ public class HouseholdInvite
 
     // Navigation properties
     public Household Household { get; set; } = null!;
-    public User InvitedUser { get; set; } = null!;
+    public User? InvitedUser { get; set; }
     public User InvitedByUser { get; set; } = null!;
 
     // Backward compatibility properties
-    [NotMapped]
-    public string InvitedEmail => InvitedUser?.Email ?? string.Empty;
-
     [NotMapped]
     public Guid InvitedById
     {

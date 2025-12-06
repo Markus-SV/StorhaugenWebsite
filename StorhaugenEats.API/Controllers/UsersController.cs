@@ -92,7 +92,7 @@ public class UsersController : ControllerBase
     /// Get a user's public profile (for household members)
     /// </summary>
     [HttpGet("{id}")]
-    public async Task<ActionResult<UserDto>> GetUserProfile(int id)
+    public async Task<ActionResult<UserDto>> GetUserProfile(Guid id)
     {
         var currentUserId = await _currentUserService.GetOrCreateUserIdAsync();
         var user = await _context.Users.FindAsync(id);
