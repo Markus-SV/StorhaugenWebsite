@@ -19,9 +19,10 @@
     </PackageReference>
 
     <!-- Supabase Client -->
-    <PackageReference Include="supabase-csharp" Version="0.16.2" />
-    <PackageReference Include="Supabase.Gotrue" Version="6.0.3" />
-    <PackageReference Include="Supabase.Storage" Version="2.0.0" />
+	  <PackageReference Include="MudBlazor" Version="8.15.0" />
+
+	  <PackageReference Include="Supabase" Version="1.1.1" />
+	  <PackageReference Include="Supabase.Gotrue" Version="6.0.3" />
 
     <!-- HTTP Client for HelloFresh scraper -->
     <PackageReference Include="HtmlAgilityPack" Version="1.12.4" />
