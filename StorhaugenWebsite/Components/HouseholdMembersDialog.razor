@@ -23,7 +23,6 @@
                     @foreach (var member in Household.Members.OrderBy(m => m.UserId != Household.CreatedById).ThenBy(m => m.JoinedAt))
                     {
                         var isCreator = member.UserId == Household.CreatedById;
-                        var isCurrentUser = member.Email == AuthService.CurrentUser?.Email;
 
                         <div class="member-card">
                             <div class="member-avatar" style="background: @GetMemberColor(member.DisplayName)">
@@ -45,10 +44,6 @@
                                     @if (isCreator)
                                     {
                                         <MudChip Size="Size.Small" T=string Color="Color.Primary" Style="height: 20px;">Owner</MudChip>
-                                    }
-                                    @if (isCurrentUser)
-                                    {
-                                        <MudChip Size="Size.Small" T=string Color="Color.Secondary" Style="height: 20px;">You</MudChip>
                                     }
                                 </div>
                                 <MudText Typo="Typo.caption" Color="Color.Secondary">
@@ -172,10 +167,10 @@
 
     private bool CanLeaveHousehold()
     {
-        if (Household == null || AuthService.CurrentUser == null)
+        if (Household == null)
             return false;
 
-        var currentMember = Household.Members.FirstOrDefault(m => m.Email == AuthService.CurrentUser.Email);
+        var currentMember = Household.Members.FirstOrDefault();
         if (currentMember == null)
             return false;
 
