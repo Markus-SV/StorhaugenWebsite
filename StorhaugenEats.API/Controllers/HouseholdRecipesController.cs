@@ -424,7 +424,8 @@ public class HouseholdRecipesController : ControllerBase
     {
         // Calculate average rating from household members
         var ratings = recipe.Ratings?
-            .GroupBy(r => r.User.DisplayName)
+            .Where(r => r.User != null)
+            .GroupBy(r => r.User.DisplayName ?? r.User.Email ?? "Unknown")
             .ToDictionary(g => g.Key, g => (int?)g.First().Score)
             ?? new Dictionary<string, int?>();
 

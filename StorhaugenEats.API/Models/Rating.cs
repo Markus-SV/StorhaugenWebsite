@@ -10,9 +10,8 @@ public class Rating
     [Column("id")]
     public Guid Id { get; set; }
 
-    [Required]
     [Column("global_recipe_id")]
-    public Guid GlobalRecipeId { get; set; }
+    public Guid? GlobalRecipeId { get; set; }
 
     [Column("household_recipe_id")]
     public Guid? HouseholdRecipeId { get; set; }
@@ -36,7 +35,7 @@ public class Rating
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     // Navigation properties
-    public GlobalRecipe GlobalRecipe { get; set; } = null!;
+    public GlobalRecipe? GlobalRecipe { get; set; }
     public HouseholdRecipe? HouseholdRecipe { get; set; }
     public User User { get; set; } = null!;
 

@@ -136,10 +136,10 @@ else
         <div class="rating-member-header">
             <div class="rating-member-info">
                 <div class="rating-member-avatar" style="@($"background: {GetMemberColor(_currentUserName)}")">
-                    @(_currentUserName?[0] ?? '?')
+                    @(string.IsNullOrEmpty(_currentUserName) ? '?' : _currentUserName[0])
                 </div>
                 <div>
-                    <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">@_currentUserName</MudText>
+                    <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">@(string.IsNullOrEmpty(_currentUserName) ? "Unknown" : _currentUserName)</MudText>
                     <MudText Typo="Typo.caption" Color="Color.Primary">(You)</MudText>
                 </div>
             </div>
@@ -473,8 +473,9 @@ else
         }
     }
 
-    private string GetMemberColor(string name)
+    private string GetMemberColor(string? name)
     {
+        if (string.IsNullOrEmpty(name)) return "hsl(0, 0%, 50%)";
         var hash = name.GetHashCode();
         var hue = Math.Abs(hash % 360);
         return $"hsl({hue}, 45%, 45%)";
