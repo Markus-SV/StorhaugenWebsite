@@ -12,9 +12,9 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 
 // API HttpClient - Configure base URL for API calls
 #if DEBUG
-var apiBaseUrl = "https://localhost:64797"; // Local API during development
+var apiBaseUrl = "https://storhaugen-eats-api-a7ckh4hwdvcagcb7.westeurope-01.azurewebsites.net"; // Azure API
 #else
-var apiBaseUrl = "https://storhaugen-eats-api.azurewebsites.net"; // Production API (update this when deployed)
+var apiBaseUrl = "https://storhaugen-eats-api-a7ckh4hwdvcagcb7.westeurope-01.azurewebsites.net"; // Azure API
 #endif
 
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(apiBaseUrl) });

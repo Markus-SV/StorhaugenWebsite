@@ -58,24 +58,22 @@ public class SupabaseAuthService : IAuthService, IAsyncDisposable
     {
         try
         {
+            // Get redirect URL dynamically from browser
+            var redirectUrl = await GetRedirectUrlAsync();
+
             // Sign in with Google OAuth
             var options = new SignInOptions
             {
-                RedirectTo = GetRedirectUrl()
+                RedirectTo = redirectUrl
             };
 
             var result = await _supabaseClient.Auth.SignIn(Provider.Google, options);
 
-            if (result != null && result.Uri != null)
+            if (result != null && !string.IsNullOrEmpty(result))
             {
-                await Task.Delay(1000);
-                _session = _supabaseClient.Auth.CurrentSession;
-
-                if (_session != null)
-                {
-                    OnAuthStateChanged?.Invoke();
-                    return (true, null);
-                }
+                // Redirect to Google OAuth - the page will reload after auth
+                await _jsRuntime.InvokeVoidAsync("open", result, "_self");
+                return (true, null);
             }
 
             return (false, "Login was cancelled or failed.");
@@ -106,11 +104,11 @@ public class SupabaseAuthService : IAuthService, IAsyncDisposable
         return Task.FromResult(_session?.AccessToken);
     }
 
-    private string GetRedirectUrl()
+    private async Task<string> GetRedirectUrlAsync()
     {
-        // Get current URL from browser and return to it after auth
-        // In production, this should be your deployed URL
-        return "https://localhost:7000"; // Update this for production
+        // Get current URL from browser dynamically - works for both local and production
+        var origin = await _jsRuntime.InvokeAsync<string>("eval", "window.location.origin");
+        return $"{origin}/"; // Redirect to home page after auth
     }
 
     public async ValueTask DisposeAsync()
