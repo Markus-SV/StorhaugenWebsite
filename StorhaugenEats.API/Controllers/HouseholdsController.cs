@@ -94,6 +94,7 @@ public class HouseholdsController : ControllerBase
     public async Task<ActionResult<HouseholdDto>> CreateHousehold([FromBody] CreateHouseholdDto dto)
     {
         var userId = await _currentUserService.GetOrCreateUserIdAsync();
+        var user = await _context.Users.FindAsync(userId);
 
         var household = new Household
         {
@@ -107,15 +108,15 @@ public class HouseholdsController : ControllerBase
         await _context.SaveChangesAsync();
 
         // Add creator as first member
-        _context.HouseholdMembers.Add(new HouseholdMember
+        var member = new HouseholdMember
         {
             HouseholdId = household.Id,
             UserId = userId,
             JoinedAt = DateTime.UtcNow
-        });
+        };
+        _context.HouseholdMembers.Add(member);
 
         // Set as user's current household
-        var user = await _context.Users.FindAsync(userId);
         if (user != null)
         {
             user.CurrentHouseholdId = household.Id;
@@ -124,9 +125,28 @@ public class HouseholdsController : ControllerBase
 
         await _context.SaveChangesAsync();
 
-        // Return created household
-        var result = await GetHousehold(household.Id);
-        return CreatedAtAction(nameof(GetHousehold), new { id = household.Id }, result.Value);
+        // Build and return DTO directly (don't call GetHousehold internally)
+        var householdDto = new HouseholdDto
+        {
+            Id = household.Id,
+            Name = household.Name,
+            CreatedById = userId,
+            CreatedByName = user?.DisplayName,
+            CreatedAt = household.CreatedAt,
+            Members = new List<HouseholdMemberDto>
+            {
+                new HouseholdMemberDto
+                {
+                    UserId = userId,
+                    Email = user?.Email ?? "",
+                    DisplayName = user?.DisplayName,
+                    AvatarUrl = user?.AvatarUrl,
+                    JoinedAt = member.JoinedAt
+                }
+            }
+        };
+
+        return CreatedAtAction(nameof(GetHousehold), new { id = household.Id }, householdDto);
     }
 
     /// <summary>
