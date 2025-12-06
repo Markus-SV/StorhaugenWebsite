@@ -1,124 +1,299 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using StorhaugenEats.API.Data;
+using StorhaugenEats.API.DTOs;
+using StorhaugenEats.API.Models;
 using StorhaugenEats.API.Services;
-using System.Security.Claims;
 
 namespace StorhaugenEats.API.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/global-recipes")]
 public class GlobalRecipesController : ControllerBase
 {
-    private readonly IGlobalRecipeService _globalRecipeService;
+    private readonly AppDbContext _context;
+    private readonly ICurrentUserService _currentUserService;
 
-    public GlobalRecipesController(IGlobalRecipeService globalRecipeService)
+    public GlobalRecipesController(AppDbContext context, ICurrentUserService currentUserService)
     {
-        _globalRecipeService = globalRecipeService;
+        _context = context;
+        _currentUserService = currentUserService;
     }
 
-    private Guid? GetCurrentUserId()
-    {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        return Guid.TryParse(userIdClaim, out var userId) ? userId : null;
-    }
-
+    /// <summary>
+    /// Browse global recipes with filters, search, and pagination
+    /// </summary>
     [HttpGet]
-    [AllowAnonymous] // Public recipes can be viewed by anyone
-    public async Task<IActionResult> GetPublicRecipes(
-        [FromQuery] int skip = 0,
-        [FromQuery] int take = 50,
-        [FromQuery] string? sortBy = "rating")
+    [AllowAnonymous]
+    public async Task<ActionResult<GlobalRecipePagedResult>> BrowseRecipes([FromQuery] BrowseGlobalRecipesQuery query)
     {
-        if (take > 100) take = 100; // Max limit
+        var queryable = _context.GlobalRecipes.AsQueryable();
 
-        var recipes = await _globalRecipeService.GetPublicRecipesAsync(skip, take, sortBy);
+        // Filter: HelloFresh only
+        if (query.HellofreshOnly)
+        {
+            queryable = queryable.Where(gr => gr.IsHellofresh);
+        }
+
+        // Filter: Search by name or description
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var searchLower = query.Search.ToLower();
+            queryable = queryable.Where(gr =>
+                gr.Name.ToLower().Contains(searchLower) ||
+                (gr.Description != null && gr.Description.ToLower().Contains(searchLower))
+            );
+        }
+
+        // Filter: Cuisine
+        if (!string.IsNullOrWhiteSpace(query.Cuisine))
+        {
+            queryable = queryable.Where(gr => gr.Cuisine == query.Cuisine);
+        }
+
+        // Filter: Difficulty
+        if (!string.IsNullOrWhiteSpace(query.Difficulty))
+        {
+            queryable = queryable.Where(gr => gr.Difficulty == query.Difficulty);
+        }
+
+        // Filter: Max prep time
+        if (query.MaxPrepTime.HasValue)
+        {
+            queryable = queryable.Where(gr =>
+                gr.PrepTimeMinutes.HasValue && gr.PrepTimeMinutes.Value <= query.MaxPrepTime.Value
+            );
+        }
+
+        // Filter: Tags (if any tag matches)
+        if (query.Tags != null && query.Tags.Count > 0)
+        {
+            foreach (var tag in query.Tags)
+            {
+                var tagLower = tag.ToLower();
+                queryable = queryable.Where(gr => gr.Tags.Any(t => t.ToLower() == tagLower));
+            }
+        }
+
+        // Get total count before pagination
+        var totalCount = await queryable.CountAsync();
+
+        // Sorting
+        queryable = query.SortBy.ToLower() switch
+        {
+            "newest" => queryable.OrderByDescending(gr => gr.CreatedAt),
+            "rating" => queryable.OrderByDescending(gr => gr.AverageRating).ThenByDescending(gr => gr.TotalRatings),
+            "popular" => queryable.OrderByDescending(gr => gr.TotalTimesAdded),
+            "name" => queryable.OrderBy(gr => gr.Name),
+            _ => queryable.OrderByDescending(gr => gr.TotalTimesAdded) // Default: popular
+        };
+
+        // Pagination
+        var recipes = await queryable
+            .Skip((query.Page - 1) * query.PageSize)
+            .Take(query.PageSize)
+            .Select(gr => MapToDto(gr))
+            .ToListAsync();
+
+        return Ok(new GlobalRecipePagedResult
+        {
+            Recipes = recipes,
+            TotalCount = totalCount,
+            Page = query.Page,
+            PageSize = query.PageSize
+        });
+    }
+
+    /// <summary>
+    /// Get a specific global recipe by ID
+    /// </summary>
+    [HttpGet("{id}")]
+    [AllowAnonymous]
+    public async Task<ActionResult<GlobalRecipeDto>> GetRecipe(int id)
+    {
+        var recipe = await _context.GlobalRecipes
+            .Include(gr => gr.CreatedByUser)
+            .FirstOrDefaultAsync(gr => gr.Id == id);
+
+        if (recipe == null)
+            return NotFound();
+
+        return Ok(MapToDto(recipe));
+    }
+
+    /// <summary>
+    /// Search global recipes by name/description
+    /// </summary>
+    [HttpGet("search")]
+    [AllowAnonymous]
+    public async Task<ActionResult<List<GlobalRecipeDto>>> SearchRecipes(
+        [FromQuery] string q,
+        [FromQuery] int limit = 20)
+    {
+        if (string.IsNullOrWhiteSpace(q))
+            return BadRequest(new { message = "Search query is required" });
+
+        if (limit > 100) limit = 100;
+
+        var searchLower = q.ToLower();
+        var recipes = await _context.GlobalRecipes
+            .Include(gr => gr.CreatedByUser)
+            .Where(gr =>
+                gr.Name.ToLower().Contains(searchLower) ||
+                (gr.Description != null && gr.Description.ToLower().Contains(searchLower))
+            )
+            .OrderByDescending(gr => gr.TotalTimesAdded)
+            .Take(limit)
+            .Select(gr => MapToDto(gr))
+            .ToListAsync();
+
         return Ok(recipes);
     }
 
-    [HttpGet("{id}")]
+    /// <summary>
+    /// Get only HelloFresh recipes
+    /// </summary>
+    [HttpGet("hellofresh")]
     [AllowAnonymous]
-    public async Task<IActionResult> GetRecipe(Guid id)
+    public async Task<ActionResult<GlobalRecipePagedResult>> GetHelloFreshRecipes(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string sortBy = "newest")
     {
-        var recipe = await _globalRecipeService.GetByIdAsync(id);
+        if (pageSize > 100) pageSize = 100;
 
-        if (recipe == null)
-            return NotFound();
+        var query = _context.GlobalRecipes.Where(gr => gr.IsHellofresh);
 
-        return Ok(recipe);
-    }
+        var totalCount = await query.CountAsync();
 
-    [HttpPost]
-    [Authorize]
-    public async Task<IActionResult> CreateRecipe([FromBody] CreateGlobalRecipeRequest request)
-    {
-        var userId = GetCurrentUserId();
-
-        if (userId == null)
-            return Unauthorized();
-
-        var recipe = new Models.GlobalRecipe
+        // Sorting
+        query = sortBy.ToLower() switch
         {
-            Id = Guid.NewGuid(),
-            Title = request.Title,
-            Description = request.Description,
-            ImageUrl = request.ImageUrl,
-            Ingredients = request.Ingredients,
-            NutritionData = request.NutritionData,
-            CookTimeMinutes = request.CookTimeMinutes,
-            Difficulty = request.Difficulty,
-            IsHellofresh = false,
-            IsPublic = request.IsPublic,
-            CreatedByUserId = userId
+            "newest" => query.OrderByDescending(gr => gr.CreatedAt),
+            "rating" => query.OrderByDescending(gr => gr.AverageRating),
+            "name" => query.OrderBy(gr => gr.Name),
+            _ => query.OrderByDescending(gr => gr.CreatedAt)
         };
 
-        await _globalRecipeService.CreateAsync(recipe);
+        var recipes = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(gr => MapToDto(gr))
+            .ToListAsync();
 
-        return CreatedAtAction(nameof(GetRecipe), new { id = recipe.Id }, recipe);
+        return Ok(new GlobalRecipePagedResult
+        {
+            Recipes = recipes,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize
+        });
     }
 
+    /// <summary>
+    /// Create a user-contributed global recipe
+    /// </summary>
+    [HttpPost]
+    [Authorize]
+    public async Task<ActionResult<GlobalRecipeDto>> CreateRecipe([FromBody] CreateGlobalRecipeDto dto)
+    {
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
+
+        var recipe = new GlobalRecipe
+        {
+            Name = dto.Name,
+            Description = dto.Description,
+            ImageUrl = dto.ImageUrl,
+            ImageUrls = dto.ImageUrls,
+            Ingredients = dto.Ingredients,
+            NutritionData = dto.NutritionData,
+            PrepTimeMinutes = dto.PrepTimeMinutes,
+            CookTimeMinutes = dto.CookTimeMinutes,
+            TotalTimeMinutes = (dto.PrepTimeMinutes ?? 0) + (dto.CookTimeMinutes ?? 0),
+            Servings = dto.Servings,
+            Difficulty = dto.Difficulty,
+            Tags = dto.Tags,
+            Cuisine = dto.Cuisine,
+            IsHellofresh = false,
+            CreatedByUserId = userId,
+            AverageRating = 0,
+            TotalRatings = 0,
+            TotalTimesAdded = 0,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        _context.GlobalRecipes.Add(recipe);
+        await _context.SaveChangesAsync();
+
+        // Reload with user info
+        recipe = await _context.GlobalRecipes
+            .Include(gr => gr.CreatedByUser)
+            .FirstAsync(gr => gr.Id == recipe.Id);
+
+        return CreatedAtAction(nameof(GetRecipe), new { id = recipe.Id }, MapToDto(recipe));
+    }
+
+    /// <summary>
+    /// Update a user-contributed recipe (only creator can update)
+    /// </summary>
     [HttpPut("{id}")]
     [Authorize]
-    public async Task<IActionResult> UpdateRecipe(Guid id, [FromBody] UpdateGlobalRecipeRequest request)
+    public async Task<ActionResult<GlobalRecipeDto>> UpdateRecipe(int id, [FromBody] CreateGlobalRecipeDto dto)
     {
-        var recipe = await _globalRecipeService.GetByIdAsync(id);
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
+
+        var recipe = await _context.GlobalRecipes
+            .Include(gr => gr.CreatedByUser)
+            .FirstOrDefaultAsync(gr => gr.Id == id);
 
         if (recipe == null)
             return NotFound();
 
-        var userId = GetCurrentUserId();
-
-        // Only creator can update (or admin in future)
+        // Only creator can update
         if (recipe.CreatedByUserId != userId)
             return Forbid();
 
-        recipe.Title = request.Title ?? recipe.Title;
-        recipe.Description = request.Description ?? recipe.Description;
-        recipe.ImageUrl = request.ImageUrl ?? recipe.ImageUrl;
-        recipe.Ingredients = request.Ingredients ?? recipe.Ingredients;
-        recipe.NutritionData = request.NutritionData ?? recipe.NutritionData;
-        recipe.CookTimeMinutes = request.CookTimeMinutes ?? recipe.CookTimeMinutes;
-        recipe.Difficulty = request.Difficulty ?? recipe.Difficulty;
+        // Can't update HelloFresh recipes
+        if (recipe.IsHellofresh)
+            return BadRequest(new { message = "Cannot update HelloFresh recipes" });
 
-        if (request.IsPublic.HasValue)
-            recipe.IsPublic = request.IsPublic.Value;
+        recipe.Name = dto.Name;
+        recipe.Description = dto.Description;
+        recipe.ImageUrl = dto.ImageUrl;
+        recipe.ImageUrls = dto.ImageUrls;
+        recipe.Ingredients = dto.Ingredients;
+        recipe.NutritionData = dto.NutritionData;
+        recipe.PrepTimeMinutes = dto.PrepTimeMinutes;
+        recipe.CookTimeMinutes = dto.CookTimeMinutes;
+        recipe.TotalTimeMinutes = (dto.PrepTimeMinutes ?? 0) + (dto.CookTimeMinutes ?? 0);
+        recipe.Servings = dto.Servings;
+        recipe.Difficulty = dto.Difficulty;
+        recipe.Tags = dto.Tags;
+        recipe.Cuisine = dto.Cuisine;
+        recipe.UpdatedAt = DateTime.UtcNow;
 
-        await _globalRecipeService.UpdateAsync(recipe);
+        await _context.SaveChangesAsync();
 
-        return Ok(recipe);
+        return Ok(MapToDto(recipe));
     }
 
+    /// <summary>
+    /// Delete a user-contributed recipe (only creator can delete)
+    /// </summary>
     [HttpDelete("{id}")]
     [Authorize]
-    public async Task<IActionResult> DeleteRecipe(Guid id)
+    public async Task<IActionResult> DeleteRecipe(int id)
     {
-        var recipe = await _globalRecipeService.GetByIdAsync(id);
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
+
+        var recipe = await _context.GlobalRecipes.FindAsync(id);
 
         if (recipe == null)
             return NotFound();
 
-        var userId = GetCurrentUserId();
-
-        // Only creator can delete (or admin in future)
+        // Only creator can delete
         if (recipe.CreatedByUserId != userId)
             return Forbid();
 
@@ -126,30 +301,80 @@ public class GlobalRecipesController : ControllerBase
         if (recipe.IsHellofresh)
             return BadRequest(new { message = "Cannot delete HelloFresh recipes" });
 
-        await _globalRecipeService.DeleteAsync(id);
+        // Check if any households are using this recipe
+        var usageCount = await _context.HouseholdRecipes.CountAsync(hr => hr.GlobalRecipeId == id);
+        if (usageCount > 0)
+            return BadRequest(new { message = $"Cannot delete recipe that is used by {usageCount} household(s). They would need to fork it first." });
 
-        return NoContent();
+        _context.GlobalRecipes.Remove(recipe);
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Recipe deleted" });
+    }
+
+    /// <summary>
+    /// Get available filter options (cuisines, difficulties, tags)
+    /// </summary>
+    [HttpGet("filters")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetFilterOptions()
+    {
+        var cuisines = await _context.GlobalRecipes
+            .Where(gr => gr.Cuisine != null)
+            .Select(gr => gr.Cuisine!)
+            .Distinct()
+            .OrderBy(c => c)
+            .ToListAsync();
+
+        var difficulties = await _context.GlobalRecipes
+            .Where(gr => gr.Difficulty != null)
+            .Select(gr => gr.Difficulty!)
+            .Distinct()
+            .OrderBy(d => d)
+            .ToListAsync();
+
+        var allTags = await _context.GlobalRecipes
+            .Where(gr => gr.Tags.Count > 0)
+            .SelectMany(gr => gr.Tags)
+            .Distinct()
+            .OrderBy(t => t)
+            .ToListAsync();
+
+        return Ok(new
+        {
+            cuisines,
+            difficulties,
+            tags = allTags
+        });
+    }
+
+    private static GlobalRecipeDto MapToDto(GlobalRecipe recipe)
+    {
+        return new GlobalRecipeDto
+        {
+            Id = recipe.Id,
+            Name = recipe.Name,
+            Description = recipe.Description,
+            ImageUrl = recipe.ImageUrl,
+            ImageUrls = recipe.ImageUrls,
+            Ingredients = recipe.Ingredients,
+            NutritionData = recipe.NutritionData,
+            PrepTimeMinutes = recipe.PrepTimeMinutes,
+            CookTimeMinutes = recipe.CookTimeMinutes,
+            TotalTimeMinutes = recipe.TotalTimeMinutes,
+            Servings = recipe.Servings,
+            Difficulty = recipe.Difficulty,
+            Tags = recipe.Tags,
+            Cuisine = recipe.Cuisine,
+            IsHellofresh = recipe.IsHellofresh,
+            HellofreshUuid = recipe.HellofreshUuid,
+            HellofreshSlug = recipe.HellofreshSlug,
+            CreatedByUserId = recipe.CreatedByUserId,
+            CreatedByUserName = recipe.CreatedByUser?.DisplayName,
+            AverageRating = recipe.AverageRating,
+            TotalRatings = recipe.TotalRatings,
+            TotalTimesAdded = recipe.TotalTimesAdded,
+            CreatedAt = recipe.CreatedAt
+        };
     }
 }
-
-public record CreateGlobalRecipeRequest(
-    string Title,
-    string? Description,
-    string? ImageUrl,
-    string Ingredients,
-    string? NutritionData,
-    int? CookTimeMinutes,
-    string? Difficulty,
-    bool IsPublic
-);
-
-public record UpdateGlobalRecipeRequest(
-    string? Title,
-    string? Description,
-    string? ImageUrl,
-    string? Ingredients,
-    string? NutritionData,
-    int? CookTimeMinutes,
-    string? Difficulty,
-    bool? IsPublic
-);
