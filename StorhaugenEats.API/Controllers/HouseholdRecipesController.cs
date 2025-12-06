@@ -1,217 +1,454 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using StorhaugenEats.API.Data;
+using StorhaugenEats.API.DTOs;
+using StorhaugenEats.API.Models;
 using StorhaugenEats.API.Services;
-using System.Security.Claims;
 
 namespace StorhaugenEats.API.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/household-recipes")]
 [Authorize]
 public class HouseholdRecipesController : ControllerBase
 {
-    private readonly IHouseholdRecipeService _householdRecipeService;
-    private readonly IUserService _userService;
+    private readonly AppDbContext _context;
+    private readonly ICurrentUserService _currentUserService;
 
-    public HouseholdRecipesController(IHouseholdRecipeService householdRecipeService, IUserService userService)
+    public HouseholdRecipesController(AppDbContext context, ICurrentUserService currentUserService)
     {
-        _householdRecipeService = householdRecipeService;
-        _userService = userService;
+        _context = context;
+        _currentUserService = currentUserService;
     }
 
-    private Guid GetCurrentUserId()
-    {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        return Guid.Parse(userIdClaim ?? throw new UnauthorizedAccessException());
-    }
-
+    /// <summary>
+    /// Get all recipes for the current household (optionally include archived)
+    /// </summary>
     [HttpGet]
-    public async Task<IActionResult> GetMyHouseholdRecipes([FromQuery] bool includeArchived = false)
+    public async Task<ActionResult<List<HouseholdRecipeDto>>> GetRecipes([FromQuery] bool includeArchived = false)
     {
-        var userId = GetCurrentUserId();
-        var user = await _userService.GetByIdAsync(userId);
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
+        var user = await _context.Users.FindAsync(userId);
 
         if (user?.CurrentHouseholdId == null)
-            return BadRequest(new { message = "User is not in a household" });
+            return BadRequest(new { message = "You must select a household first" });
 
-        var recipes = await _householdRecipeService.GetByHouseholdAsync(user.CurrentHouseholdId.Value, includeArchived);
+        var query = _context.HouseholdRecipes
+            .Include(hr => hr.GlobalRecipe)
+            .Include(hr => hr.AddedBy)
+            .Include(hr => hr.ArchivedBy)
+            .Include(hr => hr.Ratings).ThenInclude(r => r.User)
+            .Where(hr => hr.HouseholdId == user.CurrentHouseholdId);
+
+        if (!includeArchived)
+            query = query.Where(hr => !hr.IsArchived);
+
+        var recipes = await query
+            .OrderByDescending(hr => hr.DateAdded)
+            .Select(hr => MapToDto(hr))
+            .ToListAsync();
 
         return Ok(recipes);
     }
 
+    /// <summary>
+    /// Get a specific recipe by ID
+    /// </summary>
     [HttpGet("{id}")]
-    public async Task<IActionResult> GetRecipe(Guid id)
+    public async Task<ActionResult<HouseholdRecipeDto>> GetRecipe(int id)
     {
-        var recipe = await _householdRecipeService.GetByIdAsync(id);
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
+        var user = await _context.Users.FindAsync(userId);
+
+        if (user?.CurrentHouseholdId == null)
+            return BadRequest(new { message = "You must select a household first" });
+
+        var recipe = await _context.HouseholdRecipes
+            .Include(hr => hr.GlobalRecipe)
+            .Include(hr => hr.AddedBy)
+            .Include(hr => hr.ArchivedBy)
+            .Include(hr => hr.Ratings).ThenInclude(r => r.User)
+            .FirstOrDefaultAsync(hr => hr.Id == id && hr.HouseholdId == user.CurrentHouseholdId);
 
         if (recipe == null)
             return NotFound();
 
-        // Verify user is in the household
-        var userId = GetCurrentUserId();
-        var user = await _userService.GetByIdAsync(userId);
-
-        if (user?.CurrentHouseholdId != recipe.HouseholdId)
-            return Forbid();
-
-        return Ok(recipe);
+        return Ok(MapToDto(recipe));
     }
 
-    [HttpPost("link")]
-    public async Task<IActionResult> AddLinkedRecipe([FromBody] AddLinkedRecipeRequest request)
+    /// <summary>
+    /// Add a new recipe to the household (custom or from global)
+    /// </summary>
+    [HttpPost]
+    public async Task<ActionResult<HouseholdRecipeDto>> CreateRecipe([FromBody] CreateHouseholdRecipeDto dto)
     {
-        var userId = GetCurrentUserId();
-        var user = await _userService.GetByIdAsync(userId);
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
+        var user = await _context.Users.FindAsync(userId);
 
         if (user?.CurrentHouseholdId == null)
-            return BadRequest(new { message = "User is not in a household" });
+            return BadRequest(new { message = "You must select a household first" });
 
-        var recipe = await _householdRecipeService.AddLinkedRecipeAsync(
-            user.CurrentHouseholdId.Value,
-            request.GlobalRecipeId,
-            userId,
-            request.PersonalNotes
-        );
+        HouseholdRecipe recipe;
 
-        return CreatedAtAction(nameof(GetRecipe), new { id = recipe.Id }, recipe);
-    }
-
-    [HttpPost("fork")]
-    public async Task<IActionResult> AddForkedRecipe([FromBody] AddForkedRecipeRequest request)
-    {
-        var userId = GetCurrentUserId();
-        var user = await _userService.GetByIdAsync(userId);
-
-        if (user?.CurrentHouseholdId == null)
-            return BadRequest(new { message = "User is not in a household" });
-
-        var recipe = await _householdRecipeService.AddForkedRecipeAsync(
-            user.CurrentHouseholdId.Value,
-            userId,
-            request.Title,
-            request.Description,
-            request.Ingredients,
-            request.ImageUrl,
-            request.PersonalNotes
-        );
-
-        return CreatedAtAction(nameof(GetRecipe), new { id = recipe.Id }, recipe);
-    }
-
-    [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateRecipe(Guid id, [FromBody] UpdateHouseholdRecipeRequest request)
-    {
-        var recipe = await _householdRecipeService.GetByIdAsync(id);
-
-        if (recipe == null)
-            return NotFound();
-
-        // Verify user is in the household
-        var userId = GetCurrentUserId();
-        var user = await _userService.GetByIdAsync(userId);
-
-        if (user?.CurrentHouseholdId != recipe.HouseholdId)
-            return Forbid();
-
-        // Update personal notes (always allowed)
-        if (request.PersonalNotes != null)
-            recipe.PersonalNotes = request.PersonalNotes;
-
-        // Update local data only if forked
-        if (recipe.GlobalRecipeId == null)
+        if (dto.GlobalRecipeId.HasValue)
         {
-            recipe.LocalTitle = request.LocalTitle ?? recipe.LocalTitle;
-            recipe.LocalDescription = request.LocalDescription ?? recipe.LocalDescription;
-            recipe.LocalIngredients = request.LocalIngredients ?? recipe.LocalIngredients;
-            recipe.LocalImageUrl = request.LocalImageUrl ?? recipe.LocalImageUrl;
+            // Adding from global recipe
+            var globalRecipe = await _context.GlobalRecipes.FindAsync(dto.GlobalRecipeId.Value);
+            if (globalRecipe == null)
+                return NotFound(new { message = "Global recipe not found" });
+
+            recipe = new HouseholdRecipe
+            {
+                HouseholdId = user.CurrentHouseholdId.Value,
+                GlobalRecipeId = dto.GlobalRecipeId.Value,
+                IsForked = dto.Fork,
+                PersonalNotes = dto.PersonalNotes,
+                AddedByUserId = userId,
+                DateAdded = DateTime.UtcNow,
+                IsArchived = false
+            };
+
+            if (dto.Fork)
+            {
+                // Fork: Copy data from global recipe
+                recipe.Name = dto.Name ?? globalRecipe.Name;
+                recipe.Description = dto.Description ?? globalRecipe.Description;
+                recipe.ImageUrls = dto.ImageUrls?.Count > 0 ? dto.ImageUrls : globalRecipe.ImageUrls;
+            }
+            else
+            {
+                // Link: Use global recipe data, only store personal notes
+                recipe.Name = null; // Will use global recipe name
+                recipe.Description = null;
+                recipe.ImageUrls = new List<string>();
+            }
+
+            // Increment global recipe counter
+            globalRecipe.TotalTimesAdded++;
+            globalRecipe.UpdatedAt = DateTime.UtcNow;
+        }
+        else
+        {
+            // Custom recipe
+            recipe = new HouseholdRecipe
+            {
+                HouseholdId = user.CurrentHouseholdId.Value,
+                Name = dto.Name,
+                Description = dto.Description,
+                ImageUrls = dto.ImageUrls ?? new List<string>(),
+                PersonalNotes = dto.PersonalNotes,
+                AddedByUserId = userId,
+                DateAdded = DateTime.UtcNow,
+                IsArchived = false,
+                IsForked = false
+            };
         }
 
-        await _householdRecipeService.UpdateAsync(recipe);
+        _context.HouseholdRecipes.Add(recipe);
+        await _context.SaveChangesAsync();
 
-        return Ok(recipe);
+        // Reload with includes
+        recipe = await _context.HouseholdRecipes
+            .Include(hr => hr.GlobalRecipe)
+            .Include(hr => hr.AddedBy)
+            .Include(hr => hr.Ratings).ThenInclude(r => r.User)
+            .FirstAsync(hr => hr.Id == recipe.Id);
+
+        return CreatedAtAction(nameof(GetRecipe), new { id = recipe.Id }, MapToDto(recipe));
     }
 
-    [HttpPost("{id}/fork")]
-    public async Task<IActionResult> ForkRecipe(Guid id)
+    /// <summary>
+    /// Update a recipe (name, description, notes, images)
+    /// </summary>
+    [HttpPut("{id}")]
+    public async Task<ActionResult<HouseholdRecipeDto>> UpdateRecipe(int id, [FromBody] UpdateHouseholdRecipeDto dto)
     {
-        var recipe = await _householdRecipeService.GetByIdAsync(id);
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
+        var user = await _context.Users.FindAsync(userId);
+
+        if (user?.CurrentHouseholdId == null)
+            return BadRequest(new { message = "You must select a household first" });
+
+        var recipe = await _context.HouseholdRecipes
+            .Include(hr => hr.GlobalRecipe)
+            .Include(hr => hr.AddedBy)
+            .Include(hr => hr.ArchivedBy)
+            .Include(hr => hr.Ratings).ThenInclude(r => r.User)
+            .FirstOrDefaultAsync(hr => hr.Id == id && hr.HouseholdId == user.CurrentHouseholdId);
 
         if (recipe == null)
             return NotFound();
 
-        // Verify user is in the household
-        var userId = GetCurrentUserId();
-        var user = await _userService.GetByIdAsync(userId);
+        // Only update fields that are provided
+        if (dto.Name != null)
+        {
+            // Can only update name if recipe is forked or custom (not linked to global)
+            if (recipe.GlobalRecipeId == null || recipe.IsForked)
+                recipe.Name = dto.Name;
+            else
+                return BadRequest(new { message = "Cannot update name of linked recipe. Fork it first." });
+        }
 
-        if (user?.CurrentHouseholdId != recipe.HouseholdId)
-            return Forbid();
+        if (dto.Description != null)
+        {
+            if (recipe.GlobalRecipeId == null || recipe.IsForked)
+                recipe.Description = dto.Description;
+            else
+                return BadRequest(new { message = "Cannot update description of linked recipe. Fork it first." });
+        }
 
-        var forkedRecipe = await _householdRecipeService.ForkRecipeAsync(id);
+        if (dto.ImageUrls != null)
+        {
+            if (recipe.GlobalRecipeId == null || recipe.IsForked)
+                recipe.ImageUrls = dto.ImageUrls;
+            else
+                return BadRequest(new { message = "Cannot update images of linked recipe. Fork it first." });
+        }
 
-        return Ok(forkedRecipe);
+        if (dto.PersonalNotes != null)
+        {
+            // Personal notes can always be updated
+            recipe.PersonalNotes = dto.PersonalNotes;
+        }
+
+        await _context.SaveChangesAsync();
+
+        return Ok(MapToDto(recipe));
     }
 
+    /// <summary>
+    /// Archive a recipe
+    /// </summary>
     [HttpPost("{id}/archive")]
-    public async Task<IActionResult> ArchiveRecipe(Guid id)
+    public async Task<IActionResult> ArchiveRecipe(int id)
     {
-        var recipe = await _householdRecipeService.GetByIdAsync(id);
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
+        var user = await _context.Users.FindAsync(userId);
+
+        if (user?.CurrentHouseholdId == null)
+            return BadRequest(new { message = "You must select a household first" });
+
+        var recipe = await _context.HouseholdRecipes
+            .FirstOrDefaultAsync(hr => hr.Id == id && hr.HouseholdId == user.CurrentHouseholdId);
 
         if (recipe == null)
             return NotFound();
 
-        // Verify user is in the household
-        var userId = GetCurrentUserId();
-        var user = await _userService.GetByIdAsync(userId);
+        recipe.IsArchived = true;
+        recipe.ArchivedDate = DateTime.UtcNow;
+        recipe.ArchivedByUserId = userId;
 
-        if (user?.CurrentHouseholdId != recipe.HouseholdId)
-            return Forbid();
+        await _context.SaveChangesAsync();
 
-        await _householdRecipeService.ArchiveAsync(id);
-
-        return Ok();
+        return Ok(new { message = "Recipe archived" });
     }
 
-    [HttpPost("{id}/unarchive")]
-    public async Task<IActionResult> UnarchiveRecipe(Guid id)
+    /// <summary>
+    /// Restore an archived recipe
+    /// </summary>
+    [HttpPost("{id}/restore")]
+    public async Task<IActionResult> RestoreRecipe(int id)
     {
-        var recipe = await _householdRecipeService.GetByIdAsync(id);
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
+        var user = await _context.Users.FindAsync(userId);
+
+        if (user?.CurrentHouseholdId == null)
+            return BadRequest(new { message = "You must select a household first" });
+
+        var recipe = await _context.HouseholdRecipes
+            .FirstOrDefaultAsync(hr => hr.Id == id && hr.HouseholdId == user.CurrentHouseholdId);
 
         if (recipe == null)
             return NotFound();
 
-        // Verify user is in the household
-        var userId = GetCurrentUserId();
-        var user = await _userService.GetByIdAsync(userId);
+        recipe.IsArchived = false;
+        recipe.ArchivedDate = null;
+        recipe.ArchivedByUserId = null;
 
-        if (user?.CurrentHouseholdId != recipe.HouseholdId)
-            return Forbid();
+        await _context.SaveChangesAsync();
 
-        await _householdRecipeService.UnarchiveAsync(id);
-
-        return Ok();
+        return Ok(new { message = "Recipe restored" });
     }
 
+    /// <summary>
+    /// Rate a recipe (0-10 scale)
+    /// </summary>
+    [HttpPost("{id}/rate")]
+    public async Task<ActionResult<HouseholdRecipeDto>> RateRecipe(int id, [FromBody] RateRecipeDto dto)
+    {
+        if (dto.Rating < 0 || dto.Rating > 10)
+            return BadRequest(new { message = "Rating must be between 0 and 10" });
+
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
+        var user = await _context.Users.FindAsync(userId);
+
+        if (user?.CurrentHouseholdId == null)
+            return BadRequest(new { message = "You must select a household first" });
+
+        var recipe = await _context.HouseholdRecipes
+            .Include(hr => hr.GlobalRecipe)
+            .Include(hr => hr.AddedBy)
+            .Include(hr => hr.Ratings).ThenInclude(r => r.User)
+            .FirstOrDefaultAsync(hr => hr.Id == id && hr.HouseholdId == user.CurrentHouseholdId);
+
+        if (recipe == null)
+            return NotFound();
+
+        // Check if rating already exists
+        var existingRating = await _context.Ratings
+            .FirstOrDefaultAsync(r => r.HouseholdRecipeId == id && r.UserId == userId);
+
+        if (existingRating != null)
+        {
+            // Update existing rating
+            existingRating.RatingValue = dto.Rating;
+            existingRating.CreatedAt = DateTime.UtcNow; // Update timestamp
+        }
+        else
+        {
+            // Create new rating
+            var newRating = new Rating
+            {
+                HouseholdRecipeId = id,
+                UserId = userId,
+                RatingValue = dto.Rating,
+                CreatedAt = DateTime.UtcNow
+            };
+            _context.Ratings.Add(newRating);
+        }
+
+        await _context.SaveChangesAsync();
+
+        // If recipe is linked to global, also update global rating
+        if (recipe.GlobalRecipeId.HasValue)
+        {
+            var globalRecipe = await _context.GlobalRecipes.FindAsync(recipe.GlobalRecipeId.Value);
+            if (globalRecipe != null)
+            {
+                // Recalculate global average
+                var allRatings = await _context.Ratings
+                    .Where(r => r.HouseholdRecipe!.GlobalRecipeId == recipe.GlobalRecipeId.Value)
+                    .Select(r => r.RatingValue)
+                    .ToListAsync();
+
+                globalRecipe.AverageRating = allRatings.Count > 0 ? allRatings.Average() : 0;
+                globalRecipe.TotalRatings = allRatings.Count;
+                globalRecipe.UpdatedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        // Reload recipe with updated ratings
+        recipe = await _context.HouseholdRecipes
+            .Include(hr => hr.GlobalRecipe)
+            .Include(hr => hr.AddedBy)
+            .Include(hr => hr.Ratings).ThenInclude(r => r.User)
+            .FirstAsync(hr => hr.Id == id);
+
+        return Ok(MapToDto(recipe));
+    }
+
+    /// <summary>
+    /// Fork a linked recipe (convert to editable copy)
+    /// </summary>
+    [HttpPost("{id}/fork")]
+    public async Task<ActionResult<HouseholdRecipeDto>> ForkRecipe(int id)
+    {
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
+        var user = await _context.Users.FindAsync(userId);
+
+        if (user?.CurrentHouseholdId == null)
+            return BadRequest(new { message = "You must select a household first" });
+
+        var recipe = await _context.HouseholdRecipes
+            .Include(hr => hr.GlobalRecipe)
+            .Include(hr => hr.AddedBy)
+            .Include(hr => hr.Ratings).ThenInclude(r => r.User)
+            .FirstOrDefaultAsync(hr => hr.Id == id && hr.HouseholdId == user.CurrentHouseholdId);
+
+        if (recipe == null)
+            return NotFound();
+
+        if (recipe.GlobalRecipeId == null)
+            return BadRequest(new { message = "Recipe is not linked to a global recipe" });
+
+        if (recipe.IsForked)
+            return BadRequest(new { message = "Recipe is already forked" });
+
+        // Copy data from global recipe
+        var globalRecipe = recipe.GlobalRecipe;
+        recipe.Name = globalRecipe!.Name;
+        recipe.Description = globalRecipe.Description;
+        recipe.ImageUrls = globalRecipe.ImageUrls;
+        recipe.IsForked = true;
+
+        await _context.SaveChangesAsync();
+
+        return Ok(MapToDto(recipe));
+    }
+
+    /// <summary>
+    /// Delete a recipe permanently
+    /// </summary>
     [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteRecipe(Guid id)
+    public async Task<IActionResult> DeleteRecipe(int id)
     {
-        var recipe = await _householdRecipeService.GetByIdAsync(id);
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
+        var user = await _context.Users.FindAsync(userId);
+
+        if (user?.CurrentHouseholdId == null)
+            return BadRequest(new { message = "You must select a household first" });
+
+        var recipe = await _context.HouseholdRecipes
+            .FirstOrDefaultAsync(hr => hr.Id == id && hr.HouseholdId == user.CurrentHouseholdId);
 
         if (recipe == null)
             return NotFound();
 
-        // Verify user is in the household
-        var userId = GetCurrentUserId();
-        var user = await _userService.GetByIdAsync(userId);
+        // Delete associated ratings
+        var ratings = await _context.Ratings.Where(r => r.HouseholdRecipeId == id).ToListAsync();
+        _context.Ratings.RemoveRange(ratings);
 
-        if (user?.CurrentHouseholdId != recipe.HouseholdId)
-            return Forbid();
+        _context.HouseholdRecipes.Remove(recipe);
+        await _context.SaveChangesAsync();
 
-        await _householdRecipeService.DeleteAsync(id);
+        return Ok(new { message = "Recipe deleted" });
+    }
 
-        return NoContent();
+    private static HouseholdRecipeDto MapToDto(HouseholdRecipe recipe)
+    {
+        // Calculate average rating from household members
+        var ratings = recipe.Ratings?
+            .GroupBy(r => r.User.DisplayName)
+            .ToDictionary(g => g.Key, g => (int?)g.First().RatingValue)
+            ?? new Dictionary<string, int?>();
+
+        var averageRating = ratings.Values.Where(r => r.HasValue).Any()
+            ? ratings.Values.Where(r => r.HasValue).Average(r => r!.Value)
+            : 0;
+
+        return new HouseholdRecipeDto
+        {
+            Id = recipe.Id,
+            HouseholdId = recipe.HouseholdId,
+            Name = recipe.Name ?? recipe.GlobalRecipe?.Name ?? "Unknown",
+            Description = recipe.Description ?? recipe.GlobalRecipe?.Description,
+            ImageUrls = recipe.ImageUrls?.Count > 0 ? recipe.ImageUrls : (recipe.GlobalRecipe?.ImageUrls ?? new List<string>()),
+            Ratings = ratings,
+            AverageRating = averageRating,
+            DateAdded = recipe.DateAdded,
+            AddedByUserId = recipe.AddedByUserId,
+            AddedByName = recipe.AddedBy?.DisplayName,
+            IsArchived = recipe.IsArchived,
+            ArchivedDate = recipe.ArchivedDate,
+            ArchivedByUserId = recipe.ArchivedByUserId,
+            ArchivedByName = recipe.ArchivedBy?.DisplayName,
+            GlobalRecipeId = recipe.GlobalRecipeId,
+            GlobalRecipeName = recipe.GlobalRecipe?.Name,
+            IsForked = recipe.IsForked,
+            PersonalNotes = recipe.PersonalNotes
+        };
     }
 }
-
-public record AddLinkedRecipeRequest(Guid GlobalRecipeId, string? PersonalNotes);
-public record AddForkedRecipeRequest(string Title, string? Description, string Ingredients, string? ImageUrl, string? PersonalNotes);
-public record UpdateHouseholdRecipeRequest(string? LocalTitle, string? LocalDescription, string? LocalIngredients, string? LocalImageUrl, string? PersonalNotes);
