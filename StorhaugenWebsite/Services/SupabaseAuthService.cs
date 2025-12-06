@@ -1,9 +1,10 @@
+using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
+using StorhaugenWebsite.Models;
 using Supabase;
 using Supabase.Gotrue;
-using StorhaugenWebsite.Models;
-using Client = Supabase.Client;
 using static Supabase.Gotrue.Constants;
+using Client = Supabase.Client;
 
 namespace StorhaugenWebsite.Services;
 
@@ -11,6 +12,7 @@ public class SupabaseAuthService : IAuthService, IAsyncDisposable
 {
     private readonly Client _supabaseClient;
     private readonly IJSRuntime _jsRuntime;
+    private readonly NavigationManager _navigationManager; // Add this
     private Session? _session;
 
     public event Action? OnAuthStateChanged;
@@ -20,12 +22,13 @@ public class SupabaseAuthService : IAuthService, IAsyncDisposable
     public string? CurrentUserEmail => _session?.User?.Email;
     public FamilyMember? CurrentUser => AppConfig.GetMemberByEmail(CurrentUserEmail);
 
-    public SupabaseAuthService(Client supabaseClient, IJSRuntime jsRuntime)
+    // Inject NavigationManager here
+    public SupabaseAuthService(Client supabaseClient, IJSRuntime jsRuntime, NavigationManager navigationManager)
     {
         _supabaseClient = supabaseClient;
         _jsRuntime = jsRuntime;
+        _navigationManager = navigationManager;
 
-        // Subscribe to auth state changes
         _supabaseClient.Auth.AddStateChangedListener(OnAuthStateChange);
     }
 
@@ -39,18 +42,35 @@ public class SupabaseAuthService : IAuthService, IAsyncDisposable
     {
         try
         {
-            // Check if user is already logged in
-            var session = await _supabaseClient.Auth.RetrieveSessionAsync();
-            if (session != null)
+            // 1. Check if we are coming back from a login redirect (URL contains access_token)
+            var uri = _navigationManager.Uri;
+            if (uri.Contains("access_token") && uri.Contains("type=recovery") == false)
             {
-                _session = session;
+                // Parse the session from the URL
+                var session = await _supabaseClient.Auth.GetSessionFromUrl(new Uri(uri));
+
+                if (session != null)
+                {
+                    _session = session;
+                    OnAuthStateChanged?.Invoke();
+
+                    // Optional: Clean the URL so the user doesn't see the ugly token
+                    // _navigationManager.NavigateTo("/", replace: true); 
+                    return;
+                }
+            }
+
+            // 2. If no token in URL, check LocalStorage for existing session
+            var storedSession = await _supabaseClient.Auth.RetrieveSessionAsync();
+            if (storedSession != null)
+            {
+                _session = storedSession;
                 OnAuthStateChanged?.Invoke();
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Auth initialization error: {ex.Message}");
-            // User not logged in, that's okay
         }
     }
 
@@ -58,23 +78,23 @@ public class SupabaseAuthService : IAuthService, IAsyncDisposable
     {
         try
         {
-            // Get redirect URL dynamically from browser
-            var redirectUrl = await GetRedirectUrlAsync(); // Or use NavigationManager.BaseUri
+            var redirectUrl = await GetRedirectUrlAsync();
 
             var options = new SignInOptions
             {
                 RedirectTo = redirectUrl
             };
 
-            // This returns an object, NOT a string
             var result = await _supabaseClient.Auth.SignIn(Provider.Google, options);
 
-            // FIX: Check result.Uri instead of result itself
             if (result != null && result.Uri != null)
             {
-                // Redirect to Google OAuth
-                // FIX: Convert the Uri object to a string
-                await _jsRuntime.InvokeVoidAsync("open", result.Uri.ToString(), "_self");
+                // 1. We are leaving the app. Using NavigationManager with forceLoad: true 
+                // is cleaner than JS Interop for external links.
+                _navigationManager.NavigateTo(result.Uri.ToString(), forceLoad: true);
+
+                // 2. We return basic success here, but the code below 
+                // technically won't matter because the browser is navigating away.
                 return (true, null);
             }
 

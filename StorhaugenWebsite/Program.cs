@@ -12,12 +12,14 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 
 // API HttpClient - Configure base URL for API calls
 #if DEBUG
-var apiBaseUrl = "https://storhaugen-eats-api-a7ckh4hwdvcagcb7.westeurope-01.azurewebsites.net"; // Azure API
+// Use your LOCAL API port here. 
+// Check your API project's Properties -> launchSettings.json to find the "https" port.
+// It is usually 7000-7300.
+var apiBaseUrl = "https://localhost:7280";
 #else
-var apiBaseUrl = "https://storhaugen-eats-api-a7ckh4hwdvcagcb7.westeurope-01.azurewebsites.net"; // Azure API
+    var apiBaseUrl = "https://storhaugen-eats-api-a7ckh4hwdvcagcb7.westeurope-01.azurewebsites.net";
 #endif
 
-builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(apiBaseUrl) });
 
 // MudBlazor
 builder.Services.AddMudServices();
@@ -30,6 +32,7 @@ var options = new SupabaseOptions
 {
     AutoConnectRealtime = false // We don't need realtime in the frontend
 };
+builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(apiBaseUrl) });
 
 builder.Services.AddScoped(sp => new Supabase.Client(supabaseUrl, supabaseAnonKey, options));
 
@@ -51,7 +54,6 @@ var host = builder.Build();
 // Initialize auth on startup
 var authService = host.Services.GetRequiredService<IAuthService>();
 await authService.InitializeAsync();
-
 // Initialize household state (will auto-load after auth)
 var householdStateService = host.Services.GetRequiredService<IHouseholdStateService>();
 await householdStateService.InitializeAsync();
