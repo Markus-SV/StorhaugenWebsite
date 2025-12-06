@@ -10,28 +10,28 @@ public interface IApiClient
 
     // Households
     Task<List<HouseholdDto>> GetMyHouseholdsAsync();
-    Task<HouseholdDto?> GetHouseholdAsync(int id);
+    Task<HouseholdDto?> GetHouseholdAsync(Guid id);
     Task<HouseholdDto> CreateHouseholdAsync(CreateHouseholdDto dto);
-    Task SwitchHouseholdAsync(int householdId);
+    Task SwitchHouseholdAsync(Guid householdId);
     Task<List<HouseholdInviteDto>> GetPendingInvitesAsync();
-    Task AcceptInviteAsync(int inviteId);
-    Task InviteToHouseholdAsync(int householdId, InviteToHouseholdDto dto);
-    Task LeaveHouseholdAsync(int householdId);
+    Task AcceptInviteAsync(Guid inviteId);
+    Task InviteToHouseholdAsync(Guid householdId, InviteToHouseholdDto dto);
+    Task LeaveHouseholdAsync(Guid householdId);
 
     // Household Recipes
     Task<List<HouseholdRecipeDto>> GetRecipesAsync(bool includeArchived = false);
-    Task<HouseholdRecipeDto?> GetRecipeAsync(int id);
+    Task<HouseholdRecipeDto?> GetRecipeAsync(Guid id);
     Task<HouseholdRecipeDto> CreateRecipeAsync(CreateHouseholdRecipeDto dto);
-    Task<HouseholdRecipeDto> UpdateRecipeAsync(int id, UpdateHouseholdRecipeDto dto);
-    Task ArchiveRecipeAsync(int id);
-    Task RestoreRecipeAsync(int id);
-    Task RateRecipeAsync(int id, int rating);
-    Task ForkRecipeAsync(int id);
-    Task DeleteRecipeAsync(int id);
+    Task<HouseholdRecipeDto> UpdateRecipeAsync(Guid id, UpdateHouseholdRecipeDto dto);
+    Task ArchiveRecipeAsync(Guid id);
+    Task RestoreRecipeAsync(Guid id);
+    Task RateRecipeAsync(Guid id, int rating);
+    Task ForkRecipeAsync(Guid id);
+    Task DeleteRecipeAsync(Guid id);
 
     // Global Recipes
     Task<GlobalRecipePagedResult> BrowseGlobalRecipesAsync(BrowseGlobalRecipesQuery query);
-    Task<GlobalRecipeDto?> GetGlobalRecipeAsync(int id);
+    Task<GlobalRecipeDto?> GetGlobalRecipeAsync(Guid id);
     Task<List<GlobalRecipeDto>> SearchGlobalRecipesAsync(string query, int limit = 20);
 
     // Storage

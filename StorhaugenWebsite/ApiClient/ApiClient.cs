@@ -56,7 +56,7 @@ public class ApiClient : IApiClient
         return (await _httpClient.GetFromJsonAsync<List<HouseholdDto>>("/api/households/my", _jsonOptions)) ?? new();
     }
 
-    public async Task<HouseholdDto?> GetHouseholdAsync(int id)
+    public async Task<HouseholdDto?> GetHouseholdAsync(Guid id)
     {
         await AddAuthHeaderAsync();
         return await _httpClient.GetFromJsonAsync<HouseholdDto>($"/api/households/{id}", _jsonOptions);
@@ -70,7 +70,7 @@ public class ApiClient : IApiClient
         return (await response.Content.ReadFromJsonAsync<HouseholdDto>(_jsonOptions))!;
     }
 
-    public async Task SwitchHouseholdAsync(int householdId)
+    public async Task SwitchHouseholdAsync(Guid householdId)
     {
         await AddAuthHeaderAsync();
         var response = await _httpClient.PostAsync($"/api/households/{householdId}/switch", null);
@@ -83,21 +83,21 @@ public class ApiClient : IApiClient
         return (await _httpClient.GetFromJsonAsync<List<HouseholdInviteDto>>("/api/households/invites/pending", _jsonOptions)) ?? new();
     }
 
-    public async Task AcceptInviteAsync(int inviteId)
+    public async Task AcceptInviteAsync(Guid inviteId)
     {
         await AddAuthHeaderAsync();
         var response = await _httpClient.PostAsync($"/api/households/invites/{inviteId}/accept", null);
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task InviteToHouseholdAsync(int householdId, InviteToHouseholdDto dto)
+    public async Task InviteToHouseholdAsync(Guid householdId, InviteToHouseholdDto dto)
     {
         await AddAuthHeaderAsync();
         var response = await _httpClient.PostAsJsonAsync($"/api/households/{householdId}/invites", dto, _jsonOptions);
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task LeaveHouseholdAsync(int householdId)
+    public async Task LeaveHouseholdAsync(Guid householdId)
     {
         await AddAuthHeaderAsync();
         var response = await _httpClient.PostAsync($"/api/households/{householdId}/leave", null);
@@ -112,7 +112,7 @@ public class ApiClient : IApiClient
         return (await _httpClient.GetFromJsonAsync<List<HouseholdRecipeDto>>(url, _jsonOptions)) ?? new();
     }
 
-    public async Task<HouseholdRecipeDto?> GetRecipeAsync(int id)
+    public async Task<HouseholdRecipeDto?> GetRecipeAsync(Guid id)
     {
         await AddAuthHeaderAsync();
         return await _httpClient.GetFromJsonAsync<HouseholdRecipeDto>($"/api/household-recipes/{id}", _jsonOptions);
@@ -126,7 +126,7 @@ public class ApiClient : IApiClient
         return (await response.Content.ReadFromJsonAsync<HouseholdRecipeDto>(_jsonOptions))!;
     }
 
-    public async Task<HouseholdRecipeDto> UpdateRecipeAsync(int id, UpdateHouseholdRecipeDto dto)
+    public async Task<HouseholdRecipeDto> UpdateRecipeAsync(Guid id, UpdateHouseholdRecipeDto dto)
     {
         await AddAuthHeaderAsync();
         var response = await _httpClient.PutAsJsonAsync($"/api/household-recipes/{id}", dto, _jsonOptions);
@@ -134,21 +134,21 @@ public class ApiClient : IApiClient
         return (await response.Content.ReadFromJsonAsync<HouseholdRecipeDto>(_jsonOptions))!;
     }
 
-    public async Task ArchiveRecipeAsync(int id)
+    public async Task ArchiveRecipeAsync(Guid id)
     {
         await AddAuthHeaderAsync();
         var response = await _httpClient.PostAsync($"/api/household-recipes/{id}/archive", null);
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task RestoreRecipeAsync(int id)
+    public async Task RestoreRecipeAsync(Guid id)
     {
         await AddAuthHeaderAsync();
         var response = await _httpClient.PostAsync($"/api/household-recipes/{id}/restore", null);
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task RateRecipeAsync(int id, int rating)
+    public async Task RateRecipeAsync(Guid id, int rating)
     {
         await AddAuthHeaderAsync();
         var dto = new RateRecipeDto { Rating = rating };
@@ -156,14 +156,14 @@ public class ApiClient : IApiClient
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task ForkRecipeAsync(int id)
+    public async Task ForkRecipeAsync(Guid id)
     {
         await AddAuthHeaderAsync();
         var response = await _httpClient.PostAsync($"/api/household-recipes/{id}/fork", null);
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task DeleteRecipeAsync(int id)
+    public async Task DeleteRecipeAsync(Guid id)
     {
         await AddAuthHeaderAsync();
         var response = await _httpClient.DeleteAsync($"/api/household-recipes/{id}");
@@ -206,7 +206,7 @@ public class ApiClient : IApiClient
             ?? new GlobalRecipePagedResult();
     }
 
-    public async Task<GlobalRecipeDto?> GetGlobalRecipeAsync(int id)
+    public async Task<GlobalRecipeDto?> GetGlobalRecipeAsync(Guid id)
     {
         return await _httpClient.GetFromJsonAsync<GlobalRecipeDto>($"/api/global-recipes/{id}", _jsonOptions);
     }
