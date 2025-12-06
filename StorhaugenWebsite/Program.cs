@@ -36,13 +36,14 @@ builder.Services.AddScoped(sp => new Supabase.Client(supabaseUrl, supabaseAnonKe
 // Authentication & API Services
 builder.Services.AddScoped<IAuthService, SupabaseAuthService>();
 builder.Services.AddScoped<IApiClient, ApiClient.ApiClient>();
+builder.Services.AddScoped<IHouseholdStateService, HouseholdStateService>();
 
 // Other Services
 builder.Services.AddScoped<IDeviceStateService, DeviceStateService>();
 builder.Services.AddScoped<IThemeService, ThemeService>();
 builder.Services.AddScoped<IOcrService, TesseractOcrService>();
 
-// Food Service - Keep for now for backward compatibility, will update to use ApiClient
+// Food Service - Uses ApiClient now for backward compatibility with existing pages
 builder.Services.AddScoped<IFoodService, FoodService>();
 
 var host = builder.Build();
@@ -50,5 +51,9 @@ var host = builder.Build();
 // Initialize auth on startup
 var authService = host.Services.GetRequiredService<IAuthService>();
 await authService.InitializeAsync();
+
+// Initialize household state (will auto-load after auth)
+var householdStateService = host.Services.GetRequiredService<IHouseholdStateService>();
+await householdStateService.InitializeAsync();
 
 await host.RunAsync();
