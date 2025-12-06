@@ -100,13 +100,69 @@ else
             <p class="detail-description">@_food.Description</p>
         }
 
-        @if (!string.IsNullOrWhiteSpace(_food.PersonalNotes))
-        {
-            <div class="personal-notes">
-                <MudIcon Icon="@Icons.Material.Rounded.StickyNote2" Size="Size.Small" Class="mr-1" />
-                <span>@_food.PersonalNotes</span>
-            </div>
-        }
+        <!-- Personal Notes Section -->
+        <div class="personal-notes-section">
+            @if (_editingNotes)
+            {
+                <div class="personal-notes-edit">
+                    <MudTextField @bind-Value="_tempNotes"
+                                  Label="Personal Notes"
+                                  Variant="Variant.Outlined"
+                                  Lines="3"
+                                  Placeholder="Add your personal notes, modifications, or tips..."
+                                  Style="border-radius: 10px; margin-bottom: 12px;" />
+                    <div class="d-flex gap-2">
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   OnClick="SaveNotes"
+                                   Disabled="_isSavingNotes"
+                                   Style="border-radius: 10px;">
+                            @if (_isSavingNotes)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-1" />
+                            }
+                            Save
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined"
+                                   Size="Size.Small"
+                                   OnClick="CancelEditNotes"
+                                   Style="border-radius: 10px;">
+                            Cancel
+                        </MudButton>
+                    </div>
+                </div>
+            }
+            else
+            {
+                @if (!string.IsNullOrWhiteSpace(_food.PersonalNotes))
+                {
+                    <div class="personal-notes">
+                        <div class="d-flex justify-space-between align-center mb-2">
+                            <div class="d-flex align-center gap-2">
+                                <MudIcon Icon="@Icons.Material.Rounded.StickyNote2" Size="Size.Small" />
+                                <MudText Typo="Typo.subtitle2" Style="font-weight: 600;">Personal Notes</MudText>
+                            </div>
+                            <MudIconButton Icon="@Icons.Material.Rounded.Edit"
+                                          Size="Size.Small"
+                                          OnClick="StartEditNotes" />
+                        </div>
+                        <MudText Typo="Typo.body2">@_food.PersonalNotes</MudText>
+                    </div>
+                }
+                else
+                {
+                    <MudButton Variant="Variant.Text"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Rounded.AddCircle"
+                               OnClick="StartEditNotes"
+                               Size="Size.Small"
+                               Style="margin-top: 8px;">
+                        Add Personal Notes
+                    </MudButton>
+                }
+            }
+        </div>
 
         @if (_food.IsLinkedToGlobal || _food.IsForked)
         {
@@ -282,16 +338,21 @@ else
 }
 
 <style>
+    .personal-notes-section {
+        margin-top: 16px;
+    }
+
     .personal-notes {
-        display: flex;
-        align-items: center;
-        margin-top: 12px;
-        padding: 12px;
+        padding: 16px;
         background: rgba(var(--mud-palette-info-rgb), 0.08);
-        border-left: 3px solid var(--mud-palette-info);
-        border-radius: 8px;
-        font-size: 0.875rem;
-        color: var(--mud-palette-text-primary);
+        border-left: 4px solid var(--mud-palette-info);
+        border-radius: 10px;
+    }
+
+    .personal-notes-edit {
+        padding: 16px;
+        background: var(--mud-palette-background-grey);
+        border-radius: 10px;
     }
 
     .recipe-source-info {
@@ -312,6 +373,9 @@ else
     private int _tempRating = 5;
     private bool _isSaving = false;
     private bool _isForking = false;
+    private bool _editingNotes = false;
+    private string _tempNotes = "";
+    private bool _isSavingNotes = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -442,6 +506,40 @@ else
             {
                 _isForking = false;
             }
+        }
+    }
+
+    private void StartEditNotes()
+    {
+        _tempNotes = _food?.PersonalNotes ?? "";
+        _editingNotes = true;
+    }
+
+    private void CancelEditNotes()
+    {
+        _editingNotes = false;
+        _tempNotes = "";
+    }
+
+    private async Task SaveNotes()
+    {
+        if (_food == null) return;
+
+        _isSavingNotes = true;
+        try
+        {
+            _food.PersonalNotes = _tempNotes;
+            await FoodService.UpdateFoodAsync(_food);
+            _editingNotes = false;
+            Snackbar.Add("Personal notes saved!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSavingNotes = false;
         }
     }
 

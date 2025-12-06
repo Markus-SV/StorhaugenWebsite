@@ -73,7 +73,8 @@ namespace StorhaugenWebsite.Services
             {
                 Name = food.Name,
                 Description = food.Description,
-                ImageUrls = food.ImageUrls
+                ImageUrls = food.ImageUrls,
+                PersonalNotes = food.PersonalNotes
             };
 
             await _apiClient.UpdateRecipeAsync(recipeId, dto);
