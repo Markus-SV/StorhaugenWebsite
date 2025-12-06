@@ -2,11 +2,11 @@ namespace StorhaugenEats.API.DTOs;
 
 public class UserDto
 {
-    public int Id { get; set; }
+    public Guid Id { get; set; }
     public required string Email { get; set; }
     public required string DisplayName { get; set; }
     public string? AvatarUrl { get; set; }
-    public int? CurrentHouseholdId { get; set; }
+    public Guid? CurrentHouseholdId { get; set; }
     public DateTime CreatedAt { get; set; }
 }
 
@@ -21,5 +21,5 @@ public class UpdateUserDto
 {
     public string? DisplayName { get; set; }
     public string? AvatarUrl { get; set; }
-    public int? CurrentHouseholdId { get; set; }
+    public Guid? CurrentHouseholdId { get; set; }
 }

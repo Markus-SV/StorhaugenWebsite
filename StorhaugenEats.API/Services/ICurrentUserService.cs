@@ -15,7 +15,7 @@ public interface ICurrentUserService
     /// <summary>
     /// Gets or creates the user in the database and returns their ID
     /// </summary>
-    Task<int> GetOrCreateUserIdAsync();
+    Task<Guid> GetOrCreateUserIdAsync();
 
     /// <summary>
     /// Checks if user is authenticated

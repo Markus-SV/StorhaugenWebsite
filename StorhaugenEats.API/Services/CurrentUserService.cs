@@ -37,7 +37,7 @@ public class CurrentUserService : ICurrentUserService
         return _httpContextAccessor.HttpContext?.User?.Identity?.IsAuthenticated ?? false;
     }
 
-    public async Task<int> GetOrCreateUserIdAsync()
+    public async Task<Guid> GetOrCreateUserIdAsync()
     {
         if (!IsAuthenticated())
         {
@@ -70,10 +70,12 @@ public class CurrentUserService : ICurrentUserService
 
             user = new User
             {
+                Id = Guid.NewGuid(),
                 Email = email,
                 DisplayName = displayName,
                 AvatarUrl = avatarUrl,
                 SupabaseUserId = subject,
+                UniqueShareId = GenerateUniqueShareId(),
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -83,5 +85,14 @@ public class CurrentUserService : ICurrentUserService
         }
 
         return user.Id;
+    }
+
+    private string GenerateUniqueShareId()
+    {
+        // Generate a random 12-character alphanumeric string
+        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Exclude similar-looking characters
+        var random = new Random();
+        return new string(Enumerable.Repeat(chars, 12)
+            .Select(s => s[random.Next(s.Length)]).ToArray());
     }
 }
