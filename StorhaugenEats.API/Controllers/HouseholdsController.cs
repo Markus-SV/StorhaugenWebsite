@@ -1,7 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using StorhaugenEats.API.Data;
+using StorhaugenEats.API.DTOs;
+using StorhaugenEats.API.Models;
 using StorhaugenEats.API.Services;
-using System.Security.Claims;
 
 namespace StorhaugenEats.API.Controllers;
 
@@ -10,150 +13,353 @@ namespace StorhaugenEats.API.Controllers;
 [Authorize]
 public class HouseholdsController : ControllerBase
 {
-    private readonly IHouseholdService _householdService;
-    private readonly IUserService _userService;
+    private readonly AppDbContext _context;
+    private readonly ICurrentUserService _currentUserService;
 
-    public HouseholdsController(IHouseholdService householdService, IUserService userService)
+    public HouseholdsController(AppDbContext context, ICurrentUserService currentUserService)
     {
-        _householdService = householdService;
-        _userService = userService;
+        _context = context;
+        _currentUserService = currentUserService;
     }
 
-    private Guid GetCurrentUserId()
+    /// <summary>
+    /// Get all households the current user is a member of
+    /// </summary>
+    [HttpGet("my")]
+    public async Task<ActionResult<List<HouseholdDto>>> GetMyHouseholds()
     {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        return Guid.Parse(userIdClaim ?? throw new UnauthorizedAccessException());
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
+
+        var households = await _context.Households
+            .Where(h => h.Members.Any(m => m.UserId == userId))
+            .Select(h => new HouseholdDto
+            {
+                Id = h.Id,
+                Name = h.Name,
+                CreatedById = h.CreatedById,
+                CreatedByName = h.CreatedBy.DisplayName,
+                CreatedAt = h.CreatedAt,
+                Members = h.Members.Select(m => new HouseholdMemberDto
+                {
+                    UserId = m.UserId,
+                    Email = m.User.Email,
+                    DisplayName = m.User.DisplayName,
+                    AvatarUrl = m.User.AvatarUrl,
+                    JoinedAt = m.JoinedAt
+                }).ToList()
+            })
+            .ToListAsync();
+
+        return Ok(households);
     }
 
+    /// <summary>
+    /// Get a specific household by ID
+    /// </summary>
     [HttpGet("{id}")]
-    public async Task<IActionResult> GetHousehold(Guid id)
+    public async Task<ActionResult<HouseholdDto>> GetHousehold(int id)
     {
-        var household = await _householdService.GetByIdAsync(id);
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
+
+        var household = await _context.Households
+            .Where(h => h.Id == id && h.Members.Any(m => m.UserId == userId))
+            .Select(h => new HouseholdDto
+            {
+                Id = h.Id,
+                Name = h.Name,
+                CreatedById = h.CreatedById,
+                CreatedByName = h.CreatedBy.DisplayName,
+                CreatedAt = h.CreatedAt,
+                Members = h.Members.Select(m => new HouseholdMemberDto
+                {
+                    UserId = m.UserId,
+                    Email = m.User.Email,
+                    DisplayName = m.User.DisplayName,
+                    AvatarUrl = m.User.AvatarUrl,
+                    JoinedAt = m.JoinedAt
+                }).ToList()
+            })
+            .FirstOrDefaultAsync();
 
         if (household == null)
-            return NotFound();
+            return NotFound(new { message = "Household not found or you are not a member" });
 
         return Ok(household);
     }
 
+    /// <summary>
+    /// Create a new household
+    /// </summary>
     [HttpPost]
-    public async Task<IActionResult> CreateHousehold([FromBody] CreateHouseholdRequest request)
+    public async Task<ActionResult<HouseholdDto>> CreateHousehold([FromBody] CreateHouseholdDto dto)
     {
-        var userId = GetCurrentUserId();
-        var household = await _householdService.CreateAsync(request.Name, userId);
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
 
-        return CreatedAtAction(nameof(GetHousehold), new { id = household.Id }, household);
+        var household = new Household
+        {
+            Name = dto.Name,
+            CreatedById = userId,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        _context.Households.Add(household);
+        await _context.SaveChangesAsync();
+
+        // Add creator as first member
+        _context.HouseholdMembers.Add(new HouseholdMember
+        {
+            HouseholdId = household.Id,
+            UserId = userId,
+            JoinedAt = DateTime.UtcNow
+        });
+
+        // Set as user's current household
+        var user = await _context.Users.FindAsync(userId);
+        if (user != null)
+        {
+            user.CurrentHouseholdId = household.Id;
+            user.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await _context.SaveChangesAsync();
+
+        // Return created household
+        var result = await GetHousehold(household.Id);
+        return CreatedAtAction(nameof(GetHousehold), new { id = household.Id }, result.Value);
     }
 
+    /// <summary>
+    /// Update household name
+    /// </summary>
     [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateHousehold(Guid id, [FromBody] UpdateHouseholdRequest request)
+    public async Task<ActionResult<HouseholdDto>> UpdateHousehold(int id, [FromBody] UpdateHouseholdDto dto)
     {
-        var household = await _householdService.GetByIdAsync(id);
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
 
+        var household = await _context.Households
+            .FirstOrDefaultAsync(h => h.Id == id && h.CreatedById == userId);
+
+        if (household == null)
+            return NotFound(new { message = "Household not found or you are not the creator" });
+
+        household.Name = dto.Name;
+        household.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        return await GetHousehold(id);
+    }
+
+    /// <summary>
+    /// Send an invitation to join the household
+    /// </summary>
+    [HttpPost("{id}/invites")]
+    public async Task<ActionResult<HouseholdInviteDto>> InviteToHousehold(int id, [FromBody] InviteToHouseholdDto dto)
+    {
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
+
+        // Verify user is member of household
+        var isMember = await _context.HouseholdMembers
+            .AnyAsync(hm => hm.HouseholdId == id && hm.UserId == userId);
+
+        if (!isMember)
+            return Forbid();
+
+        var household = await _context.Households.FindAsync(id);
         if (household == null)
             return NotFound();
 
-        // Only leader can update
-        var userId = GetCurrentUserId();
-        if (household.LeaderId != userId)
-            return Forbid();
+        // Check if invite already exists
+        var existingInvite = await _context.HouseholdInvites
+            .FirstOrDefaultAsync(i => i.HouseholdId == id && i.InvitedEmail == dto.Email && i.Status == "pending");
 
-        household.Name = request.Name ?? household.Name;
-        household.Settings = request.Settings ?? household.Settings;
+        if (existingInvite != null)
+            return BadRequest(new { message = "An invite is already pending for this email" });
 
-        await _householdService.UpdateAsync(household);
+        // Create invite
+        var invite = new HouseholdInvite
+        {
+            HouseholdId = id,
+            InvitedById = userId,
+            InvitedEmail = dto.Email,
+            Status = "pending",
+            CreatedAt = DateTime.UtcNow
+        };
 
-        return Ok(household);
+        _context.HouseholdInvites.Add(invite);
+        await _context.SaveChangesAsync();
+
+        var inviter = await _context.Users.FindAsync(userId);
+
+        return Ok(new HouseholdInviteDto
+        {
+            Id = invite.Id,
+            HouseholdId = household.Id,
+            HouseholdName = household.Name,
+            InvitedById = userId,
+            InvitedByName = inviter?.DisplayName ?? "Unknown",
+            InvitedEmail = dto.Email,
+            Status = "pending",
+            CreatedAt = invite.CreatedAt
+        });
     }
 
-    [HttpGet("{id}/members")]
-    public async Task<IActionResult> GetMembers(Guid id)
+    /// <summary>
+    /// Get pending invites for the current user
+    /// </summary>
+    [HttpGet("invites/pending")]
+    public async Task<ActionResult<List<HouseholdInviteDto>>> GetPendingInvites()
     {
-        var members = await _householdService.GetMembersAsync(id);
-        return Ok(members);
+        var email = _currentUserService.GetUserEmail();
+        if (string.IsNullOrEmpty(email))
+            return Unauthorized();
+
+        var invites = await _context.HouseholdInvites
+            .Where(i => i.InvitedEmail == email && i.Status == "pending")
+            .Select(i => new HouseholdInviteDto
+            {
+                Id = i.Id,
+                HouseholdId = i.HouseholdId,
+                HouseholdName = i.Household.Name,
+                InvitedById = i.InvitedById,
+                InvitedByName = i.InvitedBy.DisplayName,
+                InvitedEmail = i.InvitedEmail,
+                Status = i.Status,
+                CreatedAt = i.CreatedAt
+            })
+            .ToListAsync();
+
+        return Ok(invites);
     }
 
-    [HttpPost("{id}/members")]
-    public async Task<IActionResult> AddMember(Guid id, [FromBody] AddMemberRequest request)
+    /// <summary>
+    /// Accept an invitation
+    /// </summary>
+    [HttpPost("invites/{inviteId}/accept")]
+    public async Task<ActionResult<HouseholdDto>> AcceptInvite(int inviteId)
     {
-        var household = await _householdService.GetByIdAsync(id);
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
+        var email = _currentUserService.GetUserEmail();
 
-        if (household == null)
-            return NotFound();
+        var invite = await _context.HouseholdInvites
+            .FirstOrDefaultAsync(i => i.Id == inviteId && i.InvitedEmail == email && i.Status == "pending");
 
-        // Only leader can add members
-        var userId = GetCurrentUserId();
-        if (household.LeaderId != userId)
-            return Forbid();
+        if (invite == null)
+            return NotFound(new { message = "Invite not found or already processed" });
 
-        var success = await _householdService.AddMemberAsync(id, request.UserId);
+        // Add user to household
+        var existingMember = await _context.HouseholdMembers
+            .FirstOrDefaultAsync(hm => hm.HouseholdId == invite.HouseholdId && hm.UserId == userId);
 
-        if (!success)
-            return BadRequest(new { message = "Failed to add member" });
+        if (existingMember == null)
+        {
+            _context.HouseholdMembers.Add(new HouseholdMember
+            {
+                HouseholdId = invite.HouseholdId,
+                UserId = userId,
+                JoinedAt = DateTime.UtcNow
+            });
+        }
 
-        return Ok();
+        // Update invite status
+        invite.Status = "accepted";
+        invite.AcceptedAt = DateTime.UtcNow;
+
+        // Set as user's current household
+        var user = await _context.Users.FindAsync(userId);
+        if (user != null)
+        {
+            user.CurrentHouseholdId = invite.HouseholdId;
+            user.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await _context.SaveChangesAsync();
+
+        return await GetHousehold(invite.HouseholdId);
     }
 
-    [HttpDelete("{id}/members/{userId}")]
-    public async Task<IActionResult> RemoveMember(Guid id, Guid userId)
+    /// <summary>
+    /// Reject an invitation
+    /// </summary>
+    [HttpPost("invites/{inviteId}/reject")]
+    public async Task<IActionResult> RejectInvite(int inviteId)
     {
-        var household = await _householdService.GetByIdAsync(id);
+        var email = _currentUserService.GetUserEmail();
 
-        if (household == null)
-            return NotFound();
+        var invite = await _context.HouseholdInvites
+            .FirstOrDefaultAsync(i => i.Id == inviteId && i.InvitedEmail == email && i.Status == "pending");
 
-        // Only leader can remove members (or user can remove themselves)
-        var currentUserId = GetCurrentUserId();
-        if (household.LeaderId != currentUserId && currentUserId != userId)
-            return Forbid();
+        if (invite == null)
+            return NotFound(new { message = "Invite not found or already processed" });
 
-        var success = await _householdService.RemoveMemberAsync(id, userId);
+        invite.Status = "rejected";
+        await _context.SaveChangesAsync();
 
-        if (!success)
-            return BadRequest(new { message = "Failed to remove member" });
-
-        return Ok();
+        return Ok(new { message = "Invite rejected" });
     }
 
-    [HttpPost("join")]
-    public async Task<IActionResult> JoinByShareId([FromBody] JoinHouseholdRequest request)
+    /// <summary>
+    /// Switch to a different household (must be a member)
+    /// </summary>
+    [HttpPost("{id}/switch")]
+    public async Task<IActionResult> SwitchHousehold(int id)
     {
-        var userId = GetCurrentUserId();
-        var targetUser = await _userService.GetByShareIdAsync(request.ShareId);
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
 
-        if (targetUser == null || targetUser.CurrentHouseholdId == null)
-            return NotFound(new { message = "Invalid share ID or user has no household" });
+        // Verify user is member of household
+        var isMember = await _context.HouseholdMembers
+            .AnyAsync(hm => hm.HouseholdId == id && hm.UserId == userId);
 
-        var success = await _householdService.AddMemberAsync(targetUser.CurrentHouseholdId.Value, userId);
+        if (!isMember)
+            return NotFound(new { message = "You are not a member of this household" });
 
-        if (!success)
-            return BadRequest(new { message = "Failed to join household" });
+        var user = await _context.Users.FindAsync(userId);
+        if (user != null)
+        {
+            user.CurrentHouseholdId = id;
+            user.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+        }
 
-        return Ok(new { householdId = targetUser.CurrentHouseholdId });
+        return Ok(new { message = "Switched household successfully", currentHouseholdId = id });
     }
 
-    [HttpPost("merge")]
-    public async Task<IActionResult> MergeHouseholds([FromBody] MergeHouseholdsRequest request)
+    /// <summary>
+    /// Leave a household
+    /// </summary>
+    [HttpPost("{id}/leave")]
+    public async Task<IActionResult> LeaveHousehold(int id)
     {
-        var userId = GetCurrentUserId();
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
 
-        // Verify user is leader of target household
-        var targetHousehold = await _householdService.GetByIdAsync(request.TargetHouseholdId);
+        var membership = await _context.HouseholdMembers
+            .FirstOrDefaultAsync(hm => hm.HouseholdId == id && hm.UserId == userId);
 
-        if (targetHousehold == null || targetHousehold.LeaderId != userId)
-            return Forbid();
+        if (membership == null)
+            return NotFound(new { message = "You are not a member of this household" });
 
-        var success = await _householdService.MergeHouseholdsAsync(request.SourceHouseholdId, request.TargetHouseholdId);
+        // Check if user is the creator and there are other members
+        var household = await _context.Households.FindAsync(id);
+        if (household?.CreatedById == userId)
+        {
+            var memberCount = await _context.HouseholdMembers.CountAsync(hm => hm.HouseholdId == id);
+            if (memberCount > 1)
+                return BadRequest(new { message = "Cannot leave household as creator while other members exist. Transfer ownership or remove all members first." });
+        }
 
-        if (!success)
-            return BadRequest(new { message = "Failed to merge households" });
+        _context.HouseholdMembers.Remove(membership);
 
-        return Ok(new { message = "Households merged successfully" });
+        // If this was user's current household, clear it
+        var user = await _context.Users.FindAsync(userId);
+        if (user?.CurrentHouseholdId == id)
+        {
+            user.CurrentHouseholdId = null;
+            user.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Left household successfully" });
     }
 }
-
-public record CreateHouseholdRequest(string Name);
-public record UpdateHouseholdRequest(string? Name, string? Settings);
-public record AddMemberRequest(Guid UserId);
-public record JoinHouseholdRequest(string ShareId);
-public record MergeHouseholdsRequest(Guid SourceHouseholdId, Guid TargetHouseholdId);

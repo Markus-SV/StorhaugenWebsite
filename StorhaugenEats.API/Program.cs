@@ -36,7 +36,11 @@ builder.Services.AddSingleton(sp =>
     return new Supabase.Client(url, key, options);
 });
 
+// HTTP Context Accessor (needed for CurrentUserService)
+builder.Services.AddHttpContextAccessor();
+
 // Application Services
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IHouseholdService, HouseholdService>();
 builder.Services.AddScoped<IGlobalRecipeService, GlobalRecipeService>();
@@ -61,10 +65,34 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
         ValidateIssuer = true,
-        ValidIssuer = builder.Configuration["Supabase:Url"],
+        ValidIssuer = $"{builder.Configuration["Supabase:Url"]}/auth/v1",
         ValidateAudience = false,
         ValidateLifetime = true,
-        ClockSkew = TimeSpan.Zero
+        ClockSkew = TimeSpan.Zero,
+        NameClaimType = "email", // Map email claim to Name for easier access
+        RoleClaimType = "role"
+    };
+
+    // Enable detailed logging for JWT validation failures (development only)
+    options.Events = new JwtBearerEvents
+    {
+        OnAuthenticationFailed = context =>
+        {
+            if (builder.Environment.IsDevelopment())
+            {
+                Console.WriteLine($"JWT Authentication failed: {context.Exception.Message}");
+            }
+            return Task.CompletedTask;
+        },
+        OnTokenValidated = context =>
+        {
+            if (builder.Environment.IsDevelopment())
+            {
+                var email = context.Principal?.FindFirst("email")?.Value;
+                Console.WriteLine($"JWT Token validated for user: {email}");
+            }
+            return Task.CompletedTask;
+        }
     };
 });
 
