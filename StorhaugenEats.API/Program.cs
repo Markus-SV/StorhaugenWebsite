@@ -103,24 +103,55 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowBlazorWasm", policy =>
     {
-        policy.WithOrigins(
-            "https://localhost:7000", // Development
-            "https://yourdomain.com" // Production - UPDATE THIS
-        )
-        .AllowAnyHeader()
-        .AllowAnyMethod()
-        .AllowCredentials();
+        var allowedOrigins = new List<string>
+        {
+            // Development
+            "https://localhost:7000",
+            "https://localhost:7001",
+            "https://localhost:5001",
+            "http://localhost:5000",
+            "https://127.0.0.1:7000",
+            "https://127.0.0.1:7001"
+        };
+
+        // Add production frontend URL from configuration
+        var productionUrl = builder.Configuration["Frontend:ProductionUrl"];
+        if (!string.IsNullOrEmpty(productionUrl))
+        {
+            allowedOrigins.Add(productionUrl);
+        }
+
+        policy.WithOrigins(allowedOrigins.ToArray())
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
     });
 });
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline
-if (app.Environment.IsDevelopment())
+// Run database migrations on startup
+using (var scope = app.Services.CreateScope())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<AppDbContext>();
+        context.Database.Migrate();
+        Console.WriteLine("✅ Database migrations applied successfully");
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while migrating the database");
+        // Don't fail startup, just log the error
+    }
 }
+
+// Configure the HTTP request pipeline
+// Enable Swagger in all environments for easier testing
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
 app.UseCors("AllowBlazorWasm");
