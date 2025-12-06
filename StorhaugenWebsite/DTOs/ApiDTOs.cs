@@ -87,12 +87,22 @@ public class HouseholdRecipeDto
 
 public class CreateHouseholdRecipeDto
 {
-    public required string Name { get; set; }
+    public string? Name { get; set; }
     public string? Description { get; set; }
-    public List<string> ImageUrls { get; set; } = new();
+    public List<string>? ImageUrls { get; set; }
+    public string? ImageUrl { get; set; }
     public string? PersonalNotes { get; set; }
     public int? GlobalRecipeId { get; set; }
     public bool Fork { get; set; } = false;
+
+    // Additional fields for forking
+    public int? PrepTimeMinutes { get; set; }
+    public int? Servings { get; set; }
+    public string? Difficulty { get; set; }
+    public string? Cuisine { get; set; }
+    public List<string>? Tags { get; set; }
+    public object? Ingredients { get; set; }
+    public object? Instructions { get; set; }
 }
 
 public class UpdateHouseholdRecipeDto
