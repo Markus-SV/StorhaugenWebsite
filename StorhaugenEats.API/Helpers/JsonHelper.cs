@@ -44,4 +44,44 @@ public static class JsonHelper
     {
         return value ?? string.Empty;
     }
+
+    /// <summary>
+    /// Converts an object to a JSON string, returns null if object is null
+    /// </summary>
+    public static string? ObjectToJson(object? obj)
+    {
+        if (obj == null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Serialize(obj);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Converts a JSON string to an object, returns null if string is null or invalid
+    /// </summary>
+    public static object? JsonToObject(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<object>(json);
+        }
+        catch
+        {
+            return null;
+        }
+    }
 }

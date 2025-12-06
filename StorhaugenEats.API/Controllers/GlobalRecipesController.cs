@@ -215,8 +215,8 @@ public class GlobalRecipesController : ControllerBase
             Description = dto.Description,
             ImageUrl = dto.ImageUrl,
             ImageUrls = JsonHelper.ListToJson(dto.ImageUrls),
-            Ingredients = dto.Ingredients,
-            NutritionData = dto.NutritionData,
+            Ingredients = JsonHelper.ObjectToJson(dto.Ingredients) ?? "[]",
+            NutritionData = JsonHelper.ObjectToJson(dto.NutritionData),
             PrepTimeMinutes = dto.PrepTimeMinutes,
             CookTimeMinutes = dto.CookTimeMinutes,
             TotalTimeMinutes = (dto.PrepTimeMinutes ?? 0) + (dto.CookTimeMinutes ?? 0),
@@ -272,8 +272,8 @@ public class GlobalRecipesController : ControllerBase
         recipe.Description = dto.Description;
         recipe.ImageUrl = dto.ImageUrl;
         recipe.ImageUrls = JsonHelper.ListToJson(dto.ImageUrls);
-        recipe.Ingredients = dto.Ingredients;
-        recipe.NutritionData = dto.NutritionData;
+        recipe.Ingredients = JsonHelper.ObjectToJson(dto.Ingredients) ?? "[]";
+        recipe.NutritionData = JsonHelper.ObjectToJson(dto.NutritionData);
         recipe.PrepTimeMinutes = dto.PrepTimeMinutes;
         recipe.CookTimeMinutes = dto.CookTimeMinutes;
         recipe.TotalTimeMinutes = (dto.PrepTimeMinutes ?? 0) + (dto.CookTimeMinutes ?? 0);
@@ -371,8 +371,8 @@ public class GlobalRecipesController : ControllerBase
             Description = recipe.Description,
             ImageUrl = recipe.ImageUrl,
             ImageUrls = JsonHelper.JsonToList(recipe.ImageUrls),
-            Ingredients = recipe.Ingredients,
-            NutritionData = recipe.NutritionData,
+            Ingredients = JsonHelper.JsonToObject(recipe.Ingredients),
+            NutritionData = JsonHelper.JsonToObject(recipe.NutritionData),
             PrepTimeMinutes = recipe.PrepTimeMinutes,
             CookTimeMinutes = recipe.CookTimeMinutes,
             TotalTimeMinutes = recipe.TotalTimeMinutes,

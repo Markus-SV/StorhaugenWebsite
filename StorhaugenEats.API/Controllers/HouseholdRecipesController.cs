@@ -116,14 +116,14 @@ public class HouseholdRecipesController : ControllerBase
                 // Fork: Copy data from global recipe
                 recipe.LocalTitle = dto.Name ?? globalRecipe.Title;
                 recipe.LocalDescription = dto.Description ?? globalRecipe.Description;
-                recipe.LocalImageUrls = dto.ImageUrls?.Count > 0 ? JsonHelper.ListToJson(dto.ImageUrls) : globalRecipe.ImageUrls;
+                recipe.LocalImageUrl = dto.ImageUrls?.Count > 0 ? dto.ImageUrls[0] : (dto.ImageUrl ?? globalRecipe.ImageUrl);
             }
             else
             {
                 // Link: Use global recipe data, only store personal notes
                 recipe.LocalTitle = null; // Will use global recipe title
                 recipe.LocalDescription = null;
-                recipe.LocalImageUrls = null;
+                recipe.LocalImageUrl = null;
             }
 
             // Increment global recipe counter
@@ -138,7 +138,7 @@ public class HouseholdRecipesController : ControllerBase
                 HouseholdId = user.CurrentHouseholdId.Value,
                 LocalTitle = dto.Name,
                 LocalDescription = dto.Description,
-                LocalImageUrls = JsonHelper.ListToJson(dto.ImageUrls ?? new List<string>()),
+                LocalImageUrl = dto.ImageUrls?.Count > 0 ? dto.ImageUrls[0] : dto.ImageUrl,
                 PersonalNotes = dto.PersonalNotes,
                 AddedByUserId = userId,
                 CreatedAt = DateTime.UtcNow,
@@ -204,7 +204,7 @@ public class HouseholdRecipesController : ControllerBase
         if (dto.ImageUrls != null)
         {
             if (recipe.GlobalRecipeId == null)
-                recipe.LocalImageUrls = JsonHelper.ListToJson(dto.ImageUrls);
+                recipe.LocalImageUrl = dto.ImageUrls.Count > 0 ? dto.ImageUrls[0] : null;
             else
                 return BadRequest(new { message = "Cannot update images of linked recipe. Fork it first." });
         }
@@ -384,7 +384,7 @@ public class HouseholdRecipesController : ControllerBase
         var globalRecipe = recipe.GlobalRecipe;
         recipe.LocalTitle = globalRecipe!.Title;
         recipe.LocalDescription = globalRecipe.Description;
-        recipe.LocalImageUrls = globalRecipe.ImageUrls;
+        recipe.LocalImageUrl = globalRecipe.ImageUrl;
         recipe.GlobalRecipeId = null; // Remove link to make it forked
 
         await _context.SaveChangesAsync();
@@ -433,9 +433,15 @@ public class HouseholdRecipesController : ControllerBase
             : 0;
 
         // Get image URLs - prefer local, fallback to global
-        var localImageUrls = recipe.LocalImageUrls != null ? JsonHelper.JsonToList(recipe.LocalImageUrls) : new List<string>();
-        var globalImageUrls = recipe.GlobalRecipe?.ImageUrls != null ? JsonHelper.JsonToList(recipe.GlobalRecipe.ImageUrls) : new List<string>();
-        var imageUrls = localImageUrls.Count > 0 ? localImageUrls : globalImageUrls;
+        var imageUrls = new List<string>();
+        if (!string.IsNullOrEmpty(recipe.LocalImageUrl))
+        {
+            imageUrls.Add(recipe.LocalImageUrl);
+        }
+        else if (recipe.GlobalRecipe?.ImageUrls != null)
+        {
+            imageUrls = JsonHelper.JsonToList(recipe.GlobalRecipe.ImageUrls);
+        }
 
         return new HouseholdRecipeDto
         {
@@ -447,7 +453,7 @@ public class HouseholdRecipesController : ControllerBase
             Ratings = ratings,
             AverageRating = averageRating,
             DateAdded = recipe.CreatedAt,
-            AddedByUserId = recipe.AddedByUserId,
+            AddedByUserId = recipe.AddedByUserId ?? Guid.Empty,
             AddedByName = recipe.AddedBy?.DisplayName,
             IsArchived = recipe.IsArchived,
             ArchivedDate = recipe.ArchivedDate,
