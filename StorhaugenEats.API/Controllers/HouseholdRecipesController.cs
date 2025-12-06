@@ -314,6 +314,7 @@ public class HouseholdRecipesController : ControllerBase
             var newRating = new Rating
             {
                 HouseholdRecipeId = id,
+                GlobalRecipeId = recipe.GlobalRecipeId, // Use recipe's global ID (null for custom recipes)
                 UserId = userId,
                 Score = dto.Rating,
                 CreatedAt = DateTime.UtcNow
