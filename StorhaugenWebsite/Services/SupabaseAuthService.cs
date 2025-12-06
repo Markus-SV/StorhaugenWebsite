@@ -59,20 +59,22 @@ public class SupabaseAuthService : IAuthService, IAsyncDisposable
         try
         {
             // Get redirect URL dynamically from browser
-            var redirectUrl = await GetRedirectUrlAsync();
+            var redirectUrl = await GetRedirectUrlAsync(); // Or use NavigationManager.BaseUri
 
-            // Sign in with Google OAuth
             var options = new SignInOptions
             {
                 RedirectTo = redirectUrl
             };
 
+            // This returns an object, NOT a string
             var result = await _supabaseClient.Auth.SignIn(Provider.Google, options);
 
-            if (result != null && !string.IsNullOrEmpty(result))
+            // FIX: Check result.Uri instead of result itself
+            if (result != null && result.Uri != null)
             {
-                // Redirect to Google OAuth - the page will reload after auth
-                await _jsRuntime.InvokeVoidAsync("open", result, "_self");
+                // Redirect to Google OAuth
+                // FIX: Convert the Uri object to a string
+                await _jsRuntime.InvokeVoidAsync("open", result.Uri.ToString(), "_self");
                 return (true, null);
             }
 
