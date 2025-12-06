@@ -105,11 +105,14 @@ builder.Services.AddCors(options =>
     {
         var allowedOrigins = new List<string>
         {
-            // Development
+            // Development - Frontend
+            "https://localhost:7280",  // Frontend HTTPS
+            "http://localhost:5055",   // Frontend HTTP
             "https://localhost:7000",
             "https://localhost:7001",
             "https://localhost:5001",
             "http://localhost:5000",
+            "https://127.0.0.1:7280",
             "https://127.0.0.1:7000",
             "https://127.0.0.1:7001",
 
