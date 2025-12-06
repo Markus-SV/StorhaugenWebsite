@@ -31,15 +31,15 @@ public class HouseholdsController : ControllerBase
         var userId = await _currentUserService.GetOrCreateUserIdAsync();
 
         var households = await _context.Households
-            .Where(h => h.Members.Any(m => m.UserId == userId))
+            .Where(h => h.HouseholdMembers.Any(m => m.UserId == userId))
             .Select(h => new HouseholdDto
             {
                 Id = h.Id,
                 Name = h.Name,
-                CreatedById = h.CreatedById,
-                CreatedByName = h.CreatedBy.DisplayName,
+                CreatedById = h.LeaderId ?? Guid.Empty,
+                CreatedByName = h.Leader != null ? h.Leader.DisplayName : null,
                 CreatedAt = h.CreatedAt,
-                Members = h.Members.Select(m => new HouseholdMemberDto
+                Members = h.HouseholdMembers.Select(m => new HouseholdMemberDto
                 {
                     UserId = m.UserId,
                     Email = m.User.Email,
@@ -57,20 +57,20 @@ public class HouseholdsController : ControllerBase
     /// Get a specific household by ID
     /// </summary>
     [HttpGet("{id}")]
-    public async Task<ActionResult<HouseholdDto>> GetHousehold(int id)
+    public async Task<ActionResult<HouseholdDto>> GetHousehold(Guid id)
     {
         var userId = await _currentUserService.GetOrCreateUserIdAsync();
 
         var household = await _context.Households
-            .Where(h => h.Id == id && h.Members.Any(m => m.UserId == userId))
+            .Where(h => h.Id == id && h.HouseholdMembers.Any(m => m.UserId == userId))
             .Select(h => new HouseholdDto
             {
                 Id = h.Id,
                 Name = h.Name,
-                CreatedById = h.CreatedById,
-                CreatedByName = h.CreatedBy.DisplayName,
+                CreatedById = h.LeaderId ?? Guid.Empty,
+                CreatedByName = h.Leader != null ? h.Leader.DisplayName : null,
                 CreatedAt = h.CreatedAt,
-                Members = h.Members.Select(m => new HouseholdMemberDto
+                Members = h.HouseholdMembers.Select(m => new HouseholdMemberDto
                 {
                     UserId = m.UserId,
                     Email = m.User.Email,
@@ -98,7 +98,7 @@ public class HouseholdsController : ControllerBase
         var household = new Household
         {
             Name = dto.Name,
-            CreatedById = userId,
+            LeaderId = userId,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -133,7 +133,7 @@ public class HouseholdsController : ControllerBase
     /// Update household name
     /// </summary>
     [HttpPut("{id}")]
-    public async Task<ActionResult<HouseholdDto>> UpdateHousehold(int id, [FromBody] UpdateHouseholdDto dto)
+    public async Task<ActionResult<HouseholdDto>> UpdateHousehold(Guid id, [FromBody] UpdateHouseholdDto dto)
     {
         var userId = await _currentUserService.GetOrCreateUserIdAsync();
 
@@ -303,7 +303,7 @@ public class HouseholdsController : ControllerBase
     /// Switch to a different household (must be a member)
     /// </summary>
     [HttpPost("{id}/switch")]
-    public async Task<IActionResult> SwitchHousehold(int id)
+    public async Task<IActionResult> SwitchHousehold(Guid id)
     {
         var userId = await _currentUserService.GetOrCreateUserIdAsync();
 
@@ -329,7 +329,7 @@ public class HouseholdsController : ControllerBase
     /// Leave a household
     /// </summary>
     [HttpPost("{id}/leave")]
-    public async Task<IActionResult> LeaveHousehold(int id)
+    public async Task<IActionResult> LeaveHousehold(Guid id)
     {
         var userId = await _currentUserService.GetOrCreateUserIdAsync();
 

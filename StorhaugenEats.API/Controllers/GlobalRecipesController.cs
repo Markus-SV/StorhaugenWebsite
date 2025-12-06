@@ -110,7 +110,7 @@ public class GlobalRecipesController : ControllerBase
     /// </summary>
     [HttpGet("{id}")]
     [AllowAnonymous]
-    public async Task<ActionResult<GlobalRecipeDto>> GetRecipe(int id)
+    public async Task<ActionResult<GlobalRecipeDto>> GetRecipe(Guid id)
     {
         var recipe = await _context.GlobalRecipes
             .Include(gr => gr.CreatedByUser)
@@ -240,7 +240,7 @@ public class GlobalRecipesController : ControllerBase
     /// </summary>
     [HttpPut("{id}")]
     [Authorize]
-    public async Task<ActionResult<GlobalRecipeDto>> UpdateRecipe(int id, [FromBody] CreateGlobalRecipeDto dto)
+    public async Task<ActionResult<GlobalRecipeDto>> UpdateRecipe(Guid id, [FromBody] CreateGlobalRecipeDto dto)
     {
         var userId = await _currentUserService.GetOrCreateUserIdAsync();
 
@@ -284,7 +284,7 @@ public class GlobalRecipesController : ControllerBase
     /// </summary>
     [HttpDelete("{id}")]
     [Authorize]
-    public async Task<IActionResult> DeleteRecipe(int id)
+    public async Task<IActionResult> DeleteRecipe(Guid id)
     {
         var userId = await _currentUserService.GetOrCreateUserIdAsync();
 

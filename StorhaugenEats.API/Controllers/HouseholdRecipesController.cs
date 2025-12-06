@@ -56,7 +56,7 @@ public class HouseholdRecipesController : ControllerBase
     /// Get a specific recipe by ID
     /// </summary>
     [HttpGet("{id}")]
-    public async Task<ActionResult<HouseholdRecipeDto>> GetRecipe(int id)
+    public async Task<ActionResult<HouseholdRecipeDto>> GetRecipe(Guid id)
     {
         var userId = await _currentUserService.GetOrCreateUserIdAsync();
         var user = await _context.Users.FindAsync(userId);
@@ -162,7 +162,7 @@ public class HouseholdRecipesController : ControllerBase
     /// Update a recipe (name, description, notes, images)
     /// </summary>
     [HttpPut("{id}")]
-    public async Task<ActionResult<HouseholdRecipeDto>> UpdateRecipe(int id, [FromBody] UpdateHouseholdRecipeDto dto)
+    public async Task<ActionResult<HouseholdRecipeDto>> UpdateRecipe(Guid id, [FromBody] UpdateHouseholdRecipeDto dto)
     {
         var userId = await _currentUserService.GetOrCreateUserIdAsync();
         var user = await _context.Users.FindAsync(userId);
@@ -221,7 +221,7 @@ public class HouseholdRecipesController : ControllerBase
     /// Archive a recipe
     /// </summary>
     [HttpPost("{id}/archive")]
-    public async Task<IActionResult> ArchiveRecipe(int id)
+    public async Task<IActionResult> ArchiveRecipe(Guid id)
     {
         var userId = await _currentUserService.GetOrCreateUserIdAsync();
         var user = await _context.Users.FindAsync(userId);
@@ -248,7 +248,7 @@ public class HouseholdRecipesController : ControllerBase
     /// Restore an archived recipe
     /// </summary>
     [HttpPost("{id}/restore")]
-    public async Task<IActionResult> RestoreRecipe(int id)
+    public async Task<IActionResult> RestoreRecipe(Guid id)
     {
         var userId = await _currentUserService.GetOrCreateUserIdAsync();
         var user = await _context.Users.FindAsync(userId);
@@ -393,7 +393,7 @@ public class HouseholdRecipesController : ControllerBase
     /// Delete a recipe permanently
     /// </summary>
     [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteRecipe(int id)
+    public async Task<IActionResult> DeleteRecipe(Guid id)
     {
         var userId = await _currentUserService.GetOrCreateUserIdAsync();
         var user = await _context.Users.FindAsync(userId);
