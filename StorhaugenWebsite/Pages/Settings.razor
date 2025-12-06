@@ -63,7 +63,7 @@
 
         @if (HouseholdState.UserHouseholds.Count > 1)
         {
-            <MudSelect T="int"
+            <MudSelect T="Guid"
                        Label="Switch Household"
                        Value="@HouseholdState.CurrentHousehold.Id"
                        ValueChanged="SwitchHousehold"
@@ -112,11 +112,11 @@
 
     <div class="setting-row">
         <div class="d-flex align-center gap-3">
-            <MudAvatar Size="Size.Medium" Style="@($"background: {GetMemberColor(AuthService.CurrentUser?.Name ?? "")}")">
-                @(AuthService.CurrentUser?.Name?[0] ?? '?')
+            <MudAvatar Size="Size.Medium" Style="@($"background: {GetMemberColor(AuthService.CurrentUserName ?? "")}")">
+                @(AuthService.CurrentUserName?[0] ?? '?')
             </MudAvatar>
             <div>
-                <MudText Typo="Typo.body1" Style="font-weight: 500;">@AuthService.CurrentUser?.Name</MudText>
+                <MudText Typo="Typo.body1" Style="font-weight: 500;">@AuthService.CurrentUserName</MudText>
                 <MudText Typo="Typo.caption" Color="Color.Secondary">@AuthService.CurrentUserEmail</MudText>
             </div>
         </div>
@@ -274,13 +274,9 @@
 
     private string GetMemberColor(string name)
     {
-        return name switch
-        {
-            "Markus" => "#E07A2E",
-            "Siv" => "#2D5A45",
-            "Elias" => "#4A7C9B",
-            _ => "#6B5D4D"
-        };
+        var hash = name.GetHashCode();
+        var hue = Math.Abs(hash % 360);
+        return $"hsl({hue}, 45%, 45%)";
     }
 
     private async Task Logout()
@@ -305,7 +301,7 @@
         }
     }
 
-    private async Task SwitchHousehold(int householdId)
+    private async Task SwitchHousehold(Guid householdId)
     {
         try
         {

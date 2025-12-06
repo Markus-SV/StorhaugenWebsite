@@ -13,8 +13,8 @@ public interface IHouseholdStateService
 
     Task InitializeAsync();
     Task RefreshHouseholdsAsync();
-    Task SetCurrentHouseholdAsync(int householdId);
+    Task SetCurrentHouseholdAsync(Guid householdId);
     Task<HouseholdDto> CreateHouseholdAsync(string name);
     Task<List<HouseholdInviteDto>> GetPendingInvitesAsync();
-    Task AcceptInviteAsync(int inviteId);
+    Task AcceptInviteAsync(Guid inviteId);
 }

@@ -33,7 +33,7 @@ namespace StorhaugenWebsite.Services
 
         public async Task<FoodItem?> GetFoodByIdAsync(string id)
         {
-            if (!int.TryParse(id, out var recipeId))
+            if (!Guid.TryParse(id, out var recipeId))
                 return null;
 
             var recipe = await _apiClient.GetRecipeAsync(recipeId);
@@ -66,7 +66,7 @@ namespace StorhaugenWebsite.Services
             if (string.IsNullOrWhiteSpace(food.Id)) throw new ArgumentException("ID required.");
             if (string.IsNullOrWhiteSpace(food.Name)) throw new ArgumentException("Name required.");
 
-            if (!int.TryParse(food.Id, out var recipeId))
+            if (!Guid.TryParse(food.Id, out var recipeId))
                 throw new ArgumentException("Invalid ID format.");
 
             var dto = new UpdateHouseholdRecipeDto
@@ -84,7 +84,7 @@ namespace StorhaugenWebsite.Services
         {
             ValidateAuthorization();
 
-            if (!int.TryParse(id, out var recipeId))
+            if (!Guid.TryParse(id, out var recipeId))
                 throw new ArgumentException("Invalid ID format.");
 
             await _apiClient.ArchiveRecipeAsync(recipeId);
@@ -94,7 +94,7 @@ namespace StorhaugenWebsite.Services
         {
             ValidateAuthorization();
 
-            if (!int.TryParse(id, out var recipeId))
+            if (!Guid.TryParse(id, out var recipeId))
                 throw new ArgumentException("Invalid ID format.");
 
             await _apiClient.RestoreRecipeAsync(recipeId);
@@ -106,7 +106,7 @@ namespace StorhaugenWebsite.Services
 
             if (rating < 0 || rating > 10) throw new ArgumentException("Invalid rating.");
 
-            if (!int.TryParse(foodId, out var recipeId))
+            if (!Guid.TryParse(foodId, out var recipeId))
                 throw new ArgumentException("Invalid ID format.");
 
             await _apiClient.RateRecipeAsync(recipeId, rating);
@@ -127,7 +127,7 @@ namespace StorhaugenWebsite.Services
         {
             ValidateAuthorization();
 
-            if (!int.TryParse(id, out var recipeId))
+            if (!Guid.TryParse(id, out var recipeId))
                 throw new ArgumentException("Invalid ID format.");
 
             await _apiClient.ForkRecipeAsync(recipeId);

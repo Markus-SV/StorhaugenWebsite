@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
-using StorhaugenWebsite.Models;
 using Supabase;
 using Supabase.Gotrue;
 using static Supabase.Gotrue.Constants;
@@ -12,15 +11,15 @@ public class SupabaseAuthService : IAuthService, IAsyncDisposable
 {
     private readonly Client _supabaseClient;
     private readonly IJSRuntime _jsRuntime;
-    private readonly NavigationManager _navigationManager; // Add this
+    private readonly NavigationManager _navigationManager;
     private Session? _session;
 
     public event Action? OnAuthStateChanged;
 
     public bool IsAuthenticated => _session?.User != null;
-    public bool IsAuthorized => IsAuthenticated && AppConfig.IsAllowedEmail(CurrentUserEmail);
+    public bool IsAuthorized => IsAuthenticated; // Any authenticated user is authorized
     public string? CurrentUserEmail => _session?.User?.Email;
-    public FamilyMember? CurrentUser => AppConfig.GetMemberByEmail(CurrentUserEmail);
+    public string? CurrentUserName => GetUserNameFromEmail(CurrentUserEmail);
 
     // Inject NavigationManager here
     public SupabaseAuthService(Client supabaseClient, IJSRuntime jsRuntime, NavigationManager navigationManager)
@@ -137,5 +136,26 @@ public class SupabaseAuthService : IAuthService, IAsyncDisposable
     {
         _supabaseClient.Auth.RemoveStateChangedListener(OnAuthStateChange);
         await Task.CompletedTask;
+    }
+
+    private static string? GetUserNameFromEmail(string? email)
+    {
+        if (string.IsNullOrEmpty(email))
+            return null;
+
+        // Extract name from email (part before @)
+        var atIndex = email.IndexOf('@');
+        if (atIndex <= 0)
+            return email;
+
+        var namePart = email.Substring(0, atIndex);
+
+        // Capitalize first letter
+        if (namePart.Length > 0)
+        {
+            return char.ToUpper(namePart[0]) + namePart.Substring(1).ToLower();
+        }
+
+        return namePart;
     }
 }

@@ -208,82 +208,100 @@ else
     <div class="form-section">
         <p class="form-section-title">Ratings</p>
 
-        @foreach (var member in AppConfig.FamilyNames)
+        @{
+            var currentUserName = AuthService.CurrentUserName ?? "";
+            var currentUserHasRating = _food.Ratings.TryGetValue(currentUserName, out var currentUserRating) && currentUserRating.HasValue;
+        }
+
+        @* Show current user's rating card first *@
+        <div class="rating-member-card">
+            <div class="rating-member-header">
+                <div class="rating-member-info">
+                    <div class="rating-member-avatar" style="@($"background: {GetMemberColor(currentUserName)}")">
+                        @(currentUserName.Length > 0 ? currentUserName[0] : '?')
+                    </div>
+                    <div>
+                        <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">@currentUserName</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Primary">(You)</MudText>
+                    </div>
+                </div>
+                @if (currentUserHasRating)
+                {
+                    <div class="rating-value-display" style="@($"background: {GetRatingBackground(currentUserRating!.Value)}; color: {GetRatingTextColor(currentUserRating!.Value)}")">
+                        @currentUserRating
+                    </div>
+                }
+                else
+                {
+                    <MudChip T="string" Variant="Variant.Outlined" Size="Size.Small" Style="border-radius: 10px;">
+                        Not rated
+                    </MudChip>
+                }
+            </div>
+
+            @if (_editingRating == currentUserName)
+            {
+                <div class="rating-slider-container">
+                    <MudSlider T="int"
+                               @bind-Value="_tempRating"
+                               Min="0" Max="10" Step="1"
+                               Color="Color.Primary"
+                               Style="flex: 1;" />
+                    <div class="rating-value-display" style="@($"background: {GetRatingBackground(_tempRating)}; color: {GetRatingTextColor(_tempRating)}")">
+                        @_tempRating
+                    </div>
+                </div>
+                <div class="d-flex gap-2 mt-3">
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               Size="Size.Small"
+                               OnClick="@(() => SaveRating(currentUserName))"
+                               Disabled="_isSaving"
+                               Style="border-radius: 10px;">
+                        Save
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined"
+                               Size="Size.Small"
+                               OnClick="CancelEdit"
+                               Style="border-radius: 10px;">
+                        Cancel
+                    </MudButton>
+                </div>
+            }
+            else
+            {
+                <MudButton Variant="Variant.Text"
+                           Color="Color.Primary"
+                           Size="Size.Small"
+                           StartIcon="@(currentUserHasRating ? Icons.Material.Rounded.Edit : Icons.Material.Rounded.AddCircle)"
+                           OnClick="@(() => StartEditRating(currentUserName, currentUserHasRating ? currentUserRating!.Value : 5))"
+                           Class="mt-2"
+                           Style="border-radius: 10px;">
+                    @(currentUserHasRating ? "Edit rating" : "Add rating")
+                </MudButton>
+            }
+        </div>
+
+        @* Show other members' ratings (read-only) *@
+        @foreach (var rating in _food.Ratings.Where(r => r.Value.HasValue && r.Key != currentUserName))
         {
-            var currentMember = member;
-            var hasRating = _food.Ratings.TryGetValue(currentMember, out var currentRating) && currentRating.HasValue;
-            var ratingValue = hasRating ? currentRating!.Value : 0;
-            var isCurrentUser = AuthService.CurrentUser?.Name == currentMember;
+            var memberName = rating.Key;
+            var ratingValue = rating.Value!.Value;
 
             <div class="rating-member-card">
                 <div class="rating-member-header">
                     <div class="rating-member-info">
-                        <div class="rating-member-avatar" style="@($"background: {GetMemberColor(currentMember)}")">
-                            @currentMember[0]
+                        <div class="rating-member-avatar" style="@($"background: {GetMemberColor(memberName)}")">
+                            @memberName[0]
                         </div>
                         <div>
-                            <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">@currentMember</MudText>
-                            @if (isCurrentUser)
-                            {
-                                <MudText Typo="Typo.caption" Color="Color.Primary">(You)</MudText>
-                            }
+                            <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">@memberName</MudText>
                         </div>
                     </div>
-                    @if (hasRating)
-                    {
-                        <div class="rating-value-display" style="@($"background: {GetRatingBackground(ratingValue)}; color: {GetRatingTextColor(ratingValue)}")">
-                            @ratingValue
-                        </div>
-                    }
-                    else
-                    {
-                        <MudChip T="string" Variant="Variant.Outlined" Size="Size.Small" Style="border-radius: 10px;">
-                            Not rated
-                        </MudChip>
-                    }
+                    <div class="rating-value-display" style="@($"background: {GetRatingBackground(ratingValue)}; color: {GetRatingTextColor(ratingValue)}")">
+                        @ratingValue
+                    </div>
                 </div>
-
-                @if (_editingRating == currentMember)
-                {
-                    <div class="rating-slider-container">
-                        <MudSlider T="int"
-                                   @bind-Value="_tempRating"
-                                   Min="0" Max="10" Step="1"
-                                   Color="Color.Primary"
-                                   Style="flex: 1;" />
-                        <div class="rating-value-display" style="@($"background: {GetRatingBackground(_tempRating)}; color: {GetRatingTextColor(_tempRating)}")">
-                            @_tempRating
-                        </div>
-                    </div>
-                    <div class="d-flex gap-2 mt-3">
-                        <MudButton Variant="Variant.Filled"
-                                   Color="Color.Primary"
-                                   Size="Size.Small"
-                                   OnClick="@(() => SaveRating(currentMember))"
-                                   Disabled="_isSaving"
-                                   Style="border-radius: 10px;">
-                            Save
-                        </MudButton>
-                        <MudButton Variant="Variant.Outlined"
-                                   Size="Size.Small"
-                                   OnClick="CancelEdit"
-                                   Style="border-radius: 10px;">
-                            Cancel
-                        </MudButton>
-                    </div>
-                }
-                else if (isCurrentUser || !hasRating)
-                {
-                    <MudButton Variant="Variant.Text"
-                               Color="Color.Primary"
-                               Size="Size.Small"
-                               StartIcon="@(hasRating ? Icons.Material.Rounded.Edit : Icons.Material.Rounded.AddCircle)"
-                               OnClick="@(() => StartEditRating(currentMember, ratingValue))"
-                               Class="mt-2"
-                               Style="border-radius: 10px;">
-                        @(hasRating ? "Edit rating" : "Add rating")
-                    </MudButton>
-                }
             </div>
         }
     </div>
@@ -448,7 +466,7 @@ else
         {
             try
             {
-                await FoodService.ArchiveFoodAsync(_food.Id, AuthService.CurrentUser?.Name ?? "Unknown");
+                await FoodService.ArchiveFoodAsync(_food.Id, AuthService.CurrentUserName ?? "Unknown");
                 Snackbar.Add("Meal archived", Severity.Info);
                 Navigation.NavigateTo("");
             }
@@ -547,13 +565,9 @@ else
 
     private string GetMemberColor(string name)
     {
-        return name switch
-        {
-            "Markus" => "#E07A2E",
-            "Siv" => "#2D5A45",
-            "Elias" => "#4A7C9B",
-            _ => "#6B5D4D"
-        };
+        var hash = name.GetHashCode();
+        var hue = Math.Abs(hash % 360);
+        return $"hsl({hue}, 45%, 45%)";
     }
 
     private string GetRatingClass(double rating)

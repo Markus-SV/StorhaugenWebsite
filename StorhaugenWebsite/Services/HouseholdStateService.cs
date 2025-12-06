@@ -84,7 +84,7 @@ public class HouseholdStateService : IHouseholdStateService
         }
     }
 
-    public async Task SetCurrentHouseholdAsync(int householdId)
+    public async Task SetCurrentHouseholdAsync(Guid householdId)
     {
         if (!_authService.IsAuthenticated)
             throw new UnauthorizedAccessException("User is not authenticated");
@@ -144,7 +144,7 @@ public class HouseholdStateService : IHouseholdStateService
         }
     }
 
-    public async Task AcceptInviteAsync(int inviteId)
+    public async Task AcceptInviteAsync(Guid inviteId)
     {
         if (!_authService.IsAuthenticated)
             throw new UnauthorizedAccessException("User is not authenticated");
