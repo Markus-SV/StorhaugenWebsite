@@ -2,26 +2,53 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using MudBlazor.Services;
 using StorhaugenWebsite;
-using StorhaugenWebsite.Brokers;
 using StorhaugenWebsite.Services;
+using StorhaugenWebsite.ApiClient;
+using Supabase;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
+// API HttpClient - Configure base URL for API calls
+#if DEBUG
+var apiBaseUrl = "https://localhost:64797"; // Local API during development
+#else
+var apiBaseUrl = "https://storhaugen-eats-api.azurewebsites.net"; // Production API (update this when deployed)
+#endif
+
+builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(apiBaseUrl) });
 
 // MudBlazor
 builder.Services.AddMudServices();
 
-// Custom Services
-builder.Services.AddScoped<IFirebaseBroker, FirebaseBroker>();
-builder.Services.AddScoped<IFoodService, FoodService>();
-builder.Services.AddScoped<IAuthService, AuthService>();
+// Supabase Client
+var supabaseUrl = "https://ithuvxvsoozmvdicxedx.supabase.co";
+var supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0aHV2eHZzb296bXZkaWN4ZWR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5NjA1NzIsImV4cCI6MjA4MDUzNjU3Mn0._CnQGm26PbG_8HxoLy5m1lQIfFT6P1RNhLNnbQ4DDy0";
+
+var options = new SupabaseOptions
+{
+    AutoConnectRealtime = false // We don't need realtime in the frontend
+};
+
+builder.Services.AddScoped(sp => new Supabase.Client(supabaseUrl, supabaseAnonKey, options));
+
+// Authentication & API Services
+builder.Services.AddScoped<IAuthService, SupabaseAuthService>();
+builder.Services.AddScoped<IApiClient, ApiClient.ApiClient>();
+
+// Other Services
 builder.Services.AddScoped<IDeviceStateService, DeviceStateService>();
 builder.Services.AddScoped<IThemeService, ThemeService>();
-
-// Program.cs
 builder.Services.AddScoped<IOcrService, TesseractOcrService>();
 
-await builder.Build().RunAsync();
+// Food Service - Keep for now for backward compatibility, will update to use ApiClient
+builder.Services.AddScoped<IFoodService, FoodService>();
+
+var host = builder.Build();
+
+// Initialize auth on startup
+var authService = host.Services.GetRequiredService<IAuthService>();
+await authService.InitializeAsync();
+
+await host.RunAsync();
