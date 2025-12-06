@@ -118,7 +118,9 @@ public class HouseholdStateService : IHouseholdStateService
         {
             var household = await _apiClient.CreateHouseholdAsync(new CreateHouseholdDto { Name = name });
             await RefreshHouseholdsAsync();
-            await SetCurrentHouseholdAsync(household.Id);
+            // Backend already sets CurrentHouseholdId, just update local state
+            CurrentHousehold = UserHouseholds.FirstOrDefault(h => h.Id == household.Id);
+            OnHouseholdChanged?.Invoke();
             return household;
         }
         catch (Exception ex)

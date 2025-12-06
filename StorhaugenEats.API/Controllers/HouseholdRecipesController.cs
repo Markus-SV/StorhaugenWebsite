@@ -37,7 +37,7 @@ public class HouseholdRecipesController : ControllerBase
 
         var query = _context.HouseholdRecipes
             .Include(hr => hr.GlobalRecipe)
-            .Include(hr => hr.AddedBy)
+            .Include(hr => hr.AddedByUser)
             .Include(hr => hr.ArchivedBy)
             .Include(hr => hr.Ratings).ThenInclude(r => r.User)
             .Where(hr => hr.HouseholdId == user.CurrentHouseholdId);
@@ -68,7 +68,7 @@ public class HouseholdRecipesController : ControllerBase
 
         var recipe = await _context.HouseholdRecipes
             .Include(hr => hr.GlobalRecipe)
-            .Include(hr => hr.AddedBy)
+            .Include(hr => hr.AddedByUser)
             .Include(hr => hr.ArchivedBy)
             .Include(hr => hr.Ratings).ThenInclude(r => r.User)
             .FirstOrDefaultAsync(hr => hr.Id == id && hr.HouseholdId == user.CurrentHouseholdId);
@@ -154,7 +154,7 @@ public class HouseholdRecipesController : ControllerBase
         // Reload with includes
         recipe = await _context.HouseholdRecipes
             .Include(hr => hr.GlobalRecipe)
-            .Include(hr => hr.AddedBy)
+            .Include(hr => hr.AddedByUser)
             .Include(hr => hr.Ratings).ThenInclude(r => r.User)
             .FirstAsync(hr => hr.Id == recipe.Id);
 
@@ -175,7 +175,7 @@ public class HouseholdRecipesController : ControllerBase
 
         var recipe = await _context.HouseholdRecipes
             .Include(hr => hr.GlobalRecipe)
-            .Include(hr => hr.AddedBy)
+            .Include(hr => hr.AddedByUser)
             .Include(hr => hr.ArchivedBy)
             .Include(hr => hr.Ratings).ThenInclude(r => r.User)
             .FirstOrDefaultAsync(hr => hr.Id == id && hr.HouseholdId == user.CurrentHouseholdId);
@@ -291,7 +291,7 @@ public class HouseholdRecipesController : ControllerBase
 
         var recipe = await _context.HouseholdRecipes
             .Include(hr => hr.GlobalRecipe)
-            .Include(hr => hr.AddedBy)
+            .Include(hr => hr.AddedByUser)
             .Include(hr => hr.Ratings).ThenInclude(r => r.User)
             .FirstOrDefaultAsync(hr => hr.Id == id && hr.HouseholdId == user.CurrentHouseholdId);
 
@@ -346,7 +346,7 @@ public class HouseholdRecipesController : ControllerBase
         // Reload recipe with updated ratings
         recipe = await _context.HouseholdRecipes
             .Include(hr => hr.GlobalRecipe)
-            .Include(hr => hr.AddedBy)
+            .Include(hr => hr.AddedByUser)
             .Include(hr => hr.Ratings).ThenInclude(r => r.User)
             .FirstAsync(hr => hr.Id == id);
 
@@ -367,7 +367,7 @@ public class HouseholdRecipesController : ControllerBase
 
         var recipe = await _context.HouseholdRecipes
             .Include(hr => hr.GlobalRecipe)
-            .Include(hr => hr.AddedBy)
+            .Include(hr => hr.AddedByUser)
             .Include(hr => hr.Ratings).ThenInclude(r => r.User)
             .FirstOrDefaultAsync(hr => hr.Id == id && hr.HouseholdId == user.CurrentHouseholdId);
 

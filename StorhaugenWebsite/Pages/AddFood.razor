@@ -9,22 +9,37 @@
 @inject ISnackbar Snackbar
 @inject IOcrService OcrService
 
-<div class="d-flex justify-space-between align-center mb-6">
-    <div>
-        <h1 class="page-title" style="margin-bottom: 4px;">Add Meal</h1>
-        <p class="page-subtitle">Rate tonight's dinner</p>
-    </div>
-</div>
-
-@if (!string.IsNullOrEmpty(_errorMessage))
+@if (!HouseholdState.HasHousehold)
 {
-    <MudAlert Severity="Severity.Error" Class="mb-4" Dense="true" ShowCloseIcon="true" CloseIconClicked="@(() => _errorMessage = null)"
-              Style="border-radius: 12px;">
-        @_errorMessage
-    </MudAlert>
+    <div class="empty-state">
+        <div class="empty-state-icon">
+            <MudIcon Icon="@Icons.Material.Rounded.Home" Size="Size.Large" />
+        </div>
+        <h2 class="empty-state-title">No household selected</h2>
+        <p class="empty-state-text">You need to create or join a household before adding meals!</p>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="settings" StartIcon="@Icons.Material.Rounded.Settings">
+            Go to Settings
+        </MudButton>
+    </div>
 }
+else
+{
+    <div class="d-flex justify-space-between align-center mb-6">
+        <div>
+            <h1 class="page-title" style="margin-bottom: 4px;">Add Meal</h1>
+            <p class="page-subtitle">Rate tonight's dinner</p>
+        </div>
+    </div>
 
-<div class="form-section">
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-4" Dense="true" ShowCloseIcon="true" CloseIconClicked="@(() => _errorMessage = null)"
+                  Style="border-radius: 12px;">
+            @_errorMessage
+        </MudAlert>
+    }
+
+    <div class="form-section">
     <p class="form-section-title">Meal Details</p>
 
     <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
@@ -151,24 +166,25 @@
     </div>
 </div>
 
-<MudButton Variant="Variant.Filled"
-           Color="Color.Primary"
-           Size="Size.Large"
-           FullWidth="true"
-           OnClick="SubmitFood"
-           Disabled="_isSubmitting"
-           Style="border-radius: 14px; padding: 14px; margin-top: 8px;">
-    @if (_isSubmitting)
-    {
-        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" Color="Color.Surface" />
-        <span>Saving...</span>
-    }
-    else
-    {
-        <MudIcon Icon="@Icons.Material.Rounded.Check" Class="mr-2" />
-        <span>Save Meal</span>
-    }
-</MudButton>
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               Size="Size.Large"
+               FullWidth="true"
+               OnClick="SubmitFood"
+               Disabled="_isSubmitting"
+               Style="border-radius: 14px; padding: 14px; margin-top: 8px;">
+        @if (_isSubmitting)
+        {
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" Color="Color.Surface" />
+            <span>Saving...</span>
+        }
+        else
+        {
+            <MudIcon Icon="@Icons.Material.Rounded.Check" Class="mr-2" />
+            <span>Save Meal</span>
+        }
+    </MudButton>
+}
 
 @code {
     private FoodItem _newFood = new();
@@ -209,13 +225,11 @@
         // Wait for household state to be initialized
         await HouseholdState.InitializeAsync();
 
-        if (!HouseholdState.HasHousehold)
+        // Set current user name if household exists
+        if (HouseholdState.HasHousehold)
         {
-            Navigation.NavigateTo("/");
-            return;
+            _currentUserName = AuthService.CurrentUserName ?? "Unknown";
         }
-
-        _currentUserName = AuthService.CurrentUserName ?? "Unknown";
     }
 
     private async Task OnImagesSelected(IReadOnlyList<IBrowserFile> files)
