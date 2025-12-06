@@ -12,5 +12,6 @@ namespace StorhaugenWebsite.Services
         Task<(bool success, string? errorMessage)> LoginAsync();
         Task LogoutAsync();
         Task InitializeAsync();
+        Task<string?> GetAccessTokenAsync(); // NEW: For API authentication
     }
 }
