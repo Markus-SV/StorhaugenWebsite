@@ -1,3 +1,4 @@
+@using StorhaugenWebsite.ApiClient
 @using StorhaugenWebsite.DTOs
 @using System.ComponentModel.DataAnnotations
 @inject IApiClient ApiClient
@@ -74,7 +75,7 @@
 
 @code {
     [CascadingParameter]
-    MudDialogInstance? MudDialog { get; set; }
+    IMudDialogInstance? MudDialog { get; set; }
 
     [Parameter]
     public int HouseholdId { get; set; }

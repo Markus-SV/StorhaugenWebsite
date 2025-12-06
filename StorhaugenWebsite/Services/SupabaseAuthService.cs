@@ -3,6 +3,7 @@ using Supabase;
 using Supabase.Gotrue;
 using StorhaugenWebsite.Models;
 using Client = Supabase.Client;
+using static Supabase.Gotrue.Constants;
 
 namespace StorhaugenWebsite.Services;
 
@@ -65,9 +66,8 @@ public class SupabaseAuthService : IAuthService, IAsyncDisposable
 
             var result = await _supabaseClient.Auth.SignIn(Provider.Google, options);
 
-            if (result == true)
+            if (result != null && result.Uri != null)
             {
-                // Wait for session to be established
                 await Task.Delay(1000);
                 _session = _supabaseClient.Auth.CurrentSession;
 

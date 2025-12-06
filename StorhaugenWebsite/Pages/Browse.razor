@@ -1,4 +1,5 @@
 @page "/browse"
+@using StorhaugenWebsite.ApiClient
 @using StorhaugenWebsite.DTOs
 @inject IAuthService AuthService
 @inject IApiClient ApiClient
@@ -29,13 +30,14 @@
     <div class="d-flex gap-2 flex-wrap">
         <MudChip Color="@(_hellofreshOnly ? Color.Primary : Color.Default)"
                  OnClick="ToggleHelloFresh"
+                 T="string"
                  Icon="@Icons.Material.Rounded.LocalDining">
             HelloFresh Only
         </MudChip>
 
         <MudMenu AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
             <ActivatorContent>
-                <MudChip Icon="@Icons.Material.Rounded.Public"
+                <MudChip Icon="@Icons.Material.Rounded.Public" T="string"
                          Color="@(!string.IsNullOrEmpty(_selectedCuisine) ? Color.Primary : Color.Default)">
                     @(!string.IsNullOrEmpty(_selectedCuisine) ? _selectedCuisine : "All Cuisines")
                 </MudChip>
@@ -52,7 +54,7 @@
 
         <MudMenu AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
             <ActivatorContent>
-                <MudChip Icon="@Icons.Material.Rounded.Speed"
+                <MudChip T="string" Icon="@Icons.Material.Rounded.Speed"
                          Color="@(!string.IsNullOrEmpty(_selectedDifficulty) ? Color.Primary : Color.Default)">
                     @(!string.IsNullOrEmpty(_selectedDifficulty) ? _selectedDifficulty : "All Difficulties")
                 </MudChip>
@@ -68,7 +70,7 @@
 
         <MudMenu AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
             <ActivatorContent>
-                <MudChip Icon="@Icons.Material.Rounded.AccessTime"
+                <MudChip T="string" Icon="@Icons.Material.Rounded.AccessTime"
                          Color="@(_maxPrepTime.HasValue ? Color.Primary : Color.Default)">
                     @(_maxPrepTime.HasValue ? $"≤ {_maxPrepTime} min" : "Any Time")
                 </MudChip>
@@ -85,7 +87,7 @@
 
         <MudMenu AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
             <ActivatorContent>
-                <MudChip Icon="@Icons.Material.Rounded.Sort"
+                <MudChip T="string" Icon="@Icons.Material.Rounded.Sort"
                          Color="Color.Default">
                     Sort: @GetSortLabel()
                 </MudChip>
@@ -169,18 +171,18 @@ else
                     <div class="d-flex justify-space-between align-start gap-3 mb-2">
                         <div>
                             <h3 class="recipe-card-title">@currentRecipe.Name</h3>
-                            @if (currentRecipe.IsHelloFresh)
+                            @if (currentRecipe.IsHellofresh)
                             {
-                                <MudChip Size="Size.Small" Color="Color.Primary" Icon="@Icons.Material.Rounded.LocalDining" Style="height: 20px; margin-top: 4px;">
+                                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Icon="@Icons.Material.Rounded.LocalDining" Style="height: 20px; margin-top: 4px;">
                                     HelloFresh
                                 </MudChip>
                             }
                         </div>
-                        @if (currentRecipe.AverageRating.HasValue)
+                        @if (currentRecipe.AverageRating > 0)
                         {
                             <span class="rating-badge rating-high">
                                 <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
-                                @currentRecipe.AverageRating.Value.ToString("0.0")
+                                @currentRecipe.AverageRating.ToString("0.0")
                             </span>
                         }
                     </div>
@@ -219,7 +221,7 @@ else
                         <div class="recipe-tags">
                             @foreach (var tag in currentRecipe.Tags.Take(5))
                             {
-                                <MudChip Size="Size.Small" Style="height: 24px;">@tag</MudChip>
+                                <MudChip T="string" Size="Size.Small" Style="height: 24px;">@tag</MudChip>
                             }
                         </div>
                     }
@@ -479,7 +481,7 @@ else
                 Cuisine = _selectedCuisine,
                 Difficulty = _selectedDifficulty,
                 MaxPrepTime = _maxPrepTime,
-                HelloFreshOnly = _hellofreshOnly,
+                HellofreshOnly = _hellofreshOnly,
                 SortBy = _sortBy,
                 Page = _currentPage,
                 PageSize = _pageSize

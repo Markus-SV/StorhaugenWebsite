@@ -141,7 +141,7 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Score).IsRequired();
-            entity.HasCheckConstraint("CK_Rating_Score", "score >= 0 AND score <= 10");
+            entity.ToTable(t => t.HasCheckConstraint("CK_Rating_Score", "score >= 0 AND score <= 10"));
 
             // Unique constraint: one rating per user per recipe
             entity.HasIndex(e => new { e.GlobalRecipeId, e.UserId }).IsUnique();

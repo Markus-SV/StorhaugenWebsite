@@ -144,6 +144,8 @@ public class GlobalRecipeDto
     public int TotalRatings { get; set; }
     public int TotalTimesAdded { get; set; }
     public DateTime CreatedAt { get; set; }
+    public object? Instructions { get; set; }
+
 }
 
 public class GlobalRecipePagedResult

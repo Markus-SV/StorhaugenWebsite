@@ -35,7 +35,7 @@ builder.Services.AddScoped(sp => new Supabase.Client(supabaseUrl, supabaseAnonKe
 
 // Authentication & API Services
 builder.Services.AddScoped<IAuthService, SupabaseAuthService>();
-builder.Services.AddScoped<IApiClient, ApiClient.ApiClient>();
+builder.Services.AddScoped<IApiClient, ApiClient>();
 builder.Services.AddScoped<IHouseholdStateService, HouseholdStateService>();
 
 // Other Services

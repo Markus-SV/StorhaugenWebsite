@@ -1,4 +1,6 @@
+@using StorhaugenWebsite.ApiClient
 @using StorhaugenWebsite.DTOs
+
 @inject IApiClient ApiClient
 @inject IAuthService AuthService
 @inject IHouseholdStateService HouseholdState
@@ -42,11 +44,11 @@
                                     </MudText>
                                     @if (isCreator)
                                     {
-                                        <MudChip Size="Size.Small" Color="Color.Primary" Style="height: 20px;">Owner</MudChip>
+                                        <MudChip Size="Size.Small" T=string Color="Color.Primary" Style="height: 20px;">Owner</MudChip>
                                     }
                                     @if (isCurrentUser)
                                     {
-                                        <MudChip Size="Size.Small" Color="Color.Secondary" Style="height: 20px;">You</MudChip>
+                                        <MudChip Size="Size.Small" T=string Color="Color.Secondary" Style="height: 20px;">You</MudChip>
                                     }
                                 </div>
                                 <MudText Typo="Typo.caption" Color="Color.Secondary">
@@ -161,7 +163,7 @@
 
 @code {
     [CascadingParameter]
-    MudDialogInstance? MudDialog { get; set; }
+    IMudDialogInstance? MudDialog { get; set; }
 
     [Parameter]
     public HouseholdDto? Household { get; set; }
@@ -189,8 +191,7 @@
         if (Household == null)
             return;
 
-        var confirmed = await Snackbar.Add(
-            $"Are you sure you want to leave {Household.Name}?",
+        Snackbar.Add($"Are you sure you want to leave {Household.Name}?",
             Severity.Warning,
             config =>
             {
