@@ -14,6 +14,9 @@ public class Rating
     [Column("global_recipe_id")]
     public Guid GlobalRecipeId { get; set; }
 
+    [Column("household_recipe_id")]
+    public Guid? HouseholdRecipeId { get; set; }
+
     [Required]
     [Column("user_id")]
     public Guid UserId { get; set; }
@@ -34,5 +37,14 @@ public class Rating
 
     // Navigation properties
     public GlobalRecipe GlobalRecipe { get; set; } = null!;
+    public HouseholdRecipe? HouseholdRecipe { get; set; }
     public User User { get; set; } = null!;
+
+    // Backward compatibility properties
+    [NotMapped]
+    public int RatingValue
+    {
+        get => Score;
+        set => Score = value;
+    }
 }

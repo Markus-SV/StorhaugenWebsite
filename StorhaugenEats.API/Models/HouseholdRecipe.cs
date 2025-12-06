@@ -42,6 +42,12 @@ public class HouseholdRecipe
     [Column("is_archived")]
     public bool IsArchived { get; set; } = false;
 
+    [Column("archived_date")]
+    public DateTime? ArchivedDate { get; set; }
+
+    [Column("archived_by_user_id")]
+    public Guid? ArchivedByUserId { get; set; }
+
     [Column("created_at")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
@@ -52,6 +58,8 @@ public class HouseholdRecipe
     public Household Household { get; set; } = null!;
     public GlobalRecipe? GlobalRecipe { get; set; }
     public User? AddedByUser { get; set; }
+    public User? ArchivedBy { get; set; }
+    public ICollection<Rating> Ratings { get; set; } = new List<Rating>();
 
     // Helper property to determine mode
     [NotMapped]
@@ -60,4 +68,35 @@ public class HouseholdRecipe
     // Helper to get display title
     [NotMapped]
     public string DisplayTitle => LocalTitle ?? GlobalRecipe?.Title ?? "Untitled Recipe";
+
+    // Backward compatibility properties
+    [NotMapped]
+    public string? Name
+    {
+        get => LocalTitle ?? GlobalRecipe?.Title;
+        set => LocalTitle = value;
+    }
+
+    [NotMapped]
+    public string? Description
+    {
+        get => LocalDescription ?? GlobalRecipe?.Description;
+        set => LocalDescription = value;
+    }
+
+    [NotMapped]
+    public string? ImageUrls
+    {
+        get => LocalImageUrl != null ? $"[\"{LocalImageUrl}\"]" : GlobalRecipe?.ImageUrls;
+        set => LocalImageUrl = value;
+    }
+
+    [NotMapped]
+    public User? AddedBy => AddedByUser;
+
+    [NotMapped]
+    public DateTime DateAdded => CreatedAt;
+
+    [NotMapped]
+    public bool IsForked => !GlobalRecipeId.HasValue;
 }

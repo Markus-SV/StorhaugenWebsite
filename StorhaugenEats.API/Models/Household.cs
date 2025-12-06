@@ -31,4 +31,13 @@ public class Household
     public User? Leader { get; set; }
     public ICollection<User> Members { get; set; } = new List<User>();
     public ICollection<HouseholdRecipe> HouseholdRecipes { get; set; } = new List<HouseholdRecipe>();
+    public ICollection<HouseholdMember> HouseholdMembers { get; set; } = new List<HouseholdMember>();
+
+    // Backward compatibility properties
+    [NotMapped]
+    public Guid? CreatedById
+    {
+        get => LeaderId;
+        set => LeaderId = value;
+    }
 }

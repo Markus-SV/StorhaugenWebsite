@@ -40,4 +40,15 @@ public class HouseholdInvite
     public Household Household { get; set; } = null!;
     public User InvitedUser { get; set; } = null!;
     public User InvitedByUser { get; set; } = null!;
+
+    // Backward compatibility properties
+    [NotMapped]
+    public string InvitedEmail => InvitedUser?.Email ?? string.Empty;
+
+    [NotMapped]
+    public Guid InvitedById
+    {
+        get => InvitedByUserId;
+        set => InvitedByUserId = value;
+    }
 }

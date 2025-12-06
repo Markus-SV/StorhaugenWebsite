@@ -31,6 +31,10 @@ public class User
     [Column("current_household_id")]
     public Guid? CurrentHouseholdId { get; set; }
 
+    [Column("supabase_user_id")]
+    [MaxLength(255)]
+    public string? SupabaseUserId { get; set; }
+
     [Column("created_at")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
@@ -39,4 +43,8 @@ public class User
 
     // Navigation properties
     public Household? CurrentHousehold { get; set; }
+
+    // Backward compatibility properties
+    [NotMapped]
+    public Guid UserId => Id;
 }

@@ -11,6 +11,7 @@ public class AppDbContext : DbContext
 
     public DbSet<User> Users { get; set; }
     public DbSet<Household> Households { get; set; }
+    public DbSet<HouseholdMember> HouseholdMembers { get; set; }
     public DbSet<GlobalRecipe> GlobalRecipes { get; set; }
     public DbSet<HouseholdRecipe> HouseholdRecipes { get; set; }
     public DbSet<Rating> Ratings { get; set; }
@@ -24,6 +25,7 @@ public class AppDbContext : DbContext
         // Configure table names (match PostgreSQL schema)
         modelBuilder.Entity<User>().ToTable("users");
         modelBuilder.Entity<Household>().ToTable("households");
+        modelBuilder.Entity<HouseholdMember>().ToTable("household_members");
         modelBuilder.Entity<GlobalRecipe>().ToTable("global_recipes");
         modelBuilder.Entity<HouseholdRecipe>().ToTable("household_recipes");
         modelBuilder.Entity<Rating>().ToTable("ratings");
@@ -59,6 +61,25 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.LeaderId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // HouseholdMember configuration
+        modelBuilder.Entity<HouseholdMember>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Role).IsRequired().HasMaxLength(20).HasDefaultValue("member");
+
+            entity.HasOne(e => e.Household)
+                .WithMany(h => h.HouseholdMembers)
+                .HasForeignKey(e => e.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(e => new { e.HouseholdId, e.UserId }).IsUnique();
         });
 
         // GlobalRecipe configuration
