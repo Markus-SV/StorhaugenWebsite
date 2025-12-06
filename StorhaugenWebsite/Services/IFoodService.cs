@@ -12,5 +12,6 @@ namespace StorhaugenWebsite.Services
         Task RestoreFoodAsync(string id);
         Task UpdateRatingAsync(string foodId, string personName, int rating);
         Task<string> UploadImageAsync(byte[] imageData, string fileName);
+        Task ForkRecipeAsync(string id);
     }
 }

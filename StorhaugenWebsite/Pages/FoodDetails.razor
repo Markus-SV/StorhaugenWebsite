@@ -100,6 +100,102 @@ else
             <p class="detail-description">@_food.Description</p>
         }
 
+        <!-- Personal Notes Section -->
+        <div class="personal-notes-section">
+            @if (_editingNotes)
+            {
+                <div class="personal-notes-edit">
+                    <MudTextField @bind-Value="_tempNotes"
+                                  Label="Personal Notes"
+                                  Variant="Variant.Outlined"
+                                  Lines="3"
+                                  Placeholder="Add your personal notes, modifications, or tips..."
+                                  Style="border-radius: 10px; margin-bottom: 12px;" />
+                    <div class="d-flex gap-2">
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   OnClick="SaveNotes"
+                                   Disabled="_isSavingNotes"
+                                   Style="border-radius: 10px;">
+                            @if (_isSavingNotes)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-1" />
+                            }
+                            Save
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined"
+                                   Size="Size.Small"
+                                   OnClick="CancelEditNotes"
+                                   Style="border-radius: 10px;">
+                            Cancel
+                        </MudButton>
+                    </div>
+                </div>
+            }
+            else
+            {
+                @if (!string.IsNullOrWhiteSpace(_food.PersonalNotes))
+                {
+                    <div class="personal-notes">
+                        <div class="d-flex justify-space-between align-center mb-2">
+                            <div class="d-flex align-center gap-2">
+                                <MudIcon Icon="@Icons.Material.Rounded.StickyNote2" Size="Size.Small" />
+                                <MudText Typo="Typo.subtitle2" Style="font-weight: 600;">Personal Notes</MudText>
+                            </div>
+                            <MudIconButton Icon="@Icons.Material.Rounded.Edit"
+                                          Size="Size.Small"
+                                          OnClick="StartEditNotes" />
+                        </div>
+                        <MudText Typo="Typo.body2">@_food.PersonalNotes</MudText>
+                    </div>
+                }
+                else
+                {
+                    <MudButton Variant="Variant.Text"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Rounded.AddCircle"
+                               OnClick="StartEditNotes"
+                               Size="Size.Small"
+                               Style="margin-top: 8px;">
+                        Add Personal Notes
+                    </MudButton>
+                }
+            }
+        </div>
+
+        @if (_food.IsLinkedToGlobal || _food.IsForked)
+        {
+            <div class="recipe-source-info">
+                @if (_food.IsLinkedToGlobal)
+                {
+                    <MudChip Size="Size.Small"
+                             Color="Color.Info"
+                             T="string"
+                             Icon="@Icons.Material.Rounded.Link"
+                             Style="height: 24px;">
+                        Linked to @(_food.GlobalRecipeName ?? "Global Recipe")
+                    </MudChip>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                        This recipe is linked to a global recipe. Updates to the global recipe will reflect here.
+                    </MudText>
+                }
+                else if (_food.IsForked)
+                {
+                    <MudChip Size="Size.Small"
+                             Color="Color.Success"
+                             T="string"
+                             Icon="@Icons.Material.Rounded.ContentCopy"
+                             Style="height: 24px;">
+                        Forked from @(_food.GlobalRecipeName ?? "Global Recipe")
+                    </MudChip>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                        This is a copy that you can edit independently.
+                    </MudText>
+                }
+            </div>
+        }
+
         @if (_food.IsArchived)
         {
             <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3" Style="border-radius: 10px;">
@@ -194,6 +290,30 @@ else
 
     <!-- Action Buttons -->
     <div class="mt-4">
+        @if (_food.IsLinkedToGlobal)
+        {
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Success"
+                       FullWidth="true"
+                       StartIcon="@Icons.Material.Rounded.ContentCopy"
+                       OnClick="ForkRecipe"
+                       Disabled="_isForking"
+                       Style="border-radius: 14px; padding: 12px; margin-bottom: 12px;">
+                @if (_isForking)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    <span>Forking Recipe...</span>
+                }
+                else
+                {
+                    <span>Fork to Editable Copy</span>
+                }
+            </MudButton>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3" Style="text-align: center; display: block;">
+                Create an editable copy that you can customize independently
+            </MudText>
+        }
+
         @if (!_food.IsArchived)
         {
             <MudButton Variant="Variant.Outlined"
@@ -219,6 +339,32 @@ else
     </div>
 }
 
+<style>
+    .personal-notes-section {
+        margin-top: 16px;
+    }
+
+    .personal-notes {
+        padding: 16px;
+        background: rgba(var(--mud-palette-info-rgb), 0.08);
+        border-left: 4px solid var(--mud-palette-info);
+        border-radius: 10px;
+    }
+
+    .personal-notes-edit {
+        padding: 16px;
+        background: var(--mud-palette-background-grey);
+        border-radius: 10px;
+    }
+
+    .recipe-source-info {
+        margin-top: 12px;
+        padding: 12px;
+        background: var(--mud-palette-background-grey);
+        border-radius: 10px;
+    }
+</style>
+
 @code {
     [Parameter]
     public string Id { get; set; } = string.Empty;
@@ -228,6 +374,10 @@ else
     private string? _editingRating;
     private int _tempRating = 5;
     private bool _isSaving = false;
+    private bool _isForking = false;
+    private bool _editingNotes = false;
+    private string _tempNotes = "";
+    private bool _isSavingNotes = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -322,6 +472,76 @@ else
         catch (Exception ex)
         {
             Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task ForkRecipe()
+    {
+        if (_food == null) return;
+
+        var result = await DialogService.ShowMessageBox(
+            "Fork Recipe",
+            "This will create an editable copy of this recipe. The copy will no longer update when the global recipe changes. Continue?",
+            yesText: "Fork",
+            cancelText: "Cancel");
+
+        if (result == true)
+        {
+            _isForking = true;
+            try
+            {
+                await FoodService.ForkRecipeAsync(_food.Id);
+
+                // Update local state
+                _food.IsForked = true;
+
+                Snackbar.Add("Recipe forked! You can now edit this copy.", Severity.Success);
+
+                // Reload to get updated data from server
+                await LoadFood();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            }
+            finally
+            {
+                _isForking = false;
+            }
+        }
+    }
+
+    private void StartEditNotes()
+    {
+        _tempNotes = _food?.PersonalNotes ?? "";
+        _editingNotes = true;
+    }
+
+    private void CancelEditNotes()
+    {
+        _editingNotes = false;
+        _tempNotes = "";
+    }
+
+    private async Task SaveNotes()
+    {
+        if (_food == null) return;
+
+        _isSavingNotes = true;
+        try
+        {
+            _food.PersonalNotes = _tempNotes;
+            await FoodService.UpdateFoodAsync(_food);
+            _editingNotes = false;
+            Snackbar.Add("Personal notes saved!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSavingNotes = false;
         }
     }
 

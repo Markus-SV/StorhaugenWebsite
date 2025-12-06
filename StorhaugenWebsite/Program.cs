@@ -3,40 +3,57 @@ using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using MudBlazor.Services;
 using StorhaugenWebsite;
 using StorhaugenWebsite.Services;
+using StorhaugenWebsite.ApiClient;
 using Supabase;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-// Load configuration
-var http = new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) };
-var config = await http.GetFromJsonAsync<Dictionary<string, Dictionary<string, string>>>("appsettings.json");
+// API HttpClient - Configure base URL for API calls
+#if DEBUG
+var apiBaseUrl = "https://storhaugen-eats-api-a7ckh4hwdvcagcb7.westeurope-01.azurewebsites.net"; // Azure API
+#else
+var apiBaseUrl = "https://storhaugen-eats-api-a7ckh4hwdvcagcb7.westeurope-01.azurewebsites.net"; // Azure API
+#endif
 
-var supabaseUrl = config?["Supabase"]?["Url"] ?? throw new InvalidOperationException("Supabase URL not configured");
-var supabaseKey = config?["Supabase"]?["AnonKey"] ?? throw new InvalidOperationException("Supabase AnonKey not configured");
-
-// Configure Supabase
-var supabaseOptions = new SupabaseOptions
-{
-    AutoRefreshToken = true,
-    AutoConnectRealtime = false
-};
-
-builder.Services.AddScoped(sp => new Client(supabaseUrl, supabaseKey, supabaseOptions));
-
-// HttpClient for API calls
-builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
+builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(apiBaseUrl) });
 
 // MudBlazor
 builder.Services.AddMudServices();
 
-// Custom Services
-builder.Services.AddScoped<IFoodService, FoodService>();
+// Supabase Client
+var supabaseUrl = "https://ithuvxvsoozmvdicxedx.supabase.co";
+var supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0aHV2eHZzb296bXZkaWN4ZWR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5NjA1NzIsImV4cCI6MjA4MDUzNjU3Mn0._CnQGm26PbG_8HxoLy5m1lQIfFT6P1RNhLNnbQ4DDy0";
+
+var options = new SupabaseOptions
+{
+    AutoConnectRealtime = false // We don't need realtime in the frontend
+};
+
+builder.Services.AddScoped(sp => new Supabase.Client(supabaseUrl, supabaseAnonKey, options));
+
+// Authentication & API Services
 builder.Services.AddScoped<IAuthService, SupabaseAuthService>();
 builder.Services.AddScoped<IApiClient, ApiClient>();
+builder.Services.AddScoped<IHouseholdStateService, HouseholdStateService>();
+
+// Other Services
 builder.Services.AddScoped<IDeviceStateService, DeviceStateService>();
 builder.Services.AddScoped<IThemeService, ThemeService>();
 builder.Services.AddScoped<IOcrService, TesseractOcrService>();
 
-await builder.Build().RunAsync();
+// Food Service - Uses ApiClient now for backward compatibility with existing pages
+builder.Services.AddScoped<IFoodService, FoodService>();
+
+var host = builder.Build();
+
+// Initialize auth on startup
+var authService = host.Services.GetRequiredService<IAuthService>();
+await authService.InitializeAsync();
+
+// Initialize household state (will auto-load after auth)
+var householdStateService = host.Services.GetRequiredService<IHouseholdStateService>();
+await householdStateService.InitializeAsync();
+
+await host.RunAsync();

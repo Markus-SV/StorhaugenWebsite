@@ -18,6 +18,12 @@
         public DateTime? ArchivedDate { get; set; }
         public string? ArchivedBy { get; set; }
 
+        // Multi-tenant fields
+        public int? GlobalRecipeId { get; set; }
+        public string? GlobalRecipeName { get; set; }
+        public bool IsForked { get; set; }
+        public string? PersonalNotes { get; set; }
+
         public double AverageRating
         {
             get
@@ -31,6 +37,9 @@
         {
             return Ratings.TryGetValue(person, out var rating) ? rating ?? 0 : 0;
         }
+
+        // Helper property to check if this recipe is linked to a global recipe
+        public bool IsLinkedToGlobal => GlobalRecipeId.HasValue && !IsForked;
     }
 
     public class FamilyMember

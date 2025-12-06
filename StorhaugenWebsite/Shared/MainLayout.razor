@@ -42,6 +42,10 @@
                     <MudIcon Icon="@(IsActive("") ? Icons.Material.Rounded.Home : Icons.Material.Outlined.Home)" Size="Size.Small" />
                     <span>Home</span>
                 </button>
+                <button class="nav-item @(IsActive("browse") ? "active" : "")" @onclick="@(() => Navigate("browse"))">
+                    <MudIcon Icon="@(IsActive("browse") ? Icons.Material.Rounded.Explore : Icons.Material.Outlined.Explore)" Size="Size.Small" />
+                    <span>Browse</span>
+                </button>
                 <button class="nav-item nav-item-add @(IsActive("add") ? "active" : "")" @onclick="@(() => Navigate("add"))">
                     <div class="add-button">
                         <MudIcon Icon="@Icons.Material.Rounded.Add" Size="Size.Medium" />

@@ -1,9 +1,14 @@
 ﻿@page "/settings"
+@using StorhaugenWebsite.ApiClient
 @using StorhaugenWebsite.Models
+@using StorhaugenWebsite.DTOs
 @inject IAuthService AuthService
 @inject IThemeService ThemeService
 @inject IDeviceStateService DeviceState
+@inject IHouseholdStateService HouseholdState
+@inject IApiClient ApiClient
 @inject NavigationManager Navigation
+@inject IDialogService DialogService
 
 <div class="d-flex align-center gap-3 mb-6">
     <h1 class="page-title" style="margin-bottom: 0; font-size: 1.5rem;">Settings</h1>
@@ -40,6 +45,66 @@
             </MudSelectItem>
         }
     </MudSelect>
+</div>
+
+<div class="form-section">
+    <p class="form-section-title">Household</p>
+
+    @if (HouseholdState.CurrentHousehold != null)
+    {
+        <div class="setting-row">
+            <div class="setting-info">
+                <MudText Typo="Typo.body1" Style="font-weight: 500;">@HouseholdState.CurrentHousehold.Name</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    @HouseholdState.CurrentHousehold.Members.Count member(s)
+                </MudText>
+            </div>
+        </div>
+
+        @if (HouseholdState.UserHouseholds.Count > 1)
+        {
+            <MudSelect T="int"
+                       Label="Switch Household"
+                       Value="@HouseholdState.CurrentHousehold.Id"
+                       ValueChanged="SwitchHousehold"
+                       Variant="Variant.Outlined"
+                       Class="mt-3">
+                @foreach (var household in HouseholdState.UserHouseholds)
+                {
+                    <MudSelectItem Value="@household.Id">@household.Name</MudSelectItem>
+                }
+            </MudSelect>
+        }
+
+        <MudButton Variant="Variant.Outlined"
+                   Color="Color.Primary"
+                   FullWidth="true"
+                   StartIcon="@Icons.Material.Rounded.PersonAdd"
+                   OnClick="InviteMember"
+                   Style="border-radius: 12px; margin-top: 16px;">
+            Invite Member
+        </MudButton>
+
+        <MudButton Variant="Variant.Text"
+                   Color="Color.Default"
+                   FullWidth="true"
+                   OnClick="ViewMembers"
+                   Style="margin-top: 8px;">
+            View Members
+        </MudButton>
+    }
+    else
+    {
+        <MudAlert Severity="Severity.Warning" Class="mb-3">
+            You don't have a household yet. Create one to get started!
+        </MudAlert>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   FullWidth="true"
+                   OnClick="CreateHousehold">
+            Create Household
+        </MudButton>
+    }
 </div>
 
 <div class="form-section">
@@ -222,5 +287,94 @@
     {
         await AuthService.LogoutAsync();
         Navigation.NavigateTo("login");
+    }
+
+    // Household Management Methods
+    private async Task CreateHousehold()
+    {
+        var parameters = new DialogParameters();
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+
+        var dialog = await DialogService.ShowAsync<Components.HouseholdSelector>("Create Household", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            await HouseholdState.RefreshHouseholdsAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task SwitchHousehold(int householdId)
+    {
+        try
+        {
+            await HouseholdState.SetCurrentHouseholdAsync(householdId);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            // Show error snackbar in real implementation
+            Console.WriteLine($"Error switching household: {ex.Message}");
+        }
+    }
+
+    private async Task InviteMember()
+    {
+        if (HouseholdState.CurrentHousehold == null)
+            return;
+
+        var parameters = new DialogParameters
+        {
+            { "HouseholdId", HouseholdState.CurrentHousehold.Id },
+            { "HouseholdName", HouseholdState.CurrentHousehold.Name }
+        };
+
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
+
+        var dialog = await DialogService.ShowAsync<Components.InviteMemberDialog>(
+            "Invite Member",
+            parameters,
+            options);
+
+        await dialog.Result;
+        // Dialog handles all invite logic internally
+    }
+
+    private async Task ViewMembers()
+    {
+        if (HouseholdState.CurrentHousehold == null)
+            return;
+
+        var parameters = new DialogParameters
+        {
+            { "Household", HouseholdState.CurrentHousehold }
+        };
+
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
+
+        var dialog = await DialogService.ShowAsync<Components.HouseholdMembersDialog>(
+            "Household Members",
+            parameters,
+            options);
+
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            // Refresh household state after dialog closes (in case user left)
+            await HouseholdState.RefreshHouseholdsAsync();
+            StateHasChanged();
+        }
     }
 }
