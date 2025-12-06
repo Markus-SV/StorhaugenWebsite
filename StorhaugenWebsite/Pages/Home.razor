@@ -10,76 +10,92 @@
 @inject IDeviceStateService DeviceState
 
 
-<div class="d-flex justify-space-between align-center mb-4">
-    <MudMenu AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
-        <ActivatorContent>
-            <div class="sort-dropdown">
-                <MudIcon Icon="@Icons.Material.Rounded.Sort" Size="Size.Small" />
-                <span>@GetSortLabel()</span>
-                <MudIcon Icon="@(_sortDescending? Icons.Material.Rounded.ArrowDownward : Icons.Material.Rounded.ArrowUpward)" Size="Size.Small" />
-            </div>
-        </ActivatorContent>
-        <ChildContent>
-            <MudMenuItem OnClick="@(() => SetSort("date"))">
-                <div class="d-flex align-center gap-2">
-                    <MudIcon Icon="@Icons.Material.Rounded.CalendarMonth" Size="Size.Small" />
-                    <span>Date</span>
-                    @if (_currentSort == "date")
-                    {
-                        <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Color="Color.Primary" />
-                    }
+@if (HouseholdState.HasHousehold)
+{
+    <div class="d-flex justify-space-between align-center mb-4">
+        <MudMenu AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
+            <ActivatorContent>
+                <div class="sort-dropdown">
+                    <MudIcon Icon="@Icons.Material.Rounded.Sort" Size="Size.Small" />
+                    <span>@GetSortLabel()</span>
+                    <MudIcon Icon="@(_sortDescending? Icons.Material.Rounded.ArrowDownward : Icons.Material.Rounded.ArrowUpward)" Size="Size.Small" />
                 </div>
-            </MudMenuItem>
-            <MudMenuItem OnClick="@(() => SetSort("average"))">
-                <div class="d-flex align-center gap-2">
-                    <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
-                    <span>Average</span>
-                    @if (_currentSort == "average")
-                    {
-                        <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Color="Color.Primary" />
-                    }
-                </div>
-            </MudMenuItem>
-            <MudDivider />
-            @if (HouseholdState.CurrentHousehold?.Members != null)
-            {
-                @foreach (var member in HouseholdState.CurrentHousehold.Members)
+            </ActivatorContent>
+            <ChildContent>
+                <MudMenuItem OnClick="@(() => SetSort("date"))">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Rounded.CalendarMonth" Size="Size.Small" />
+                        <span>Date</span>
+                        @if (_currentSort == "date")
+                        {
+                            <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Color="Color.Primary" />
+                        }
+                    </div>
+                </MudMenuItem>
+                <MudMenuItem OnClick="@(() => SetSort("average"))">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
+                        <span>Average</span>
+                        @if (_currentSort == "average")
+                        {
+                            <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Color="Color.Primary" />
+                        }
+                    </div>
+                </MudMenuItem>
+                <MudDivider />
+                @if (HouseholdState.CurrentHousehold?.Members != null)
                 {
-                    var m = member.DisplayName;
-                    <MudMenuItem OnClick="@(() => SetSort(m.ToLower()))">
-                        <div class="d-flex align-center gap-2">
-                            <div class="member-rating-avatar" style="@($"background: {GetMemberColor(m)}; width: 20px; height: 20px; font-size: 0.65rem;")">@m[0]</div>
-                            <span>@m</span>
-                            @if (_currentSort == m.ToLower())
-                            {
-                                <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Color="Color.Primary" />
-                            }
-                        </div>
-                    </MudMenuItem>
+                    @foreach (var member in HouseholdState.CurrentHousehold.Members)
+                    {
+                        var m = member.DisplayName;
+                        <MudMenuItem OnClick="@(() => SetSort(m.ToLower()))">
+                            <div class="d-flex align-center gap-2">
+                                <div class="member-rating-avatar" style="@($"background: {GetMemberColor(m)}; width: 20px; height: 20px; font-size: 0.65rem;")">@m[0]</div>
+                                <span>@m</span>
+                                @if (_currentSort == m.ToLower())
+                                {
+                                    <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Color="Color.Primary" />
+                                }
+                            </div>
+                        </MudMenuItem>
+                    }
                 }
-            }
-            <MudDivider />
-            <MudMenuItem OnClick="ToggleSortDirection">
-                <div class="d-flex align-center gap-2">
-                    <MudIcon Icon="@(_sortDescending? Icons.Material.Rounded.ArrowUpward : Icons.Material.Rounded.ArrowDownward)" Size="Size.Small" />
-                    <span>@(_sortDescending ? "Ascending" : "Descending")</span>
-                </div>
-            </MudMenuItem>
-        </ChildContent>
-    </MudMenu>
+                <MudDivider />
+                <MudMenuItem OnClick="ToggleSortDirection">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@(_sortDescending? Icons.Material.Rounded.ArrowUpward : Icons.Material.Rounded.ArrowDownward)" Size="Size.Small" />
+                        <span>@(_sortDescending ? "Ascending" : "Descending")</span>
+                    </div>
+                </MudMenuItem>
+            </ChildContent>
+        </MudMenu>
 
-    <div class="view-toggle">
-        <button class="view-toggle-btn @(_viewMode == "card" ? "active" : "")" @onclick="@(() => SetViewMode("card"))">
-            <MudIcon Icon="@Icons.Material.Rounded.GridView" Size="Size.Small" />
-        </button>
-        <button class="view-toggle-btn @(_viewMode == "list" ? "active" : "")" @onclick="@(() => SetViewMode("list"))">
-            <MudIcon Icon="@Icons.Material.Rounded.ViewList" Size="Size.Small" />
-        </button>
+        <div class="view-toggle">
+            <button class="view-toggle-btn @(_viewMode == "card" ? "active" : "")" @onclick="@(() => SetViewMode("card"))">
+                <MudIcon Icon="@Icons.Material.Rounded.GridView" Size="Size.Small" />
+            </button>
+            <button class="view-toggle-btn @(_viewMode == "list" ? "active" : "")" @onclick="@(() => SetViewMode("list"))">
+                <MudIcon Icon="@Icons.Material.Rounded.ViewList" Size="Size.Small" />
+            </button>
+        </div>
+
     </div>
+}
 
-</div>
-
-@if (_isLoading)
+@if (!HouseholdState.HasHousehold)
+{
+    <div class="empty-state">
+        <div class="empty-state-icon">
+            <MudIcon Icon="@Icons.Material.Rounded.Home" Size="Size.Large" />
+        </div>
+        <h2 class="empty-state-title">No household selected</h2>
+        <p class="empty-state-text">Create or join a household to start tracking meals!</p>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="settings" StartIcon="@Icons.Material.Rounded.Settings">
+            Go to Settings
+        </MudButton>
+    </div>
+}
+else if (_isLoading)
 {
     <div class="d-flex flex-column gap-3">
         @for (int i = 0; i < 3; i++)
@@ -213,27 +229,37 @@ else
     protected override async Task OnInitializedAsync()
     {
         AuthService.OnAuthStateChanged += async () => await InvokeAsync(StateHasChanged);
+        HouseholdState.OnHouseholdChanged += async () =>
+        {
+            if (HouseholdState.HasHousehold && !_foodItems.Any() && !_isLoading)
+            {
+                await LoadFoods();
+            }
+            await InvokeAsync(StateHasChanged);
+        };
 
         // Load saved preferences
         _viewMode = DeviceState.Settings.ViewMode ?? "card";
         _currentSort = DeviceState.Settings.SortBy ?? "date";
         _sortDescending = DeviceState.Settings.SortDescending;
 
-        if (AuthService.IsAuthorized)
-        {
-            await LoadFoods();
-        }
-        else
+        if (!AuthService.IsAuthorized)
         {
             await AuthService.InitializeAsync();
             if (!AuthService.IsAuthorized)
             {
                 Navigation.NavigateTo("login");
+                return;
             }
-            else
-            {
-                await LoadFoods();
-            }
+        }
+
+        // Wait for household state to be initialized
+        await HouseholdState.InitializeAsync();
+
+        // Only load foods if a household is selected
+        if (HouseholdState.HasHousehold)
+        {
+            await LoadFoods();
         }
     }
 

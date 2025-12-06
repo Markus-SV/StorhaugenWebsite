@@ -1,6 +1,7 @@
 ﻿@page "/food/{Id}"
 @inject IAuthService AuthService
 @inject IFoodService FoodService
+@inject IHouseholdStateService HouseholdState
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -407,6 +408,15 @@ else
                 Navigation.NavigateTo("login");
                 return;
             }
+        }
+
+        // Wait for household state to be initialized
+        await HouseholdState.InitializeAsync();
+
+        if (!HouseholdState.HasHousehold)
+        {
+            Navigation.NavigateTo("/");
+            return;
         }
 
         await LoadFood();

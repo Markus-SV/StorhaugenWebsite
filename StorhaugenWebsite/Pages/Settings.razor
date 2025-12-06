@@ -242,6 +242,9 @@
             }
         }
 
+        // Initialize household state (this is where users can create a household)
+        await HouseholdState.InitializeAsync();
+
         _currentTheme = ThemeService.GetCurrentThemeName();
         _viewMode = DeviceState.Settings.ViewMode;
     }
