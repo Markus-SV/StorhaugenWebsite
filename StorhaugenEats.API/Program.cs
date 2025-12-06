@@ -111,10 +111,13 @@ builder.Services.AddCors(options =>
             "https://localhost:5001",
             "http://localhost:5000",
             "https://127.0.0.1:7000",
-            "https://127.0.0.1:7001"
+            "https://127.0.0.1:7001",
+
+            // Production (GitHub Pages)
+            "https://markus-sv.github.io"
         };
 
-        // Add production frontend URL from configuration
+        // Add additional production URL from configuration if specified
         var productionUrl = builder.Configuration["Frontend:ProductionUrl"];
         if (!string.IsNullOrEmpty(productionUrl))
         {

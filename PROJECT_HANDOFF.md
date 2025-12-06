@@ -682,13 +682,14 @@ Id (int), HouseholdRecipeId, UserId, Rating (int 0-10), RatedAt
 
 ---
 
-## ❓ Questions to Clarify Before Continuing
+## ✅ Confirmed Configuration
 
-1. **GitHub Pages URL**: Is it `https://markus-sv.github.io/StorhaugenWebsite` or a custom domain?
-2. **Azure Subscription**: Do you have an active Azure subscription?
-3. **Deployment Preference**: Automated script, Visual Studio, or manual Azure Portal?
-4. **Testing Access**: Do you have a second Google account for testing invitations?
-5. **HelloFresh ETL**: Is this feature critical for initial deployment, or can it be deferred?
+1. **GitHub Pages URL**: `https://markus-sv.github.io/StorhaugenWebsite`
+2. **Azure Subscription**: Active and available
+3. **Deployment Method**: GitHub Actions (already working)
+4. **Current Branch**: Continue on `claude/multi-tenant-food-app-refactor-0165XDASp2JYXM1R5w3SqvY2`
+5. **Testing Access**: TBD
+6. **HelloFresh ETL**: Can be deferred (not critical for initial deployment)
 
 ---
 
