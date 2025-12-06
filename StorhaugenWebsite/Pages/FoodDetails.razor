@@ -232,6 +232,30 @@ else
 
     <!-- Action Buttons -->
     <div class="mt-4">
+        @if (_food.IsLinkedToGlobal)
+        {
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Success"
+                       FullWidth="true"
+                       StartIcon="@Icons.Material.Rounded.ContentCopy"
+                       OnClick="ForkRecipe"
+                       Disabled="_isForking"
+                       Style="border-radius: 14px; padding: 12px; margin-bottom: 12px;">
+                @if (_isForking)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    <span>Forking Recipe...</span>
+                }
+                else
+                {
+                    <span>Fork to Editable Copy</span>
+                }
+            </MudButton>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3" Style="text-align: center; display: block;">
+                Create an editable copy that you can customize independently
+            </MudText>
+        }
+
         @if (!_food.IsArchived)
         {
             <MudButton Variant="Variant.Outlined"
@@ -287,6 +311,7 @@ else
     private string? _editingRating;
     private int _tempRating = 5;
     private bool _isSaving = false;
+    private bool _isForking = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -381,6 +406,42 @@ else
         catch (Exception ex)
         {
             Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task ForkRecipe()
+    {
+        if (_food == null) return;
+
+        var result = await DialogService.ShowMessageBox(
+            "Fork Recipe",
+            "This will create an editable copy of this recipe. The copy will no longer update when the global recipe changes. Continue?",
+            yesText: "Fork",
+            cancelText: "Cancel");
+
+        if (result == true)
+        {
+            _isForking = true;
+            try
+            {
+                await FoodService.ForkRecipeAsync(_food.Id);
+
+                // Update local state
+                _food.IsForked = true;
+
+                Snackbar.Add("Recipe forked! You can now edit this copy.", Severity.Success);
+
+                // Reload to get updated data from server
+                await LoadFood();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            }
+            finally
+            {
+                _isForking = false;
+            }
         }
     }
 

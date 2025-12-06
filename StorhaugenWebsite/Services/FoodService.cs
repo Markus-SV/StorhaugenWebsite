@@ -122,6 +122,16 @@ namespace StorhaugenWebsite.Services
             return result.Url;
         }
 
+        public async Task ForkRecipeAsync(string id)
+        {
+            ValidateAuthorization();
+
+            if (!int.TryParse(id, out var recipeId))
+                throw new ArgumentException("Invalid ID format.");
+
+            await _apiClient.ForkRecipeAsync(recipeId);
+        }
+
         // Map HouseholdRecipeDto to FoodItem for backward compatibility
         private FoodItem MapToFoodItem(HouseholdRecipeDto recipe)
         {
