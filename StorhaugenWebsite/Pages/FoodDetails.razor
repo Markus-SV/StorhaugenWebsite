@@ -100,6 +100,44 @@ else
             <p class="detail-description">@_food.Description</p>
         }
 
+        @if (!string.IsNullOrWhiteSpace(_food.PersonalNotes))
+        {
+            <div class="personal-notes">
+                <MudIcon Icon="@Icons.Material.Rounded.StickyNote2" Size="Size.Small" Class="mr-1" />
+                <span>@_food.PersonalNotes</span>
+            </div>
+        }
+
+        @if (_food.IsLinkedToGlobal || _food.IsForked)
+        {
+            <div class="recipe-source-info">
+                @if (_food.IsLinkedToGlobal)
+                {
+                    <MudChip Size="Size.Small"
+                             Color="Color.Info"
+                             Icon="@Icons.Material.Rounded.Link"
+                             Style="height: 24px;">
+                        Linked to @(_food.GlobalRecipeName ?? "Global Recipe")
+                    </MudChip>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                        This recipe is linked to a global recipe. Updates to the global recipe will reflect here.
+                    </MudText>
+                }
+                else if (_food.IsForked)
+                {
+                    <MudChip Size="Size.Small"
+                             Color="Color.Success"
+                             Icon="@Icons.Material.Rounded.ContentCopy"
+                             Style="height: 24px;">
+                        Forked from @(_food.GlobalRecipeName ?? "Global Recipe")
+                    </MudChip>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                        This is a copy that you can edit independently.
+                    </MudText>
+                }
+            </div>
+        }
+
         @if (_food.IsArchived)
         {
             <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3" Style="border-radius: 10px;">
@@ -218,6 +256,27 @@ else
         }
     </div>
 }
+
+<style>
+    .personal-notes {
+        display: flex;
+        align-items: center;
+        margin-top: 12px;
+        padding: 12px;
+        background: rgba(var(--mud-palette-info-rgb), 0.08);
+        border-left: 3px solid var(--mud-palette-info);
+        border-radius: 8px;
+        font-size: 0.875rem;
+        color: var(--mud-palette-text-primary);
+    }
+
+    .recipe-source-info {
+        margin-top: 12px;
+        padding: 12px;
+        background: var(--mud-palette-background-grey);
+        border-radius: 10px;
+    }
+</style>
 
 @code {
     [Parameter]

@@ -320,39 +320,60 @@
 
     private async Task InviteMember()
     {
-        // TODO: Create invite dialog component
-        // For now, just show a simple prompt
+        if (HouseholdState.CurrentHousehold == null)
+            return;
+
         var parameters = new DialogParameters
         {
-            { "ContentText", "Enter email address to invite:" },
-            { "ButtonText", "Send Invite" },
-            { "Color", Color.Primary }
+            { "HouseholdId", HouseholdState.CurrentHousehold.Id },
+            { "HouseholdName", HouseholdState.CurrentHousehold.Name }
         };
 
-        var dialog = await DialogService.ShowAsync<MudDialog>("Invite Member", parameters);
-        var result = await dialog.Result;
-
-        if (!result.Canceled && result.Data is string email && !string.IsNullOrWhiteSpace(email))
+        var options = new DialogOptions
         {
-            try
-            {
-                await ApiClient.InviteToHouseholdAsync(
-                    HouseholdState.CurrentHousehold!.Id,
-                    new InviteToHouseholdDto { Email = email }
-                );
-                // Show success snackbar in real implementation
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error inviting member: {ex.Message}");
-            }
-        }
+            CloseOnEscapeKey = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
+
+        var dialog = await DialogService.ShowAsync<Components.InviteMemberDialog>(
+            "Invite Member",
+            parameters,
+            options);
+
+        await dialog.Result;
+        // Dialog handles all invite logic internally
     }
 
-    private void ViewMembers()
+    private async Task ViewMembers()
     {
-        // TODO: Create members dialog component showing all household members
-        // For now, navigate to a placeholder or show info
-        Console.WriteLine($"Members: {string.Join(", ", HouseholdState.CurrentHousehold?.Members.Select(m => m.DisplayName) ?? new List<string>())}");
+        if (HouseholdState.CurrentHousehold == null)
+            return;
+
+        var parameters = new DialogParameters
+        {
+            { "Household", HouseholdState.CurrentHousehold }
+        };
+
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
+
+        var dialog = await DialogService.ShowAsync<Components.HouseholdMembersDialog>(
+            "Household Members",
+            parameters,
+            options);
+
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            // Refresh household state after dialog closes (in case user left)
+            await HouseholdState.RefreshHouseholdsAsync();
+            StateHasChanged();
+        }
     }
 }

@@ -97,6 +97,13 @@ public class ApiClient : IApiClient
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task LeaveHouseholdAsync(int householdId)
+    {
+        await AddAuthHeaderAsync();
+        var response = await _httpClient.PostAsync($"/api/households/{householdId}/leave", null);
+        response.EnsureSuccessStatusCode();
+    }
+
     // Household Recipe Methods
     public async Task<List<HouseholdRecipeDto>> GetRecipesAsync(bool includeArchived = false)
     {

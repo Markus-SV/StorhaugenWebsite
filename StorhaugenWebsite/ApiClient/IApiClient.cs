@@ -16,6 +16,7 @@ public interface IApiClient
     Task<List<HouseholdInviteDto>> GetPendingInvitesAsync();
     Task AcceptInviteAsync(int inviteId);
     Task InviteToHouseholdAsync(int householdId, InviteToHouseholdDto dto);
+    Task LeaveHouseholdAsync(int householdId);
 
     // Household Recipes
     Task<List<HouseholdRecipeDto>> GetRecipesAsync(bool includeArchived = false);

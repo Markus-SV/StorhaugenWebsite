@@ -136,7 +136,11 @@ namespace StorhaugenWebsite.Services
                 AddedBy = recipe.AddedByName ?? "Unknown",
                 IsArchived = recipe.IsArchived,
                 ArchivedDate = recipe.ArchivedDate,
-                ArchivedBy = recipe.ArchivedByName
+                ArchivedBy = recipe.ArchivedByName,
+                GlobalRecipeId = recipe.GlobalRecipeId,
+                GlobalRecipeName = recipe.GlobalRecipeName,
+                IsForked = recipe.IsForked,
+                PersonalNotes = recipe.PersonalNotes
             };
         }
     }
