@@ -6,6 +6,7 @@
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
   "scope": "/StorhaugenWebsite/",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "icon-192.png",
