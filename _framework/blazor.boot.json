@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "StorhaugenWebsite",
   "resources": {
-    "hash": "sha256-gk2ITzR1rF9VqGRvF1Zw4yFeFp0p3oxaWIzMctXI3Zk=",
+    "hash": "sha256-Ik0lKjvG6ZVnkbUjLF8zbxfhSGH6NsjYSAfVDQZZtB0=",
     "jsModuleNative": {
       "dotnet.native.js": "sha256-vtotCeXt2UD6oc459laJT32vBgigZ+eLoUmdeFkvYDk="
     },
@@ -41,7 +41,7 @@
       "Microsoft.JSInterop.wasm": "sha256-PyhffuZiMbeN+vzpBS8NC7X+JGPkTuFZUiOuNBTH1QQ=",
       "Microsoft.JSInterop.WebAssembly.wasm": "sha256-Px6z5DU/gBGylV4ob9sdcAVH4KKxpByP7WNTn+lZUro=",
       "MimeMapping.wasm": "sha256-CMXcRIg84k7AstbhcD8rbnPKy2wa/gmsBD8gBgZP1c8=",
-      "MudBlazor.wasm": "sha256-6rJ0DxE8lqmU7fR1gWrGZ0BqtHCIpE691KAzQcrdAoY=",
+      "MudBlazor.wasm": "sha256-sBNzNWn8iW/tOCGxo3Tt9Sis5y7486rcyWAglgMXAd0=",
       "Newtonsoft.Json.wasm": "sha256-GlXMWKvDs45M2pACoR3Y4Qh8mcrOZGljqmvJY+6JZ5s=",
       "Supabase.wasm": "sha256-zig+I7dVOmC5X90UX+XkfblaDBDqC28AFjl2khOCN/s=",
       "Supabase.Core.wasm": "sha256-jUEh1mM6mkGdyQrEwowAbpQ8R148PZIAUIOXn0mrgIA=",
@@ -63,7 +63,7 @@
       "System.ComponentModel.Primitives.wasm": "sha256-iL4Gg4/HzjEZOsBLMFHIRuXI2Q2aSNqTPozqEfzmqOU=",
       "System.ComponentModel.TypeConverter.wasm": "sha256-P3ztlfJ6bqQ7mlSUGQXPCXEzceF1dkhrC9n1hv6oZ78=",
       "System.ComponentModel.wasm": "sha256-215aqiLb+UiIK95sP+Ndm6dOn6yEZUjSBI4zccxMOfo=",
-      "System.Console.wasm": "sha256-jvrEJmiHoY0kdVkm9ZpEEAOoXxec/6yZE/pMHN7Rbmc=",
+      "System.Console.wasm": "sha256-xCdQbqGJkZbU5TrHBREqS06w8xnAmxYQuDQXvXzRDlo=",
       "System.Data.Common.wasm": "sha256-tsYofihkpCohGy0agLCedV+sixQE9QeqK/30rhwQ3PI=",
       "System.Diagnostics.DiagnosticSource.wasm": "sha256-deYQy96yXbA3VMk5dNiSoDcWU8Rdc/BnAe2/ralIigI=",
       "System.Diagnostics.TraceSource.wasm": "sha256-h3t9d1IHTWGHWjy2OK/3gaSrtEJIxDYQCBVHJK4SkO0=",
@@ -110,8 +110,8 @@
       "System.Xml.XDocument.wasm": "sha256-f29r8GBh1YK6WSVZ2F/k8SqkCPZ+4MXtwNpyz44taW4=",
       "System.wasm": "sha256-I4hhyMuUoHdrzDopL9tlnkL/Skg+0OO+gmkOXNT3dcg=",
       "netstandard.wasm": "sha256-t3MI3G1cq2XOhj4SxHWG+1ZMvGILcE+Ck4NUy7FasYI=",
-      "System.Private.CoreLib.wasm": "sha256-ymHpmaL2SVhBqI/5tKPLdp/p/I4Daxwtuj1B4jJRvLc=",
-      "StorhaugenWebsite.wasm": "sha256-z1Pvg4qDqnr2XJHnmyFJtNhVkH1Pe99bETnTWFHAbD4="
+      "System.Private.CoreLib.wasm": "sha256-cpZL2PUScu5/IKLdpPEP58te07CfqeMz0w/97l9K7Zo=",
+      "StorhaugenWebsite.wasm": "sha256-iKSGC7JYURYShnOELLh9IDIi+3xFAgIEC+LY79TFmdM="
     }
   },
   "cacheBootResources": true,
