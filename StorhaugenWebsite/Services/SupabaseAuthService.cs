@@ -135,11 +135,11 @@ public class SupabaseAuthService : IAuthService, IAsyncDisposable
         return Task.FromResult(_session?.AccessToken);
     }
 
-    private async Task<string> GetRedirectUrlAsync()
+    private Task<string> GetRedirectUrlAsync()
     {
-        // Get current URL from browser dynamically - works for both local and production
-        var origin = await _jsRuntime.InvokeAsync<string>("eval", "window.location.origin");
-        return $"{origin}/"; // Redirect to home page after auth
+        // NavigationManager.BaseUri returns the full path including the sub-folder
+        // e.g. "https://markus-sv.github.io/StorhaugenWebsite/"
+        return Task.FromResult(_navigationManager.BaseUri);
     }
 
     public async ValueTask DisposeAsync()
