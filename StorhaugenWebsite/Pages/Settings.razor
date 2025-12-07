@@ -13,12 +13,12 @@
 @inject IJSRuntime JSRuntime
 
 <div class="d-flex align-center gap-3 mb-6">
-    <h1 class="page-title" style="margin-bottom: 0; font-size: 1.5rem;">Settings</h1>
-    <p class="page-subtitle" style="margin: 0;">Customize your experience</p>
+    <h1 class="page-title" style="margin-bottom: 0; font-size: 1.5rem;">Innstillinger</h1>
+    <p class="page-subtitle" style="margin: 0;">Tilpass din opplevelse</p>
 </div>
 
 <div class="form-section">
-    <p class="form-section-title">Household</p>
+    <p class="form-section-title">Husstand</p>
 
     @if (HouseholdState.CurrentHousehold != null)
     {
@@ -27,12 +27,12 @@
                 @if (IsHouseholdLeader)
                 {
                     <MudTextField @bind-Value="_editHouseholdName"
-                                  Label="Household Name"
+                                  Label="Husstandsnavn"
                                   Variant="Variant.Outlined"
                                   Adornment="Adornment.End"
                                   AdornmentIcon="@Icons.Material.Filled.Save"
                                   OnAdornmentClick="UpdateHouseholdName"
-                                  HelperText="You are the leader. Click save to rename." />
+                                  HelperText="Du er lederen. Trykk lagre for å endre navn." />
                 }
                 else
                 {
@@ -40,8 +40,8 @@
                 }
 
                 <MudText Typo="Typo.caption" Color="Color.Secondary">
-                    @HouseholdState.CurrentHousehold.Members.Count member(s) •
-                    @(HouseholdState.CurrentHousehold.IsPrivate ? "Private" : "Public")
+                    @HouseholdState.CurrentHousehold.Members.Count medlemmer •
+                    @(HouseholdState.CurrentHousehold.IsPrivate ? "Privat" : "Offentlig")
                 </MudText>
             </div>
         </div>
@@ -50,9 +50,9 @@
         {
             <div class="setting-row">
                 <div class="setting-info">
-                    <MudText Typo="Typo.body1">Visibility</MudText>
+                    <MudText Typo="Typo.body1">Synlighet</MudText>
                     <MudText Typo="Typo.caption" Color="Color.Secondary">
-                        Public households appear in search results
+                        Offentlige husstander vises i søkeresultater
                     </MudText>
                 </div>
                 <MudSwitch T="bool"
@@ -65,7 +65,7 @@
         @if (HouseholdState.UserHouseholds.Count > 1)
         {
             <MudSelect T="Guid"
-                       Label="Switch Household"
+                       Label="Bytt husstand"
                        Value="@HouseholdState.CurrentHousehold.Id"
                        ValueChanged="SwitchHousehold"
                        Variant="Variant.Outlined"
@@ -79,20 +79,20 @@
 
         <div class="d-flex gap-2 mt-4">
             <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth="true" StartIcon="@Icons.Material.Rounded.PersonAdd" OnClick="InviteMember" Style="border-radius: 12px;">
-                Invite
+                Inviter
             </MudButton>
             <MudButton Variant="Variant.Text" Color="Color.Default" FullWidth="true" OnClick="ViewMembers">
-                Members
+                Medlemmer
             </MudButton>
         </div>
     }
     else
     {
         <MudAlert Severity="Severity.Info" Class="mb-3">
-            You don't have a household yet.
+            Du har ikke en husstand ennå.
         </MudAlert>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="CreateHousehold">
-            Create Household
+            Opprett husstand
         </MudButton>
     }
 </div>
@@ -114,12 +114,12 @@
 
     <div class="mt-4">
         <MudTextField @bind-Value="_editDisplayName"
-                      Label="Display Name"
+                      Label="Brukernavn"
                       Variant="Variant.Outlined"
                       Adornment="Adornment.End"
                       AdornmentIcon="@Icons.Material.Filled.Save"
                       OnAdornmentClick="UpdateDisplayName"
-                      HelperText="Click the save icon to update your name" />
+                      HelperText="Trykk på lagre-ikonet for å oppdatere navnet ditt" />
     </div>
 
     @if (!string.IsNullOrEmpty(_userProfile?.UniqueShareId))
@@ -127,7 +127,7 @@
         <div class="setting-row" style="padding: 12px 0;">
             <div class="d-flex align-center justify-space-between" style="width: 100%;">
                 <div>
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">Your Share ID</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Din delings-ID</MudText>
                     <MudText Typo="Typo.h6" Style="font-family: monospace; letter-spacing: 2px; font-weight: 600;">
                         @_userProfile.UniqueShareId
                     </MudText>
@@ -136,11 +136,11 @@
                                Size="Size.Small"
                                Color="Color.Primary"
                                OnClick="CopyShareId"
-                               Title="Copy Share ID" />
+                               Title="Kopier ID" />
             </div>
         </div>
         <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-top: -8px;">
-            Share this ID with others to let them invite you to their household
+            Del denne ID-en med andre slik at de kan invitere deg til sin husstand
         </MudText>
     }
 
@@ -150,20 +150,19 @@
                StartIcon="@Icons.Material.Rounded.Logout"
                OnClick="Logout"
                Style="border-radius: 12px; margin-top: 16px;">
-        Sign Out
+        Logg ut
     </MudButton>
 </div>
 
 <div class="form-section">
-    <p class="form-section-title">About</p>
+    <p class="form-section-title">Om</p>
     <div class="setting-row" style="flex-direction: column; align-items: flex-start; gap: 4px;">
         <MudText Typo="Typo.body1" Style="font-weight: 500;">Storhaugen Eats</MudText>
-        <MudText Typo="Typo.caption" Color="Color.Secondary">Version 1.0.0</MudText>
+        <MudText Typo="Typo.caption" Color="Color.Secondary">Versjon 1.0.0</MudText>
     </div>
 </div>
 
 <style>
-    /* ... existing styles ... */
     .theme-select .mud-input-slot {
         min-height: 70px !important;
         padding: 8px 14px !important;
@@ -322,12 +321,11 @@
             // 3. Update Auth Service to reflect changes in Header/Sidebar immediately
             AuthService.UpdateCachedDisplayName(updatedProfile.DisplayName);
 
-            Snackbar.Add("Display name updated", Severity.Success);
+            Snackbar.Add("Brukernavn oppdatert", Severity.Success);
         }
         catch (Exception ex)
         {
-            Snackbar.Add("Failed to update name", Severity.Error);
-            Console.WriteLine(ex.Message);
+            Snackbar.Add("Klarte ikke å oppdatere navn", Severity.Error); Console.WriteLine(ex.Message);
         }
     }
 
@@ -342,11 +340,11 @@
                 Name = _editHouseholdName
             });
             await HouseholdState.RefreshHouseholdsAsync(); // Refresh local state
-            Snackbar.Add("Household renamed", Severity.Success);
+            Snackbar.Add("Husstand oppdatert", Severity.Success);
         }
         catch (Exception ex)
         {
-            Snackbar.Add("Failed to rename household", Severity.Error);
+            Snackbar.Add("Klarte ikke å endre husstandsnavn", Severity.Error);
             Console.WriteLine(ex.Message);
         }
     }
@@ -364,12 +362,11 @@
 
             // Manually update local state to reflect UI change immediately
             HouseholdState.CurrentHousehold.IsPrivate = !isPublic;
-            Snackbar.Add(isPublic ? "Household is now Public" : "Household is now Private", Severity.Success);
+            Snackbar.Add(isPublic ? "Husstand er nå offentlig" : "Husstand er nå privat", Severity.Success);
         }
         catch
         {
-            Snackbar.Add("Failed to update settings", Severity.Error);
-            // Revert switch visually
+            Snackbar.Add("Klarte ikke å oppdatere innstillinger", Severity.Error);            // Revert switch visually
             StateHasChanged();
         }
     }
@@ -421,11 +418,11 @@
         try
         {
             await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", _userProfile.UniqueShareId);
-            Snackbar.Add("Share ID copied to clipboard!", Severity.Success);
+            Snackbar.Add("Delings-ID kopiert til utklippstavlen!", Severity.Success);
         }
         catch
         {
-            Snackbar.Add("Failed to copy to clipboard", Severity.Error);
+            Snackbar.Add("Klarte ikke å kopiere til utklippstavlen", Severity.Error);
         }
     }
 
@@ -435,7 +432,7 @@
         var parameters = new DialogParameters();
         var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
 
-        var dialog = await DialogService.ShowAsync<Components.HouseholdSelector>("Create Household", parameters, options);
+        var dialog = await DialogService.ShowAsync<Components.HouseholdSelector>("Opprett husstand", parameters, options);
         var result = await dialog.Result;
 
         if (!result.Canceled)
@@ -477,7 +474,7 @@
         };
 
         var dialog = await DialogService.ShowAsync<Components.InviteMemberDialog>(
-            "Invite Member",
+            "Inviter medlem",
             parameters,
             options);
 
@@ -502,7 +499,7 @@
         };
 
         var dialog = await DialogService.ShowAsync<Components.HouseholdMembersDialog>(
-            "Household Members",
+            "Husstandsmedlemmer",
             parameters,
             options);
 

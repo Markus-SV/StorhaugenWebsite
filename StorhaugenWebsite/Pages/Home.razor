@@ -9,7 +9,6 @@
 @inject NavigationManager Navigation
 @inject IDeviceStateService DeviceState
 
-
 @if (HouseholdState.HasHousehold)
 {
     <div class="d-flex justify-space-between align-center mb-4">
@@ -25,7 +24,7 @@
                 <MudMenuItem OnClick="@(() => SetSort("date"))">
                     <div class="d-flex align-center gap-2">
                         <MudIcon Icon="@Icons.Material.Rounded.CalendarMonth" Size="Size.Small" />
-                        <span>Date</span>
+                        <span>Dato</span>
                         @if (_currentSort == "date")
                         {
                             <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Color="Color.Primary" />
@@ -35,7 +34,7 @@
                 <MudMenuItem OnClick="@(() => SetSort("average"))">
                     <div class="d-flex align-center gap-2">
                         <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
-                        <span>Average</span>
+                        <span>Snitt</span>
                         @if (_currentSort == "average")
                         {
                             <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Color="Color.Primary" />
@@ -64,7 +63,7 @@
                 <MudMenuItem OnClick="ToggleSortDirection">
                     <div class="d-flex align-center gap-2">
                         <MudIcon Icon="@(_sortDescending? Icons.Material.Rounded.ArrowUpward : Icons.Material.Rounded.ArrowDownward)" Size="Size.Small" />
-                        <span>@(_sortDescending ? "Ascending" : "Descending")</span>
+                        <span>@(_sortDescending ? "Stigende" : "Synkende")</span>
                     </div>
                 </MudMenuItem>
             </ChildContent>
@@ -84,16 +83,16 @@
 
 @if (!HouseholdState.HasHousehold)
 {
-    <div class="empty-state">
-        <div class="empty-state-icon">
-            <MudIcon Icon="@Icons.Material.Rounded.Home" Size="Size.Large" />
-        </div>
-        <h2 class="empty-state-title">No household selected</h2>
-        <p class="empty-state-text">Create or join a household to start tracking meals!</p>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="settings" StartIcon="@Icons.Material.Rounded.Settings">
-            Go to Settings
-        </MudButton>
+<div class="empty-state">
+    <div class="empty-state-icon">
+        <MudIcon Icon="@Icons.Material.Rounded.Home" Size="Size.Large" />
     </div>
+    <h2 class="empty-state-title">Ingen husstand valgt</h2>
+    <p class="empty-state-text">Opprett eller bli med i en husstand for å starte sporing av måltider!</p>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="settings" StartIcon="@Icons.Material.Rounded.Settings">
+        Gå til innstillinger
+    </MudButton>
+</div>
 }
 else if (_isLoading)
 {
@@ -116,10 +115,10 @@ else if (!_foodItems.Any())
         <div class="empty-state-icon">
             <MudIcon Icon="@Icons.Material.Rounded.DinnerDining" Size="Size.Large" />
         </div>
-        <h2 class="empty-state-title">No meals yet</h2>
-        <p class="empty-state-text">Start by adding your first family dinner!</p>
+        <h2 class="empty-state-title">Ingen måltider ennå</h2>
+        <p class="empty-state-text">Start med å legge til deres første middag!</p>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="add" StartIcon="@Icons.Material.Rounded.Add">
-            Add First Meal
+            Legg til første måltid
         </MudButton>
     </div>
 }
@@ -302,15 +301,15 @@ else
 
     private string GetSortLabel()
     {
-        if (_currentSort == "date") return "Date";
-        if (_currentSort == "average") return "Average";
+        if (_currentSort == "date") return "Dato";
+        if (_currentSort == "average") return "Snitt";
 
         // Check if it's a member name
         var member = HouseholdState.CurrentHousehold?.Members
             .FirstOrDefault(m => m.DisplayName.ToLower() == _currentSort);
         if (member != null) return member.DisplayName;
 
-        return "Date";
+        return "Dato";
     }
 
     private IEnumerable<FoodItem> GetSortedFoods()

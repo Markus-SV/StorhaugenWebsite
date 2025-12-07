@@ -15,10 +15,10 @@
         <div class="empty-state-icon">
             <MudIcon Icon="@Icons.Material.Rounded.Home" Size="Size.Large" />
         </div>
-        <h2 class="empty-state-title">No household selected</h2>
-        <p class="empty-state-text">You need to create or join a household before adding meals!</p>
+        <h2 class="empty-state-title">Ingen husstand valgt</h2>
+        <p class="empty-state-text">Du må opprette eller bli med i en husstand før du kan legge til måltider!</p>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="settings" StartIcon="@Icons.Material.Rounded.Settings">
-            Go to Settings
+            Gå til innstillinger
         </MudButton>
     </div>
 }
@@ -26,8 +26,8 @@ else
 {
     <div class="d-flex justify-space-between align-center mb-6">
         <div>
-            <h1 class="page-title" style="margin-bottom: 4px;">Add Meal</h1>
-            <p class="page-subtitle">Rate tonight's dinner</p>
+            <h1 class="page-title" style="margin-bottom: 4px;">Legg til måltid</h1>
+            <p class="page-subtitle">Gi kveldens middag en vurdering</p>
         </div>
     </div>
 
@@ -40,156 +40,156 @@ else
     }
 
     <div class="form-section">
-    <p class="form-section-title">Meal Details</p>
+        <p class="form-section-title">Måltidsdetaljer</p>
 
-    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
-        <MudTextField @bind-Value="_newFood.Name"
-                      Label="What did we eat?"
-                      Variant="Variant.Outlined"
-                      Placeholder="e.g., Taco Tuesday, Grandma's Lasagna"
-                      Required="true"
-                      Disabled="_isReadingText"
-                      Style="--mud-default-borderradius: 12px; flex-grow: 1;" />
+        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+            <MudTextField @bind-Value="_newFood.Name"
+                          Label="Hva spiste vi?"
+                          Variant="Variant.Outlined"
+                          Placeholder="f.eks. Taco-tirsdag, Bestemors lasagne"
+                          Required="true"
+                          Disabled="_isReadingText"
+                          Style="--mud-default-borderradius: 12px; flex-grow: 1;" />
 
-        @if (_isReadingText)
-        {
-            <MudProgressCircular Color="Color.Primary" Size="Size.Small" Indeterminate="true" Class="ml-2" />
-            <MudText Typo="Typo.caption" Class="ml-1" Color="Color.Secondary">Reading...</MudText>
-        }
-    </MudStack>
-
-    <MudTextField @bind-Value="_newFood.Description"
-                  Label="Notes (optional)"
-                  Variant="Variant.Outlined"
-                  Placeholder="Recipe link, ingredients, or notes..."
-                  Lines="2"
-                  Style="--mud-default-borderradius: 12px;" />
-</div>
-
-<div class="form-section">
-    <p class="form-section-title">Photos</p>
-
-    @if (_imagePreviewUrls.Any())
-    {
-        <div class="image-preview-grid">
-            @for (int i = 0; i < _imagePreviewUrls.Count; i++)
+            @if (_isReadingText)
             {
-                var index = i;
-                <div class="image-preview-item">
-                    <img src="@_imagePreviewUrls[index]" alt="Preview" />
-                    <button class="image-preview-remove" @onclick="@(() => RemoveImage(index))">
-                        <MudIcon Icon="@Icons.Material.Rounded.Close" Size="Size.Small" />
-                    </button>
+                <MudProgressCircular Color="Color.Primary" Size="Size.Small" Indeterminate="true" Class="ml-2" />
+                <MudText Typo="Typo.caption" Class="ml-1" Color="Color.Secondary">Leser...</MudText>
+            }
+        </MudStack>
+
+        <MudTextField @bind-Value="_newFood.Description"
+                      Label="Notater (valgfritt)"
+                      Variant="Variant.Outlined"
+                      Placeholder="Lenke til oppskrift, ingredienser eller kommentarer..."
+                      Lines="2"
+                      Style="--mud-default-borderradius: 12px;" />
+    </div>
+
+    <div class="form-section">
+        <p class="form-section-title">Bilder</p>
+
+        @if (_imagePreviewUrls.Any())
+        {
+            <div class="image-preview-grid">
+                @for (int i = 0; i < _imagePreviewUrls.Count; i++)
+                {
+                    var index = i;
+                    <div class="image-preview-item">
+                        <img src="@_imagePreviewUrls[index]" alt="Forhåndsvisning" />
+                        <button class="image-preview-remove" @onclick="@(() => RemoveImage(index))">
+                            <MudIcon Icon="@Icons.Material.Rounded.Close" Size="Size.Small" />
+                        </button>
+                    </div>
+                }
+            </div>
+        }
+
+        <MudStack Row="true" Spacing="2" Class="w-100">
+            <MudFileUpload T="IReadOnlyList<IBrowserFile>"
+                           @ref="@_fileUpload"
+                           FilesChanged="OnImagesSelected"
+                           Accept="image/*"
+                           MaximumFileCount="5"
+                           Class="flex-1">
+                <ActivatorContent>
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Rounded.CameraAlt"
+                               Size="Size.Large"
+                               FullWidth="true"
+                               OnClick="@(() => _fileUpload?.OpenFilePickerAsync())"
+                               Style="border-radius: 12px; height: 56px;">
+                        Ta bilde
+                    </MudButton>
+                </ActivatorContent>
+            </MudFileUpload>
+
+            <MudFileUpload T="IReadOnlyList<IBrowserFile>"
+                           @ref="@_galleryUpload"
+                           FilesChanged="OnImagesSelected"
+                           Accept=".png,.jpg,.jpeg,.webp"
+                           MaximumFileCount="5"
+                           Class="flex-1">
+                <ActivatorContent>
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Secondary"
+                               StartIcon="@Icons.Material.Rounded.PhotoLibrary"
+                               FullWidth="true"
+                               OnClick="@(() => _galleryUpload?.OpenFilePickerAsync())"
+                               Style="border-radius: 12px; height: 56px; border-style: dashed; border-width: 2px;">
+                        Galleri
+                    </MudButton>
+                </ActivatorContent>
+            </MudFileUpload>
+        </MudStack>
+
+        <p style="margin: 8px 0 0; font-size: 0.8rem; color: var(--mud-palette-text-secondary); text-align: center;">
+            Opptil 5 bilder
+        </p>
+    </div>
+
+    <div class="form-section">
+        <p class="form-section-title">Din vurdering</p>
+
+        <div class="rating-member-card">
+            <div class="rating-member-header">
+                <div class="rating-member-info">
+                    <div class="rating-member-avatar" style="@($"background: {GetMemberColor(_currentUserName)}")">
+                        @(string.IsNullOrEmpty(_currentUserName) ? '?' : _currentUserName[0])
+                    </div>
+                    <div>
+                        <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">@(string.IsNullOrEmpty(_currentUserName) ? "Ukjent" : _currentUserName)</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Primary">(Deg)</MudText>
+                    </div>
+                </div>
+                <MudSwitch T="bool"
+                           Value="@_ratingEnabled"
+                           ValueChanged="@((bool v) => ToggleRating(v))"
+                           Color="Color.Primary" />
+            </div>
+
+            @if (_ratingEnabled)
+            {
+                <div class="rating-slider-container">
+                    <MudSlider T="int"
+                               Value="@_ratingValue"
+                               ValueChanged="@((int v) => _ratingValue = v)"
+                               Min="0" Max="10" Step="1"
+                               Color="Color.Primary"
+                               Style="flex: 1;" />
+                    <div class="rating-value-display" style="@($"background: {GetRatingBackground(_ratingValue)}; color: {GetRatingTextColor(_ratingValue)}")">
+                        @_ratingValue
+                    </div>
                 </div>
             }
-        </div>
-    }
-
-    <MudStack Row="true" Spacing="2" Class="w-100">
-        <MudFileUpload T="IReadOnlyList<IBrowserFile>"
-                       @ref="@_fileUpload"
-                       FilesChanged="OnImagesSelected"
-                       Accept="image/*"
-                       MaximumFileCount="5"
-                       Class="flex-1">
-            <ActivatorContent>
-                <MudButton Variant="Variant.Filled"
-                           Color="Color.Primary"
-                           StartIcon="@Icons.Material.Rounded.CameraAlt"
-                           Size="Size.Large"
-                           FullWidth="true"
-                           OnClick="@(() => _fileUpload?.OpenFilePickerAsync())"
-                           Style="border-radius: 12px; height: 56px;">
-                    Take Photo
-                </MudButton>
-            </ActivatorContent>
-        </MudFileUpload>
-
-        <MudFileUpload T="IReadOnlyList<IBrowserFile>"
-                       @ref="@_galleryUpload"
-                       FilesChanged="OnImagesSelected"
-                       Accept=".png,.jpg,.jpeg,.webp"
-                       MaximumFileCount="5"
-                       Class="flex-1">
-            <ActivatorContent>
-                <MudButton Variant="Variant.Outlined"
-                           Color="Color.Secondary"
-                           StartIcon="@Icons.Material.Rounded.PhotoLibrary"
-                           FullWidth="true"
-                           OnClick="@(() => _galleryUpload?.OpenFilePickerAsync())"
-                           Style="border-radius: 12px; height: 56px; border-style: dashed; border-width: 2px;">
-                    Gallery
-                </MudButton>
-            </ActivatorContent>
-        </MudFileUpload>
-    </MudStack>
-
-    <p style="margin: 8px 0 0; font-size: 0.8rem; color: var(--mud-palette-text-secondary); text-align: center;">
-        Up to 5 images
-    </p>
-</div>
-
-<div class="form-section">
-    <p class="form-section-title">Your Rating</p>
-
-    <div class="rating-member-card">
-        <div class="rating-member-header">
-            <div class="rating-member-info">
-                <div class="rating-member-avatar" style="@($"background: {GetMemberColor(_currentUserName)}")">
-                    @(string.IsNullOrEmpty(_currentUserName) ? '?' : _currentUserName[0])
-                </div>
-                <div>
-                    <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">@(string.IsNullOrEmpty(_currentUserName) ? "Unknown" : _currentUserName)</MudText>
-                    <MudText Typo="Typo.caption" Color="Color.Primary">(You)</MudText>
-                </div>
-            </div>
-            <MudSwitch T="bool"
-                       Value="@_ratingEnabled"
-                       ValueChanged="@((bool v) => ToggleRating(v))"
-                       Color="Color.Primary" />
-        </div>
-
-        @if (_ratingEnabled)
-        {
-            <div class="rating-slider-container">
-                <MudSlider T="int"
-                           Value="@_ratingValue"
-                           ValueChanged="@((int v) => _ratingValue = v)"
-                           Min="0" Max="10" Step="1"
-                           Color="Color.Primary"
-                           Style="flex: 1;" />
-                <div class="rating-value-display" style="@($"background: {GetRatingBackground(_ratingValue)}; color: {GetRatingTextColor(_ratingValue)}")">
-                    @_ratingValue
-                </div>
-            </div>
-        }
     </div>
 </div>
 
 <div class="form-section">
-    <p class="form-section-title">Visibility</p>
+    <p class="form-section-title">Synlighet</p>
 
     <div class="visibility-card">
         <div class="d-flex align-center gap-3">
-            <MudIcon Icon="@(_newFood.IsPublic ? Icons.Material.Rounded.Public : Icons.Material.Rounded.Lock)"
+            <MudIcon Icon="@(_newFood.IsPublic? Icons.Material.Rounded.Public : Icons.Material.Rounded.Lock)"
                      Size="Size.Medium"
                      Color="@(_newFood.IsPublic ? Color.Primary : Color.Default)" />
             <div style="flex: 1;">
                 <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">
-                    @(_newFood.IsPublic ? "Public" : "Private")
+                    @(_newFood.IsPublic ? "Offentlig" : "Privat")
                 </MudText>
                 <MudText Typo="Typo.caption" Color="Color.Secondary">
                     @(_newFood.IsPublic
-                        ? "Anyone can find this meal in Browse and add it to their list"
-                        : "Only your household can see this meal")
-                </MudText>
+                                        ? "Alle kan finne dette måltidet under 'Utforsk' og legge det til i sin liste"
+                                        : "Kun din husstand kan se dette måltidet")
+                    </MudText>
+                </div>
+                <MudSwitch T="bool"
+                           @bind-Value="_newFood.IsPublic"
+                           Color="Color.Primary" />
             </div>
-            <MudSwitch T="bool"
-                       @bind-Value="_newFood.IsPublic"
-                       Color="Color.Primary" />
         </div>
     </div>
-</div>
 
     <MudButton Variant="Variant.Filled"
                Color="Color.Primary"
@@ -201,12 +201,12 @@ else
         @if (_isSubmitting)
         {
             <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" Color="Color.Surface" />
-            <span>Saving...</span>
+            <span>Lagrer...</span>
         }
         else
         {
             <MudIcon Icon="@Icons.Material.Rounded.Check" Class="mr-2" />
-            <span>Save Meal</span>
+            <span>Lagre måltid</span>
         }
     </MudButton>
 }

@@ -19,7 +19,7 @@
             <MudIconButton Icon="@Icons.Material.Rounded.Settings"
                            Color="Color.Inherit"
                            OnClick="@(() => Navigation.NavigateTo("settings"))"
-                           Size="Size.Small" />
+                           Size="Size.Medium" />
         }
     </MudAppBar>
 
@@ -31,7 +31,7 @@
             }
             else
             {
-                <Authorization Text="You need to be a family member to access this page." />
+                <Authorization Text="Du må være medlem av en husstand for å se denne siden." />
             }
         </MudContainer>
     </MudMainContent>
@@ -47,19 +47,19 @@
 
                 <button class="nav-item @(IsActive("browse") ? "active" : "")" @onclick="@(() => Navigate("browse"))">
                     <MudIcon Icon="@(IsActive("browse") ? Icons.Material.Rounded.Explore : Icons.Material.Outlined.Explore)" Size="Size.Small" />
-                    <span>Oppskrifter</span>
+                    <span>Utforsk</span>
                 </button>
 
                 <button class="nav-item nav-item-add @(IsActive("add") ? "active" : "")" @onclick="@(() => Navigate("add"))">
                     <div class="add-button">
                         <MudIcon Icon="@Icons.Material.Rounded.Add" Size="Size.Medium" />
                     </div>
-                    <span>Add</span>
+                    <span>Ny</span>
                 </button>
 
                 <button class="nav-item @(IsActive("households") ? "active" : "")" @onclick="@(() => Navigate("households"))">
                     <MudIcon Icon="@(IsActive("households") ? Icons.Material.Rounded.HomeWork : Icons.Material.Outlined.HomeWork)" Size="Size.Small" />
-                    <span>Grupper</span>
+                    <span>Husstand</span>
                 </button>
 
                 <button class="nav-item @(IsActive("archived") ? "active" : "")" @onclick="@(() => Navigate("archived"))">

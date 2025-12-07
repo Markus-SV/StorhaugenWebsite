@@ -10,14 +10,13 @@
 @inject ISnackbar Snackbar
 
 <div class="d-flex align-center gap-3 mb-4">
-    <h1 class="page-title" style="margin-bottom: 0; font-size: 1.5rem;">Browse Recipes</h1>
-    <p class="page-subtitle" style="margin: 0;">Discover new meals from HelloFresh and the community</p>
+    <h1 class="page-title" style="margin-bottom: 0; font-size: 1.5rem;">Utforsk oppskrifter</h1>
+    <p class="page-subtitle" style="margin: 0;">Oppdag nye måltider fra HelloFresh og fellesskapet</p>
 </div>
 
 <div class="d-flex flex-column gap-3 mb-4">
-    <!-- Search Bar -->
     <MudTextField @bind-Value="_searchQuery"
-                  Label="Search recipes"
+                  Label="Søk etter oppskrifter"
                   Variant="Variant.Outlined"
                   Adornment="Adornment.Start"
                   AdornmentIcon="@Icons.Material.Rounded.Search"
@@ -26,7 +25,6 @@
                   DebounceInterval="500"
                   Class="search-field" />
 
-    <!-- View Mode Tabs -->
     <div class="d-flex gap-2 mb-3">
         <MudChip Color="@(_viewMode == "global" ? Color.Primary : Color.Default)"
                  OnClick="@(() => SetViewMode("global"))"
@@ -38,106 +36,105 @@
                  OnClick="@(() => SetViewMode("community"))"
                  T="string"
                  Icon="@Icons.Material.Rounded.People">
-            Community
+            Fellesskapet
         </MudChip>
     </div>
 
-    <!-- Filters Row (only for global recipes) -->
     @if (_viewMode == "global")
     {
-    <div class="d-flex gap-2 flex-wrap">
-        <MudChip Color="@(_hellofreshOnly ? Color.Primary : Color.Default)"
-                 OnClick="ToggleHelloFresh"
-                 T="string"
-                 Icon="@Icons.Material.Rounded.Verified">
-            HelloFresh Only
-        </MudChip>
+        <div class="d-flex gap-2 flex-wrap">
+            <MudChip Color="@(_hellofreshOnly ? Color.Primary : Color.Default)"
+                     OnClick="ToggleHelloFresh"
+                     T="string"
+                     Icon="@Icons.Material.Rounded.Verified">
+                Kun HelloFresh
+            </MudChip>
 
-        <MudMenu AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
-            <ActivatorContent>
-                <MudChip Icon="@Icons.Material.Rounded.Public" T="string"
-                         Color="@(!string.IsNullOrEmpty(_selectedCuisine) ? Color.Primary : Color.Default)">
-                    @(!string.IsNullOrEmpty(_selectedCuisine) ? _selectedCuisine : "All Cuisines")
-                </MudChip>
-            </ActivatorContent>
-            <ChildContent>
-                <MudMenuItem OnClick="@(() => SetCuisine(null))">All Cuisines</MudMenuItem>
-                <MudDivider />
-                @foreach (var cuisine in _availableCuisines)
-                {
-                    <MudMenuItem OnClick="@(() => SetCuisine(cuisine))">@cuisine</MudMenuItem>
-                }
-            </ChildContent>
-        </MudMenu>
+            <MudMenu AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
+                <ActivatorContent>
+                    <MudChip Icon="@Icons.Material.Rounded.Public" T="string"
+                             Color="@(!string.IsNullOrEmpty(_selectedCuisine) ? Color.Primary : Color.Default)">
+                        @(!string.IsNullOrEmpty(_selectedCuisine) ? _selectedCuisine : "Alle kjøkken")
+                    </MudChip>
+                </ActivatorContent>
+                <ChildContent>
+                    <MudMenuItem OnClick="@(() => SetCuisine(null))">Alle kjøkken</MudMenuItem>
+                    <MudDivider />
+                    @foreach (var cuisine in _availableCuisines)
+                    {
+                        <MudMenuItem OnClick="@(() => SetCuisine(cuisine))">@cuisine</MudMenuItem>
+                    }
+                </ChildContent>
+            </MudMenu>
 
-        <MudMenu AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
-            <ActivatorContent>
-                <MudChip T="string" Icon="@Icons.Material.Rounded.Speed"
-                         Color="@(!string.IsNullOrEmpty(_selectedDifficulty) ? Color.Primary : Color.Default)">
-                    @(!string.IsNullOrEmpty(_selectedDifficulty) ? _selectedDifficulty : "All Difficulties")
-                </MudChip>
-            </ActivatorContent>
-            <ChildContent>
-                <MudMenuItem OnClick="@(() => SetDifficulty(null))">All Difficulties</MudMenuItem>
-                <MudDivider />
-                <MudMenuItem OnClick="@(() => SetDifficulty("Easy"))">Easy</MudMenuItem>
-                <MudMenuItem OnClick="@(() => SetDifficulty("Medium"))">Medium</MudMenuItem>
-                <MudMenuItem OnClick="@(() => SetDifficulty("Hard"))">Hard</MudMenuItem>
-            </ChildContent>
-        </MudMenu>
+            <MudMenu AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
+                <ActivatorContent>
+                    <MudChip T="string" Icon="@Icons.Material.Rounded.Speed"
+                             Color="@(!string.IsNullOrEmpty(_selectedDifficulty) ? Color.Primary : Color.Default)">
+                        @(!string.IsNullOrEmpty(_selectedDifficulty) ? _selectedDifficulty : "Vanskelighetsgrad")
+                    </MudChip>
+                </ActivatorContent>
+                <ChildContent>
+                    <MudMenuItem OnClick="@(() => SetDifficulty(null))">Alle</MudMenuItem>
+                    <MudDivider />
+                    <MudMenuItem OnClick="@(() => SetDifficulty("Easy"))">Lett</MudMenuItem>
+                    <MudMenuItem OnClick="@(() => SetDifficulty("Medium"))">Medium</MudMenuItem>
+                    <MudMenuItem OnClick="@(() => SetDifficulty("Hard"))">Vanskelig</MudMenuItem>
+                </ChildContent>
+            </MudMenu>
 
-        <MudMenu AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
-            <ActivatorContent>
-                <MudChip T="string" Icon="@Icons.Material.Rounded.AccessTime"
-                         Color="@(_maxPrepTime.HasValue ? Color.Primary : Color.Default)">
-                    @(_maxPrepTime.HasValue ? $"≤ {_maxPrepTime} min" : "Any Time")
-                </MudChip>
-            </ActivatorContent>
-            <ChildContent>
-                <MudMenuItem OnClick="@(() => SetMaxPrepTime(null))">Any Time</MudMenuItem>
-                <MudDivider />
-                <MudMenuItem OnClick="@(() => SetMaxPrepTime(15))">≤ 15 min</MudMenuItem>
-                <MudMenuItem OnClick="@(() => SetMaxPrepTime(30))">≤ 30 min</MudMenuItem>
-                <MudMenuItem OnClick="@(() => SetMaxPrepTime(45))">≤ 45 min</MudMenuItem>
-                <MudMenuItem OnClick="@(() => SetMaxPrepTime(60))">≤ 60 min</MudMenuItem>
-            </ChildContent>
-        </MudMenu>
+            <MudMenu AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
+                <ActivatorContent>
+                    <MudChip T="string" Icon="@Icons.Material.Rounded.AccessTime"
+                             Color="@(_maxPrepTime.HasValue ? Color.Primary : Color.Default)">
+                        @(_maxPrepTime.HasValue ? $"≤ {_maxPrepTime} min" : "Tid")
+                    </MudChip>
+                </ActivatorContent>
+                <ChildContent>
+                    <MudMenuItem OnClick="@(() => SetMaxPrepTime(null))">All tid</MudMenuItem>
+                    <MudDivider />
+                    <MudMenuItem OnClick="@(() => SetMaxPrepTime(15))">≤ 15 min</MudMenuItem>
+                    <MudMenuItem OnClick="@(() => SetMaxPrepTime(30))">≤ 30 min</MudMenuItem>
+                    <MudMenuItem OnClick="@(() => SetMaxPrepTime(45))">≤ 45 min</MudMenuItem>
+                    <MudMenuItem OnClick="@(() => SetMaxPrepTime(60))">≤ 60 min</MudMenuItem>
+                </ChildContent>
+            </MudMenu>
 
-        <MudMenu AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
-            <ActivatorContent>
-                <MudChip T="string" Icon="@Icons.Material.Rounded.Sort"
-                         Color="Color.Default">
-                    Sort: @GetSortLabel()
-                </MudChip>
-            </ActivatorContent>
-            <ChildContent>
-                <MudMenuItem OnClick="@(() => SetSort("popular"))">
-                    <div class="d-flex align-center gap-2">
-                        <MudIcon Icon="@Icons.Material.Rounded.TrendingUp" Size="Size.Small" />
-                        <span>Popular</span>
-                    </div>
-                </MudMenuItem>
-                <MudMenuItem OnClick="@(() => SetSort("newest"))">
-                    <div class="d-flex align-center gap-2">
-                        <MudIcon Icon="@Icons.Material.Rounded.NewReleases" Size="Size.Small" />
-                        <span>Newest</span>
-                    </div>
-                </MudMenuItem>
-                <MudMenuItem OnClick="@(() => SetSort("rating"))">
-                    <div class="d-flex align-center gap-2">
-                        <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
-                        <span>Rating</span>
-                    </div>
-                </MudMenuItem>
-                <MudMenuItem OnClick="@(() => SetSort("name"))">
-                    <div class="d-flex align-center gap-2">
-                        <MudIcon Icon="@Icons.Material.Rounded.SortByAlpha" Size="Size.Small" />
-                        <span>Name</span>
-                    </div>
-                </MudMenuItem>
-            </ChildContent>
-        </MudMenu>
-    </div>
+            <MudMenu AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
+                <ActivatorContent>
+                    <MudChip T="string" Icon="@Icons.Material.Rounded.Sort"
+                             Color="Color.Default">
+                        Sortering: @GetSortLabel()
+                    </MudChip>
+                </ActivatorContent>
+                <ChildContent>
+                    <MudMenuItem OnClick="@(() => SetSort("popular"))">
+                        <div class="d-flex align-center gap-2">
+                            <MudIcon Icon="@Icons.Material.Rounded.TrendingUp" Size="Size.Small" />
+                            <span>Populært</span>
+                        </div>
+                    </MudMenuItem>
+                    <MudMenuItem OnClick="@(() => SetSort("newest"))">
+                        <div class="d-flex align-center gap-2">
+                            <MudIcon Icon="@Icons.Material.Rounded.NewReleases" Size="Size.Small" />
+                            <span>Nyest</span>
+                        </div>
+                    </MudMenuItem>
+                    <MudMenuItem OnClick="@(() => SetSort("rating"))">
+                        <div class="d-flex align-center gap-2">
+                            <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
+                            <span>Vurdering</span>
+                        </div>
+                    </MudMenuItem>
+                    <MudMenuItem OnClick="@(() => SetSort("name"))">
+                        <div class="d-flex align-center gap-2">
+                            <MudIcon Icon="@Icons.Material.Rounded.SortByAlpha" Size="Size.Small" />
+                            <span>Navn</span>
+                        </div>
+                    </MudMenuItem>
+                </ChildContent>
+            </MudMenu>
+        </div>
     }
 </div>
 
@@ -162,10 +159,10 @@ else if (_viewMode == "global" && !_recipes.Any())
         <div class="empty-state-icon">
             <MudIcon Icon="@Icons.Material.Rounded.SearchOff" Size="Size.Large" />
         </div>
-        <h2 class="empty-state-title">No recipes found</h2>
-        <p class="empty-state-text">Try adjusting your filters or search query</p>
+        <h2 class="empty-state-title">Ingen oppskrifter funnet</h2>
+        <p class="empty-state-text">Prøv å endre filtre eller søk</p>
         <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="ClearFilters">
-            Clear All Filters
+            Tøm alle filtre
         </MudButton>
     </div>
 }
@@ -175,8 +172,8 @@ else if (_viewMode == "community" && !_publicRecipes.Any())
         <div class="empty-state-icon">
             <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Large" />
         </div>
-        <h2 class="empty-state-title">No community recipes yet</h2>
-        <p class="empty-state-text">Be the first to share a recipe with the community!</p>
+        <h2 class="empty-state-title">Ingen oppskrifter ennå</h2>
+        <p class="empty-state-text">Bli den første til å dele en oppskrift med fellesskapet!</p>
     </div>
 }
 else if (_viewMode == "global")
@@ -262,7 +259,7 @@ else if (_viewMode == "global")
                                    OnClick="@(() => AddRecipe(currentRecipe, false))"
                                    Disabled="@(!HouseholdState.HasHousehold)"
                                    Size="Size.Small">
-                            Add as Link
+                            Legg til som lenke
                         </MudButton>
                         <MudButton Variant="Variant.Outlined"
                                    Color="Color.Primary"
@@ -270,14 +267,14 @@ else if (_viewMode == "global")
                                    OnClick="@(() => AddRecipe(currentRecipe, true))"
                                    Disabled="@(!HouseholdState.HasHousehold)"
                                    Size="Size.Small">
-                            Add as Copy
+                            Legg til som kopi
                         </MudButton>
                     </div>
 
                     @if (!HouseholdState.HasHousehold)
                     {
                         <MudText Typo="Typo.caption" Color="Color.Error" Class="mt-2">
-                            Create a household in Settings to add recipes
+                            Opprett en husstand i Innstillinger for å legge til oppskrifter
                         </MudText>
                     }
                 </div>
@@ -294,7 +291,7 @@ else if (_viewMode == "global")
                            Disabled="@(_currentPage <= 1)"
                            Size="Size.Small" />
             <MudText Typo="Typo.body2">
-                Page @_currentPage of @_totalPages
+                Side @_currentPage av @_totalPages
             </MudText>
             <MudIconButton Icon="@Icons.Material.Rounded.ChevronRight"
                            OnClick="NextPage"
@@ -366,14 +363,14 @@ else if (_viewMode == "community")
                                    OnClick="@(() => AddPublicRecipe(currentRecipe))"
                                    Disabled="@(!HouseholdState.HasHousehold)"
                                    Size="Size.Small">
-                            Add to My List
+                            Legg til i min liste
                         </MudButton>
                     </div>
 
                     @if (!HouseholdState.HasHousehold)
                     {
                         <MudText Typo="Typo.caption" Color="Color.Error" Class="mt-2">
-                            Create a household in Settings to add recipes
+                            Opprett en husstand i Innstillinger for å legge til oppskrifter
                         </MudText>
                     }
                 </div>
@@ -733,11 +730,11 @@ else if (_viewMode == "community")
     {
         return _sortBy switch
         {
-            "popular" => "Popular",
-            "newest" => "Newest",
-            "rating" => "Rating",
-            "name" => "Name",
-            _ => "Popular"
+            "popular" => "Populært",
+            "newest" => "Nyest",
+            "rating" => "Vurdering",
+            "name" => "Navn",
+            _ => "Populært"
         };
     }
 
@@ -745,7 +742,7 @@ else if (_viewMode == "community")
     {
         if (!HouseholdState.HasHousehold)
         {
-            Snackbar.Add("Please create a household first", Severity.Warning);
+            Snackbar.Add("Vennligst opprett en husstand først", Severity.Warning);
             return;
         }
 
@@ -771,17 +768,17 @@ else if (_viewMode == "community")
 
             if (fork)
             {
-                Snackbar.Add($"'{recipe.Name}' copied to your household", Severity.Success);
+                Snackbar.Add($"'{recipe.Name}' kopiert til din husstand", Severity.Success);
             }
             else
             {
-                Snackbar.Add($"'{recipe.Name}' linked to your household", Severity.Success);
+                Snackbar.Add($"'{recipe.Name}' lenket til din husstand", Severity.Success);
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error adding recipe: {ex.Message}");
-            Snackbar.Add("Failed to add recipe", Severity.Error);
+            Snackbar.Add("Klarte ikke å legge til oppskrift", Severity.Error);
         }
     }
 
@@ -804,12 +801,12 @@ else if (_viewMode == "community")
             };
 
             await ApiClient.CreateRecipeAsync(dto);
-            Snackbar.Add($"'{recipe.Name}' added to your list!", Severity.Success);
+            Snackbar.Add($"'{recipe.Name}' lagt til i din liste!", Severity.Success);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error adding recipe: {ex.Message}");
-            Snackbar.Add("Failed to add recipe", Severity.Error);
+            Snackbar.Add("Klarte ikke å legge til oppskrift", Severity.Error);
         }
     }
 }

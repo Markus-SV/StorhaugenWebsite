@@ -35,10 +35,10 @@ else if (_food == null)
         <div class="empty-state-icon">
             <MudIcon Icon="@Icons.Material.Rounded.SearchOff" Size="Size.Large" />
         </div>
-        <h2 class="empty-state-title">Meal not found</h2>
-        <p class="empty-state-text">This meal doesn't exist or has been deleted</p>
+        <h2 class="empty-state-title">Måltid ikke funnet</h2>
+        <p class="empty-state-text">Dette måltidet finnes ikke eller har blitt slettet</p>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/">
-            Back to Home
+            Tilbake til hjemskjerm
         </MudButton>
     </div>
 }
@@ -48,7 +48,7 @@ else
     <div class="detail-header">
         <button class="detail-back-btn" @onclick="@(() => Navigation.NavigateTo(""))">
             <MudIcon Icon="@Icons.Material.Rounded.ArrowBack" Size="Size.Small" />
-            Back
+            Tilbake
         </button>
     </div>
 
@@ -87,7 +87,7 @@ else
             <div>
                 <h1 class="detail-title">@_food.Name</h1>
                 <p class="detail-meta">
-                    Added by @_food.AddedBy • @_food.DateAdded.ToString("MMMM dd, yyyy")
+                    Lagt til av @_food.AddedBy • @_food.DateAdded.ToString("dd. MMMM yyyy")
                 </p>
             </div>
             <span class="rating-badge @GetRatingClass(_food.AverageRating)" style="font-size: 1rem; padding: 8px 14px;">
@@ -107,10 +107,10 @@ else
             {
                 <div class="personal-notes-edit">
                     <MudTextField @bind-Value="_tempNotes"
-                                  Label="Personal Notes"
+                                  Label="Personlige notater"
                                   Variant="Variant.Outlined"
                                   Lines="3"
-                                  Placeholder="Add your personal notes, modifications, or tips..."
+                                  Placeholder="Legg til dine notater, endringer eller tips..."
                                   Style="border-radius: 10px; margin-bottom: 12px;" />
                     <div class="d-flex gap-2">
                         <MudButton Variant="Variant.Filled"
@@ -123,13 +123,13 @@ else
                             {
                                 <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-1" />
                             }
-                            Save
+                            Lagre
                         </MudButton>
                         <MudButton Variant="Variant.Outlined"
                                    Size="Size.Small"
                                    OnClick="CancelEditNotes"
                                    Style="border-radius: 10px;">
-                            Cancel
+                            Avbryt
                         </MudButton>
                     </div>
                 </div>
@@ -142,11 +142,11 @@ else
                         <div class="d-flex justify-space-between align-center mb-2">
                             <div class="d-flex align-center gap-2">
                                 <MudIcon Icon="@Icons.Material.Rounded.StickyNote2" Size="Size.Small" />
-                                <MudText Typo="Typo.subtitle2" Style="font-weight: 600;">Personal Notes</MudText>
+                                <MudText Typo="Typo.subtitle2" Style="font-weight: 600;">Personlige notater</MudText>
                             </div>
                             <MudIconButton Icon="@Icons.Material.Rounded.Edit"
-                                          Size="Size.Small"
-                                          OnClick="StartEditNotes" />
+                                           Size="Size.Small"
+                                           OnClick="StartEditNotes" />
                         </div>
                         <MudText Typo="Typo.body2">@_food.PersonalNotes</MudText>
                     </div>
@@ -159,7 +159,7 @@ else
                                OnClick="StartEditNotes"
                                Size="Size.Small"
                                Style="margin-top: 8px;">
-                        Add Personal Notes
+                        Legg til notater
                     </MudButton>
                 }
             }
@@ -175,10 +175,10 @@ else
                              T="string"
                              Icon="@Icons.Material.Rounded.Link"
                              Style="height: 24px;">
-                        Linked to @(_food.GlobalRecipeName ?? "Global Recipe")
+                        Lenket til @(_food.GlobalRecipeName ?? "Global oppskrift")
                     </MudChip>
                     <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
-                        This recipe is linked to a global recipe. Updates to the global recipe will reflect here.
+                        Denne oppskriften er lenket. Oppdateringer i hovedoppskriften vil vises her.
                     </MudText>
                 }
                 else if (_food.IsForked)
@@ -188,10 +188,10 @@ else
                              T="string"
                              Icon="@Icons.Material.Rounded.ContentCopy"
                              Style="height: 24px;">
-                        Forked from @(_food.GlobalRecipeName ?? "Global Recipe")
+                        Kopiert fra @(_food.GlobalRecipeName ?? "Global oppskrift")
                     </MudChip>
                     <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
-                        This is a copy that you can edit independently.
+                        Dette er en kopi du kan redigere fritt.
                     </MudText>
                 }
             </div>
@@ -200,14 +200,14 @@ else
         @if (_food.IsArchived)
         {
             <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3" Style="border-radius: 10px;">
-                This meal is archived
+                Dette måltidet er arkivert
             </MudAlert>
         }
     </div>
 
     <!-- Ratings Section -->
     <div class="form-section">
-        <p class="form-section-title">Ratings</p>
+        <p class="form-section-title">Vurderinger</p>
 
         @{
             var currentUserHasRating = _food.Ratings.TryGetValue(CurrentUserDisplayName, out var currentUserRating) && currentUserRating.HasValue;
@@ -222,7 +222,7 @@ else
                     </div>
                     <div>
                         <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">@CurrentUserDisplayName</MudText>
-                        <MudText Typo="Typo.caption" Color="Color.Primary">(You)</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Primary">(Deg)</MudText>
                     </div>
                 </div>
                 @if (currentUserHasRating)
@@ -234,7 +234,7 @@ else
                 else
                 {
                     <MudChip T="string" Variant="Variant.Outlined" Size="Size.Small" Style="border-radius: 10px;">
-                        Not rated
+                        Ikke vurdert
                     </MudChip>
                 }
             </div>
@@ -258,13 +258,13 @@ else
                                OnClick="@(() => SaveRating(CurrentUserDisplayName))"
                                Disabled="_isSaving"
                                Style="border-radius: 10px;">
-                        Save
+                        Lagre
                     </MudButton>
                     <MudButton Variant="Variant.Outlined"
                                Size="Size.Small"
                                OnClick="CancelEdit"
                                Style="border-radius: 10px;">
-                        Cancel
+                        Avbryt
                     </MudButton>
                 </div>
             }
@@ -277,7 +277,7 @@ else
                            OnClick="@(() => StartEditRating(CurrentUserDisplayName, currentUserHasRating ? currentUserRating!.Value : 5))"
                            Class="mt-2"
                            Style="border-radius: 10px;">
-                    @(currentUserHasRating ? "Edit rating" : "Add rating")
+                    @(currentUserHasRating ? "Rediger vurdering" : "Legg til vurdering")
                 </MudButton>
             }
         </div>
@@ -308,37 +308,37 @@ else
 
     <!-- Visibility Section -->
     <div class="form-section">
-        <p class="form-section-title">Visibility</p>
+        <p class="form-section-title">Synlighet</p>
 
         <div class="visibility-card">
             <div class="d-flex align-center gap-3">
-                <MudIcon Icon="@(_food.IsPublic ? Icons.Material.Rounded.Public : Icons.Material.Rounded.Lock)"
+                <MudIcon Icon="@(_food.IsPublic? Icons.Material.Rounded.Public : Icons.Material.Rounded.Lock)"
                          Size="Size.Medium"
                          Color="@(_food.IsPublic ? Color.Primary : Color.Default)" />
                 <div style="flex: 1;">
                     <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">
-                        @(_food.IsPublic ? "Public" : "Private")
+                        @(_food.IsPublic ? "Offentlig" : "Privat")
                     </MudText>
                     <MudText Typo="Typo.caption" Color="Color.Secondary">
                         @(_food.IsPublic
-                            ? "Anyone can find this meal in Browse and add it to their list"
-                            : "Only your household can see this meal")
-                    </MudText>
+                                            ? "Alle kan finne dette måltidet under 'Utforsk' og legge det til i sin liste"
+                                            : "Kun din husstand kan se dette måltidet")
+                        </MudText>
+                    </div>
+                    <MudSwitch T="bool"
+                               Value="_food.IsPublic"
+                               ValueChanged="@((bool v) => ToggleVisibility(v))"
+                               Color="Color.Primary"
+                               Disabled="_isTogglingVisibility" />
                 </div>
-                <MudSwitch T="bool"
-                           Value="_food.IsPublic"
-                           ValueChanged="@((bool v) => ToggleVisibility(v))"
-                           Color="Color.Primary"
-                           Disabled="_isTogglingVisibility" />
+                @if (_food.IsPublic && !string.IsNullOrEmpty(_food.HouseholdName))
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+                        Delt av @_food.HouseholdName
+                    </MudText>
+                }
             </div>
-            @if (_food.IsPublic && !string.IsNullOrEmpty(_food.HouseholdName))
-            {
-                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
-                    Shared by @_food.HouseholdName
-                </MudText>
-            }
         </div>
-    </div>
 
     <!-- Action Buttons -->
     <div class="mt-4">
@@ -354,15 +354,15 @@ else
                 @if (_isForking)
                 {
                     <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                    <span>Forking Recipe...</span>
+                    <span>Kopierer oppskrift...</span>
                 }
                 else
                 {
-                    <span>Fork to Editable Copy</span>
+                    <span>Kopier til redigerbar versjon</span>
                 }
             </MudButton>
             <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3" Style="text-align: center; display: block;">
-                Create an editable copy that you can customize independently
+                Lag en redigerbar kopi du kan endre uavhengig av originalen
             </MudText>
         }
 
@@ -374,7 +374,7 @@ else
                        StartIcon="@Icons.Material.Rounded.Archive"
                        OnClick="ArchiveFood"
                        Style="border-radius: 14px; padding: 12px;">
-                Archive This Meal
+                Arkiver måltid
             </MudButton>
         }
         else
@@ -385,7 +385,7 @@ else
                        StartIcon="@Icons.Material.Rounded.Restore"
                        OnClick="RestoreFood"
                        Style="border-radius: 14px; padding: 12px;">
-                Restore This Meal
+                Gjenopprett måltid
             </MudButton>
         }
     </div>
@@ -489,7 +489,7 @@ else
             await FoodService.UpdateRatingAsync(_food.Id, member, _tempRating);
             _food.Ratings[member] = _tempRating;
             _editingRating = null;
-            Snackbar.Add("Rating saved!", Severity.Success);
+            Snackbar.Add("Vurdering lagret!", Severity.Success);
         }
         catch (Exception ex)
         {
@@ -506,17 +506,17 @@ else
         if (_food == null) return;
 
         var result = await DialogService.ShowMessageBox(
-            "Archive Meal",
-            "Are you sure you want to archive this meal? It can be restored later.",
-            yesText: "Archive",
-            cancelText: "Cancel");
+            "Arkiver måltid",
+            "Er du sikker på at du vil arkivere dette måltidet? Det kan gjenopprettes senere.",
+            yesText: "Arkiver",
+            cancelText: "Avbryt");
 
         if (result == true)
         {
             try
             {
                 await FoodService.ArchiveFoodAsync(_food.Id, AuthService.CurrentUserName ?? "Unknown");
-                Snackbar.Add("Meal archived", Severity.Info);
+                Snackbar.Add("Måltid arkivert", Severity.Info);
                 Navigation.NavigateTo("");
             }
             catch (Exception ex)
@@ -534,7 +534,7 @@ else
         {
             await FoodService.RestoreFoodAsync(_food.Id);
             _food.IsArchived = false;
-            Snackbar.Add("Meal restored!", Severity.Success);
+            Snackbar.Add("Måltid gjenopprettet!", Severity.Success);
         }
         catch (Exception ex)
         {
@@ -547,10 +547,10 @@ else
         if (_food == null) return;
 
         var result = await DialogService.ShowMessageBox(
-            "Fork Recipe",
-            "This will create an editable copy of this recipe. The copy will no longer update when the global recipe changes. Continue?",
-            yesText: "Fork",
-            cancelText: "Cancel");
+             "Kopier oppskrift",
+             "Dette vil lage en redigerbar kopi av oppskriften. Kopien vil ikke lenger oppdateres når hovedoppskriften endres. Fortsett?",
+             yesText: "Kopier",
+             cancelText: "Avbryt");
 
         if (result == true)
         {
@@ -562,7 +562,7 @@ else
                 // Update local state
                 _food.IsForked = true;
 
-                Snackbar.Add("Recipe forked! You can now edit this copy.", Severity.Success);
+                Snackbar.Add("Oppskrift kopiert! Du kan nå redigere denne kopien.", Severity.Success);
 
                 // Reload to get updated data from server
                 await LoadFood();
@@ -600,7 +600,7 @@ else
             _food.PersonalNotes = _tempNotes;
             await FoodService.UpdateFoodAsync(_food);
             _editingNotes = false;
-            Snackbar.Add("Personal notes saved!", Severity.Success);
+            Snackbar.Add("Personlige notater lagret!", Severity.Success);
         }
         catch (Exception ex)
         {
@@ -621,7 +621,7 @@ else
         {
             await FoodService.SetPublicStatusAsync(_food.Id, isPublic);
             _food.IsPublic = isPublic;
-            Snackbar.Add(isPublic ? "Meal is now public!" : "Meal is now private", Severity.Success);
+            Snackbar.Add(isPublic ? "Måltidet er nå offentlig!" : "Måltidet er nå privat", Severity.Success);
         }
         catch (Exception ex)
         {

@@ -7,14 +7,14 @@
 @inject IDialogService DialogService
 
 <div class="d-flex align-center gap-3 mb-6">
-    <h1 class="page-title" style="margin-bottom: 0; font-size: 1.5rem;">Households</h1>
-    <p class="page-subtitle" style="margin: 0;">Find and connect with other kitchens</p>
+    <h1 class="page-title" style="margin-bottom: 0; font-size: 1.5rem;">Husstander</h1>
+    <p class="page-subtitle" style="margin: 0;">Finn og koble til andre kjøkken</p>
 </div>
 
 <MudTextField T="string"
               @bind-Value="_searchQuery"
-              Label="Search households"
-              Placeholder="Type name or Share ID..."
+              Label="Søk etter husstander"
+              Placeholder="Skriv navn eller delings-ID..."
               Variant="Variant.Outlined"
               Adornment="Adornment.Start"
               AdornmentIcon="@Icons.Material.Rounded.Search"
@@ -33,15 +33,15 @@ else if (!_results.Any() && !string.IsNullOrEmpty(_searchQuery))
 {
     <div class="d-flex flex-column align-center mt-8">
         <MudIcon Icon="@Icons.Material.Rounded.SearchOff" Size="Size.Large" Color="Color.Secondary" />
-        <MudText Typo="Typo.h6" Color="Color.Secondary" Class="mt-2">No households found</MudText>
+        <MudText Typo="Typo.h6" Color="Color.Secondary" Class="mt-2">Ingen husstander funnet</MudText>
     </div>
 }
 else if (!_results.Any())
 {
     <div class="d-flex flex-column align-center mt-8">
         <MudIcon Icon="@Icons.Material.Rounded.HomeWork" Size="Size.Large" Color="Color.Primary" />
-        <MudText Typo="Typo.h6" Class="mt-2">Search for a household</MudText>
-        <MudText Typo="Typo.body2" Color="Color.Secondary">Enter a name or unique Share ID to find friends.</MudText>
+        <MudText Typo="Typo.h6" Class="mt-2">Søk etter en husstand</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">Skriv inn et navn eller en unik delings-ID for å finne venner.</MudText>
     </div>
 }
 else
@@ -54,31 +54,31 @@ else
                     <MudAvatar Color="Color.Primary" Variant="Variant.Filled">
                         @household.Name[0].ToString().ToUpper()
                     </MudAvatar>
-                    
+
                     <div style="flex: 1;">
                         <MudText Typo="Typo.body1" Style="font-weight: 600;">@household.Name</MudText>
                         <MudText Typo="Typo.caption" Color="Color.Secondary">
-                            @household.MemberCount member(s) • Joined @household.CreatedAt.Year
+                            @household.MemberCount medlemmer • Ble med i @household.CreatedAt.Year
                         </MudText>
                     </div>
 
                     @if (household.UniqueShareId != null)
                     {
-                         <MudChip Size="Size.Small" Color="Color.Secondary" T=string Variant="Variant.Text">
-                             ID: @household.UniqueShareId
-                         </MudChip>
+                        <MudChip Size="Size.Small" Color="Color.Secondary" T=string Variant="Variant.Text">
+                            ID: @household.UniqueShareId
+                        </MudChip>
                     }
                 </div>
-                
+
                 <MudDivider Class="my-3" />
-                
+
                 <div class="d-flex justify-end gap-2">
-                    <MudButton Variant="Variant.Outlined" 
-                               Size="Size.Small" 
+                    <MudButton Variant="Variant.Outlined"
+                               Size="Size.Small"
                                Color="Color.Primary"
                                OnClick="@(() => RequestFriendship(household))"
                                Disabled="@(!HouseholdState.HasHousehold)">
-                        Connect
+                        Koble til
                     </MudButton>
                 </div>
             </div>
@@ -142,12 +142,9 @@ else
     {
         if (!HouseholdState.HasHousehold)
         {
-            Snackbar.Add("You need to create a household first!", Severity.Warning);
+            Snackbar.Add("Du må opprette en husstand først!", Severity.Warning);
             return;
         }
-
-        // Add logic here to call ApiClient.RequestFriendshipAsync
-        // using target.Id or target.UniqueShareId
-        Snackbar.Add($"Request sent to {target.Name} (Feature WIP)", Severity.Info);
+        Snackbar.Add($"Forespørsel sendt til {target.Name} (Funksjon under arbeid)", Severity.Info);
     }
 }
