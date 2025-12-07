@@ -34,6 +34,8 @@ var options = new SupabaseOptions
 
 builder.Services.AddScoped(sp => new Supabase.Client(supabaseUrl, supabaseAnonKey, options));
 
+await authService.InitializeAsync();
+
 // Authentication & API Services
 builder.Services.AddScoped<IAuthService, SupabaseAuthService>();
 builder.Services.AddScoped<IApiClient, ApiClient>();
@@ -49,6 +51,8 @@ builder.Services.AddScoped<IOcrService, TesseractOcrService>();
 builder.Services.AddScoped<IFoodService, FoodService>();
 
 var host = builder.Build();
+var authService = host.Services.GetRequiredService<IAuthService>();
+await authService.InitializeAsync();
 
 // Initialize household state (will auto-load after auth)
 var householdStateService = host.Services.GetRequiredService<IHouseholdStateService>();

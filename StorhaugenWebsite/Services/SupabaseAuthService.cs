@@ -51,49 +51,35 @@ public class SupabaseAuthService : IAuthService, IAsyncDisposable
     {
         try
         {
-            // 1. Sjekk URL for redirect etter login (samme som før)
+            // 1. Check if we are coming back from a login redirect (URL contains access_token)
             var uri = _navigationManager.Uri;
             if (uri.Contains("access_token") && uri.Contains("type=recovery") == false)
             {
+                // Parse the session from the URL
                 var session = await _supabaseClient.Auth.GetSessionFromUrl(new Uri(uri));
 
                 if (session != null)
                 {
                     _session = session;
                     OnAuthStateChanged?.Invoke();
+
+                    // Optional: Clean the URL so the user doesn't see the ugly token
+                    // _navigationManager.NavigateTo("/", replace: true); 
                     return;
                 }
             }
 
-            // 2. Sjekk LocalStorage for eksisterende sesjon
+            // 2. If no token in URL, check LocalStorage for existing session
             var storedSession = await _supabaseClient.Auth.RetrieveSessionAsync();
-
             if (storedSession != null)
             {
-                // --- HER ER FIKSEN ---
-                // Vi må sjekke om tokenet faktisk er gyldig i tid.
-                // Supabase-klienten har en metode ExpiresAt() som regner ut dette.
-                if (storedSession.ExpiresAt() > DateTime.UtcNow)
-                {
-                    // Tokenet er fortsatt gyldig -> Logg inn
-                    _session = storedSession;
-                    OnAuthStateChanged?.Invoke();
-                }
-                else
-                {
-                    // Tokenet er utløpt! Vi må slette det for å stoppe loopen.
-                    Console.WriteLine("Fant lagret sesjon, men den var utløpt. Logger ut.");
-                    await _supabaseClient.Auth.SignOut();
-                    _session = null;
-                    // Vi invoker ikke OnAuthStateChanged her, for vi vil at brukeren skal bli stående på Login
-                }
+                _session = storedSession;
+                OnAuthStateChanged?.Invoke();
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Auth initialization error: {ex.Message}");
-            // For sikkerhets skyld, nullstill session hvis noe kræsjer
-            _session = null;
         }
     }
 
