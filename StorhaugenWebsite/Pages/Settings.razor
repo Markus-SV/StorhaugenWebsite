@@ -19,7 +19,6 @@
 
 <div class="form-section">
     <p class="form-section-title">Appearance</p>
-
     <MudSelect T="string"
                Label="Color Theme"
                Value="@_currentTheme"
@@ -78,20 +77,11 @@
             </MudSelect>
         }
 
-        <MudButton Variant="Variant.Outlined"
-                   Color="Color.Primary"
-                   FullWidth="true"
-                   StartIcon="@Icons.Material.Rounded.PersonAdd"
-                   OnClick="InviteMember"
-                   Style="border-radius: 12px; margin-top: 16px;">
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth="true" StartIcon="@Icons.Material.Rounded.PersonAdd" OnClick="InviteMember" Style="border-radius: 12px; margin-top: 16px;">
             Invite Member
         </MudButton>
 
-        <MudButton Variant="Variant.Text"
-                   Color="Color.Default"
-                   FullWidth="true"
-                   OnClick="ViewMembers"
-                   Style="margin-top: 8px;">
+        <MudButton Variant="Variant.Text" Color="Color.Default" FullWidth="true" OnClick="ViewMembers" Style="margin-top: 8px;">
             View Members
         </MudButton>
     }
@@ -100,10 +90,7 @@
         <MudAlert Severity="Severity.Info" Class="mb-3">
             You don't have a household yet. Create your own or ask someone to invite you!
         </MudAlert>
-        <MudButton Variant="Variant.Filled"
-                   Color="Color.Primary"
-                   FullWidth="true"
-                   OnClick="CreateHousehold">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="CreateHousehold">
             Create Household
         </MudButton>
     }
@@ -122,6 +109,16 @@
                 <MudText Typo="Typo.caption" Color="Color.Secondary">@AuthService.CurrentUserEmail</MudText>
             </div>
         </div>
+    </div>
+
+    <div class="mt-4">
+        <MudTextField @bind-Value="_editDisplayName"
+                      Label="Display Name"
+                      Variant="Variant.Outlined"
+                      Adornment="Adornment.End"
+                      AdornmentIcon="@Icons.Material.Filled.Save"
+                      OnAdornmentClick="UpdateDisplayName"
+                      HelperText="Click the save icon to update your name" />
     </div>
 
     @if (!string.IsNullOrEmpty(_userProfile?.UniqueShareId))
@@ -158,15 +155,14 @@
 
 <div class="form-section">
     <p class="form-section-title">About</p>
-
     <div class="setting-row" style="flex-direction: column; align-items: flex-start; gap: 4px;">
         <MudText Typo="Typo.body1" Style="font-weight: 500;">Storhaugen Eats</MudText>
         <MudText Typo="Typo.caption" Color="Color.Secondary">Version 1.0.0</MudText>
     </div>
 </div>
 
-
 <style>
+    /* ... existing styles ... */
     .theme-select .mud-input-slot {
         min-height: 70px !important;
         padding: 8px 14px !important;
@@ -254,6 +250,7 @@
     private string _currentTheme = "Light";
     private string _viewMode = "card";
     private UserDto? _userProfile;
+    private string? _editDisplayName; // Bound variable for input
 
     protected override async Task OnInitializedAsync()
     {
@@ -267,13 +264,19 @@
             }
         }
 
-        // Initialize household state (this is where users can create a household)
         await HouseholdState.InitializeAsync();
 
-        // Fetch user profile to get UniqueShareId
         try
         {
             _userProfile = await ApiClient.GetMyProfileAsync();
+            if (_userProfile != null)
+            {
+                // 1. Initialize input field
+                _editDisplayName = _userProfile.DisplayName;
+
+                // 2. Sync Auth Service state so header/sidebar updates immediately if DB differs from Email
+                AuthService.UpdateCachedDisplayName(_userProfile.DisplayName);
+            }
         }
         catch (Exception ex)
         {
@@ -284,6 +287,38 @@
         _viewMode = DeviceState.Settings.ViewMode;
     }
 
+    private async Task UpdateDisplayName()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_editDisplayName))
+            {
+                // If user clears it, we set it to null so it falls back to email later
+                _editDisplayName = null;
+            }
+
+            // 1. Send update to API
+            var updatedProfile = await ApiClient.UpdateMyProfileAsync(new UpdateUserDto
+            {
+                DisplayName = _editDisplayName
+            });
+
+            // 2. Update local profile object
+            _userProfile = updatedProfile;
+
+            // 3. Update Auth Service to reflect changes in Header/Sidebar immediately
+            AuthService.UpdateCachedDisplayName(updatedProfile.DisplayName);
+
+            Snackbar.Add("Display name updated", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Failed to update name", Severity.Error);
+            Console.WriteLine(ex.Message);
+        }
+    }
+
+    // ... Existing Theme/Logout/Household/ShareID methods ...
     private async Task OnThemeChanged(string themeName)
     {
         _currentTheme = themeName;
@@ -364,7 +399,6 @@
         }
         catch (Exception ex)
         {
-            // Show error snackbar in real implementation
             Console.WriteLine($"Error switching household: {ex.Message}");
         }
     }
@@ -393,7 +427,6 @@
             options);
 
         await dialog.Result;
-        // Dialog handles all invite logic internally
     }
 
     private async Task ViewMembers()
@@ -422,7 +455,6 @@
 
         if (!result.Canceled)
         {
-            // Refresh household state after dialog closes (in case user left)
             await HouseholdState.RefreshHouseholdsAsync();
             StateHasChanged();
         }

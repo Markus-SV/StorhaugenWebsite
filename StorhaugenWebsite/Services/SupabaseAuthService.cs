@@ -18,8 +18,12 @@ public class SupabaseAuthService : IAuthService, IAsyncDisposable
 
     public bool IsAuthenticated => _session?.User != null;
     public bool IsAuthorized => IsAuthenticated; // Any authenticated user is authorized
+
+    private string? _cachedDisplayName; 
     public string? CurrentUserEmail => _session?.User?.Email;
-    public string? CurrentUserName => GetUserNameFromEmail(CurrentUserEmail);
+    public string? CurrentUserName => !string.IsNullOrEmpty(_cachedDisplayName)
+        ? _cachedDisplayName
+        : GetUserNameFromEmail(CurrentUserEmail);
 
     // Inject NavigationManager here
     public SupabaseAuthService(Client supabaseClient, IJSRuntime jsRuntime, NavigationManager navigationManager)
@@ -34,6 +38,12 @@ public class SupabaseAuthService : IAuthService, IAsyncDisposable
     private void OnAuthStateChange(object? sender, Constants.AuthState state)
     {
         _session = _supabaseClient.Auth.CurrentSession;
+        OnAuthStateChanged?.Invoke();
+    }
+
+    public void UpdateCachedDisplayName(string? displayName)
+    {
+        _cachedDisplayName = displayName;
         OnAuthStateChanged?.Invoke();
     }
 
