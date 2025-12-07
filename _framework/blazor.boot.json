@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "StorhaugenWebsite",
   "resources": {
-    "hash": "sha256-iZx19gMUQRLsVe/rLBp7e40uzI8lt8lkuZOIM1rZYqk=",
+    "hash": "sha256-gk2ITzR1rF9VqGRvF1Zw4yFeFp0p3oxaWIzMctXI3Zk=",
     "jsModuleNative": {
       "dotnet.native.js": "sha256-vtotCeXt2UD6oc459laJT32vBgigZ+eLoUmdeFkvYDk="
     },
@@ -111,7 +111,7 @@
       "System.wasm": "sha256-I4hhyMuUoHdrzDopL9tlnkL/Skg+0OO+gmkOXNT3dcg=",
       "netstandard.wasm": "sha256-t3MI3G1cq2XOhj4SxHWG+1ZMvGILcE+Ck4NUy7FasYI=",
       "System.Private.CoreLib.wasm": "sha256-ymHpmaL2SVhBqI/5tKPLdp/p/I4Daxwtuj1B4jJRvLc=",
-      "StorhaugenWebsite.wasm": "sha256-aeYVQCIfeamhmR2p93adZm+DHGsL/R1Eo1uerMqSm3w="
+      "StorhaugenWebsite.wasm": "sha256-z1Pvg4qDqnr2XJHnmyFJtNhVkH1Pe99bETnTWFHAbD4="
     }
   },
   "cacheBootResources": true,
