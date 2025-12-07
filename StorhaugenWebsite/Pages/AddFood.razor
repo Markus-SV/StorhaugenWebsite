@@ -113,7 +113,7 @@ else
         }
 
         <MudStack Row="true" Spacing="2" Class="w-100">
-            @* CAMERA BUTTON - Added capture="environment" to force rear camera *@
+            @* CAMERA BUTTON - Forces Rear Camera *@
             <MudFileUpload T="IReadOnlyList<IBrowserFile>"
                            @ref="@_fileUpload"
                            FilesChanged="OnImagesSelected"
@@ -135,7 +135,7 @@ else
                 </ActivatorContent>
             </MudFileUpload>
 
-            @* GALLERY BUTTON - No capture attribute *@
+            @* GALLERY BUTTON - Fixed Accept attribute for iPhone *@
             <MudFileUpload T="IReadOnlyList<IBrowserFile>"
                            @ref="@_galleryUpload"
                            FilesChanged="OnImagesSelected"
@@ -160,7 +160,7 @@ else
         </p>
     </div>
 
-    @* ... (Rest of the Razor file remains the same: Rating, Visibility, Submit Button) ... *@
+    @* ... Ratings, Visibility, etc. ... *@
     <div class="form-section">
         <p class="form-section-title">Din vurdering</p>
         <div class="rating-member-card">
@@ -291,10 +291,13 @@ else
         _isHelloFresh = isHelloFresh;
     }
 
-    // FIXED: More robust image handling for iOS
+    // UPDATED: Robust image handling specifically for iPhone
     private async Task OnImagesSelected(IReadOnlyList<IBrowserFile> files)
     {
         bool isFirstImage = _imageData.Count == 0;
+
+        // Increase limit to 30MB to handle large iPhone photos safely
+        long maxFileSize = 1024L * 1024L * 30L;
 
         foreach (var file in files)
         {
@@ -302,29 +305,39 @@ else
 
             try
             {
-                // 1. Resize strategy for iOS:
-                // iOS Safari often crashes with 1500px if memory is low.
-                // We reduce slightly to 1200px which is usually the sweet spot for iPhone uploads.
-                var resizedFile = await file.RequestImageFileAsync("image/jpeg", 1200, 1200);
+                IBrowserFile fileToRead = file;
+                bool wasResized = false;
 
-                // 2. Stream handling:
-                // iPhones have large files. We need to be careful reading the stream.
-                // Max allowed size increased to 20MB to handle raw HEIC conversions.
-                using var stream = resizedFile.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024);
+                // Try to resize first (this sometimes fails on iPhone Safari due to memory)
+                try
+                {
+                    fileToRead = await file.RequestImageFileAsync("image/jpeg", 1200, 1200);
+                    wasResized = true;
+                }
+                catch
+                {
+                    // If resize fails, we just use the original file.
+                    // This is better than crashing.
+                    Console.WriteLine("Image resize failed, using original file.");
+                }
+
+                // Read the file stream (either resized or original)
+                using var stream = fileToRead.OpenReadStream(maxAllowedSize: maxFileSize);
                 using var ms = new MemoryStream();
                 await stream.CopyToAsync(ms);
                 var buffer = ms.ToArray();
 
                 var base64 = Convert.ToBase64String(buffer);
-                var previewUrl = $"data:image/jpeg;base64,{base64}";
+                var previewUrl = $"data:{(wasResized ? "image/jpeg" : file.ContentType)};base64,{base64}";
 
                 _imagePreviewUrls.Add(previewUrl);
                 _imageNames.Add(file.Name);
-                _imageData.Add(buffer); // Use the resized buffer for upload to save bandwidth
+                _imageData.Add(buffer);
 
                 StateHasChanged();
-                await Task.Delay(50); // Small UI breather
+                await Task.Delay(50);
 
+                // Only auto-fill if it's the first image AND HelloFresh is active
                 if (isFirstImage && string.IsNullOrWhiteSpace(_newFood.Name) && _isHelloFresh)
                 {
                     _ = TryAutoFillTitle(previewUrl);
@@ -333,15 +346,14 @@ else
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Image processing failed: {ex.Message}");
-                Snackbar.Add("Kunne ikke behandle bilde (for stort?). Prøv et mindre bilde.", Severity.Warning);
+                Console.WriteLine($"Image processing error: {ex.Message}");
+                Snackbar.Add("Kunne ikke laste opp bilde. Filen er kanskje for stor.", Severity.Warning);
             }
         }
     }
 
     private async Task TryAutoFillTitle(string dataUrl)
     {
-        // Don't OCR if image is massive (unlikely with resize logic above, but safety check)
         if (dataUrl.Length > 15 * 1024 * 1024) return;
 
         _isReadingText = true;
