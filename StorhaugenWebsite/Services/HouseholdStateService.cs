@@ -76,6 +76,19 @@ public class HouseholdStateService : IHouseholdStateService
         try
         {
             UserHouseholds = await _apiClient.GetMyHouseholdsAsync();
+
+            // Clear CurrentHousehold if it's no longer in the user's households
+            if (CurrentHousehold != null && !UserHouseholds.Any(h => h.Id == CurrentHousehold.Id))
+            {
+                CurrentHousehold = null;
+            }
+
+            // Auto-select if only one household and none selected
+            if (CurrentHousehold == null && UserHouseholds.Count == 1)
+            {
+                CurrentHousehold = UserHouseholds[0];
+            }
+
             OnHouseholdChanged?.Invoke();
         }
         catch (Exception ex)

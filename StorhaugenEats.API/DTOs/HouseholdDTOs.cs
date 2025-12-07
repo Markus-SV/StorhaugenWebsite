@@ -31,7 +31,8 @@ public class UpdateHouseholdDto
 
 public class InviteToHouseholdDto
 {
-    public required string Email { get; set; }
+    public string? Email { get; set; }
+    public string? UniqueShareId { get; set; }
 }
 
 public class HouseholdInviteDto

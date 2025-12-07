@@ -2,6 +2,7 @@
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
 @using StorhaugenWebsite.Shared
+@using StorhaugenWebsite.Components
 
 <MudLayout>
     <MudAppBar Elevation="0" Class="app-header">
@@ -14,6 +15,7 @@
         <MudSpacer />
         @if (AuthService.IsAuthorized)
         {
+            <NotificationBell />
             <MudIconButton Icon="@Icons.Material.Rounded.Settings"
                            Color="Color.Inherit"
                            OnClick="@(() => Navigation.NavigateTo("settings"))"

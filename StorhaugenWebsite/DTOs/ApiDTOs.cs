@@ -8,6 +8,7 @@ public class UserDto
     public required string DisplayName { get; set; }
     public string? AvatarUrl { get; set; }
     public Guid? CurrentHouseholdId { get; set; }
+    public required string UniqueShareId { get; set; }
     public DateTime CreatedAt { get; set; }
 }
 
@@ -45,7 +46,8 @@ public class CreateHouseholdDto
 
 public class InviteToHouseholdDto
 {
-    public required string Email { get; set; }
+    public string? Email { get; set; }
+    public string? UniqueShareId { get; set; }
 }
 
 public class HouseholdInviteDto

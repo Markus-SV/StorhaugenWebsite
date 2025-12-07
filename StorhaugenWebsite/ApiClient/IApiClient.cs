@@ -15,6 +15,7 @@ public interface IApiClient
     Task SwitchHouseholdAsync(Guid householdId);
     Task<List<HouseholdInviteDto>> GetPendingInvitesAsync();
     Task AcceptInviteAsync(Guid inviteId);
+    Task RejectInviteAsync(Guid inviteId);
     Task InviteToHouseholdAsync(Guid householdId, InviteToHouseholdDto dto);
     Task LeaveHouseholdAsync(Guid householdId);
 

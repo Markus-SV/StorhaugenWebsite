@@ -56,6 +56,13 @@ namespace StorhaugenWebsite.Services
             };
 
             var created = await _apiClient.CreateRecipeAsync(dto);
+
+            // Add the user's rating if provided
+            foreach (var rating in food.Ratings.Where(r => r.Value.HasValue))
+            {
+                await _apiClient.RateRecipeAsync(created.Id, rating.Value!.Value);
+            }
+
             return created.Id.ToString();
         }
 

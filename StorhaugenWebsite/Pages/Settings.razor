@@ -9,6 +9,8 @@
 @inject IApiClient ApiClient
 @inject NavigationManager Navigation
 @inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject IJSRuntime JSRuntime
 
 <div class="d-flex align-center gap-3 mb-6">
     <h1 class="page-title" style="margin-bottom: 0; font-size: 1.5rem;">Settings</h1>
@@ -95,8 +97,8 @@
     }
     else
     {
-        <MudAlert Severity="Severity.Warning" Class="mb-3">
-            You don't have a household yet. Create one to get started!
+        <MudAlert Severity="Severity.Info" Class="mb-3">
+            You don't have a household yet. Create your own or ask someone to invite you!
         </MudAlert>
         <MudButton Variant="Variant.Filled"
                    Color="Color.Primary"
@@ -113,7 +115,7 @@
     <div class="setting-row">
         <div class="d-flex align-center gap-3">
             <MudAvatar Size="Size.Medium" Style="@($"background: {GetMemberColor(AuthService.CurrentUserName ?? "")}")">
-                @(AuthService.CurrentUserName?[0] ?? '?')
+                @(string.IsNullOrEmpty(AuthService.CurrentUserName) ? '?' : AuthService.CurrentUserName[0])
             </MudAvatar>
             <div>
                 <MudText Typo="Typo.body1" Style="font-weight: 500;">@AuthService.CurrentUserName</MudText>
@@ -121,6 +123,28 @@
             </div>
         </div>
     </div>
+
+    @if (!string.IsNullOrEmpty(_userProfile?.UniqueShareId))
+    {
+        <div class="setting-row" style="padding: 12px 0;">
+            <div class="d-flex align-center justify-space-between" style="width: 100%;">
+                <div>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Your Share ID</MudText>
+                    <MudText Typo="Typo.h6" Style="font-family: monospace; letter-spacing: 2px; font-weight: 600;">
+                        @_userProfile.UniqueShareId
+                    </MudText>
+                </div>
+                <MudIconButton Icon="@Icons.Material.Rounded.ContentCopy"
+                               Size="Size.Small"
+                               Color="Color.Primary"
+                               OnClick="CopyShareId"
+                               Title="Copy Share ID" />
+            </div>
+        </div>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-top: -8px;">
+            Share this ID with others to let them invite you to their household
+        </MudText>
+    }
 
     <MudButton Variant="Variant.Outlined"
                Color="Color.Error"
@@ -229,6 +253,7 @@
 @code {
     private string _currentTheme = "Light";
     private string _viewMode = "card";
+    private UserDto? _userProfile;
 
     protected override async Task OnInitializedAsync()
     {
@@ -244,6 +269,16 @@
 
         // Initialize household state (this is where users can create a household)
         await HouseholdState.InitializeAsync();
+
+        // Fetch user profile to get UniqueShareId
+        try
+        {
+            _userProfile = await ApiClient.GetMyProfileAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading user profile: {ex.Message}");
+        }
 
         _currentTheme = ThemeService.GetCurrentThemeName();
         _viewMode = DeviceState.Settings.ViewMode;
@@ -286,6 +321,22 @@
     {
         await AuthService.LogoutAsync();
         Navigation.NavigateTo("login");
+    }
+
+    private async Task CopyShareId()
+    {
+        if (string.IsNullOrEmpty(_userProfile?.UniqueShareId))
+            return;
+
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", _userProfile.UniqueShareId);
+            Snackbar.Add("Share ID copied to clipboard!", Severity.Success);
+        }
+        catch
+        {
+            Snackbar.Add("Failed to copy to clipboard", Severity.Error);
+        }
     }
 
     // Household Management Methods

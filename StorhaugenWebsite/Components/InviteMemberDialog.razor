@@ -9,22 +9,39 @@
         <div class="invite-dialog">
             <MudText Typo="Typo.h6" Class="mb-2">Invite Member to @HouseholdName</MudText>
             <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-                Enter the email address of the person you want to invite. They'll receive an invitation that they can accept from the Settings page.
+                Invite someone using their email address or unique Share ID.
             </MudText>
 
-            <MudForm @ref="_form" @bind-IsValid="_isValid">
-                <MudTextField @bind-Value="_email"
-                              Label="Email Address"
-                              Variant="Variant.Outlined"
-                              Required="true"
-                              RequiredError="Email is required"
-                              Validation="@(new EmailAddressAttribute() { ErrorMessage = "Please enter a valid email address" })"
-                              Adornment="Adornment.Start"
-                              AdornmentIcon="@Icons.Material.Rounded.Email"
-                              HelperText="e.g., friend@example.com"
-                              Immediate="true"
-                              Class="mb-2" />
-            </MudForm>
+            <MudTabs Rounded="true" Centered="true" Class="mb-4" @bind-ActivePanelIndex="_activeTab">
+                <MudTabPanel Text="Email" Icon="@Icons.Material.Rounded.Email">
+                    <MudForm @ref="_emailForm" @bind-IsValid="_emailIsValid" Class="mt-3">
+                        <MudTextField @bind-Value="_email"
+                                      Label="Email Address"
+                                      Variant="Variant.Outlined"
+                                      Required="true"
+                                      RequiredError="Email is required"
+                                      Validation="@(new EmailAddressAttribute() { ErrorMessage = "Please enter a valid email address" })"
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Rounded.Email"
+                                      HelperText="e.g., friend@example.com"
+                                      Immediate="true" />
+                    </MudForm>
+                </MudTabPanel>
+                <MudTabPanel Text="Share ID" Icon="@Icons.Material.Rounded.Tag">
+                    <MudForm @ref="_shareIdForm" @bind-IsValid="_shareIdIsValid" Class="mt-3">
+                        <MudTextField @bind-Value="_shareId"
+                                      Label="Share ID"
+                                      Variant="Variant.Outlined"
+                                      Required="true"
+                                      RequiredError="Share ID is required"
+                                      Adornment="Adornment.Start"
+                                      AdornmentIcon="@Icons.Material.Rounded.Tag"
+                                      HelperText="e.g., ABC123XYZ"
+                                      Immediate="true"
+                                      Style="text-transform: uppercase; font-family: monospace; letter-spacing: 1px;" />
+                    </MudForm>
+                </MudTabPanel>
+            </MudTabs>
 
             @if (!string.IsNullOrEmpty(_errorMessage))
             {
@@ -41,7 +58,7 @@
             }
 
             <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-3">
-                <strong>Note:</strong> The invitee must have an account or sign up first to accept the invitation.
+                <strong>Note:</strong> The invitee must have an account to accept the invitation. They can find their Share ID in Settings.
             </MudText>
         </div>
     </DialogContent>
@@ -51,7 +68,7 @@
         <MudButton Variant="Variant.Filled"
                    Color="Color.Primary"
                    OnClick="SendInvite"
-                   Disabled="_isSending || !_isValid">
+                   Disabled="_isSending || !IsCurrentFormValid()">
             @if (_isSending)
             {
                 <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
@@ -83,30 +100,45 @@
     [Parameter]
     public string HouseholdName { get; set; } = "";
 
-    private MudForm? _form;
-    private bool _isValid = false;
+    private MudForm? _emailForm;
+    private MudForm? _shareIdForm;
+    private bool _emailIsValid = false;
+    private bool _shareIdIsValid = false;
     private bool _isSending = false;
+    private int _activeTab = 0;
     private string _email = "";
+    private string _shareId = "";
     private string? _errorMessage;
     private string? _successMessage;
+
+    private bool IsCurrentFormValid()
+    {
+        return _activeTab == 0 ? _emailIsValid : _shareIdIsValid;
+    }
 
     private async Task SendInvite()
     {
         _errorMessage = null;
         _successMessage = null;
 
-        await _form!.Validate();
-
-        if (!_isValid)
+        // Validate the active form
+        if (_activeTab == 0)
         {
-            _errorMessage = "Please fix the errors before sending";
-            return;
+            await _emailForm!.Validate();
+            if (!_emailIsValid || string.IsNullOrWhiteSpace(_email))
+            {
+                _errorMessage = "Please enter a valid email address";
+                return;
+            }
         }
-
-        if (string.IsNullOrWhiteSpace(_email))
+        else
         {
-            _errorMessage = "Please enter an email address";
-            return;
+            await _shareIdForm!.Validate();
+            if (!_shareIdIsValid || string.IsNullOrWhiteSpace(_shareId))
+            {
+                _errorMessage = "Please enter a Share ID";
+                return;
+            }
         }
 
         _isSending = true;
@@ -114,15 +146,22 @@
 
         try
         {
-            var dto = new InviteToHouseholdDto { Email = _email.Trim() };
+            var dto = new InviteToHouseholdDto
+            {
+                Email = _activeTab == 0 ? _email.Trim() : null,
+                UniqueShareId = _activeTab == 1 ? _shareId.Trim().ToUpperInvariant() : null
+            };
             await ApiClient.InviteToHouseholdAsync(HouseholdId, dto);
 
-            _successMessage = $"Invitation sent to {_email}!";
-            Snackbar.Add($"Invitation sent to {_email}", Severity.Success);
+            var inviteTarget = _activeTab == 0 ? _email : $"user with ID {_shareId.ToUpperInvariant()}";
+            _successMessage = $"Invitation sent to {inviteTarget}!";
+            Snackbar.Add($"Invitation sent!", Severity.Success);
 
             // Clear the form for another invite
             _email = "";
-            _form?.ResetAsync();
+            _shareId = "";
+            _emailForm?.ResetAsync();
+            _shareIdForm?.ResetAsync();
 
             // Close dialog after a short delay
             await Task.Delay(1500);
@@ -136,7 +175,7 @@
             }
             else if (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
-                _errorMessage = "Household not found";
+                _errorMessage = _activeTab == 1 ? "User with that Share ID not found" : "Household not found";
             }
             else
             {

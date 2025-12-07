@@ -172,7 +172,7 @@ public class HouseholdsController : ControllerBase
     }
 
     /// <summary>
-    /// Send an invitation to join the household
+    /// Send an invitation to join the household (by email or unique share ID)
     /// </summary>
     [HttpPost("{id}/invites")]
     public async Task<ActionResult<HouseholdInviteDto>> InviteToHousehold(Guid id, [FromBody] InviteToHouseholdDto dto)
@@ -190,19 +190,45 @@ public class HouseholdsController : ControllerBase
         if (household == null)
             return NotFound();
 
+        // Determine email from dto.Email or by looking up UniqueShareId
+        string? invitedEmail = dto.Email;
+
+        if (string.IsNullOrWhiteSpace(invitedEmail) && !string.IsNullOrWhiteSpace(dto.UniqueShareId))
+        {
+            // Look up user by UniqueShareId
+            var targetUser = await _context.Users
+                .FirstOrDefaultAsync(u => u.UniqueShareId == dto.UniqueShareId.Trim().ToUpperInvariant());
+
+            if (targetUser == null)
+                return NotFound(new { message = "User with that share ID not found" });
+
+            invitedEmail = targetUser.Email;
+        }
+
+        if (string.IsNullOrWhiteSpace(invitedEmail))
+            return BadRequest(new { message = "Either email or share ID is required" });
+
+        // Check if user is already a member
+        var existingMember = await _context.HouseholdMembers
+            .Include(hm => hm.User)
+            .FirstOrDefaultAsync(hm => hm.HouseholdId == id && hm.User.Email == invitedEmail);
+
+        if (existingMember != null)
+            return BadRequest(new { message = "User is already a member of this household" });
+
         // Check if invite already exists
         var existingInvite = await _context.HouseholdInvites
-            .FirstOrDefaultAsync(i => i.HouseholdId == id && i.InvitedEmail == dto.Email && i.Status == "pending");
+            .FirstOrDefaultAsync(i => i.HouseholdId == id && i.InvitedEmail == invitedEmail && i.Status == "pending");
 
         if (existingInvite != null)
-            return BadRequest(new { message = "An invite is already pending for this email" });
+            return BadRequest(new { message = "An invite is already pending for this user" });
 
         // Create invite
         var invite = new HouseholdInvite
         {
             HouseholdId = id,
             InvitedByUserId = userId,
-            InvitedEmail = dto.Email,
+            InvitedEmail = invitedEmail,
             Status = "pending",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -220,7 +246,7 @@ public class HouseholdsController : ControllerBase
             HouseholdName = household.Name,
             InvitedById = userId,
             InvitedByName = inviter?.DisplayName ?? "Unknown",
-            InvitedEmail = dto.Email,
+            InvitedEmail = invitedEmail,
             Status = "pending",
             CreatedAt = invite.CreatedAt
         });

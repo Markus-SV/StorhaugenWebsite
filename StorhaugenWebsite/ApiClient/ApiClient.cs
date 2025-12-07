@@ -90,6 +90,13 @@ public class ApiClient : IApiClient
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task RejectInviteAsync(Guid inviteId)
+    {
+        await AddAuthHeaderAsync();
+        var response = await _httpClient.PostAsync($"/api/households/invites/{inviteId}/reject", null);
+        response.EnsureSuccessStatusCode();
+    }
+
     public async Task InviteToHouseholdAsync(Guid householdId, InviteToHouseholdDto dto)
     {
         await AddAuthHeaderAsync();

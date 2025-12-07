@@ -40,6 +40,7 @@ public class UsersController : ControllerBase
             DisplayName = user.DisplayName,
             AvatarUrl = user.AvatarUrl,
             CurrentHouseholdId = user.CurrentHouseholdId,
+            UniqueShareId = user.UniqueShareId,
             CreatedAt = user.CreatedAt
         });
     }
@@ -84,6 +85,7 @@ public class UsersController : ControllerBase
             DisplayName = user.DisplayName,
             AvatarUrl = user.AvatarUrl,
             CurrentHouseholdId = user.CurrentHouseholdId,
+            UniqueShareId = user.UniqueShareId,
             CreatedAt = user.CreatedAt
         });
     }
@@ -121,6 +123,7 @@ public class UsersController : ControllerBase
             DisplayName = user.DisplayName,
             AvatarUrl = user.AvatarUrl,
             CurrentHouseholdId = null, // Don't expose current household for privacy
+            UniqueShareId = user.UniqueShareId,
             CreatedAt = user.CreatedAt
         });
     }
