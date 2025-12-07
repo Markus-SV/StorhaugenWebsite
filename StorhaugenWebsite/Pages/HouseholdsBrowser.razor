@@ -1,150 +1,478 @@
 ﻿@page "/households"
 @using StorhaugenWebsite.ApiClient
 @using StorhaugenWebsite.DTOs
+@using StorhaugenWebsite.Models
+@using StorhaugenWebsite.Services
 @inject IApiClient ApiClient
 @inject IHouseholdStateService HouseholdState
+@inject IAuthService AuthService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject IJSRuntime JSRuntime
 
-<div class="d-flex align-center gap-3 mb-6">
+<div class="d-flex align-center gap-3 mb-4">
     <h1 class="page-title" style="margin-bottom: 0; font-size: 1.5rem;">Husstander</h1>
-    <p class="page-subtitle" style="margin: 0;">Finn og koble til andre kjøkken</p>
 </div>
 
-<MudTextField T="string"
-              @bind-Value="_searchQuery"
-              Label="Søk etter husstander"
-              Placeholder="Skriv navn eller delings-ID..."
-              Variant="Variant.Outlined"
-              Adornment="Adornment.Start"
-              AdornmentIcon="@Icons.Material.Rounded.Search"
-              OnKeyUp="OnSearchKeyUp"
-              DebounceInterval="500"
-              OnDebounceIntervalElapsed="PerformSearch"
-              Class="mb-6" />
-
-@if (_isLoading)
+@if (!HouseholdState.HasHousehold)
 {
-    <div class="d-flex justify-center mt-4">
-        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
-    </div>
-}
-else if (!_results.Any() && !string.IsNullOrEmpty(_searchQuery))
-{
-    <div class="d-flex flex-column align-center mt-8">
-        <MudIcon Icon="@Icons.Material.Rounded.SearchOff" Size="Size.Large" Color="Color.Secondary" />
-        <MudText Typo="Typo.h6" Color="Color.Secondary" Class="mt-2">Ingen husstander funnet</MudText>
-    </div>
-}
-else if (!_results.Any())
-{
-    <div class="d-flex flex-column align-center mt-8">
-        <MudIcon Icon="@Icons.Material.Rounded.HomeWork" Size="Size.Large" Color="Color.Primary" />
-        <MudText Typo="Typo.h6" Class="mt-2">Søk etter en husstand</MudText>
-        <MudText Typo="Typo.body2" Color="Color.Secondary">Skriv inn et navn eller en unik delings-ID for å finne venner.</MudText>
+    <div class="empty-state">
+        <div class="empty-state-icon">
+            <MudIcon Icon="@Icons.Material.Rounded.Home" Size="Size.Large" />
+        </div>
+        <h2 class="empty-state-title">Ingen husstand valgt</h2>
+        <p class="empty-state-text">Du må opprette eller bli med i en husstand for å få venner!</p>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateHousehold">
+            Opprett husstand
+        </MudButton>
     </div>
 }
 else
 {
-    <div class="d-flex flex-column gap-3">
-        @foreach (var household in _results)
-        {
-            <div class="household-card">
-                <div class="d-flex align-center gap-3">
-                    <MudAvatar Color="Color.Primary" Variant="Variant.Filled">
-                        @household.Name[0].ToString().ToUpper()
-                    </MudAvatar>
-
-                    <div style="flex: 1;">
-                        <MudText Typo="Typo.body1" Style="font-weight: 600;">@household.Name</MudText>
-                        <MudText Typo="Typo.caption" Color="Color.Secondary">
-                            @household.MemberCount medlemmer • Ble med i @household.CreatedAt.Year
-                        </MudText>
+    <MudTabs Elevation="0" Rounded="true" Centered ApplyEffectsToContainer="true" PanelClass="pt-4" Color="Color.Transparent" ActiveTabClass="mud-text-primary font-weight-bold">
+        
+        <MudTabPanel Text="Husstand" Icon="@Icons.Material.Rounded.Home">
+            <div class="household-view-card">
+                <div class="d-flex justify-space-between align-start mb-4">
+                    <div class="d-flex align-center gap-3">
+                        <MudAvatar Color="Color.Primary" Size="Size.Large" Variant="Variant.Filled">
+                            @(HouseholdState.CurrentHousehold?.Name[0].ToString().ToUpper() ?? "?")
+                        </MudAvatar>
+                        <div>
+                            @if (_isEditingName)
+                            {
+                                <MudTextField @bind-Value="_editHouseholdName"
+                                              Variant="Variant.Outlined"
+                                              Margin="Margin.Dense"
+                                              Adornment="Adornment.End"
+                                              AdornmentIcon="@Icons.Material.Filled.Check"
+                                              OnAdornmentClick="UpdateHouseholdName"
+                                              AutoFocus="true" />
+                            }
+                            else
+                            {
+                                <div class="d-flex align-center gap-2">
+                                    <MudText Typo="Typo.h6" Style="font-weight: 600;">@HouseholdState.CurrentHousehold?.Name</MudText>
+                                    @if (IsHouseholdLeader)
+                                    {
+                                        <MudIconButton Icon="@Icons.Material.Rounded.Edit" Size="Size.Small" OnClick="@(() => { _editHouseholdName = HouseholdState.CurrentHousehold?.Name; _isEditingName = true; })" />
+                                    }
+                                </div>
+                            }
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                @HouseholdState.CurrentHousehold?.Members.Count medlemmer • 
+                                @(HouseholdState.CurrentHousehold?.IsPrivate == true ? "Privat" : "Offentlig")
+                            </MudText>
+                        </div>
                     </div>
-
-                    @if (household.UniqueShareId != null)
-                    {
-                        <MudChip Size="Size.Small" Color="Color.Secondary" T=string Variant="Variant.Text">
-                            ID: @household.UniqueShareId
-                        </MudChip>
-                    }
                 </div>
 
-                <MudDivider Class="my-3" />
+                <div class="info-row">
+                    <div class="info-label">
+                        <MudIcon Icon="@Icons.Material.Rounded.VpnKey" Size="Size.Small" Color="Color.Secondary" />
+                        <span>Delings-ID</span>
+                    </div>
+                    <div class="info-value">
+                        <code class="share-id">@HouseholdState.CurrentHousehold?.UniqueShareId</code>
+                        <MudIconButton Icon="@Icons.Material.Rounded.ContentCopy" Size="Size.Small" OnClick="CopyShareId" />
+                    </div>
+                </div>
 
-                <div class="d-flex justify-end gap-2">
-                    <MudButton Variant="Variant.Outlined"
-                               Size="Size.Small"
-                               Color="Color.Primary"
-                               OnClick="@(() => RequestFriendship(household))"
-                               Disabled="@(!HouseholdState.HasHousehold)">
-                        Koble til
+                <div class="d-flex gap-2 mt-4">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.PersonAdd" OnClick="InviteMember" FullWidth="true" Style="border-radius: 12px;">
+                        Inviter
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Default" OnClick="ViewMembers" FullWidth="true" Style="border-radius: 12px;">
+                        Medlemmer
                     </MudButton>
                 </div>
+
+                @if (IsHouseholdLeader)
+                {
+                    <MudDivider Class="my-4" />
+                    <div class="d-flex justify-space-between align-center">
+                        <div>
+                            <MudText Typo="Typo.body2" Style="font-weight: 500;">Offentlig profil</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Gjør det mulig for andre å søke opp husstanden</MudText>
+                        </div>
+                        <MudSwitch T="bool" 
+                                   Value="@(!HouseholdState.CurrentHousehold!.IsPrivate)" 
+                                   ValueChanged="OnVisibilityChanged" 
+                                   Color="Color.Success" />
+                    </div>
+                }
             </div>
-        }
-    </div>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Venner" Icon="@Icons.Material.Rounded.People" BadgeData="@(_pendingRequests.Count > 0 ? _pendingRequests.Count : null)" BadgeColor="Color.Error">
+            
+            @* --- PENDING REQUESTS --- *@
+            @if (_pendingRequests.Any())
+            {
+                <MudText Typo="Typo.subtitle2" Class="mb-2 mt-2" Color="Color.Secondary">Forespørsler</MudText>
+                <div class="d-flex flex-column gap-2 mb-4">
+                    @foreach (var req in _pendingRequests)
+                    {
+                        var isIncoming = req.TargetHouseholdId == HouseholdState.CurrentHousehold!.Id;
+                        var otherName = isIncoming ? req.RequesterHouseholdName : req.TargetHouseholdName;
+
+                        <div class="friend-request-card">
+                            <div class="d-flex align-center gap-3">
+                                <MudIcon Icon="@(isIncoming ? Icons.Material.Rounded.CallReceived : Icons.Material.Rounded.CallMade)" 
+                                         Color="@(isIncoming ? Color.Info : Color.Default)" />
+                                <div>
+                                    <MudText Typo="Typo.body2" Style="font-weight: 600;">@otherName</MudText>
+                                    <MudText Typo="Typo.caption">@(isIncoming ? "Vil koble til dere" : "Venter på svar")</MudText>
+                                </div>
+                            </div>
+                            @if (isIncoming)
+                            {
+                                <div class="d-flex gap-2 mt-2">
+                                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" OnClick="@(() => RespondToRequest(req.Id, "accept"))">Godta</MudButton>
+                                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" OnClick="@(() => RespondToRequest(req.Id, "reject"))">Avslå</MudButton>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+
+            @* --- CURRENT FRIENDS --- *@
+            <MudText Typo="Typo.subtitle2" Class="mb-2 mt-2" Color="Color.Secondary">Mine venner</MudText>
+            
+            @if (!_friends.Any())
+            {
+                <div class="empty-list-simple">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Dere har ingen venner ennå.</MudText>
+                </div>
+            }
+            else
+            {
+                <div class="d-flex flex-column gap-2 mb-4">
+                    @foreach (var friend in _friends)
+                    {
+                        var friendName = friend.RequesterHouseholdId == HouseholdState.CurrentHousehold!.Id 
+                            ? friend.TargetHouseholdName 
+                            : friend.RequesterHouseholdName;
+
+                        <div class="friend-card">
+                            <MudAvatar Color="Color.Secondary" Size="Size.Medium">@friendName[0]</MudAvatar>
+                            <MudText Typo="Typo.body1" Style="font-weight: 500;">@friendName</MudText>
+                        </div>
+                    }
+                </div>
+            }
+
+            <MudDivider Class="my-6" />
+
+            @* --- SEARCH NEW FRIENDS --- *@
+            <div class="search-section">
+                <MudText Typo="Typo.h6" Class="mb-2">Finn nye husstander</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-4 d-block">Søk etter navn eller delings-ID for å legge til venner.</MudText>
+
+                <MudTextField T="string"
+                              @bind-Value="_searchQuery"
+                              Label="Søk etter husstander"
+                              Placeholder="F.eks. 'Hansen' eller ID..."
+                              Variant="Variant.Outlined"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Rounded.Search"
+                              OnKeyUp="OnSearchKeyUp"
+                              DebounceInterval="500"
+                              OnDebounceIntervalElapsed="PerformSearch"
+                              Class="mb-4" />
+
+                @if (_isSearching)
+                {
+                    <div class="d-flex justify-center mt-4">
+                        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+                    </div>
+                }
+                else if (_searchResults.Any())
+                {
+                    <div class="d-flex flex-column gap-3">
+                        @foreach (var household in _searchResults)
+                        {
+                            @if(household.Id == HouseholdState.CurrentHousehold?.Id) continue;
+                            
+                            var isFriend = _friends.Any(f => f.RequesterHouseholdId == household.Id || f.TargetHouseholdId == household.Id);
+                            var isPending = _pendingRequests.Any(f => f.RequesterHouseholdId == household.Id || f.TargetHouseholdId == household.Id);
+                            
+                            <div class="household-search-card">
+                                <div class="d-flex align-center gap-3">
+                                    <MudAvatar Color="Color.Primary" Variant="Variant.Filled">
+                                        @household.Name[0].ToString().ToUpper()
+                                    </MudAvatar>
+                                    <div style="flex: 1;">
+                                        <MudText Typo="Typo.body1" Style="font-weight: 600;">@household.Name</MudText>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                            @household.MemberCount medlemmer
+                                        </MudText>
+                                    </div>
+                                </div>
+                                
+                                @if (isFriend)
+                                {
+                                    <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Success" Disabled="true" StartIcon="@Icons.Material.Rounded.Check">Venner</MudButton>
+                                }
+                                else if (isPending)
+                                {
+                                    <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Warning" Disabled="true" StartIcon="@Icons.Material.Rounded.HourglassEmpty">Venter</MudButton>
+                                }
+                                else
+                                {
+                                    <MudButton Variant="Variant.Outlined" 
+                                               Size="Size.Small" 
+                                               Color="Color.Primary"
+                                               Class="mt-3"
+                                               FullWidth="true"
+                                               OnClick="@(() => RequestFriendship(household))">
+                                        Koble til
+                                    </MudButton>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+                else if (!string.IsNullOrEmpty(_searchQuery) && !_isSearching)
+                {
+                    <div class="empty-list-simple">
+                        <MudIcon Icon="@Icons.Material.Rounded.SearchOff" Color="Color.Secondary" />
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Ingen resultater funnet</MudText>
+                    </div>
+                }
+            </div>
+
+        </MudTabPanel>
+    </MudTabs>
 }
 
 <style>
-    .household-card {
+    .household-view-card {
+        background: var(--mud-palette-surface);
+        padding: 20px;
+        border-radius: 16px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        border: 1px solid var(--mud-palette-divider);
+    }
+
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--mud-palette-divider-light);
+    }
+
+    .info-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--mud-palette-text-secondary);
+        font-size: 0.9rem;
+    }
+
+    .share-id {
+        background: var(--mud-palette-background-grey);
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-family: monospace;
+        letter-spacing: 1px;
+        font-weight: 600;
+    }
+
+    .friend-card {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        background: var(--mud-palette-surface);
+        border-radius: 12px;
+        border: 1px solid var(--mud-palette-divider);
+    }
+
+    .friend-request-card {
+        padding: 12px;
+        background: rgba(var(--mud-palette-info-rgb), 0.05);
+        border-radius: 12px;
+        border: 1px solid rgba(var(--mud-palette-info-rgb), 0.2);
+    }
+
+    .household-search-card {
         background: var(--mud-palette-surface);
         padding: 16px;
         border-radius: 12px;
         border: 1px solid var(--mud-palette-divider);
-        transition: transform 0.2s;
     }
-    .household-card:hover {
-        border-color: var(--mud-palette-primary);
-        transform: translateY(-2px);
+
+    .empty-list-simple {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 16px;
+        justify-content: center;
+        opacity: 0.7;
     }
 </style>
 
 @code {
+    private UserDto? _userProfile;
+    private bool _isEditingName = false;
+    private string? _editHouseholdName;
+
+    // Data lists
+    private List<HouseholdFriendshipDto> _friendships = new();
+    private List<HouseholdFriendshipDto> _friends = new();
+    private List<HouseholdFriendshipDto> _pendingRequests = new();
+    
+    // Search
     private string _searchQuery = "";
-    private bool _isLoading = false;
-    private List<HouseholdSearchResultDto> _results = new();
+    private bool _isSearching = false;
+    private List<HouseholdSearchResultDto> _searchResults = new();
 
-    // Triggered automatically by DebounceInterval
-    private async Task PerformSearch()
+    private bool IsHouseholdLeader => 
+        HouseholdState.CurrentHousehold != null && 
+        _userProfile != null && 
+        HouseholdState.CurrentHousehold.CreatedById == _userProfile.Id;
+
+    protected override async Task OnInitializedAsync()
     {
-        if (string.IsNullOrWhiteSpace(_searchQuery))
-        {
-            _results.Clear();
-            return;
-        }
+        if (!AuthService.IsAuthorized) return;
 
-        _isLoading = true;
-        try
+        await HouseholdState.InitializeAsync();
+        
+        try 
         {
-            _results = await ApiClient.SearchHouseholdsAsync(_searchQuery);
+            _userProfile = await ApiClient.GetMyProfileAsync();
+            if (HouseholdState.HasHousehold)
+            {
+                await LoadFriendships();
+            }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Search error: {ex.Message}");
+            Console.WriteLine(ex);
         }
-        finally
+    }
+
+    private async Task LoadFriendships()
+    {
+        try 
         {
-            _isLoading = false;
-            StateHasChanged();
+            _friendships = await ApiClient.GetHouseholdFriendshipsAsync();
+            _friends = _friendships.Where(f => f.Status == "accepted").ToList();
+            _pendingRequests = _friendships.Where(f => f.Status == "pending").ToList();
         }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading friends: {ex.Message}");
+        }
+    }
+
+    // --- Tab 1: My Household Logic ---
+
+    private async Task UpdateHouseholdName()
+    {
+        if (string.IsNullOrWhiteSpace(_editHouseholdName) || HouseholdState.CurrentHousehold == null) return;
+        try
+        {
+            await ApiClient.UpdateHouseholdNameAsync(HouseholdState.CurrentHousehold.Id, new UpdateHouseholdDto { Name = _editHouseholdName });
+            await HouseholdState.RefreshHouseholdsAsync();
+            _isEditingName = false;
+            Snackbar.Add("Husstand omdøpt", Severity.Success);
+        }
+        catch
+        {
+            Snackbar.Add("Feil ved endring av navn", Severity.Error);
+        }
+    }
+
+    private async Task OnVisibilityChanged(bool isPublic)
+    {
+        if (HouseholdState.CurrentHousehold == null) return;
+        try
+        {
+            await ApiClient.UpdateHouseholdSettingsAsync(HouseholdState.CurrentHousehold.Id, new UpdateHouseholdSettingsDto { IsPrivate = !isPublic });
+            HouseholdState.CurrentHousehold.IsPrivate = !isPublic; // Optimistic update
+            Snackbar.Add(isPublic ? "Husstand er nå offentlig" : "Husstand er nå privat", Severity.Success);
+        }
+        catch
+        {
+            Snackbar.Add("Feil ved oppdatering", Severity.Error);
+        }
+    }
+
+    private async Task CopyShareId()
+    {
+        if (HouseholdState.CurrentHousehold?.UniqueShareId != null)
+        {
+            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", HouseholdState.CurrentHousehold.UniqueShareId);
+            Snackbar.Add("Kopiert!", Severity.Success);
+        }
+    }
+
+    private async Task InviteMember()
+    {
+        var parameters = new DialogParameters { { "HouseholdId", HouseholdState.CurrentHousehold!.Id }, { "HouseholdName", HouseholdState.CurrentHousehold.Name } };
+        await DialogService.ShowAsync<StorhaugenWebsite.Components.InviteMemberDialog>("Inviter medlem", parameters);
+    }
+
+    private async Task ViewMembers()
+    {
+        var parameters = new DialogParameters { { "Household", HouseholdState.CurrentHousehold } };
+        await DialogService.ShowAsync<StorhaugenWebsite.Components.HouseholdMembersDialog>("Medlemmer", parameters);
+    }
+
+    private async Task CreateHousehold()
+    {
+        var dialog = await DialogService.ShowAsync<StorhaugenWebsite.Components.HouseholdSelector>("Opprett husstand", new DialogParameters(), new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (!result.Canceled) await HouseholdState.RefreshHouseholdsAsync();
+    }
+
+    // --- Tab 2: Friends Logic ---
+
+    private async Task RespondToRequest(Guid requestId, string action)
+    {
+        try 
+        {
+            await ApiClient.RespondHouseholdFriendRequestAsync(requestId, new RespondFriendRequestDto { Action = action });
+            await LoadFriendships(); // Refresh list
+            Snackbar.Add(action == "accept" ? "Venneforespørsel godkjent!" : "Forespørsel avslått", Severity.Success);
+        }
+        catch
+        {
+            Snackbar.Add("Noe gikk galt", Severity.Error);
+        }
+    }
+
+    // --- Search Logic inside Venner Tab ---
+
+    private async Task PerformSearch()
+    {
+        if (string.IsNullOrWhiteSpace(_searchQuery)) { _searchResults.Clear(); return; }
+        _isSearching = true;
+        try { _searchResults = await ApiClient.SearchHouseholdsAsync(_searchQuery); }
+        catch { }
+        finally { _isSearching = false; StateHasChanged(); }
     }
 
     private async Task OnSearchKeyUp(KeyboardEventArgs args)
     {
-        if (args.Key == "Enter")
-        {
-            await PerformSearch();
-        }
+        if (args.Key == "Enter") await PerformSearch();
     }
 
     private async Task RequestFriendship(HouseholdSearchResultDto target)
     {
-        if (!HouseholdState.HasHousehold)
+        try 
         {
-            Snackbar.Add("Du må opprette en husstand først!", Severity.Warning);
-            return;
+            await ApiClient.SendHouseholdFriendRequestAsync(new SendFriendRequestDto { HouseholdId = target.Id });
+            Snackbar.Add($"Forespørsel sendt til {target.Name}", Severity.Success);
+            await LoadFriendships(); // Refresh to see update
         }
-        Snackbar.Add($"Forespørsel sendt til {target.Name} (Funksjon under arbeid)", Severity.Info);
+        catch
+        {
+            Snackbar.Add("Klarte ikke sende forespørsel (Sjekk om dere allerede er venner eller om forespørsel finnes)", Severity.Warning);
+        }
     }
 }

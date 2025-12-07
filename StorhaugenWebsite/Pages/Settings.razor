@@ -3,102 +3,19 @@
 @using StorhaugenWebsite.Models
 @using StorhaugenWebsite.DTOs
 @inject IAuthService AuthService
-@inject IThemeService ThemeService
 @inject IDeviceStateService DeviceState
 @inject IHouseholdStateService HouseholdState
 @inject IApiClient ApiClient
 @inject NavigationManager Navigation
-@inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject IJSRuntime JSRuntime
 
 <div class="d-flex align-center gap-3 mb-6">
     <h1 class="page-title" style="margin-bottom: 0; font-size: 1.5rem;">Innstillinger</h1>
-    <p class="page-subtitle" style="margin: 0;">Tilpass din opplevelse</p>
 </div>
 
 <div class="form-section">
-    <p class="form-section-title">Husstand</p>
-
-    @if (HouseholdState.CurrentHousehold != null)
-    {
-        <div class="setting-row">
-            <div class="setting-info">
-                @if (IsHouseholdLeader)
-                {
-                    <MudTextField @bind-Value="_editHouseholdName"
-                                  Label="Husstandsnavn"
-                                  Variant="Variant.Outlined"
-                                  Adornment="Adornment.End"
-                                  AdornmentIcon="@Icons.Material.Filled.Save"
-                                  OnAdornmentClick="UpdateHouseholdName"
-                                  HelperText="Du er lederen. Trykk lagre for å endre navn." />
-                }
-                else
-                {
-                    <MudText Typo="Typo.body1" Style="font-weight: 500;">@HouseholdState.CurrentHousehold.Name</MudText>
-                }
-
-                <MudText Typo="Typo.caption" Color="Color.Secondary">
-                    @HouseholdState.CurrentHousehold.Members.Count medlemmer •
-                    @(HouseholdState.CurrentHousehold.IsPrivate ? "Privat" : "Offentlig")
-                </MudText>
-            </div>
-        </div>
-
-        @if (IsHouseholdLeader)
-        {
-            <div class="setting-row">
-                <div class="setting-info">
-                    <MudText Typo="Typo.body1">Synlighet</MudText>
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">
-                        Offentlige husstander vises i søkeresultater
-                    </MudText>
-                </div>
-                <MudSwitch T="bool"
-                           Value="@(!HouseholdState.CurrentHousehold.IsPrivate)"
-                           ValueChanged="OnVisibilityChanged"
-                           Color="Color.Success" />
-            </div>
-        }
-
-        @if (HouseholdState.UserHouseholds.Count > 1)
-        {
-            <MudSelect T="Guid"
-                       Label="Bytt husstand"
-                       Value="@HouseholdState.CurrentHousehold.Id"
-                       ValueChanged="SwitchHousehold"
-                       Variant="Variant.Outlined"
-                       Class="mt-3">
-                @foreach (var household in HouseholdState.UserHouseholds)
-                {
-                    <MudSelectItem Value="@household.Id">@household.Name</MudSelectItem>
-                }
-            </MudSelect>
-        }
-
-        <div class="d-flex gap-2 mt-4">
-            <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth="true" StartIcon="@Icons.Material.Rounded.PersonAdd" OnClick="InviteMember" Style="border-radius: 12px;">
-                Inviter
-            </MudButton>
-            <MudButton Variant="Variant.Text" Color="Color.Default" FullWidth="true" OnClick="ViewMembers">
-                Medlemmer
-            </MudButton>
-        </div>
-    }
-    else
-    {
-        <MudAlert Severity="Severity.Info" Class="mb-3">
-            Du har ikke en husstand ennå.
-        </MudAlert>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="CreateHousehold">
-            Opprett husstand
-        </MudButton>
-    }
-</div>
-
-<div class="form-section">
-    <p class="form-section-title">Account</p>
+    <p class="form-section-title">Konto</p>
 
     <div class="setting-row">
         <div class="d-flex align-center gap-3">
@@ -127,7 +44,7 @@
         <div class="setting-row" style="padding: 12px 0;">
             <div class="d-flex align-center justify-space-between" style="width: 100%;">
                 <div>
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">Din delings-ID</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Din personlige ID</MudText>
                     <MudText Typo="Typo.h6" Style="font-family: monospace; letter-spacing: 2px; font-weight: 600;">
                         @_userProfile.UniqueShareId
                     </MudText>
@@ -140,134 +57,65 @@
             </div>
         </div>
         <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-top: -8px;">
-            Del denne ID-en med andre slik at de kan invitere deg til sin husstand
+            Brukes for å bli invitert direkte til andres husstander
         </MudText>
     }
+</div>
 
+@if (HouseholdState.UserHouseholds.Count > 1)
+{
+    <div class="form-section">
+        <p class="form-section-title">Bytt Husstand</p>
+        <MudSelect T="Guid"
+                   Label="Velg aktiv husstand"
+                   Value="@(HouseholdState.CurrentHousehold?.Id ?? Guid.Empty)"
+                   ValueChanged="SwitchHousehold"
+                   Variant="Variant.Outlined">
+            @foreach (var household in HouseholdState.UserHouseholds)
+            {
+                <MudSelectItem Value="@household.Id">@household.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </div>
+}
+
+<div class="form-section">
     <MudButton Variant="Variant.Outlined"
                Color="Color.Error"
                FullWidth="true"
                StartIcon="@Icons.Material.Rounded.Logout"
                OnClick="Logout"
-               Style="border-radius: 12px; margin-top: 16px;">
+               Style="border-radius: 12px;">
         Logg ut
     </MudButton>
 </div>
 
-<div class="form-section">
-    <p class="form-section-title">Om</p>
-    <div class="setting-row" style="flex-direction: column; align-items: flex-start; gap: 4px;">
-        <MudText Typo="Typo.body1" Style="font-weight: 500;">Storhaugen Eats</MudText>
+<div class="form-section mt-4">
+    <div class="d-flex justify-center flex-column align-center gap-1">
+        <MudText Typo="Typo.body2" Style="font-weight: 500;">Storhaugen Eats</MudText>
         <MudText Typo="Typo.caption" Color="Color.Secondary">Versjon 1.0.0</MudText>
     </div>
 </div>
 
 <style>
-    .theme-select .mud-input-slot {
-        min-height: 70px !important;
-        padding: 8px 14px !important;
-    }
-
-    .theme-preview-container {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin-top: 8px;
-    }
-
-    .theme-name {
-        font-weight: 500;
-    }
-
-    .mini-website {
-        width: 100px;
-        height: 56px;
-        border-radius: 6px;
-        border: 1px solid;
-        display: flex;
-        flex-wrap: wrap;
-        overflow: hidden;
-        flex-shrink: 0;
-    }
-
-    .mini-appbar {
-        width: 100%;
-        height: 10px;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-    }
-
-    .mini-sidebar {
-        width: 16px;
-        height: calc(100% - 10px);
-    }
-
-    .mini-content {
-        flex: 1;
-        margin: 4px;
-        border-radius: 3px;
-        padding: 4px;
-        display: flex;
-        flex-direction: column;
-        gap: 3px;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-    }
-
-    .mini-primary {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-    }
-
-    .mini-text {
-        width: 60%;
-        height: 4px;
-        border-radius: 2px;
-    }
-
-    .mini-text-sm {
-        width: 40%;
-        height: 3px;
-        border-radius: 2px;
-    }
-
     .setting-row {
         display: flex;
         align-items: center;
         padding: 12px 0;
         gap: 16px;
     }
-
-        .setting-row:not(:last-child) {
-            border-bottom: 1px solid var(--mud-palette-divider);
-        }
-
-    .setting-info {
-        flex: 1;
-    }
 </style>
 
 @code {
-    private string _currentTheme = "Light";
-    private string _viewMode = "card";
     private UserDto? _userProfile;
-    private string? _editDisplayName; // Bound variable for input
-    private string? _editHouseholdName;
-
-    private bool IsHouseholdLeader =>
-        HouseholdState.CurrentHousehold != null &&
-        _userProfile != null &&
-        HouseholdState.CurrentHousehold.CreatedById == _userProfile.Id;
+    private string? _editDisplayName;
 
     protected override async Task OnInitializedAsync()
     {
         if (!AuthService.IsAuthorized)
         {
-            await AuthService.InitializeAsync();
-            if (!AuthService.IsAuthorized)
-            {
-                Navigation.NavigateTo("login");
-                return;
-            }
+            Navigation.NavigateTo("login");
+            return;
         }
 
         await HouseholdState.InitializeAsync();
@@ -275,18 +123,9 @@
         try
         {
             _userProfile = await ApiClient.GetMyProfileAsync();
-
-            if (HouseholdState.CurrentHousehold != null)
-            {
-                _editHouseholdName = HouseholdState.CurrentHousehold.Name;
-            }
-
             if (_userProfile != null)
             {
-                // 1. Initialize input field
                 _editDisplayName = _userProfile.DisplayName;
-
-                // 2. Sync Auth Service state so header/sidebar updates immediately if DB differs from Email
                 AuthService.UpdateCachedDisplayName(_userProfile.DisplayName);
             }
         }
@@ -294,151 +133,40 @@
         {
             Console.WriteLine($"Error loading user profile: {ex.Message}");
         }
-
-        _currentTheme = ThemeService.GetCurrentThemeName();
-        _viewMode = DeviceState.Settings.ViewMode;
     }
 
     private async Task UpdateDisplayName()
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(_editDisplayName))
-            {
-                // If user clears it, we set it to null so it falls back to email later
-                _editDisplayName = null;
-            }
+            if (string.IsNullOrWhiteSpace(_editDisplayName)) _editDisplayName = null;
 
-            // 1. Send update to API
             var updatedProfile = await ApiClient.UpdateMyProfileAsync(new UpdateUserDto
             {
                 DisplayName = _editDisplayName
             });
 
-            // 2. Update local profile object
             _userProfile = updatedProfile;
-
-            // 3. Update Auth Service to reflect changes in Header/Sidebar immediately
             AuthService.UpdateCachedDisplayName(updatedProfile.DisplayName);
-
             Snackbar.Add("Brukernavn oppdatert", Severity.Success);
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add("Klarte ikke å oppdatere navn", Severity.Error); Console.WriteLine(ex.Message);
-        }
-    }
-
-    private async Task UpdateHouseholdName()
-    {
-        if (string.IsNullOrWhiteSpace(_editHouseholdName) || HouseholdState.CurrentHousehold == null) return;
-
-        try
-        {
-            await ApiClient.UpdateHouseholdNameAsync(HouseholdState.CurrentHousehold.Id, new UpdateHouseholdDto
-            {
-                Name = _editHouseholdName
-            });
-            await HouseholdState.RefreshHouseholdsAsync(); // Refresh local state
-            Snackbar.Add("Husstand oppdatert", Severity.Success);
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add("Klarte ikke å endre husstandsnavn", Severity.Error);
-            Console.WriteLine(ex.Message);
-        }
-    }
-
-    private async Task OnVisibilityChanged(bool isPublic)
-    {
-        if (HouseholdState.CurrentHousehold == null) return;
-
-        try
-        {
-            await ApiClient.UpdateHouseholdSettingsAsync(HouseholdState.CurrentHousehold.Id, new UpdateHouseholdSettingsDto
-            {
-                IsPrivate = !isPublic
-            });
-
-            // Manually update local state to reflect UI change immediately
-            HouseholdState.CurrentHousehold.IsPrivate = !isPublic;
-            Snackbar.Add(isPublic ? "Husstand er nå offentlig" : "Husstand er nå privat", Severity.Success);
         }
         catch
         {
-            Snackbar.Add("Klarte ikke å oppdatere innstillinger", Severity.Error);            // Revert switch visually
-            StateHasChanged();
+            Snackbar.Add("Klarte ikke å oppdatere navn", Severity.Error);
         }
-    }
-
-    private async Task OnThemeChanged(string themeName)
-    {
-        _currentTheme = themeName;
-        await ThemeService.SetThemeAsync(themeName);
-    }
-
-    private async Task SetViewMode(string mode)
-    {
-        _viewMode = mode;
-        await DeviceState.SetViewModeAsync(mode);
-    }
-
-    private string GetThemeDisplayName(string themeName)
-    {
-        return themeName switch
-        {
-            "System" => "System Default",
-            "Light" => "Light",
-            "Dark" => "Dark",
-            "Black" => "Midnight Black",
-            "Material" => "Material Red",
-            "Forest" => "Night Forest",
-            _ => themeName
-        };
-    }
-
-    private string GetMemberColor(string name)
-    {
-        var hash = name.GetHashCode();
-        var hue = Math.Abs(hash % 360);
-        return $"hsl({hue}, 45%, 45%)";
-    }
-
-    private async Task Logout()
-    {
-        await AuthService.LogoutAsync();
-        Navigation.NavigateTo("login");
     }
 
     private async Task CopyShareId()
     {
-        if (string.IsNullOrEmpty(_userProfile?.UniqueShareId))
-            return;
-
+        if (string.IsNullOrEmpty(_userProfile?.UniqueShareId)) return;
         try
         {
             await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", _userProfile.UniqueShareId);
-            Snackbar.Add("Delings-ID kopiert til utklippstavlen!", Severity.Success);
+            Snackbar.Add("ID kopiert!", Severity.Success);
         }
         catch
         {
-            Snackbar.Add("Klarte ikke å kopiere til utklippstavlen", Severity.Error);
-        }
-    }
-
-    // Household Management Methods
-    private async Task CreateHousehold()
-    {
-        var parameters = new DialogParameters();
-        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
-
-        var dialog = await DialogService.ShowAsync<Components.HouseholdSelector>("Opprett husstand", parameters, options);
-        var result = await dialog.Result;
-
-        if (!result.Canceled)
-        {
-            await HouseholdState.RefreshHouseholdsAsync();
-            StateHasChanged();
+            Snackbar.Add("Feil ved kopiering", Severity.Error);
         }
     }
 
@@ -448,67 +176,24 @@
         {
             await HouseholdState.SetCurrentHouseholdAsync(householdId);
             StateHasChanged();
+            Snackbar.Add("Husstand byttet", Severity.Success);
         }
-        catch (Exception ex)
+        catch
         {
-            Console.WriteLine($"Error switching household: {ex.Message}");
+            Snackbar.Add("Feil ved bytte av husstand", Severity.Error);
         }
     }
 
-    private async Task InviteMember()
+    private async Task Logout()
     {
-        if (HouseholdState.CurrentHousehold == null)
-            return;
-
-        var parameters = new DialogParameters
-        {
-            { "HouseholdId", HouseholdState.CurrentHousehold.Id },
-            { "HouseholdName", HouseholdState.CurrentHousehold.Name }
-        };
-
-        var options = new DialogOptions
-        {
-            CloseOnEscapeKey = true,
-            MaxWidth = MaxWidth.Small,
-            FullWidth = true
-        };
-
-        var dialog = await DialogService.ShowAsync<Components.InviteMemberDialog>(
-            "Inviter medlem",
-            parameters,
-            options);
-
-        await dialog.Result;
+        await AuthService.LogoutAsync();
+        Navigation.NavigateTo("login");
     }
 
-    private async Task ViewMembers()
+    private string GetMemberColor(string name)
     {
-        if (HouseholdState.CurrentHousehold == null)
-            return;
-
-        var parameters = new DialogParameters
-        {
-            { "Household", HouseholdState.CurrentHousehold }
-        };
-
-        var options = new DialogOptions
-        {
-            CloseOnEscapeKey = true,
-            MaxWidth = MaxWidth.Small,
-            FullWidth = true
-        };
-
-        var dialog = await DialogService.ShowAsync<Components.HouseholdMembersDialog>(
-            "Husstandsmedlemmer",
-            parameters,
-            options);
-
-        var result = await dialog.Result;
-
-        if (!result.Canceled)
-        {
-            await HouseholdState.RefreshHouseholdsAsync();
-            StateHasChanged();
-        }
+        var hash = name.GetHashCode();
+        var hue = Math.Abs(hash % 360);
+        return $"hsl({hue}, 45%, 45%)";
     }
 }
