@@ -345,3 +345,127 @@
     border-radius: 14px;
     padding: 14px;
 }
+/* Camera Overlay Styles */
+.camera-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #000;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+}
+
+.camera-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+/* The Box Overlay (The "hole" to scan through) */
+.camera-guide-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 80%;
+    pointer-events: none; /* Let clicks pass through */
+}
+
+.camera-guide-box {
+    width: 100%;
+    aspect-ratio: 4/3; /* Matches typical card ratio */
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    border-radius: 16px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6); /* Darkens the area outside the box */
+    position: relative;
+    overflow: hidden;
+}
+
+/* Optional scanning animation */
+.scan-line {
+    width: 100%;
+    height: 2px;
+    background: #00E676; /* Bright Green */
+    position: absolute;
+    top: 0;
+    animation: scanMove 3s linear infinite;
+    box-shadow: 0 0 10px #00E676;
+}
+
+@keyframes scanMove {
+    0% {
+        top: 0%;
+        opacity: 0;
+    }
+
+    10% {
+        opacity: 1;
+    }
+
+    90% {
+        opacity: 1;
+    }
+
+    100% {
+        top: 100%;
+        opacity: 0;
+    }
+}
+
+.camera-guide-text {
+    margin-top: 16px;
+    color: white;
+    font-weight: 500;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+    text-align: center;
+}
+
+/* Controls at the bottom */
+.camera-controls {
+    position: absolute;
+    bottom: 40px;
+    left: 0;
+    width: 100%;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 0 24px;
+    z-index: 10000;
+}
+
+/* Shutter Button */
+.camera-shutter {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    border: 4px solid white;
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.1s;
+}
+
+    .camera-shutter::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: white;
+    }
+
+    .camera-shutter:active {
+        transform: scale(0.95);
+    }
