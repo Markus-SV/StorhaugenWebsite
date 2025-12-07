@@ -3,67 +3,94 @@
 @using StorhaugenWebsite.Services
 @using MudBlazor
 
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IThemeService ThemeService
+@inject IDeviceStateService DeviceState
+@inject IAuthService AuthService
+@inject IHouseholdStateService HouseholdState
+
 <MudThemeProvider @ref="_themeProvider" @bind-IsDarkMode="@_isDarkMode" Theme="_currentTheme" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
 
-<CascadingAuthenticationState>
-    <Router AppAssembly="@typeof(App).Assembly">
-        <Found Context="routeData">
-            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
-                <NotAuthorized>
-                    <LayoutView Layout="@typeof(MainLayout)">
-                         <div class="login-required-container">
-                             <div class="empty-state">
-                                 <MudIcon Icon="@Icons.Material.Rounded.Lock" Size="Size.Large" />
-                                 <h3>Please Log In</h3>
-                                 <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="login">Login</MudButton>
+@if (!_isAuthReady)
+{
+    <div class="d-flex justify-center align-center" style="height: 100vh; width: 100vw; background-color: var(--mud-palette-background);">
+        <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
+    </div>
+}
+else
+{
+    <CascadingAuthenticationState>
+        <Router AppAssembly="@typeof(App).Assembly">
+            <Found Context="routeData">
+                <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                    <NotAuthorized>
+                        <LayoutView Layout="@typeof(MainLayout)">
+                             <div class="login-required-container">
+                                 <div class="empty-state">
+                                     <MudIcon Icon="@Icons.Material.Rounded.Lock" Size="Size.Large" />
+                                     <h3>Vennligst logg inn</h3>
+                                     <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="login">Gå til innlogging</MudButton>
+                                 </div>
                              </div>
-                         </div>
-                    </LayoutView>
-                </NotAuthorized>
-            </AuthorizeRouteView>
-            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-        </Found>
-        <NotFound>
-            <PageTitle>Not found</PageTitle>
-            <LayoutView Layout="@typeof(MainLayout)">
-                <MudText>Page not found</MudText>
-            </LayoutView>
-        </NotFound>
-    </Router>
-</CascadingAuthenticationState>
+                        </LayoutView>
+                    </NotAuthorized>
+                </AuthorizeRouteView>
+                <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+            </Found>
+            <NotFound>
+                <PageTitle>Not found</PageTitle>
+                <LayoutView Layout="@typeof(MainLayout)">
+                    <MudContainer MaxWidth="MaxWidth.Small" Class="d-flex flex-column align-center justify-center" Style="height: 60vh;">
+                        <MudText Typo="Typo.h4">Page Not Found</MudText>
+                    </MudContainer>
+                </LayoutView>
+            </NotFound>
+        </Router>
+    </CascadingAuthenticationState>
+}
 
 @code {
-    [Inject] private IThemeService ThemeService { get; set; } = default!;
-    [Inject] private IDeviceStateService DeviceState { get; set; } = default!;
-    [Inject] private IAuthService AuthService { get; set; } = default!;
-
     private MudThemeProvider? _themeProvider;
     private MudTheme _currentTheme = new();
     private bool _isDarkMode = false;
-    private bool _initialized = false;
+    
+    // Flag to hold the UI until auth is ready
+    private bool _isAuthReady = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 1. Initialize synchronous/basic services
+        await DeviceState.InitializeAsync();
+        
+        // 2. Wait for Auth to restore from LocalStorage
+        // We capture the state here so we can check it immediately below
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        
+        // 3. IF LOGGED IN: Initialize Household State immediately
+        // This prevents the "No Household" flash because we wait for this 
+        // to finish before setting _isAuthReady = true.
+        if (authState.User.Identity?.IsAuthenticated == true)
+        {
+            await HouseholdState.InitializeAsync();
+        }
+        
+        // 4. Mark as ready - UI will now render
+        _isAuthReady = true;
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && !_initialized)
+        if (firstRender)
         {
-            _initialized = true;
-
-            // Initialize services
-            await DeviceState.InitializeAsync();
             await ThemeService.InitializeAsync();
-            await AuthService.InitializeAsync(); // Initialize auth to handle OAuth callbacks
-
-            // Subscribe to theme changes
             ThemeService.OnThemeChanged += OnThemeChanged;
-
-            // Apply initial theme
+            
             _currentTheme = ThemeService.GetCurrentTheme();
             _isDarkMode = ThemeService.IsDarkMode;
-
-            await InvokeAsync(StateHasChanged);
+            StateHasChanged();
         }
     }
 

@@ -14,5 +14,6 @@ namespace StorhaugenWebsite.Services
         Task<string> UploadImageAsync(byte[] imageData, string fileName);
         Task ForkRecipeAsync(string id);
         Task SetPublicStatusAsync(string id, bool isPublic);
+        List<FoodItem> CachedFoods { get; } // Expose the cache
     }
 }

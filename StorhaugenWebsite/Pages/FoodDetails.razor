@@ -1,10 +1,20 @@
 ﻿@page "/food/{Id}"
+@using Microsoft.AspNetCore.Authorization
 @inject IAuthService AuthService
 @inject IFoodService FoodService
 @inject IHouseholdStateService HouseholdState
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@attribute [Authorize]
+
+<!-- Back Button -->
+<div class="detail-header">
+    <button class="detail-back-btn" @onclick="@(() => Navigation.NavigateTo(""))">
+        <MudIcon Icon="@Icons.Material.Rounded.ArrowBack" Size="Size.Small" />
+        Tilbake
+    </button>
+</div>
 
 @if (_isLoading)
 {
@@ -44,14 +54,6 @@ else if (_food == null)
 }
 else
 {
-    <!-- Back Button -->
-    <div class="detail-header">
-        <button class="detail-back-btn" @onclick="@(() => Navigation.NavigateTo(""))">
-            <MudIcon Icon="@Icons.Material.Rounded.ArrowBack" Size="Size.Small" />
-            Tilbake
-        </button>
-    </div>
-
     <!-- Image Carousel -->
     @if (_food.ImageUrls.Any())
     {
@@ -439,16 +441,6 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        if (!AuthService.IsAuthorized)
-        {
-            await AuthService.InitializeAsync();
-            if (!AuthService.IsAuthorized)
-            {
-                Navigation.NavigateTo("login");
-                return;
-            }
-        }
-
         // Wait for household state to be initialized
         await HouseholdState.InitializeAsync();
 
