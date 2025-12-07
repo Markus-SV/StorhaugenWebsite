@@ -350,7 +350,6 @@
 
 /* OVERLAY */
 
-
 /* --- Camera Overlay Styles --- */
 .camera-overlay {
     position: fixed;
@@ -373,6 +372,7 @@
     left: 0;
 }
 
+/* Container for guide-boksen */
 .camera-guide-container {
     position: absolute;
     top: 50%;
@@ -385,45 +385,45 @@
     width: 100%;
     height: 100%;
     pointer-events: none;
-    transition: all 0.5s ease; /* Smooth transition when changing steps */
+    transition: all 0.5s ease;
 }
-
-    /* --- DYNAMISKE BOKS-FORMER --- */
-
-    /* Steg 1: LANDSCAPE (Liggende kort) */
-    .camera-guide-container.step-landscape .camera-guide-box {
-        width: 85vw;
-        /* Aspect ratio for A4 Landscape (ca 1.41) */
-        aspect-ratio: 297/210;
-        max-width: 600px;
-    }
-
-    /* Steg 2: PORTRAIT TALL (Ingrediensliste - smal og høy) */
-    .camera-guide-container.step-portrait-tall .camera-guide-box {
-        width: 50vw;
-        aspect-ratio: 1/3; /* Smal spalte */
-        max-height: 70vh;
-    }
-
-    /* Steg 3: PORTRAIT NORMAL (A4 Stående) */
-    .camera-guide-container.step-portrait-normal .camera-guide-box {
-        width: 80vw;
-        aspect-ratio: 210/297;
-        max-width: 400px;
-    }
 
 /* Felles boks-stil */
 .camera-guide-box {
     border: 2px solid rgba(255, 255, 255, 0.8);
     border-radius: 12px;
-    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7);
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7); /* Mørklegger omgivelsene */
     position: relative;
     overflow: hidden;
     background: transparent;
     transition: all 0.5s cubic-bezier(0.4, 0.0, 0.2, 1);
 }
 
-/* --- GUIDE ZONES (Kun for Steg 1) --- */
+/* --- DYNAMISKE BOKS-FORMER --- */
+
+/* Steg 1: LANDSCAPE (Når du holder telefonen LIGGENDE) */
+/* Vi bruker vh (viewport height) her for å sikre at den passer i høyden når mobilen er snudd */
+.camera-guide-container.step-landscape .camera-guide-box {
+    height: 80vh; /* Fyller 80% av høyden i liggende modus */
+    aspect-ratio: 297/210; /* A4 Liggende format */
+    max-width: 85vw; /* Sikrer at den ikke blir bredere enn skjermen */
+}
+
+/* Steg 2: PORTRAIT TALL (Ingrediensliste - smal og høy) */
+.camera-guide-container.step-portrait-tall .camera-guide-box {
+    width: 60vw;
+    aspect-ratio: 1/3; /* Smal spalte */
+    max-height: 70vh;
+}
+
+/* Steg 3: PORTRAIT NORMAL (A4 Stående - Bakside) */
+.camera-guide-container.step-portrait-normal .camera-guide-box {
+    width: 85vw;
+    aspect-ratio: 210/297; /* A4 Stående */
+    max-width: 450px;
+}
+
+/* --- GUIDE ZONES (Kun for Steg 1 Landscape) --- */
 .step-landscape .text-hint-zone {
     position: absolute;
     top: 15%;
@@ -436,6 +436,12 @@
     padding-left: 10px;
 }
 
+.step-landscape .text-label {
+    color: rgba(255,255,255,0.8);
+    font-size: 14px;
+    font-weight: bold;
+}
+
 .step-landscape .logo-hint-zone {
     position: absolute;
     top: 10%;
@@ -445,25 +451,31 @@
     border: 2px dashed #9ACD32;
     border-radius: 50%;
     opacity: 0.6;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 .step-landscape .logo-label {
-    position: absolute;
-    top: 28%;
-    right: 7%;
-    font-size: 10px;
     color: #9ACD32;
+    font-size: 10px;
+    font-weight: bold;
 }
 
 /* --- TEKST & UI --- */
 .camera-instruction-pill {
-    margin-bottom: 16px;
+    position: absolute;
+    top: 20px; /* Flyttet til toppen fast */
+    left: 50%;
+    transform: translateX(-50%);
     background: rgba(0,0,0,0.6);
     padding: 8px 16px;
     border-radius: 20px;
     display: flex;
     align-items: center;
     border: 1px solid rgba(255,255,255,0.2);
+    z-index: 10001;
+    white-space: nowrap;
 }
 
 .step-text {
@@ -474,33 +486,47 @@
 }
 
 .camera-guide-text {
-    margin-top: 20px;
+    /* Skjuler hjelpetekst i landscape for å rydde opp, 
+       viser den kun i portrait via media query under */
+    display: none;
+    margin-top: 24px;
     color: white;
     text-align: center;
     font-size: 16px;
     font-weight: 500;
-    white-space: pre-wrap;
     text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+    max-width: 80%;
 }
 
-/* --- CONTROLS --- */
+/* Vis tekst kun når skjermen er høy (stående) */
+@media (orientation: portrait) {
+    .camera-guide-text {
+        display: block;
+    }
+}
+
+/* --- CONTROLS (Knapper) --- */
 .camera-controls {
     position: absolute;
-    bottom: 40px;
+    bottom: 30px;
     width: 100%;
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 0 32px;
     z-index: 10000;
+    pointer-events: auto; /* Sikrer at vi kan klikke */
 }
 
 .step-counter {
     color: white;
     font-weight: bold;
-    font-size: 18px;
+    font-size: 14px;
     width: 48px;
     text-align: center;
+    background: rgba(255,255,255,0.1);
+    padding: 4px 8px;
+    border-radius: 8px;
 }
 
 .camera-shutter {
@@ -511,6 +537,7 @@
     border: 4px solid white;
     position: relative;
     transition: all 0.2s;
+    cursor: pointer;
 }
 
     .camera-shutter::after {
@@ -530,7 +557,6 @@
         transform: scale(0.95);
     }
 
-    /* Laster-animasjon på knappen */
     .camera-shutter.processing {
         border-color: #999;
         pointer-events: none;
@@ -541,4 +567,42 @@
             height: 20px;
             background: #999;
             border-radius: 2px;
+            animation: spin 1s infinite linear;
         }
+
+@keyframes spin {
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+/* --- LANDSCAPE MODE TILPASNING (Når du snur telefonen) --- */
+@media (orientation: landscape) {
+    .camera-controls {
+        /* Flytt kontroller til høyre side i stedet for bunnen */
+        bottom: 0;
+        right: 0;
+        width: 120px; /* Fast bredde på høyre side */
+        height: 100%;
+        flex-direction: column-reverse; /* Snu rekkefølgen så utløser er i midten */
+        justify-content: center;
+        gap: 20px;
+        padding: 0;
+        background: rgba(0,0,0,0.3); /* Svak bakgrunn bak knapper */
+    }
+
+    /* Juster utløser-knappen posisjon i landscape */
+    .camera-shutter {
+        margin: 20px 0;
+    }
+
+    /* Flytt telleren litt opp */
+    .step-counter {
+        margin-bottom: 20px;
+    }
+
+    /* Sørg for at lukk-knappen er øverst i høyre hjørne */
+    .mud-icon-button {
+        margin-top: 20px;
+    }
+}
