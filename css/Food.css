@@ -338,3 +338,10 @@
     color: var(--mud-palette-text-secondary);
     line-height: 1.6;
 }
+
+/* Visibility Card */
+.visibility-card {
+    background: var(--mud-palette-background);
+    border-radius: 14px;
+    padding: 14px;
+}
