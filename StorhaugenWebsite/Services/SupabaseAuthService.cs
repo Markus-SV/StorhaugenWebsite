@@ -151,9 +151,16 @@ public class SupabaseAuthService : IAuthService, IAsyncDisposable
 
     private Task<string> GetRedirectUrlAsync()
     {
-        // NavigationManager.BaseUri returns the full path including the sub-folder
-        // e.g. "https://markus-sv.github.io/StorhaugenWebsite/"
-        return Task.FromResult(_navigationManager.BaseUri);
+        // Ensure we redirect specifically to the login page so the 
+        // OnInitializedAsync method in Login.razor actually runs to parse the token.
+        var baseUri = _navigationManager.BaseUri;
+
+        // Handle trailing slash just in case
+        var redirectUrl = baseUri.EndsWith("/")
+            ? $"{baseUri}login"
+            : $"{baseUri}/login";
+
+        return Task.FromResult(redirectUrl);
     }
 
     public async ValueTask DisposeAsync()
