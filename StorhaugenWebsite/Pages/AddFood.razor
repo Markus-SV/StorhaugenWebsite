@@ -32,16 +32,16 @@ else
     </div>
 
     <MudPaper Class="pa-2 mb-6 d-flex justify-center gap-2" Elevation="0" Style="background: var(--mud-palette-background-grey); border-radius: 12px;">
-        <MudButton Variant="@(_isHelloFresh ? Variant.Filled : Variant.Text)" 
-                   Color="Color.Success" 
+        <MudButton Variant="@(_isHelloFresh? Variant.Filled: Variant.Text)"
+                   Color="Color.Success"
                    OnClick="@(() => SetFoodType(true))"
                    Class="flex-1"
                    Style="border-radius: 10px; transition: all 0.3s;"
-                   StartIcon="@Icons.Custom.Brands.MudBlazor"> @* You can use a leaf icon here if preferred *@
+                   StartIcon="@Icons.Custom.Brands.MudBlazor">
             HelloFresh
         </MudButton>
-        <MudButton Variant="@(!_isHelloFresh ? Variant.Filled : Variant.Text)" 
-                   Color="Color.Primary" 
+        <MudButton Variant="@(!_isHelloFresh ? Variant.Filled : Variant.Text)"
+                   Color="Color.Primary"
                    OnClick="@(() => SetFoodType(false))"
                    Class="flex-1"
                    Style="border-radius: 10px; transition: all 0.3s;"
@@ -113,29 +113,33 @@ else
         }
 
         <MudStack Row="true" Spacing="2" Class="w-100">
+            @* CAMERA BUTTON - Added capture="environment" to force rear camera *@
             <MudFileUpload T="IReadOnlyList<IBrowserFile>"
                            @ref="@_fileUpload"
                            FilesChanged="OnImagesSelected"
                            Accept="image/*"
                            MaximumFileCount="5"
-                           Class="flex-1">
+                           Class="flex-1"
+                           InputClass="absolute mud-width-full mud-height-full overflow-hidden z-10"
+                           InputStyle="opacity:0"
+                           @attributes="@(new Dictionary<string, object> { { "capture", "environment" } })">
                 <ActivatorContent>
                     <MudButton Variant="Variant.Filled"
                                Color="@(_isHelloFresh ? Color.Success : Color.Primary)"
                                StartIcon="@Icons.Material.Rounded.CameraAlt"
                                Size="Size.Large"
                                FullWidth="true"
-                               OnClick="@(() => _fileUpload?.OpenFilePickerAsync())"
                                Style="border-radius: 12px; height: 56px;">
                         @(_isHelloFresh ? "Skann kort" : "Ta bilde")
                     </MudButton>
                 </ActivatorContent>
             </MudFileUpload>
 
+            @* GALLERY BUTTON - No capture attribute *@
             <MudFileUpload T="IReadOnlyList<IBrowserFile>"
                            @ref="@_galleryUpload"
                            FilesChanged="OnImagesSelected"
-                           Accept=".png,.jpg,.jpeg,.webp"
+                           Accept=".png,.jpg,.jpeg,.webp,image/*"
                            MaximumFileCount="5"
                            Class="flex-1">
                 <ActivatorContent>
@@ -156,10 +160,11 @@ else
         </p>
     </div>
 
+    @* ... (Rest of the Razor file remains the same: Rating, Visibility, Submit Button) ... *@
     <div class="form-section">
         <p class="form-section-title">Din vurdering</p>
         <div class="rating-member-card">
-             <div class="rating-member-header">
+            <div class="rating-member-header">
                 <div class="rating-member-info">
                     <div class="rating-member-avatar" style="@($"background: {GetMemberColor(_currentUserName)}")">
                         @(string.IsNullOrEmpty(_currentUserName) ? '?' : _currentUserName[0])
@@ -189,25 +194,25 @@ else
                     </div>
                 </div>
             }
-        </div>
     </div>
+</div>
 
-    <div class="form-section">
-        <p class="form-section-title">Synlighet</p>
+<div class="form-section">
+    <p class="form-section-title">Synlighet</p>
 
-        <div class="visibility-card">
-            <div class="d-flex align-center gap-3">
-                <MudIcon Icon="@(_newFood.IsPublic? Icons.Material.Rounded.Public : Icons.Material.Rounded.Lock)"
-                         Size="Size.Medium"
-                         Color="@(_newFood.IsPublic ? Color.Primary : Color.Default)" />
-                <div style="flex: 1;">
-                    <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">
-                        @(_newFood.IsPublic ? "Offentlig" : "Privat")
-                    </MudText>
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">
-                        @(_newFood.IsPublic
-                            ? "Alle kan finne dette måltidet under 'Utforsk' og legge det til i sin liste"
-                            : "Kun din husstand kan se dette måltidet")
+    <div class="visibility-card">
+        <div class="d-flex align-center gap-3">
+            <MudIcon Icon="@(_newFood.IsPublic? Icons.Material.Rounded.Public : Icons.Material.Rounded.Lock)"
+                     Size="Size.Medium"
+                     Color="@(_newFood.IsPublic ? Color.Primary : Color.Default)" />
+            <div style="flex: 1;">
+                <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">
+                    @(_newFood.IsPublic ? "Offentlig" : "Privat")
+                </MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    @(_newFood.IsPublic
+                                        ? "Alle kan finne dette måltidet under 'Utforsk' og legge det til i sin liste"
+                                        : "Kun din husstand kan se dette måltidet")
                     </MudText>
                 </div>
                 <MudSwitch T="bool"
@@ -250,11 +255,8 @@ else
     private bool _ratingEnabled = true;
     private int _ratingValue = 5;
     private string _currentUserName = "";
-    
-    // NEW: Toggle state. Default to true (HelloFresh) as per request logic focus
-    private bool _isHelloFresh = true; 
+    private bool _isHelloFresh = true;
 
-    // ... Existing Vocabulary list ...
     private static readonly List<string> _foodVocabulary = new()
     {
         "Stekt", "Kokt", "Bakt", "Ovnsbakt", "Grillet", "Pannestekt", "Pannestekte",
@@ -266,7 +268,6 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        // ... Existing initialization logic ...
         if (!AuthService.IsAuthorized)
         {
             await AuthService.InitializeAsync();
@@ -290,6 +291,7 @@ else
         _isHelloFresh = isHelloFresh;
     }
 
+    // FIXED: More robust image handling for iOS
     private async Task OnImagesSelected(IReadOnlyList<IBrowserFile> files)
     {
         bool isFirstImage = _imageData.Count == 0;
@@ -300,33 +302,29 @@ else
 
             try
             {
-                var resizedFile = await file.RequestImageFileAsync("image/jpeg", 1500, 1500);
+                // 1. Resize strategy for iOS:
+                // iOS Safari often crashes with 1500px if memory is low.
+                // We reduce slightly to 1200px which is usually the sweet spot for iPhone uploads.
+                var resizedFile = await file.RequestImageFileAsync("image/jpeg", 1200, 1200);
 
-                var smallBuffer = new byte[resizedFile.Size];
-                await resizedFile.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024).ReadAsync(smallBuffer);
+                // 2. Stream handling:
+                // iPhones have large files. We need to be careful reading the stream.
+                // Max allowed size increased to 20MB to handle raw HEIC conversions.
+                using var stream = resizedFile.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024);
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+                var buffer = ms.ToArray();
 
-                var smallBase64 = Convert.ToBase64String(smallBuffer);
-                var previewUrl = $"data:image/jpeg;base64,{smallBase64}";
+                var base64 = Convert.ToBase64String(buffer);
+                var previewUrl = $"data:image/jpeg;base64,{base64}";
 
                 _imagePreviewUrls.Add(previewUrl);
                 _imageNames.Add(file.Name);
-
-                try
-                {
-                    var originalBuffer = new byte[file.Size];
-                    await file.OpenReadStream(maxAllowedSize: 30 * 1024 * 1024).ReadAsync(originalBuffer);
-                    _imageData.Add(originalBuffer);
-                }
-                catch
-                {
-                    _imageData.Add(smallBuffer);
-                    Snackbar.Add("Original image was too large, using compressed version.", Severity.Info);
-                }
+                _imageData.Add(buffer); // Use the resized buffer for upload to save bandwidth
 
                 StateHasChanged();
-                await Task.Delay(100);
+                await Task.Delay(50); // Small UI breather
 
-                // CHANGED: Only trigger OCR if it's the first image, title is empty, AND HelloFresh mode is active
                 if (isFirstImage && string.IsNullOrWhiteSpace(_newFood.Name) && _isHelloFresh)
                 {
                     _ = TryAutoFillTitle(previewUrl);
@@ -335,45 +333,41 @@ else
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Critical error: {ex}");
+                Console.WriteLine($"Image processing failed: {ex.Message}");
+                Snackbar.Add("Kunne ikke behandle bilde (for stort?). Prøv et mindre bilde.", Severity.Warning);
             }
         }
     }
 
-    // ... TryAutoFillTitle remains exactly the same as your provided code ...
     private async Task TryAutoFillTitle(string dataUrl)
     {
-        if (dataUrl.Length > 10 * 1024 * 1024) return;
+        // Don't OCR if image is massive (unlikely with resize logic above, but safety check)
+        if (dataUrl.Length > 15 * 1024 * 1024) return;
 
         _isReadingText = true;
         StateHasChanged();
 
         try
         {
-            // Existing OCR logic is optimized for HelloFresh cards (detects 270 deg rotation, strips specific words)
-            // So we just call it as before.
             var rawText = await OcrService.RecognizeTextAsync(dataUrl);
-            
-            // ... (Rest of your existing OCR parsing logic) ...
+
             if (!string.IsNullOrWhiteSpace(rawText))
             {
-               // Copy your existing parsing logic here exactly as it was in the uploaded file
-               // logic for splitting lines, regex replacement, stopWords, etc.
-               var lines = rawText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+                var lines = rawText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
 
-               foreach (var line in lines)
-               {
-                   var cleanLine = line.Trim();
-                   if (cleanLine.Length < 3) continue;
+                foreach (var line in lines)
+                {
+                    var cleanLine = line.Trim();
+                    if (cleanLine.Length < 3) continue;
 
-                   cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\b(HELLO|FRESH)\b", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                   cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"^[\d\W_]+", "");
-                   cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"^\b[a-zA-Z]\b\s+", "");
-                   cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\d+\s*(P|pers|porsjoner)", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                   cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\d+(?:-\d+)?\s*min", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                   cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\([^)]*\)", "");
-                   
-                   cleanLine = cleanLine.Trim();
+                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\b(HELLO|FRESH)\b", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"^[\d\W_]+", "");
+                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"^\b[a-zA-Z]\b\s+", "");
+                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\d+\s*(P|pers|porsjoner)", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\d+(?:-\d+)?\s*min", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\([^)]*\)", "");
+
+                    cleanLine = cleanLine.Trim();
 
                     var stopWords = new[] { " med ", " og ", " servert ", " toppet ", " i " };
                     foreach (var word in stopWords)
@@ -397,7 +391,7 @@ else
                         Snackbar.Add($"Funnet tittel: {_newFood.Name}", Severity.Success);
                         break;
                     }
-               }
+                }
             }
         }
         catch (Exception ex)
@@ -411,10 +405,8 @@ else
         }
     }
 
-    // ... AutoCorrectText and ComputeLevenshteinDistance remain the same ...
-    private string AutoCorrectText(string input) 
+    private string AutoCorrectText(string input)
     {
-        // (Use your existing implementation)
         var words = input.Split(' ');
         var correctedWords = new List<string>();
         foreach (var word in words)
@@ -442,11 +434,10 @@ else
         }
         return string.Join(" ", correctedWords);
     }
-    
+
     private int ComputeLevenshteinDistance(string s, string t)
     {
-        // (Use your existing implementation)
-         int n = s.Length;
+        int n = s.Length;
         int m = t.Length;
         int[,] d = new int[n + 1, m + 1];
         if (n == 0) return m;
@@ -463,8 +454,7 @@ else
         }
         return d[n, m];
     }
-    
-    // ... RemoveImage, ToggleRating, GetMemberColor, etc. remain the same ...
+
     private void RemoveImage(int index)
     {
         if (index >= 0 && index < _imageData.Count)
@@ -474,7 +464,7 @@ else
             _imagePreviewUrls.RemoveAt(index);
         }
     }
-    
+
     private void ToggleRating(bool enabled) => _ratingEnabled = enabled;
 
     private async Task SubmitFood()
@@ -500,8 +490,7 @@ else
             _newFood.ImageUrls = uploadedUrls;
             _newFood.DateAdded = DateTime.UtcNow;
             _newFood.AddedBy = _currentUserName;
-            
-            // NEW: Save the HelloFresh status
+
             _newFood.IsHelloFresh = _isHelloFresh;
 
             if (_ratingEnabled)
@@ -525,12 +514,12 @@ else
 
     private string GetMemberColor(string? name)
     {
-         if (string.IsNullOrEmpty(name)) return "hsl(0, 0%, 50%)";
+        if (string.IsNullOrEmpty(name)) return "hsl(0, 0%, 50%)";
         var hash = name.GetHashCode();
         var hue = Math.Abs(hash % 360);
         return $"hsl({hue}, 45%, 45%)";
     }
-    
+
     private string GetRatingBackground(int rating) => rating switch
     {
         >= 8 => "rgba(45, 90, 69, 0.15)",
