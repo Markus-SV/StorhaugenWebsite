@@ -26,20 +26,28 @@ public class SupabaseAuthStateProvider : AuthenticationStateProvider
     {
         try
         {
+            // 1. Check if Supabase already has the session in memory (from Program.cs)
             var session = _client.Auth.CurrentSession;
 
-            // 1. If RAM is empty, check LocalStorage
-            if (session == null)
+            if (session != null)
             {
+                // CRITICAL FIX: If we found a session in RAM, ensure it's saved to LocalStorage immediately.
+                // This covers the case where Program.cs initialized the session from the URL 
+                // before this provider started listening to events.
+                var json = JsonConvert.SerializeObject(session);
+                await _jsRuntime.InvokeVoidAsync("localStorage.setItem", AuthCacheKey, json);
+            }
+            else
+            {
+                // 2. If memory is empty, try to load from Browser LocalStorage
                 var cachedJson = await _jsRuntime.InvokeAsync<string>("localStorage.getItem", AuthCacheKey);
 
                 if (!string.IsNullOrEmpty(cachedJson))
                 {
-                    // Deserialize and restore session to Supabase Client
+                    // Restore session logic...
                     session = JsonConvert.DeserializeObject<Session>(cachedJson);
                     if (session?.AccessToken != null)
                     {
-                        // Restore the session in the client so it can make authenticated requests
                         await _client.Auth.SetSession(session.AccessToken, session.RefreshToken);
                         session = _client.Auth.CurrentSession;
                     }
