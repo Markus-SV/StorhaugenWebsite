@@ -10,9 +10,9 @@
 @attribute [Authorize]
 
 <div class="detail-header">
-    <button class="detail-back-btn" @onclick="@(() => Navigation.NavigateTo("/browse"))">
+    <button class="detail-back-btn" @onclick="@(() => Navigation.NavigateTo("browse"))">
         <MudIcon Icon="@Icons.Material.Rounded.ArrowBack" Size="Size.Small" />
-        Tilbake til utforsk
+        Tilbake
     </button>
 </div>
 
@@ -194,7 +194,7 @@ else
             var dto = new CreateHouseholdRecipeDto { GlobalRecipeId = Guid.Parse(Id), Fork = false };
             await ApiClient.CreateRecipeAsync(dto);
             Snackbar.Add("Oppskrift lagret!", Severity.Success);
-            Navigation.NavigateTo("/");
+            Navigation.NavigateTo("");
         }
         catch
         {
@@ -218,6 +218,6 @@ else
         };
         
         // Navigate to Add page (user must ensure AddFood.razor checks FoodService.DraftRecipe on init)
-        Navigation.NavigateTo("/add");
+        Navigation.NavigateTo("add");
     }
 }
