@@ -70,6 +70,22 @@ public class ApiClient : IApiClient
         return (await response.Content.ReadFromJsonAsync<HouseholdDto>(_jsonOptions))!;
     }
 
+    public async Task<HouseholdDto> UpdateHouseholdSettingsAsync(Guid id, UpdateHouseholdSettingsDto dto)
+    {
+        await AddAuthHeaderAsync();
+        var response = await _httpClient.PutAsJsonAsync($"/api/households/{id}/settings", dto, _jsonOptions);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<HouseholdDto>(_jsonOptions))!;
+    }
+
+    public async Task<HouseholdDto> RegenerateHouseholdShareIdAsync(Guid id)
+    {
+        await AddAuthHeaderAsync();
+        var response = await _httpClient.PostAsync($"/api/households/{id}/regenerate-share-id", null);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<HouseholdDto>(_jsonOptions))!;
+    }
+
     public async Task SwitchHouseholdAsync(Guid householdId)
     {
         await AddAuthHeaderAsync();
@@ -109,6 +125,36 @@ public class ApiClient : IApiClient
         await AddAuthHeaderAsync();
         var response = await _httpClient.PostAsync($"/api/households/{householdId}/leave", null);
         response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<List<HouseholdSearchResultDto>> SearchHouseholdsAsync(string query)
+    {
+        await AddAuthHeaderAsync();
+        var results = await _httpClient.GetFromJsonAsync<List<HouseholdSearchResultDto>>($"/api/households/search?query={Uri.EscapeDataString(query)}", _jsonOptions);
+        return results ?? new List<HouseholdSearchResultDto>();
+    }
+
+    public async Task<List<HouseholdFriendshipDto>> GetHouseholdFriendshipsAsync()
+    {
+        await AddAuthHeaderAsync();
+        var results = await _httpClient.GetFromJsonAsync<List<HouseholdFriendshipDto>>("/api/household-friendships", _jsonOptions);
+        return results ?? new List<HouseholdFriendshipDto>();
+    }
+
+    public async Task<HouseholdFriendshipDto> SendHouseholdFriendRequestAsync(SendFriendRequestDto dto)
+    {
+        await AddAuthHeaderAsync();
+        var response = await _httpClient.PostAsJsonAsync("/api/household-friendships/request", dto, _jsonOptions);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<HouseholdFriendshipDto>(_jsonOptions))!;
+    }
+
+    public async Task<HouseholdFriendshipDto> RespondHouseholdFriendRequestAsync(Guid requestId, RespondFriendRequestDto dto)
+    {
+        await AddAuthHeaderAsync();
+        var response = await _httpClient.PostAsJsonAsync($"/api/household-friendships/{requestId}/respond", dto, _jsonOptions);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<HouseholdFriendshipDto>(_jsonOptions))!;
     }
 
     // Household Recipe Methods

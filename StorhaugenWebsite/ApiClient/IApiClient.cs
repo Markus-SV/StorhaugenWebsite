@@ -12,12 +12,18 @@ public interface IApiClient
     Task<List<HouseholdDto>> GetMyHouseholdsAsync();
     Task<HouseholdDto?> GetHouseholdAsync(Guid id);
     Task<HouseholdDto> CreateHouseholdAsync(CreateHouseholdDto dto);
+    Task<HouseholdDto> UpdateHouseholdSettingsAsync(Guid id, UpdateHouseholdSettingsDto dto);
+    Task<HouseholdDto> RegenerateHouseholdShareIdAsync(Guid id);
     Task SwitchHouseholdAsync(Guid householdId);
     Task<List<HouseholdInviteDto>> GetPendingInvitesAsync();
     Task AcceptInviteAsync(Guid inviteId);
     Task RejectInviteAsync(Guid inviteId);
     Task InviteToHouseholdAsync(Guid householdId, InviteToHouseholdDto dto);
     Task LeaveHouseholdAsync(Guid householdId);
+    Task<List<HouseholdSearchResultDto>> SearchHouseholdsAsync(string query);
+    Task<List<HouseholdFriendshipDto>> GetHouseholdFriendshipsAsync();
+    Task<HouseholdFriendshipDto> SendHouseholdFriendRequestAsync(SendFriendRequestDto dto);
+    Task<HouseholdFriendshipDto> RespondHouseholdFriendRequestAsync(Guid requestId, RespondFriendRequestDto dto);
 
     // Household Recipes
     Task<List<HouseholdRecipeDto>> GetRecipesAsync(bool includeArchived = false);

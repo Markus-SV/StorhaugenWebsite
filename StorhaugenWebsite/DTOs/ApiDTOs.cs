@@ -46,6 +46,11 @@ public class CreateHouseholdDto
     public required string Name { get; set; }
 }
 
+public class UpdateHouseholdSettingsDto
+{
+    public bool? IsPrivate { get; set; }
+}
+
 public class InviteToHouseholdDto
 {
     public string? Email { get; set; }
@@ -62,6 +67,41 @@ public class HouseholdInviteDto
     public required string InvitedEmail { get; set; }
     public string Status { get; set; } = "pending";
     public DateTime CreatedAt { get; set; }
+}
+
+public class HouseholdSearchResultDto
+{
+    public Guid Id { get; set; }
+    public required string Name { get; set; }
+    public string? UniqueShareId { get; set; }
+    public int MemberCount { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public bool IsPrivate { get; set; }
+}
+
+public class HouseholdFriendshipDto
+{
+    public Guid Id { get; set; }
+    public Guid RequesterHouseholdId { get; set; }
+    public required string RequesterHouseholdName { get; set; }
+    public Guid TargetHouseholdId { get; set; }
+    public required string TargetHouseholdName { get; set; }
+    public required string Status { get; set; }
+    public string? Message { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? RespondedAt { get; set; }
+}
+
+public class SendFriendRequestDto
+{
+    public string? HouseholdShareId { get; set; }
+    public Guid? HouseholdId { get; set; }
+    public string? Message { get; set; }
+}
+
+public class RespondFriendRequestDto
+{
+    public required string Action { get; set; }
 }
 
 // Recipe DTOs

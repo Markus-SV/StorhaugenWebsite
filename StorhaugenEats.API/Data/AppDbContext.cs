@@ -16,6 +16,7 @@ public class AppDbContext : DbContext
     public DbSet<HouseholdRecipe> HouseholdRecipes { get; set; }
     public DbSet<Rating> Ratings { get; set; }
     public DbSet<HouseholdInvite> HouseholdInvites { get; set; }
+    public DbSet<HouseholdFriendship> HouseholdFriendships { get; set; }
     public DbSet<EtlSyncLog> EtlSyncLogs { get; set; }
     public DbSet<HouseholdFriendship> HouseholdFriendships { get; set; }
 
@@ -31,6 +32,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<HouseholdRecipe>().ToTable("household_recipes");
         modelBuilder.Entity<Rating>().ToTable("ratings");
         modelBuilder.Entity<HouseholdInvite>().ToTable("household_invites");
+        modelBuilder.Entity<HouseholdFriendship>().ToTable("household_friendships");
         modelBuilder.Entity<EtlSyncLog>().ToTable("etl_sync_log");
         modelBuilder.Entity<HouseholdFriendship>().ToTable("household_friendships");
 
@@ -61,6 +63,9 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Settings)
                 .HasColumnType("jsonb")
                 .HasDefaultValue("{}");
+            entity.Property(e => e.IsPrivate).HasDefaultValue(false);
+            entity.Property(e => e.UniqueShareId).HasMaxLength(12);
+            entity.HasIndex(e => e.UniqueShareId).IsUnique();
 
             entity.HasOne(e => e.Leader)
                 .WithMany()
@@ -144,12 +149,13 @@ public class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.SetNull);
         });
 
+        // HouseholdFriendship configuration
         modelBuilder.Entity<HouseholdFriendship>(entity =>
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Status).IsRequired().HasMaxLength(20).HasDefaultValue("pending");
 
-            // Prevent duplicate requests
+            // Prevent duplicate requests between the same two households
             entity.HasIndex(e => new { e.RequesterHouseholdId, e.TargetHouseholdId }).IsUnique();
 
             entity.HasOne(e => e.RequesterHousehold)

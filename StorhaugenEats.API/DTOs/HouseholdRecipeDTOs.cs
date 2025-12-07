@@ -22,6 +22,8 @@ public class HouseholdRecipeDto
     public string? GlobalRecipeName { get; set; }
     public bool IsForked { get; set; }
     public string? PersonalNotes { get; set; }
+
+    // Public sharing
     public bool IsPublic { get; set; }
     public string? HouseholdName { get; set; }
 }
@@ -33,6 +35,7 @@ public class CreateHouseholdRecipeDto
     public List<string>? ImageUrls { get; set; }
     public string? ImageUrl { get; set; }
     public string? PersonalNotes { get; set; }
+    public bool IsPublic { get; set; } = false;
 
     // Optional: Link to global recipe
     public Guid? GlobalRecipeId { get; set; }
@@ -46,7 +49,6 @@ public class CreateHouseholdRecipeDto
     public List<string>? Tags { get; set; }
     public object? Ingredients { get; set; }
     public object? Instructions { get; set; }
-    public bool IsPublic { get; set; } = false;
 }
 
 public class UpdateHouseholdRecipeDto
@@ -63,6 +65,7 @@ public class RateRecipeDto
     public int Rating { get; set; } // 0-10
 }
 
+// Public recipes (community)
 public class PublicRecipeDto
 {
     public Guid Id { get; set; }

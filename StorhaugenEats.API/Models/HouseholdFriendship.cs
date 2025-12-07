@@ -19,11 +19,15 @@ public class HouseholdFriendship
     public Guid TargetHouseholdId { get; set; }
 
     [Required]
-    [Column("status")] // pending, accepted, rejected
+    [Column("status")]
+    [MaxLength(20)]
     public string Status { get; set; } = "pending";
 
     [Column("requested_by_user_id")]
-    public Guid? RequestedByUserId { get; set; }
+    public Guid RequestedByUserId { get; set; }
+
+    [Column("responded_by_user_id")]
+    public Guid? RespondedByUserId { get; set; }
 
     [Column("created_at")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -31,7 +35,10 @@ public class HouseholdFriendship
     [Column("responded_at")]
     public DateTime? RespondedAt { get; set; }
 
-    // Navigation properties
+    [Column("message")]
+    [MaxLength(255)]
+    public string? Message { get; set; }
+
     public Household? RequesterHousehold { get; set; }
     public Household? TargetHousehold { get; set; }
     public User? RequestedByUser { get; set; }

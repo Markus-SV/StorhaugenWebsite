@@ -42,6 +42,9 @@ public class HouseholdRecipe
     [Column("added_by_user_id")]
     public Guid? AddedByUserId { get; set; }
 
+    [Column("is_public")]
+    public bool IsPublic { get; set; } = false;
+
     [Column("is_archived")]
     public bool IsArchived { get; set; } = false;
 
