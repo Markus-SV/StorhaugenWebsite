@@ -34,8 +34,6 @@ var options = new SupabaseOptions
 
 builder.Services.AddScoped(sp => new Supabase.Client(supabaseUrl, supabaseAnonKey, options));
 
-await authService.InitializeAsync();
-
 // Authentication & API Services
 builder.Services.AddScoped<IAuthService, SupabaseAuthService>();
 builder.Services.AddScoped<IApiClient, ApiClient>();
