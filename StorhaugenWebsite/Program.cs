@@ -49,6 +49,8 @@ builder.Services.AddScoped<IOcrService, TesseractOcrService>();
 builder.Services.AddScoped<IFoodService, FoodService>();
 
 var host = builder.Build();
+var authService = host.Services.GetRequiredService<IAuthService>();
+await authService.InitializeAsync();
 
 // Initialize household state (will auto-load after auth)
 var householdStateService = host.Services.GetRequiredService<IHouseholdStateService>();
