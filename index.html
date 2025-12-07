@@ -22,9 +22,9 @@
 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Fraunces:wght@400;600&display=swap" rel="stylesheet" />
-
+    
     <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
-
+    
     <link href="css/app.css" rel="stylesheet" />
     <link href="css/Food.css" rel="stylesheet" />
     <link href="css/Layout.css" rel="stylesheet" />
@@ -80,10 +80,10 @@
             animation: float 3s ease-in-out infinite;
         }
 
-            .app-loading-logo svg {
-                width: 40px;
-                height: 40px;
-            }
+        .app-loading-logo svg {
+            width: 40px;
+            height: 40px;
+        }
 
         .app-loading-title {
             font-family: 'Fraunces', serif;
@@ -114,39 +114,19 @@
         }
 
         @keyframes float {
-            0%, 100% {
-                transform: translateY(0);
-            }
-
-            50% {
-                transform: translateY(-6px);
-            }
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
         }
 
         @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         @keyframes loading {
-            0% {
-                transform: translateX(-100%);
-            }
-
-            50% {
-                transform: translateX(0);
-            }
-
-            100% {
-                transform: translateX(100%);
-            }
+            0% { transform: translateX(-100%); }
+            50% { transform: translateX(0); }
+            100% { transform: translateX(100%); }
         }
     </style>
 </head>
