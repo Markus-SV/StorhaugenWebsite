@@ -1,22 +1,35 @@
 ﻿@page "/archived"
 @using Microsoft.AspNetCore.Authorization
+@using StorhaugenWebsite.Services
 @inject IAuthService AuthService
 @inject IFoodService FoodService
+@inject IHouseholdStateService HouseholdState // Inject this!
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @attribute [Authorize]
 
 <div class="d-flex align-center gap-3 mb-6">
-
     <h1 class="page-title" style="margin-bottom: 0; font-size: 1.5rem;">Arkiv</h1>
     @if (_archivedItems.Any())
     {
         <p class="page-subtitle" style="margin: 0;">@_archivedItems.Count arkiverte måltider</p>
     }
-
 </div>
 
-@if (_isLoading)
+@if (!HouseholdState.HasHousehold)
+{
+    <div class="empty-state">
+        <div class="empty-state-icon">
+            <MudIcon Icon="@Icons.Material.Rounded.Home" Size="Size.Large" />
+        </div>
+        <h2 class="empty-state-title">Ingen husstand valgt</h2>
+        <p class="empty-state-text">Du må være medlem av en husstand for å se arkiverte måltider.</p>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="settings" StartIcon="@Icons.Material.Rounded.Settings">
+            Gå til innstillinger
+        </MudButton>
+    </div>
+}
+else if (_isLoading)
 {
     <div class="d-flex flex-column gap-2">
         @for (int i = 0; i < 3; i++)
@@ -91,22 +104,36 @@ else
     </div>
 }
 
-
 @code {
     private List<FoodItem> _archivedItems = new();
-    private bool _isLoading = true;
+    private bool _isLoading = false; // Default to false, let logic handle it
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadArchivedItems();
+        // 2. Only load if we have a household
+        if (HouseholdState.HasHousehold)
+        {
+            await LoadArchivedItems();
+        }
     }
 
     private async Task LoadArchivedItems()
     {
         _isLoading = true;
-        var allItems = await FoodService.GetAllFoodsAsync(includeArchived: true);
-        _archivedItems = allItems.Where(f => f.IsArchived).ToList();
-        _isLoading = false;
+        try
+        {
+            var allItems = await FoodService.GetAllFoodsAsync(includeArchived: true);
+            _archivedItems = allItems.Where(f => f.IsArchived).ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading archived items: {ex.Message}");
+            // Optionally show snackbar error here if it wasn't expected
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void ViewFood(FoodItem food)

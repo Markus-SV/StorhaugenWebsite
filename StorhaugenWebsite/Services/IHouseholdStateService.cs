@@ -11,7 +11,7 @@ public interface IHouseholdStateService
     bool HasHousehold { get; }
     bool NeedsHouseholdSetup { get; }
 
-    Task InitializeAsync();
+    Task InitializeAsync(bool force = false);
     Task RefreshHouseholdsAsync();
     Task SetCurrentHouseholdAsync(Guid householdId);
     Task<HouseholdDto> CreateHouseholdAsync(string name);

@@ -58,19 +58,22 @@ else
     @if (_food.ImageUrls.Any())
     {
         <div class="detail-image-carousel">
-            <MudCarousel TData="object"
+            <MudCarousel Class="mud-width-full"
                          Style="height: 240px; border-radius: 20px;"
                          ShowArrows="@(_food.ImageUrls.Count > 1)"
                          ShowBullets="@(_food.ImageUrls.Count > 1)"
                          EnableSwipeGesture="true"
-                         AutoCycle="false">
+                         AutoCycle="false"
+                         TData="object">
                 @foreach (var imageUrl in _food.ImageUrls)
                 {
-                    <MudCarouselItem>
-                        <MudImage Src="@imageUrl"
-                                  Alt="@_food.Name"
-                                  ObjectFit="ObjectFit.Cover"
-                                  Style="width: 100%; height: 240px; border-radius: 20px;" />
+                    <MudCarouselItem Transition="Transition.Slide" Color="@Color.Transparent">
+                        <div class="d-flex" style="height:100%">
+                            <MudImage Src="@imageUrl"
+                                      Alt="@_food.Name"
+                                      ObjectFit="ObjectFit.Cover"
+                                      Style="width: 100%; height: 100%; border-radius: 20px;" />
+                        </div>
                     </MudCarouselItem>
                 }
             </MudCarousel>

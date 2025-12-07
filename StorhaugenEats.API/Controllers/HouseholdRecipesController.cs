@@ -145,7 +145,9 @@ public class HouseholdRecipesController : ControllerBase
                 HouseholdId = user.CurrentHouseholdId.Value,
                 LocalTitle = dto.Name,
                 LocalDescription = dto.Description,
-                LocalImageUrl = dto.ImageUrls?.Count > 0 ? dto.ImageUrls[0] : dto.ImageUrl,
+                LocalImageUrl = dto.ImageUrls?.Count > 0
+                ? System.Text.Json.JsonSerializer.Serialize(dto.ImageUrls)
+                : null,
                 PersonalNotes = dto.PersonalNotes,
                 AddedByUserId = userId,
                 CreatedAt = DateTime.UtcNow,
@@ -217,9 +219,13 @@ public class HouseholdRecipesController : ControllerBase
         if (dto.ImageUrls != null)
         {
             if (recipe.GlobalRecipeId == null)
-                recipe.LocalImageUrl = dto.ImageUrls.Count > 0 ? dto.ImageUrls[0] : null;
+            {
+                recipe.LocalImageUrl = dto.ImageUrls.Count > 0
+                    ? System.Text.Json.JsonSerializer.Serialize(dto.ImageUrls)
+                    : null;
+            }
             else
-                return BadRequest(new { message = "Cannot update images of linked recipe. Fork it first." });
+                return BadRequest(new { message = "Cannot update images of linked recipe..." });
         }
 
         if (dto.PersonalNotes != null)
@@ -526,11 +532,26 @@ public class HouseholdRecipesController : ControllerBase
             ? ratings.Values.Where(r => r.HasValue).Average(r => r!.Value)
             : 0;
 
-        // Get image URLs - prefer local, fallback to global
         var imageUrls = new List<string>();
+
         if (!string.IsNullOrEmpty(recipe.LocalImageUrl))
         {
-            imageUrls.Add(recipe.LocalImageUrl);
+            try
+            {
+                if (recipe.LocalImageUrl.Trim().StartsWith("["))
+                {
+                    var list = System.Text.Json.JsonSerializer.Deserialize<List<string>>(recipe.LocalImageUrl);
+                    if (list != null) imageUrls.AddRange(list);
+                }
+                else
+                {
+                    imageUrls.Add(recipe.LocalImageUrl);
+                }
+            }
+            catch
+            {
+                imageUrls.Add(recipe.LocalImageUrl);
+            }
         }
         else if (recipe.GlobalRecipe?.ImageUrls != null)
         {

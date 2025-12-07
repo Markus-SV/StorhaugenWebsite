@@ -339,8 +339,8 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        await HouseholdState.InitializeAsync();
-        
+        await HouseholdState.InitializeAsync(true);
+
         try 
         {
             _userProfile = await ApiClient.GetMyProfileAsync();

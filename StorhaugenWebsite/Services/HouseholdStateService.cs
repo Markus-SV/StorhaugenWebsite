@@ -46,19 +46,19 @@ public class HouseholdStateService : IHouseholdStateService
         }
     }
 
-    public async Task InitializeAsync()
+    // Add forceRefresh parameter
+    public async Task InitializeAsync(bool forceRefresh = false)
     {
         if (!_authService.IsAuthenticated) return;
 
-        // FIX: Prevent concurrent API calls
         if (_currentLoadingTask != null && !_currentLoadingTask.IsCompleted)
         {
             await _currentLoadingTask;
             return;
         }
 
-        // FIX: If already loaded, don't do it again
-        if (_isInitialized && UserHouseholds.Any()) return;
+        // Only skip if initialized AND not forced
+        if (!forceRefresh && _isInitialized && UserHouseholds.Any()) return;
 
         _currentLoadingTask = LoadDataInternal();
         await _currentLoadingTask;
