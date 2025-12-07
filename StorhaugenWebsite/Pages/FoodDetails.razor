@@ -1,6 +1,7 @@
 ﻿@page "/food/{Id}"
 @inject IAuthService AuthService
 @inject IFoodService FoodService
+@inject IHouseholdStateService HouseholdState
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -100,6 +101,102 @@ else
             <p class="detail-description">@_food.Description</p>
         }
 
+        <!-- Personal Notes Section -->
+        <div class="personal-notes-section">
+            @if (_editingNotes)
+            {
+                <div class="personal-notes-edit">
+                    <MudTextField @bind-Value="_tempNotes"
+                                  Label="Personal Notes"
+                                  Variant="Variant.Outlined"
+                                  Lines="3"
+                                  Placeholder="Add your personal notes, modifications, or tips..."
+                                  Style="border-radius: 10px; margin-bottom: 12px;" />
+                    <div class="d-flex gap-2">
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   OnClick="SaveNotes"
+                                   Disabled="_isSavingNotes"
+                                   Style="border-radius: 10px;">
+                            @if (_isSavingNotes)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-1" />
+                            }
+                            Save
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined"
+                                   Size="Size.Small"
+                                   OnClick="CancelEditNotes"
+                                   Style="border-radius: 10px;">
+                            Cancel
+                        </MudButton>
+                    </div>
+                </div>
+            }
+            else
+            {
+                @if (!string.IsNullOrWhiteSpace(_food.PersonalNotes))
+                {
+                    <div class="personal-notes">
+                        <div class="d-flex justify-space-between align-center mb-2">
+                            <div class="d-flex align-center gap-2">
+                                <MudIcon Icon="@Icons.Material.Rounded.StickyNote2" Size="Size.Small" />
+                                <MudText Typo="Typo.subtitle2" Style="font-weight: 600;">Personal Notes</MudText>
+                            </div>
+                            <MudIconButton Icon="@Icons.Material.Rounded.Edit"
+                                          Size="Size.Small"
+                                          OnClick="StartEditNotes" />
+                        </div>
+                        <MudText Typo="Typo.body2">@_food.PersonalNotes</MudText>
+                    </div>
+                }
+                else
+                {
+                    <MudButton Variant="Variant.Text"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Rounded.AddCircle"
+                               OnClick="StartEditNotes"
+                               Size="Size.Small"
+                               Style="margin-top: 8px;">
+                        Add Personal Notes
+                    </MudButton>
+                }
+            }
+        </div>
+
+        @if (_food.IsLinkedToGlobal || _food.IsForked)
+        {
+            <div class="recipe-source-info">
+                @if (_food.IsLinkedToGlobal)
+                {
+                    <MudChip Size="Size.Small"
+                             Color="Color.Info"
+                             T="string"
+                             Icon="@Icons.Material.Rounded.Link"
+                             Style="height: 24px;">
+                        Linked to @(_food.GlobalRecipeName ?? "Global Recipe")
+                    </MudChip>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                        This recipe is linked to a global recipe. Updates to the global recipe will reflect here.
+                    </MudText>
+                }
+                else if (_food.IsForked)
+                {
+                    <MudChip Size="Size.Small"
+                             Color="Color.Success"
+                             T="string"
+                             Icon="@Icons.Material.Rounded.ContentCopy"
+                             Style="height: 24px;">
+                        Forked from @(_food.GlobalRecipeName ?? "Global Recipe")
+                    </MudChip>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                        This is a copy that you can edit independently.
+                    </MudText>
+                }
+            </div>
+        }
+
         @if (_food.IsArchived)
         {
             <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3" Style="border-radius: 10px;">
@@ -112,88 +209,163 @@ else
     <div class="form-section">
         <p class="form-section-title">Ratings</p>
 
-        @foreach (var member in AppConfig.FamilyNames)
+        @{
+            var currentUserHasRating = _food.Ratings.TryGetValue(CurrentUserDisplayName, out var currentUserRating) && currentUserRating.HasValue;
+        }
+
+        @* Show current user's rating card first *@
+        <div class="rating-member-card">
+            <div class="rating-member-header">
+                <div class="rating-member-info">
+                    <div class="rating-member-avatar" style="@($"background: {GetMemberColor(CurrentUserDisplayName)}")">
+                        @(CurrentUserDisplayName.Length > 0 ? CurrentUserDisplayName[0] : '?')
+                    </div>
+                    <div>
+                        <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">@CurrentUserDisplayName</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Primary">(You)</MudText>
+                    </div>
+                </div>
+                @if (currentUserHasRating)
+                {
+                    <div class="rating-value-display" style="@($"background: {GetRatingBackground(currentUserRating!.Value)}; color: {GetRatingTextColor(currentUserRating!.Value)}")">
+                        @currentUserRating
+                    </div>
+                }
+                else
+                {
+                    <MudChip T="string" Variant="Variant.Outlined" Size="Size.Small" Style="border-radius: 10px;">
+                        Not rated
+                    </MudChip>
+                }
+            </div>
+
+            @if (_editingRating == CurrentUserDisplayName)
+            {
+                <div class="rating-slider-container">
+                    <MudSlider T="int"
+                               @bind-Value="_tempRating"
+                               Min="0" Max="10" Step="1"
+                               Color="Color.Primary"
+                               Style="flex: 1;" />
+                    <div class="rating-value-display" style="@($"background: {GetRatingBackground(_tempRating)}; color: {GetRatingTextColor(_tempRating)}")">
+                        @_tempRating
+                    </div>
+                </div>
+                <div class="d-flex gap-2 mt-3">
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               Size="Size.Small"
+                               OnClick="@(() => SaveRating(CurrentUserDisplayName))"
+                               Disabled="_isSaving"
+                               Style="border-radius: 10px;">
+                        Save
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined"
+                               Size="Size.Small"
+                               OnClick="CancelEdit"
+                               Style="border-radius: 10px;">
+                        Cancel
+                    </MudButton>
+                </div>
+            }
+            else
+            {
+                <MudButton Variant="Variant.Text"
+                           Color="Color.Primary"
+                           Size="Size.Small"
+                           StartIcon="@(currentUserHasRating ? Icons.Material.Rounded.Edit : Icons.Material.Rounded.AddCircle)"
+                           OnClick="@(() => StartEditRating(CurrentUserDisplayName, currentUserHasRating ? currentUserRating!.Value : 5))"
+                           Class="mt-2"
+                           Style="border-radius: 10px;">
+                    @(currentUserHasRating ? "Edit rating" : "Add rating")
+                </MudButton>
+            }
+        </div>
+
+        @* Show other members' ratings (read-only) *@
+        @foreach (var rating in _food.Ratings.Where(r => r.Value.HasValue && r.Key != CurrentUserDisplayName))
         {
-            var currentMember = member;
-            var hasRating = _food.Ratings.TryGetValue(currentMember, out var currentRating) && currentRating.HasValue;
-            var ratingValue = hasRating ? currentRating!.Value : 0;
-            var isCurrentUser = AuthService.CurrentUser?.Name == currentMember;
+            var memberName = rating.Key;
+            var ratingValue = rating.Value!.Value;
 
             <div class="rating-member-card">
                 <div class="rating-member-header">
                     <div class="rating-member-info">
-                        <div class="rating-member-avatar" style="@($"background: {GetMemberColor(currentMember)}")">
-                            @currentMember[0]
+                        <div class="rating-member-avatar" style="@($"background: {GetMemberColor(memberName)}")">
+                            @memberName[0]
                         </div>
                         <div>
-                            <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">@currentMember</MudText>
-                            @if (isCurrentUser)
-                            {
-                                <MudText Typo="Typo.caption" Color="Color.Primary">(You)</MudText>
-                            }
+                            <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">@memberName</MudText>
                         </div>
                     </div>
-                    @if (hasRating)
-                    {
-                        <div class="rating-value-display" style="@($"background: {GetRatingBackground(ratingValue)}; color: {GetRatingTextColor(ratingValue)}")">
-                            @ratingValue
-                        </div>
-                    }
-                    else
-                    {
-                        <MudChip T="string" Variant="Variant.Outlined" Size="Size.Small" Style="border-radius: 10px;">
-                            Not rated
-                        </MudChip>
-                    }
+                    <div class="rating-value-display" style="@($"background: {GetRatingBackground(ratingValue)}; color: {GetRatingTextColor(ratingValue)}")">
+                        @ratingValue
+                    </div>
                 </div>
-
-                @if (_editingRating == currentMember)
-                {
-                    <div class="rating-slider-container">
-                        <MudSlider T="int"
-                                   @bind-Value="_tempRating"
-                                   Min="0" Max="10" Step="1"
-                                   Color="Color.Primary"
-                                   Style="flex: 1;" />
-                        <div class="rating-value-display" style="@($"background: {GetRatingBackground(_tempRating)}; color: {GetRatingTextColor(_tempRating)}")">
-                            @_tempRating
-                        </div>
-                    </div>
-                    <div class="d-flex gap-2 mt-3">
-                        <MudButton Variant="Variant.Filled"
-                                   Color="Color.Primary"
-                                   Size="Size.Small"
-                                   OnClick="@(() => SaveRating(currentMember))"
-                                   Disabled="_isSaving"
-                                   Style="border-radius: 10px;">
-                            Save
-                        </MudButton>
-                        <MudButton Variant="Variant.Outlined"
-                                   Size="Size.Small"
-                                   OnClick="CancelEdit"
-                                   Style="border-radius: 10px;">
-                            Cancel
-                        </MudButton>
-                    </div>
-                }
-                else if (isCurrentUser || !hasRating)
-                {
-                    <MudButton Variant="Variant.Text"
-                               Color="Color.Primary"
-                               Size="Size.Small"
-                               StartIcon="@(hasRating ? Icons.Material.Rounded.Edit : Icons.Material.Rounded.AddCircle)"
-                               OnClick="@(() => StartEditRating(currentMember, ratingValue))"
-                               Class="mt-2"
-                               Style="border-radius: 10px;">
-                        @(hasRating ? "Edit rating" : "Add rating")
-                    </MudButton>
-                }
             </div>
         }
     </div>
 
+    <!-- Visibility Section -->
+    <div class="form-section">
+        <p class="form-section-title">Visibility</p>
+
+        <div class="visibility-card">
+            <div class="d-flex align-center gap-3">
+                <MudIcon Icon="@(_food.IsPublic ? Icons.Material.Rounded.Public : Icons.Material.Rounded.Lock)"
+                         Size="Size.Medium"
+                         Color="@(_food.IsPublic ? Color.Primary : Color.Default)" />
+                <div style="flex: 1;">
+                    <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">
+                        @(_food.IsPublic ? "Public" : "Private")
+                    </MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        @(_food.IsPublic
+                            ? "Anyone can find this meal in Browse and add it to their list"
+                            : "Only your household can see this meal")
+                    </MudText>
+                </div>
+                <MudSwitch T="bool"
+                           Value="_food.IsPublic"
+                           ValueChanged="@((bool v) => ToggleVisibility(v))"
+                           Color="Color.Primary"
+                           Disabled="_isTogglingVisibility" />
+            </div>
+            @if (_food.IsPublic && !string.IsNullOrEmpty(_food.HouseholdName))
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+                    Shared by @_food.HouseholdName
+                </MudText>
+            }
+        </div>
+    </div>
+
     <!-- Action Buttons -->
     <div class="mt-4">
+        @if (_food.IsLinkedToGlobal)
+        {
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Success"
+                       FullWidth="true"
+                       StartIcon="@Icons.Material.Rounded.ContentCopy"
+                       OnClick="ForkRecipe"
+                       Disabled="_isForking"
+                       Style="border-radius: 14px; padding: 12px; margin-bottom: 12px;">
+                @if (_isForking)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    <span>Forking Recipe...</span>
+                }
+                else
+                {
+                    <span>Fork to Editable Copy</span>
+                }
+            </MudButton>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3" Style="text-align: center; display: block;">
+                Create an editable copy that you can customize independently
+            </MudText>
+        }
+
         @if (!_food.IsArchived)
         {
             <MudButton Variant="Variant.Outlined"
@@ -219,6 +391,32 @@ else
     </div>
 }
 
+<style>
+    .personal-notes-section {
+        margin-top: 16px;
+    }
+
+    .personal-notes {
+        padding: 16px;
+        background: rgba(var(--mud-palette-info-rgb), 0.08);
+        border-left: 4px solid var(--mud-palette-info);
+        border-radius: 10px;
+    }
+
+    .personal-notes-edit {
+        padding: 16px;
+        background: var(--mud-palette-background-grey);
+        border-radius: 10px;
+    }
+
+    .recipe-source-info {
+        margin-top: 12px;
+        padding: 12px;
+        background: var(--mud-palette-background-grey);
+        border-radius: 10px;
+    }
+</style>
+
 @code {
     [Parameter]
     public string Id { get; set; } = string.Empty;
@@ -228,6 +426,16 @@ else
     private string? _editingRating;
     private int _tempRating = 5;
     private bool _isSaving = false;
+    private bool _isForking = false;
+    private bool _editingNotes = false;
+    private string _tempNotes = "";
+    private bool _isSavingNotes = false;
+    private bool _isTogglingVisibility = false;
+
+    // Get current user's display name from household members (matches what backend uses for ratings)
+    private string CurrentUserDisplayName => HouseholdState.CurrentHousehold?.Members
+        .FirstOrDefault(m => m.Email.Equals(AuthService.CurrentUserEmail, StringComparison.OrdinalIgnoreCase))?.DisplayName
+        ?? AuthService.CurrentUserName ?? "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -239,6 +447,15 @@ else
                 Navigation.NavigateTo("login");
                 return;
             }
+        }
+
+        // Wait for household state to be initialized
+        await HouseholdState.InitializeAsync();
+
+        if (!HouseholdState.HasHousehold)
+        {
+            Navigation.NavigateTo("/");
+            return;
         }
 
         await LoadFood();
@@ -298,7 +515,7 @@ else
         {
             try
             {
-                await FoodService.ArchiveFoodAsync(_food.Id, AuthService.CurrentUser?.Name ?? "Unknown");
+                await FoodService.ArchiveFoodAsync(_food.Id, AuthService.CurrentUserName ?? "Unknown");
                 Snackbar.Add("Meal archived", Severity.Info);
                 Navigation.NavigateTo("");
             }
@@ -325,15 +542,102 @@ else
         }
     }
 
+    private async Task ForkRecipe()
+    {
+        if (_food == null) return;
+
+        var result = await DialogService.ShowMessageBox(
+            "Fork Recipe",
+            "This will create an editable copy of this recipe. The copy will no longer update when the global recipe changes. Continue?",
+            yesText: "Fork",
+            cancelText: "Cancel");
+
+        if (result == true)
+        {
+            _isForking = true;
+            try
+            {
+                await FoodService.ForkRecipeAsync(_food.Id);
+
+                // Update local state
+                _food.IsForked = true;
+
+                Snackbar.Add("Recipe forked! You can now edit this copy.", Severity.Success);
+
+                // Reload to get updated data from server
+                await LoadFood();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            }
+            finally
+            {
+                _isForking = false;
+            }
+        }
+    }
+
+    private void StartEditNotes()
+    {
+        _tempNotes = _food?.PersonalNotes ?? "";
+        _editingNotes = true;
+    }
+
+    private void CancelEditNotes()
+    {
+        _editingNotes = false;
+        _tempNotes = "";
+    }
+
+    private async Task SaveNotes()
+    {
+        if (_food == null) return;
+
+        _isSavingNotes = true;
+        try
+        {
+            _food.PersonalNotes = _tempNotes;
+            await FoodService.UpdateFoodAsync(_food);
+            _editingNotes = false;
+            Snackbar.Add("Personal notes saved!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSavingNotes = false;
+        }
+    }
+
+    private async Task ToggleVisibility(bool isPublic)
+    {
+        if (_food == null) return;
+
+        _isTogglingVisibility = true;
+        try
+        {
+            await FoodService.SetPublicStatusAsync(_food.Id, isPublic);
+            _food.IsPublic = isPublic;
+            Snackbar.Add(isPublic ? "Meal is now public!" : "Meal is now private", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isTogglingVisibility = false;
+        }
+    }
+
     private string GetMemberColor(string name)
     {
-        return name switch
-        {
-            "Markus" => "#E07A2E",
-            "Siv" => "#2D5A45",
-            "Elias" => "#4A7C9B",
-            _ => "#6B5D4D"
-        };
+        var hash = name.GetHashCode();
+        var hue = Math.Abs(hash % 360);
+        return $"hsl({hue}, 45%, 45%)";
     }
 
     private string GetRatingClass(double rating)

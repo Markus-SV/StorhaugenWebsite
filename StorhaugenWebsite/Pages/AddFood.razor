@@ -1,29 +1,45 @@
-﻿@page "/add"
+@page "/add"
 @using Microsoft.AspNetCore.Components.Forms
 @using StorhaugenWebsite.Models
 @using StorhaugenWebsite.Services
 @inject IAuthService AuthService
 @inject IFoodService FoodService
+@inject IHouseholdStateService HouseholdState
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @inject IOcrService OcrService
 
-<div class="d-flex justify-space-between align-center mb-6">
-    <div>
-        <h1 class="page-title" style="margin-bottom: 4px;">Add Meal</h1>
-        <p class="page-subtitle">Rate tonight's dinner with the family</p>
-    </div>
-</div>
-
-@if (!string.IsNullOrEmpty(_errorMessage))
+@if (!HouseholdState.HasHousehold)
 {
-    <MudAlert Severity="Severity.Error" Class="mb-4" Dense="true" ShowCloseIcon="true" CloseIconClicked="@(() => _errorMessage = null)"
-              Style="border-radius: 12px;">
-        @_errorMessage
-    </MudAlert>
+    <div class="empty-state">
+        <div class="empty-state-icon">
+            <MudIcon Icon="@Icons.Material.Rounded.Home" Size="Size.Large" />
+        </div>
+        <h2 class="empty-state-title">No household selected</h2>
+        <p class="empty-state-text">You need to create or join a household before adding meals!</p>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="settings" StartIcon="@Icons.Material.Rounded.Settings">
+            Go to Settings
+        </MudButton>
+    </div>
 }
+else
+{
+    <div class="d-flex justify-space-between align-center mb-6">
+        <div>
+            <h1 class="page-title" style="margin-bottom: 4px;">Add Meal</h1>
+            <p class="page-subtitle">Rate tonight's dinner</p>
+        </div>
+    </div>
 
-<div class="form-section">
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-4" Dense="true" ShowCloseIcon="true" CloseIconClicked="@(() => _errorMessage = null)"
+                  Style="border-radius: 12px;">
+            @_errorMessage
+        </MudAlert>
+    }
+
+    <div class="form-section">
     <p class="form-section-title">Meal Details</p>
 
     <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
@@ -114,70 +130,86 @@
 </div>
 
 <div class="form-section">
-    <p class="form-section-title">Ratings</p>
+    <p class="form-section-title">Your Rating</p>
 
-    @foreach (var member in AppConfig.FamilyNames)
-    {
-        var currentMember = member;
-        var isEnabled = _ratingsEnabled[currentMember];
-        var ratingValue = GetRatingValue(currentMember);
-
-        <div class="rating-member-card">
-            <div class="rating-member-header">
-                <div class="rating-member-info">
-                    <div class="rating-member-avatar" style="@($"background: {GetMemberColor(currentMember)}")">
-                        @currentMember[0]
-                    </div>
-                    <div>
-                        <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">@currentMember</MudText>
-                        @if (AuthService.CurrentUser?.Name == currentMember)
-                        {
-                            <MudText Typo="Typo.caption" Color="Color.Primary">(You)</MudText>
-                        }
-                    </div>
+    <div class="rating-member-card">
+        <div class="rating-member-header">
+            <div class="rating-member-info">
+                <div class="rating-member-avatar" style="@($"background: {GetMemberColor(_currentUserName)}")">
+                    @(string.IsNullOrEmpty(_currentUserName) ? '?' : _currentUserName[0])
                 </div>
-                <MudSwitch T="bool"
-                           Value="@isEnabled"
-                           ValueChanged="@((bool v) => ToggleRating(currentMember, v))"
-                           Color="Color.Primary" />
+                <div>
+                    <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">@(string.IsNullOrEmpty(_currentUserName) ? "Unknown" : _currentUserName)</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Primary">(You)</MudText>
+                </div>
             </div>
-
-            @if (isEnabled)
-            {
-                <div class="rating-slider-container">
-                    <MudSlider T="int"
-                               Value="@ratingValue"
-                               ValueChanged="@((int v) => SetRating(currentMember, v))"
-                               Min="0" Max="10" Step="1"
-                               Color="Color.Primary"
-                               Style="flex: 1;" />
-                    <div class="rating-value-display" style="@($"background: {GetRatingBackground(ratingValue)}; color: {GetRatingTextColor(ratingValue)}")">
-                        @ratingValue
-                    </div>
-                </div>
-            }
+            <MudSwitch T="bool"
+                       Value="@_ratingEnabled"
+                       ValueChanged="@((bool v) => ToggleRating(v))"
+                       Color="Color.Primary" />
         </div>
-    }
+
+        @if (_ratingEnabled)
+        {
+            <div class="rating-slider-container">
+                <MudSlider T="int"
+                           Value="@_ratingValue"
+                           ValueChanged="@((int v) => _ratingValue = v)"
+                           Min="0" Max="10" Step="1"
+                           Color="Color.Primary"
+                           Style="flex: 1;" />
+                <div class="rating-value-display" style="@($"background: {GetRatingBackground(_ratingValue)}; color: {GetRatingTextColor(_ratingValue)}")">
+                    @_ratingValue
+                </div>
+            </div>
+        }
+    </div>
 </div>
 
-<MudButton Variant="Variant.Filled"
-           Color="Color.Primary"
-           Size="Size.Large"
-           FullWidth="true"
-           OnClick="SubmitFood"
-           Disabled="_isSubmitting"
-           Style="border-radius: 14px; padding: 14px; margin-top: 8px;">
-    @if (_isSubmitting)
-    {
-        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" Color="Color.Surface" />
-        <span>Saving...</span>
-    }
-    else
-    {
-        <MudIcon Icon="@Icons.Material.Rounded.Check" Class="mr-2" />
-        <span>Save Meal</span>
-    }
-</MudButton>
+<div class="form-section">
+    <p class="form-section-title">Visibility</p>
+
+    <div class="visibility-card">
+        <div class="d-flex align-center gap-3">
+            <MudIcon Icon="@(_newFood.IsPublic ? Icons.Material.Rounded.Public : Icons.Material.Rounded.Lock)"
+                     Size="Size.Medium"
+                     Color="@(_newFood.IsPublic ? Color.Primary : Color.Default)" />
+            <div style="flex: 1;">
+                <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">
+                    @(_newFood.IsPublic ? "Public" : "Private")
+                </MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    @(_newFood.IsPublic
+                        ? "Anyone can find this meal in Browse and add it to their list"
+                        : "Only your household can see this meal")
+                </MudText>
+            </div>
+            <MudSwitch T="bool"
+                       @bind-Value="_newFood.IsPublic"
+                       Color="Color.Primary" />
+        </div>
+    </div>
+</div>
+
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               Size="Size.Large"
+               FullWidth="true"
+               OnClick="SubmitFood"
+               Disabled="_isSubmitting"
+               Style="border-radius: 14px; padding: 14px; margin-top: 8px;">
+        @if (_isSubmitting)
+        {
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" Color="Color.Surface" />
+            <span>Saving...</span>
+        }
+        else
+        {
+            <MudIcon Icon="@Icons.Material.Rounded.Check" Class="mr-2" />
+            <span>Save Meal</span>
+        }
+    </MudButton>
+}
 
 @code {
     private FoodItem _newFood = new();
@@ -189,12 +221,9 @@
     private List<string> _imagePreviewUrls = new();
     private List<byte[]> _imageData = new();
     private List<string> _imageNames = new();
-    private Dictionary<string, bool> _ratingsEnabled = new()
-    {
-        { "Markus", false },
-        { "Siv", false },
-        { "Elias", false }
-    };
+    private bool _ratingEnabled = true;
+    private int _ratingValue = 5;
+    private string _currentUserName = "";
 
     // --- ORDBOK FOR AUTOKORREKTUR ---
     private static readonly List<string> _foodVocabulary = new()
@@ -218,10 +247,13 @@
             }
         }
 
-        if (AuthService.CurrentUser != null)
+        // Wait for household state to be initialized
+        await HouseholdState.InitializeAsync();
+
+        // Set current user name if household exists
+        if (HouseholdState.HasHousehold)
         {
-            _ratingsEnabled[AuthService.CurrentUser.Name] = true;
-            _newFood.Ratings[AuthService.CurrentUser.Name] = 5;
+            _currentUserName = AuthService.CurrentUserName ?? "Unknown";
         }
     }
 
@@ -235,7 +267,6 @@
 
             try
             {
-                // OCR FIX: Vi bruker 1500x1500px for å sikre at små bokstaver blir tydelige nok
                 var resizedFile = await file.RequestImageFileAsync("image/jpeg", 1500, 1500);
 
                 var smallBuffer = new byte[resizedFile.Size];
@@ -256,7 +287,7 @@
                 catch
                 {
                     _imageData.Add(smallBuffer);
-                    Snackbar.Add("Originalbildet var for stort, bruker komprimert versjon.", Severity.Info);
+                    Snackbar.Add("Original image was too large, using compressed version.", Severity.Info);
                 }
 
                 StateHasChanged();
@@ -294,10 +325,8 @@
                 {
                     var cleanLine = line.Trim();
 
-                    // 1. Grovsortering: Hopp over linjer som er åpenbart for korte
                     if (cleanLine.Length < 3) continue;
 
-                    // 2. FJERN "HELLO FRESH" (Uavhengig av rekkefølge)
                     cleanLine = System.Text.RegularExpressions.Regex.Replace(
                         cleanLine,
                         @"\b(HELLO|FRESH)\b",
@@ -305,20 +334,15 @@
                         System.Text.RegularExpressions.RegexOptions.IgnoreCase
                     );
 
-                    // 3. NYTT: RENS STARTEN AV LINJEN (Fikser "4 HELLO..." og "y Rask...")
-                    // Fjerner alt som ikke er bokstaver fra starten (tall, punktum, streker)
                     cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"^[\d\W_]+", "");
-                    // Fjerner enslige bokstaver helt i starten (f.eks "y Rask" -> "Rask")
                     cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"^\b[a-zA-Z]\b\s+", "");
 
-                    // 4. FJERN METADATA (Porsjoner, tid, parenteser)
                     cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\d+\s*(P|pers|porsjoner)", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                     cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\d+(?:-\d+)?\s*min", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                     cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\([^)]*\)", "");
 
                     cleanLine = cleanLine.Trim();
 
-                    // 5. STOPP-ORD (Kutter setningen ved beskrivelser)
                     var stopWords = new[] { " med ", " og ", " servert ", " toppet ", " i " };
                     foreach (var word in stopWords)
                     {
@@ -330,21 +354,16 @@
                         }
                     }
 
-                    // 6. Autokorrektur
                     cleanLine = AutoCorrectText(cleanLine);
 
-                    // Manuelle fikser
                     if (cleanLine.StartsWith("Sto ", StringComparison.OrdinalIgnoreCase))
                         cleanLine = "Stekt " + cleanLine.Substring(4);
 
-                    // 7. ENDELIG SJEKK
-                    // Nå som vi har vasket bort "4" i starten, vil ikke "4 HELLO..." feile på sjekken lenger.
-                    // Vi tillater tittelen så lenge den ikke inneholder *flere* tall.
                     if (cleanLine.Length > 3 && cleanLine.Length < 60 && !cleanLine.Any(char.IsDigit))
                     {
                         _newFood.Name = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\s+", " ").Trim();
-                        Snackbar.Add($"Fant tittel: {_newFood.Name}", Severity.Success);
-                        break; // Suksess!
+                        Snackbar.Add($"Found title: {_newFood.Name}", Severity.Success);
+                        break;
                     }
                 }
             }
@@ -360,8 +379,6 @@
         }
     }
 
-    // --- HJELPEFUNKSJONER FOR TEKSTKORRIGERING (FUZZY LOGIC) ---
-
     private string AutoCorrectText(string input)
     {
         var words = input.Split(' ');
@@ -372,22 +389,18 @@
             var cleanWord = word.Trim();
             if (string.IsNullOrWhiteSpace(cleanWord)) continue;
 
-            // Behold ordet hvis det er rett, eller veldig kort
             if (_foodVocabulary.Contains(cleanWord, StringComparer.OrdinalIgnoreCase) || cleanWord.Length < 3)
             {
                 correctedWords.Add(cleanWord);
                 continue;
             }
 
-            // Finn beste match i ordlisten
             string bestMatch = cleanWord;
             int lowestDistance = int.MaxValue;
 
             foreach (var vocabWord in _foodVocabulary)
             {
                 int distance = ComputeLevenshteinDistance(cleanWord.ToLower(), vocabWord.ToLower());
-
-                // Tillat 1 feil for korte ord, 2 feil for lange ord
                 int threshold = vocabWord.Length <= 4 ? 1 : 2;
 
                 if (distance <= threshold && distance < lowestDistance)
@@ -436,16 +449,10 @@
         }
     }
 
-    private void ToggleRating(string member, bool enabled)
+    private void ToggleRating(bool enabled)
     {
-        _ratingsEnabled[member] = enabled;
-        _newFood.Ratings[member] = enabled ? 5 : null;
+        _ratingEnabled = enabled;
     }
-
-    private int GetRatingValue(string member)
-        => _newFood.Ratings.TryGetValue(member, out var rating) && rating.HasValue ? rating.Value : 5;
-
-    private void SetRating(string member, int value) => _newFood.Ratings[member] = value;
 
     private async Task SubmitFood()
     {
@@ -469,11 +476,12 @@
 
             _newFood.ImageUrls = uploadedUrls;
             _newFood.DateAdded = DateTime.UtcNow;
-            _newFood.AddedBy = AuthService.CurrentUser?.Name ?? "Unknown";
+            _newFood.AddedBy = _currentUserName;
 
-            foreach (var member in AppConfig.FamilyNames)
+            // Add current user's rating if enabled
+            if (_ratingEnabled)
             {
-                if (!_ratingsEnabled[member]) _newFood.Ratings[member] = null;
+                _newFood.Ratings[_currentUserName] = _ratingValue;
             }
 
             await FoodService.AddFoodAsync(_newFood);
@@ -490,13 +498,13 @@
         }
     }
 
-    private string GetMemberColor(string name) => name switch
+    private string GetMemberColor(string? name)
     {
-        "Markus" => "#E07A2E",
-        "Siv" => "#2D5A45",
-        "Elias" => "#4A7C9B",
-        _ => "#6B5D4D"
-    };
+        if (string.IsNullOrEmpty(name)) return "hsl(0, 0%, 50%)";
+        var hash = name.GetHashCode();
+        var hue = Math.Abs(hash % 360);
+        return $"hsl({hue}, 45%, 45%)";
+    }
 
     private string GetRatingBackground(int rating) => rating switch
     {

@@ -1,4 +1,5 @@
 ﻿@using StorhaugenWebsite.Shared
+@using StorhaugenWebsite.Services
 @using MudBlazor
 
 <MudThemeProvider @ref="_themeProvider" @bind-IsDarkMode="@_isDarkMode" Theme="_currentTheme" />
@@ -27,6 +28,7 @@
 @code {
     [Inject] private IThemeService ThemeService { get; set; } = default!;
     [Inject] private IDeviceStateService DeviceState { get; set; } = default!;
+    [Inject] private IAuthService AuthService { get; set; } = default!;
 
     private MudThemeProvider? _themeProvider;
     private MudTheme _currentTheme = new();
@@ -42,6 +44,7 @@
             // Initialize services
             await DeviceState.InitializeAsync();
             await ThemeService.InitializeAsync();
+            await AuthService.InitializeAsync(); // Initialize auth to handle OAuth callbacks
 
             // Subscribe to theme changes
             ThemeService.OnThemeChanged += OnThemeChanged;

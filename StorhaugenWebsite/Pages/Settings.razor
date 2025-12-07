@@ -1,9 +1,16 @@
 ﻿@page "/settings"
+@using StorhaugenWebsite.ApiClient
 @using StorhaugenWebsite.Models
+@using StorhaugenWebsite.DTOs
 @inject IAuthService AuthService
 @inject IThemeService ThemeService
 @inject IDeviceStateService DeviceState
+@inject IHouseholdStateService HouseholdState
+@inject IApiClient ApiClient
 @inject NavigationManager Navigation
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject IJSRuntime JSRuntime
 
 <div class="d-flex align-center gap-3 mb-6">
     <h1 class="page-title" style="margin-bottom: 0; font-size: 1.5rem;">Settings</h1>
@@ -43,19 +50,101 @@
 </div>
 
 <div class="form-section">
+    <p class="form-section-title">Household</p>
+
+    @if (HouseholdState.CurrentHousehold != null)
+    {
+        <div class="setting-row">
+            <div class="setting-info">
+                <MudText Typo="Typo.body1" Style="font-weight: 500;">@HouseholdState.CurrentHousehold.Name</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    @HouseholdState.CurrentHousehold.Members.Count member(s)
+                </MudText>
+            </div>
+        </div>
+
+        @if (HouseholdState.UserHouseholds.Count > 1)
+        {
+            <MudSelect T="Guid"
+                       Label="Switch Household"
+                       Value="@HouseholdState.CurrentHousehold.Id"
+                       ValueChanged="SwitchHousehold"
+                       Variant="Variant.Outlined"
+                       Class="mt-3">
+                @foreach (var household in HouseholdState.UserHouseholds)
+                {
+                    <MudSelectItem Value="@household.Id">@household.Name</MudSelectItem>
+                }
+            </MudSelect>
+        }
+
+        <MudButton Variant="Variant.Outlined"
+                   Color="Color.Primary"
+                   FullWidth="true"
+                   StartIcon="@Icons.Material.Rounded.PersonAdd"
+                   OnClick="InviteMember"
+                   Style="border-radius: 12px; margin-top: 16px;">
+            Invite Member
+        </MudButton>
+
+        <MudButton Variant="Variant.Text"
+                   Color="Color.Default"
+                   FullWidth="true"
+                   OnClick="ViewMembers"
+                   Style="margin-top: 8px;">
+            View Members
+        </MudButton>
+    }
+    else
+    {
+        <MudAlert Severity="Severity.Info" Class="mb-3">
+            You don't have a household yet. Create your own or ask someone to invite you!
+        </MudAlert>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   FullWidth="true"
+                   OnClick="CreateHousehold">
+            Create Household
+        </MudButton>
+    }
+</div>
+
+<div class="form-section">
     <p class="form-section-title">Account</p>
 
     <div class="setting-row">
         <div class="d-flex align-center gap-3">
-            <MudAvatar Size="Size.Medium" Style="@($"background: {GetMemberColor(AuthService.CurrentUser?.Name ?? "")}")">
-                @(AuthService.CurrentUser?.Name?[0] ?? '?')
+            <MudAvatar Size="Size.Medium" Style="@($"background: {GetMemberColor(AuthService.CurrentUserName ?? "")}")">
+                @(string.IsNullOrEmpty(AuthService.CurrentUserName) ? '?' : AuthService.CurrentUserName[0])
             </MudAvatar>
             <div>
-                <MudText Typo="Typo.body1" Style="font-weight: 500;">@AuthService.CurrentUser?.Name</MudText>
+                <MudText Typo="Typo.body1" Style="font-weight: 500;">@AuthService.CurrentUserName</MudText>
                 <MudText Typo="Typo.caption" Color="Color.Secondary">@AuthService.CurrentUserEmail</MudText>
             </div>
         </div>
     </div>
+
+    @if (!string.IsNullOrEmpty(_userProfile?.UniqueShareId))
+    {
+        <div class="setting-row" style="padding: 12px 0;">
+            <div class="d-flex align-center justify-space-between" style="width: 100%;">
+                <div>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Your Share ID</MudText>
+                    <MudText Typo="Typo.h6" Style="font-family: monospace; letter-spacing: 2px; font-weight: 600;">
+                        @_userProfile.UniqueShareId
+                    </MudText>
+                </div>
+                <MudIconButton Icon="@Icons.Material.Rounded.ContentCopy"
+                               Size="Size.Small"
+                               Color="Color.Primary"
+                               OnClick="CopyShareId"
+                               Title="Copy Share ID" />
+            </div>
+        </div>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-top: -8px;">
+            Share this ID with others to let them invite you to their household
+        </MudText>
+    }
 
     <MudButton Variant="Variant.Outlined"
                Color="Color.Error"
@@ -164,6 +253,7 @@
 @code {
     private string _currentTheme = "Light";
     private string _viewMode = "card";
+    private UserDto? _userProfile;
 
     protected override async Task OnInitializedAsync()
     {
@@ -175,6 +265,19 @@
                 Navigation.NavigateTo("login");
                 return;
             }
+        }
+
+        // Initialize household state (this is where users can create a household)
+        await HouseholdState.InitializeAsync();
+
+        // Fetch user profile to get UniqueShareId
+        try
+        {
+            _userProfile = await ApiClient.GetMyProfileAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading user profile: {ex.Message}");
         }
 
         _currentTheme = ThemeService.GetCurrentThemeName();
@@ -209,18 +312,119 @@
 
     private string GetMemberColor(string name)
     {
-        return name switch
-        {
-            "Markus" => "#E07A2E",
-            "Siv" => "#2D5A45",
-            "Elias" => "#4A7C9B",
-            _ => "#6B5D4D"
-        };
+        var hash = name.GetHashCode();
+        var hue = Math.Abs(hash % 360);
+        return $"hsl({hue}, 45%, 45%)";
     }
 
     private async Task Logout()
     {
         await AuthService.LogoutAsync();
         Navigation.NavigateTo("login");
+    }
+
+    private async Task CopyShareId()
+    {
+        if (string.IsNullOrEmpty(_userProfile?.UniqueShareId))
+            return;
+
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", _userProfile.UniqueShareId);
+            Snackbar.Add("Share ID copied to clipboard!", Severity.Success);
+        }
+        catch
+        {
+            Snackbar.Add("Failed to copy to clipboard", Severity.Error);
+        }
+    }
+
+    // Household Management Methods
+    private async Task CreateHousehold()
+    {
+        var parameters = new DialogParameters();
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+
+        var dialog = await DialogService.ShowAsync<Components.HouseholdSelector>("Create Household", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            await HouseholdState.RefreshHouseholdsAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task SwitchHousehold(Guid householdId)
+    {
+        try
+        {
+            await HouseholdState.SetCurrentHouseholdAsync(householdId);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            // Show error snackbar in real implementation
+            Console.WriteLine($"Error switching household: {ex.Message}");
+        }
+    }
+
+    private async Task InviteMember()
+    {
+        if (HouseholdState.CurrentHousehold == null)
+            return;
+
+        var parameters = new DialogParameters
+        {
+            { "HouseholdId", HouseholdState.CurrentHousehold.Id },
+            { "HouseholdName", HouseholdState.CurrentHousehold.Name }
+        };
+
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
+
+        var dialog = await DialogService.ShowAsync<Components.InviteMemberDialog>(
+            "Invite Member",
+            parameters,
+            options);
+
+        await dialog.Result;
+        // Dialog handles all invite logic internally
+    }
+
+    private async Task ViewMembers()
+    {
+        if (HouseholdState.CurrentHousehold == null)
+            return;
+
+        var parameters = new DialogParameters
+        {
+            { "Household", HouseholdState.CurrentHousehold }
+        };
+
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
+
+        var dialog = await DialogService.ShowAsync<Components.HouseholdMembersDialog>(
+            "Household Members",
+            parameters,
+            options);
+
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            // Refresh household state after dialog closes (in case user left)
+            await HouseholdState.RefreshHouseholdsAsync();
+            StateHasChanged();
+        }
     }
 }

@@ -1,0 +1,129 @@
+@using StorhaugenWebsite.Services
+@using StorhaugenWebsite.DTOs
+@inject IHouseholdStateService HouseholdState
+@inject NavigationManager Navigation
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h5" Class="mb-4">Welcome! Let's get started</MudText>
+
+        @if (pendingInvites.Any())
+        {
+            <MudText Typo="Typo.h6" Class="mb-2">You have pending invitations</MudText>
+            @foreach (var invite in pendingInvites)
+            {
+                <MudCard Class="mb-3">
+                    <MudCardContent>
+                        <MudText><strong>@invite.HouseholdName</strong></MudText>
+                        <MudText Typo="Typo.body2">Invited by @invite.InvitedByName</MudText>
+                    </MudCardContent>
+                    <MudCardActions>
+                        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                                   OnClick="() => AcceptInvite(invite.Id)">
+                            Accept
+                        </MudButton>
+                        <MudButton Color="Color.Default">Decline</MudButton>
+                    </MudCardActions>
+                </MudCard>
+            }
+            <MudDivider Class="my-4" />
+        }
+
+        <MudText Typo="Typo.h6" Class="mb-2">Create a new household</MudText>
+        <MudTextField @bind-Value="newHouseholdName"
+                      Label="Household Name"
+                      Variant="Variant.Outlined"
+                      Placeholder="e.g., Smith Family"
+                      Class="mb-3" />
+
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   FullWidth="true"
+                   OnClick="CreateHousehold"
+                   Disabled="@(string.IsNullOrWhiteSpace(newHouseholdName) || isLoading)">
+            @if (isLoading)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+            }
+            else
+            {
+                <MudText>Create Household</MudText>
+            }
+        </MudButton>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3">@errorMessage</MudAlert>
+        }
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    IMudDialogInstance? MudDialog { get; set; }
+
+    private string newHouseholdName = "";
+    private List<HouseholdInviteDto> pendingInvites = new();
+    private bool isLoading = false;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPendingInvites();
+    }
+
+    private async Task LoadPendingInvites()
+    {
+        try
+        {
+            pendingInvites = await HouseholdState.GetPendingInvitesAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading invites: {ex.Message}");
+        }
+    }
+
+    private async Task CreateHousehold()
+    {
+        if (string.IsNullOrWhiteSpace(newHouseholdName))
+            return;
+
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            await HouseholdState.CreateHouseholdAsync(newHouseholdName);
+            MudDialog?.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to create household: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task AcceptInvite(Guid inviteId)
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            await HouseholdState.AcceptInviteAsync(inviteId);
+            MudDialog?.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to accept invitation: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

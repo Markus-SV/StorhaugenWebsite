@@ -6,17 +6,22 @@
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
         public List<string> ImageUrls { get; set; } = new();
-        public Dictionary<string, int?> Ratings { get; set; } = new()
-        {
-            { "Markus", null },
-            { "Siv", null },
-            { "Elias", null }
-        };
+        public Dictionary<string, int?> Ratings { get; set; } = new();
         public DateTime DateAdded { get; set; } = DateTime.UtcNow;
         public string AddedBy { get; set; } = string.Empty;
         public bool IsArchived { get; set; } = false;
         public DateTime? ArchivedDate { get; set; }
         public string? ArchivedBy { get; set; }
+
+        // Multi-tenant fields
+        public Guid? GlobalRecipeId { get; set; }
+        public string? GlobalRecipeName { get; set; }
+        public bool IsForked { get; set; }
+        public string? PersonalNotes { get; set; }
+
+        // Public sharing
+        public bool IsPublic { get; set; }
+        public string? HouseholdName { get; set; }
 
         public double AverageRating
         {
@@ -31,12 +36,8 @@
         {
             return Ratings.TryGetValue(person, out var rating) ? rating ?? 0 : 0;
         }
-    }
 
-    public class FamilyMember
-    {
-        public string Name { get; set; } = string.Empty;
-        public string Email { get; set; } = string.Empty;
-        public string? AvatarColor { get; set; }
+        // Helper property to check if this recipe is linked to a global recipe
+        public bool IsLinkedToGlobal => GlobalRecipeId.HasValue && !IsForked;
     }
 }

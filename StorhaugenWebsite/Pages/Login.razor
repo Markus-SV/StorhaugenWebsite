@@ -1,6 +1,5 @@
-﻿@page "/login"
+@page "/login"
 @using StorhaugenWebsite.Services
-@using StorhaugenWebsite.Models
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
 
@@ -11,7 +10,7 @@
         </div>
 
         <h1 class="login-title">Storhaugen Eats</h1>
-        <p class="login-subtitle">Storhaugen eksklusiv</p>
+        <p class="login-subtitle">Family meal tracking made easy</p>
 
         @if (!string.IsNullOrEmpty(_errorMessage))
         {
@@ -37,17 +36,6 @@
                 <span>Continue with Google</span>
             }
         </button>
-
-        <div class="login-footer">
-            <div class="login-avatars">
-                @foreach (var member in AppConfig.AllowedUsers)
-                {
-                    <div class="login-avatar" style="@($"background: {GetMemberColor(member.Name)}")">
-                        @member.Name[0]
-                    </div>
-                }
-            </div>
-        </div>
     </div>
 </div>
 
@@ -82,16 +70,5 @@
         }
 
         _isLoading = false;
-    }
-
-    private string GetMemberColor(string name)
-    {
-        return name switch
-        {
-            "Markus" => "#E07A2E",
-            "Siv" => "#2D5A45",
-            "Elias" => "#4A7C9B",
-            _ => "#6B5D4D"
-        };
     }
 }

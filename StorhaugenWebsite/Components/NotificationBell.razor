@@ -1,0 +1,220 @@
+@using StorhaugenWebsite.ApiClient
+@using StorhaugenWebsite.DTOs
+@inject IApiClient ApiClient
+@inject IHouseholdStateService HouseholdState
+@inject ISnackbar Snackbar
+@implements IDisposable
+
+<MudBadge Content="@_pendingInvites.Count"
+          Color="Color.Error"
+          Overlap="true"
+          Visible="@(_pendingInvites.Count > 0)"
+          Class="notification-badge">
+    <MudMenu Icon="@Icons.Material.Rounded.Notifications"
+             Color="Color.Inherit"
+             Size="Size.Small"
+             AnchorOrigin="Origin.BottomRight"
+             TransformOrigin="Origin.TopRight"
+             Dense="true">
+        @if (_isLoading)
+        {
+            <MudMenuItem Disabled="true">
+                <div class="d-flex align-center gap-2 pa-2">
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                    <MudText Typo="Typo.body2">Loading...</MudText>
+                </div>
+            </MudMenuItem>
+        }
+        else if (_pendingInvites.Count == 0)
+        {
+            <MudMenuItem Disabled="true">
+                <div class="d-flex flex-column align-center pa-3" style="min-width: 250px;">
+                    <MudIcon Icon="@Icons.Material.Rounded.NotificationsNone"
+                             Color="Color.Secondary"
+                             Size="Size.Large" />
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">
+                        No pending invitations
+                    </MudText>
+                </div>
+            </MudMenuItem>
+        }
+        else
+        {
+            <div style="max-height: 400px; overflow-y: auto; min-width: 300px;">
+                @foreach (var invite in _pendingInvites)
+                {
+                    <MudMenuItem Disabled="true" Style="opacity: 1;">
+                        <div class="invite-item">
+                            <div class="invite-info">
+                                <MudText Typo="Typo.subtitle2" Style="font-weight: 600;">
+                                    @invite.HouseholdName
+                                </MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    Invited by @invite.InvitedByName
+                                </MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @GetTimeAgo(invite.CreatedAt)
+                                </MudText>
+                            </div>
+                            <div class="invite-actions">
+                                <MudIconButton Icon="@Icons.Material.Rounded.Check"
+                                               Color="Color.Success"
+                                               Size="Size.Small"
+                                               OnClick="@(() => AcceptInvite(invite))"
+                                               Disabled="_processingInviteId == invite.Id"
+                                               Title="Accept" />
+                                <MudIconButton Icon="@Icons.Material.Rounded.Close"
+                                               Color="Color.Error"
+                                               Size="Size.Small"
+                                               OnClick="@(() => RejectInvite(invite))"
+                                               Disabled="_processingInviteId == invite.Id"
+                                               Title="Decline" />
+                            </div>
+                        </div>
+                    </MudMenuItem>
+                    <MudDivider />
+                }
+            </div>
+        }
+    </MudMenu>
+</MudBadge>
+
+<style>
+    .notification-badge .mud-badge-content {
+        font-size: 10px;
+        min-width: 16px;
+        height: 16px;
+        padding: 0 4px;
+    }
+
+    .invite-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 8px 4px;
+        min-width: 280px;
+    }
+
+    .invite-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .invite-actions {
+        display: flex;
+        gap: 4px;
+        flex-shrink: 0;
+    }
+</style>
+
+@code {
+    private List<HouseholdInviteDto> _pendingInvites = new();
+    private bool _isLoading = true;
+    private Guid? _processingInviteId;
+    private System.Threading.Timer? _refreshTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPendingInvites();
+
+        // Set up periodic refresh every 30 seconds
+        _refreshTimer = new System.Threading.Timer(
+            async _ => await InvokeAsync(async () =>
+            {
+                await LoadPendingInvites();
+                StateHasChanged();
+            }),
+            null,
+            TimeSpan.FromSeconds(30),
+            TimeSpan.FromSeconds(30)
+        );
+    }
+
+    private async Task LoadPendingInvites()
+    {
+        try
+        {
+            _pendingInvites = await ApiClient.GetPendingInvitesAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading pending invites: {ex.Message}");
+            _pendingInvites = new();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task AcceptInvite(HouseholdInviteDto invite)
+    {
+        _processingInviteId = invite.Id;
+        StateHasChanged();
+
+        try
+        {
+            await ApiClient.AcceptInviteAsync(invite.Id);
+            _pendingInvites.Remove(invite);
+            Snackbar.Add($"Joined {invite.HouseholdName}!", Severity.Success);
+
+            // Refresh household state
+            await HouseholdState.RefreshHouseholdsAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error accepting invite: {ex.Message}");
+            Snackbar.Add("Failed to accept invitation", Severity.Error);
+        }
+        finally
+        {
+            _processingInviteId = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RejectInvite(HouseholdInviteDto invite)
+    {
+        _processingInviteId = invite.Id;
+        StateHasChanged();
+
+        try
+        {
+            await ApiClient.RejectInviteAsync(invite.Id);
+            _pendingInvites.Remove(invite);
+            Snackbar.Add("Invitation declined", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error rejecting invite: {ex.Message}");
+            Snackbar.Add("Failed to decline invitation", Severity.Error);
+        }
+        finally
+        {
+            _processingInviteId = null;
+            StateHasChanged();
+        }
+    }
+
+    private string GetTimeAgo(DateTime createdAt)
+    {
+        var diff = DateTime.UtcNow - createdAt;
+
+        if (diff.TotalMinutes < 1)
+            return "Just now";
+        if (diff.TotalMinutes < 60)
+            return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalHours < 24)
+            return $"{(int)diff.TotalHours}h ago";
+        if (diff.TotalDays < 7)
+            return $"{(int)diff.TotalDays}d ago";
+
+        return createdAt.ToString("MMM d");
+    }
+
+    public void Dispose()
+    {
+        _refreshTimer?.Dispose();
+    }
+}

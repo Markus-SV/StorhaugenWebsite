@@ -1,16 +1,17 @@
-﻿using StorhaugenWebsite.Brokers;
+using StorhaugenWebsite.ApiClient;
 using StorhaugenWebsite.Models;
+using StorhaugenWebsite.DTOs;
 
 namespace StorhaugenWebsite.Services
 {
     public class FoodService : IFoodService
     {
-        private readonly IFirebaseBroker _firebaseBroker;
-        private readonly IAuthService _authService; 
+        private readonly IApiClient _apiClient;
+        private readonly IAuthService _authService;
 
-        public FoodService(IFirebaseBroker firebaseBroker, IAuthService authService)
+        public FoodService(IApiClient apiClient, IAuthService authService)
         {
-            _firebaseBroker = firebaseBroker;
+            _apiClient = apiClient;
             _authService = authService;
         }
 
@@ -26,68 +27,157 @@ namespace StorhaugenWebsite.Services
         {
             if (!_authService.IsAuthenticated) throw new UnauthorizedAccessException();
 
-            return await _firebaseBroker.GetFoodItemsAsync(includeArchived);
+            var recipes = await _apiClient.GetRecipesAsync(includeArchived);
+            return recipes.Select(MapToFoodItem).ToList();
         }
 
         public async Task<FoodItem?> GetFoodByIdAsync(string id)
         {
-            return await _firebaseBroker.GetFoodItemByIdAsync(id);
-        }
+            if (!Guid.TryParse(id, out var recipeId))
+                return null;
 
+            var recipe = await _apiClient.GetRecipeAsync(recipeId);
+            return recipe != null ? MapToFoodItem(recipe) : null;
+        }
 
         public async Task<string> AddFoodAsync(FoodItem food)
         {
-            ValidateAuthorization(); 
+            ValidateAuthorization();
 
             if (string.IsNullOrWhiteSpace(food.Name))
                 throw new ArgumentException("Food name cannot be empty.");
 
-            return await _firebaseBroker.AddFoodItemAsync(food);
+            var dto = new CreateHouseholdRecipeDto
+            {
+                Name = food.Name,
+                Description = food.Description,
+                ImageUrls = food.ImageUrls,
+                PersonalNotes = null,
+                IsPublic = food.IsPublic
+            };
+
+            var created = await _apiClient.CreateRecipeAsync(dto);
+
+            // Add the user's rating if provided
+            foreach (var rating in food.Ratings.Where(r => r.Value.HasValue))
+            {
+                await _apiClient.RateRecipeAsync(created.Id, rating.Value!.Value);
+            }
+
+            return created.Id.ToString();
         }
 
         public async Task UpdateFoodAsync(FoodItem food)
         {
-            ValidateAuthorization(); 
+            ValidateAuthorization();
 
             if (string.IsNullOrWhiteSpace(food.Id)) throw new ArgumentException("ID required.");
             if (string.IsNullOrWhiteSpace(food.Name)) throw new ArgumentException("Name required.");
 
-            await _firebaseBroker.UpdateFoodItemAsync(food);
+            if (!Guid.TryParse(food.Id, out var recipeId))
+                throw new ArgumentException("Invalid ID format.");
+
+            var dto = new UpdateHouseholdRecipeDto
+            {
+                Name = food.Name,
+                Description = food.Description,
+                ImageUrls = food.ImageUrls,
+                PersonalNotes = food.PersonalNotes
+            };
+
+            await _apiClient.UpdateRecipeAsync(recipeId, dto);
         }
 
         public async Task ArchiveFoodAsync(string id, string archivedBy)
         {
-            ValidateAuthorization(); 
-            await _firebaseBroker.ArchiveFoodItemAsync(id, archivedBy);
+            ValidateAuthorization();
+
+            if (!Guid.TryParse(id, out var recipeId))
+                throw new ArgumentException("Invalid ID format.");
+
+            await _apiClient.ArchiveRecipeAsync(recipeId);
         }
 
         public async Task RestoreFoodAsync(string id)
         {
-            ValidateAuthorization(); 
-            await _firebaseBroker.RestoreFoodItemAsync(id);
+            ValidateAuthorization();
+
+            if (!Guid.TryParse(id, out var recipeId))
+                throw new ArgumentException("Invalid ID format.");
+
+            await _apiClient.RestoreRecipeAsync(recipeId);
         }
 
         public async Task UpdateRatingAsync(string foodId, string personName, int rating)
         {
-            ValidateAuthorization(); 
+            ValidateAuthorization();
 
             if (rating < 0 || rating > 10) throw new ArgumentException("Invalid rating.");
 
-            var food = await _firebaseBroker.GetFoodItemByIdAsync(foodId);
-            if (food == null) throw new ArgumentException("Food item not found.");
+            if (!Guid.TryParse(foodId, out var recipeId))
+                throw new ArgumentException("Invalid ID format.");
 
-            food.Ratings[personName] = rating;
-            await _firebaseBroker.UpdateFoodItemAsync(food);
+            await _apiClient.RateRecipeAsync(recipeId, rating);
         }
 
         public async Task<string> UploadImageAsync(byte[] imageData, string fileName)
         {
-            ValidateAuthorization(); 
-            
+            ValidateAuthorization();
+
             if (imageData == null || imageData.Length == 0)
                 throw new ArgumentException("Image data is required.");
 
-            return await _firebaseBroker.UploadImageAsync(imageData, fileName);
+            var result = await _apiClient.UploadImageAsync(imageData, fileName);
+            return result.Url;
+        }
+
+        public async Task ForkRecipeAsync(string id)
+        {
+            ValidateAuthorization();
+
+            if (!Guid.TryParse(id, out var recipeId))
+                throw new ArgumentException("Invalid ID format.");
+
+            await _apiClient.ForkRecipeAsync(recipeId);
+        }
+
+        public async Task SetPublicStatusAsync(string id, bool isPublic)
+        {
+            ValidateAuthorization();
+
+            if (!Guid.TryParse(id, out var recipeId))
+                throw new ArgumentException("Invalid ID format.");
+
+            var dto = new UpdateHouseholdRecipeDto
+            {
+                IsPublic = isPublic
+            };
+
+            await _apiClient.UpdateRecipeAsync(recipeId, dto);
+        }
+
+        // Map HouseholdRecipeDto to FoodItem for backward compatibility
+        private FoodItem MapToFoodItem(HouseholdRecipeDto recipe)
+        {
+            return new FoodItem
+            {
+                Id = recipe.Id.ToString(),
+                Name = recipe.Name,
+                Description = recipe.Description,
+                ImageUrls = recipe.ImageUrls,
+                Ratings = recipe.Ratings,
+                DateAdded = recipe.DateAdded,
+                AddedBy = recipe.AddedByName ?? "Unknown",
+                IsArchived = recipe.IsArchived,
+                ArchivedDate = recipe.ArchivedDate,
+                ArchivedBy = recipe.ArchivedByName,
+                GlobalRecipeId = recipe.GlobalRecipeId,
+                GlobalRecipeName = recipe.GlobalRecipeName,
+                IsForked = recipe.IsForked,
+                PersonalNotes = recipe.PersonalNotes,
+                IsPublic = recipe.IsPublic,
+                HouseholdName = recipe.HouseholdName
+            };
         }
     }
 }
