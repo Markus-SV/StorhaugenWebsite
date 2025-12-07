@@ -666,13 +666,13 @@ else
     // Navigates to the details page for a Global (HelloFresh) recipe
     private void OpenRecipeDetail(GlobalRecipeDto recipe)
     {
-        Navigation.NavigateTo($"/browse/{recipe.Id}?type=global");
+        Navigation.NavigateTo($"browse/{recipe.Id}?type=global");
     }
 
     // Navigates to the details page for a Public (Community) recipe
     private void OpenPublicRecipeDetail(PublicRecipeDto recipe)
     {
-        Navigation.NavigateTo($"/browse/{recipe.Id}?type=public");
+        Navigation.NavigateTo($"browse/{recipe.Id}?type=public");
     }
 
     // Logic to Add HelloFresh Recipe (Global) - Kept for "Quick Add" buttons

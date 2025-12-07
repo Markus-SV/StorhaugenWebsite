@@ -7,6 +7,7 @@
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @inject IHouseholdStateService HouseholdState
+@attribute [Authorize]
 
 <div class="detail-header">
     <button class="detail-back-btn" @onclick="@(() => Navigation.NavigateTo("/browse"))">
