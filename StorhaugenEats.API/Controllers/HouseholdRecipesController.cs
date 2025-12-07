@@ -436,12 +436,29 @@ public class HouseholdRecipesController : ControllerBase
         if (page < 1) page = 1;
         if (pageSize < 1) pageSize = 20;
 
+        // FIX 1: Filter out the current user's household
+        // We need the current user ID to determine their household
+        Guid? currentUserHouseholdId = null;
+        try
+        {
+            var userId = await _currentUserService.GetOrCreateUserIdAsync();
+            var user = await _context.Users.FindAsync(userId);
+            currentUserHouseholdId = user?.CurrentHouseholdId;
+        }
+        catch { /* Allow anonymous access if implemented, otherwise catch auth issues */ }
+
         var query = _context.HouseholdRecipes
             .Include(hr => hr.GlobalRecipe)
             .Include(hr => hr.Household)
             .Include(hr => hr.AddedByUser)
             .Include(hr => hr.Ratings)
             .Where(hr => hr.IsPublic && !hr.IsArchived);
+
+        // APPLY FIX: Exclude own household
+        if (currentUserHouseholdId.HasValue)
+        {
+            query = query.Where(hr => hr.HouseholdId != currentUserHouseholdId.Value);
+        }
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -519,6 +536,41 @@ public class HouseholdRecipesController : ControllerBase
         return Ok(new { message = "Recipe deleted" });
     }
 
+    /// <summary>
+    /// Get a specific PUBLIC recipe by ID (AllowAnonymous)
+    /// </summary>
+    [HttpGet("public/{id}")]
+    [AllowAnonymous]
+    public async Task<ActionResult<PublicRecipeDto>> GetPublicRecipe(Guid id)
+    {
+        var recipe = await _context.HouseholdRecipes
+            .Include(hr => hr.GlobalRecipe)
+            .Include(hr => hr.Household)
+            .Include(hr => hr.AddedByUser)
+            .Include(hr => hr.Ratings)
+            .FirstOrDefaultAsync(hr => hr.Id == id && hr.IsPublic && !hr.IsArchived);
+
+        if (recipe == null)
+            return NotFound();
+
+        return Ok(new PublicRecipeDto
+        {
+            Id = recipe.Id,
+            Name = recipe.DisplayTitle,
+            Description = recipe.LocalDescription ?? recipe.GlobalRecipe?.Description,
+            ImageUrls = !string.IsNullOrEmpty(recipe.LocalImageUrl)
+                ? new List<string> { recipe.LocalImageUrl } // Basic handling, improve if storing JSON array
+                : (recipe.GlobalRecipe?.ImageUrls != null ? Helpers.JsonHelper.JsonToList(recipe.GlobalRecipe.ImageUrls) : new List<string>()),
+            AverageRating = recipe.Ratings.Any() ? recipe.Ratings.Average(rt => rt.Score) : 0,
+            RatingCount = recipe.Ratings.Count,
+            DateAdded = recipe.CreatedAt,
+            HouseholdName = recipe.Household?.Name ?? string.Empty,
+            AddedByName = recipe.AddedByUser?.DisplayName,
+            HouseholdId = recipe.HouseholdId,
+            GlobalRecipeId = recipe.GlobalRecipeId
+        });
+    }
+
     private static HouseholdRecipeDto MapToDto(HouseholdRecipe recipe)
     {
         // Calculate average rating from household members
@@ -562,7 +614,7 @@ public class HouseholdRecipesController : ControllerBase
         {
             Id = recipe.Id,
             HouseholdId = recipe.HouseholdId,
-            Name = recipe.LocalTitle ?? recipe.GlobalRecipe?.Title ?? "Unknown",
+            Name = recipe.LocalTitle ?? recipe.GlobalRecipe?.Title ?? "Ukjent",
             Description = recipe.LocalDescription ?? recipe.GlobalRecipe?.Description,
             ImageUrls = imageUrls,
             Ratings = ratings,
@@ -576,7 +628,7 @@ public class HouseholdRecipesController : ControllerBase
             ArchivedByName = recipe.ArchivedBy?.DisplayName,
             GlobalRecipeId = recipe.GlobalRecipeId,
             GlobalRecipeName = recipe.GlobalRecipe?.Title,
-            IsForked = !recipe.GlobalRecipeId.HasValue,
+            IsForked = false,
             PersonalNotes = recipe.PersonalNotes,
             IsPublic = recipe.IsPublic,
             HouseholdName = recipe.Household?.Name

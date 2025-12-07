@@ -13,7 +13,7 @@
 @inject IJSRuntime JSRuntime
 
 <style>
-    /* --- CAMERA OVERLAY STYLES --- */
+    /* ... existing styles ... */
     .camera-overlay {
         position: fixed;
         top: 0;
@@ -35,7 +35,6 @@
         left: 0;
     }
 
-    /* Container for guide-boksen */
     .camera-guide-container {
         position: absolute;
         top: 50%;
@@ -51,44 +50,34 @@
         transition: all 0.5s ease;
     }
 
-    /* Felles boks-stil */
     .camera-guide-box {
         border: 2px solid rgba(255, 255, 255, 0.8);
         border-radius: 12px;
-        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7); /* Mørklegger omgivelsene */
+        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7);
         position: relative;
         overflow: hidden;
         background: transparent;
         transition: all 0.5s cubic-bezier(0.4, 0.0, 0.2, 1);
     }
 
-    /* --- DYNAMISKE BOKS-FORMER --- */
-
-    /* Steg 1: LANDSCAPE (Faktisk liggende boks)
-           Når du snur mobilen, blir viewport 'width' den lange siden.
-           Denne boksen vil fylle skjermen bra i landskapsmodus. */
     .camera-guide-container.step-landscape .camera-guide-box {
         width: 80vw;
-        aspect-ratio: 297/210; /* A4 Liggende */
-        max-height: 85vh; /* Sikrer at den ikke blir for høy */
+        aspect-ratio: 297/210;
+        max-height: 85vh;
     }
 
-    /* Steg 2: PORTRAIT TALL (Ingrediensliste - smal og høy) */
     .camera-guide-container.step-portrait-tall .camera-guide-box {
-        width: 60vw; /* Smalere for å treffe ingredienslisten */
-        aspect-ratio: 1/2.5; /* Smal spalte */
+        width: 60vw;
+        aspect-ratio: 1/2.5;
         max-height: 70vh;
     }
 
-    /* Steg 3: PORTRAIT NORMAL (A4 Stående - Bakside) */
     .camera-guide-container.step-portrait-normal .camera-guide-box {
         width: 85vw;
-        aspect-ratio: 210/297; /* A4 Stående */
+        aspect-ratio: 210/297;
         max-width: 450px;
     }
 
-    /* --- GUIDE ZONES (Kun for Steg 1 Landscape) --- */
-    /* Tilpasset en liggende boks */
     .step-landscape .text-hint-zone {
         position: absolute;
         top: 15%;
@@ -127,7 +116,6 @@
         font-weight: bold;
     }
 
-    /* Scan Line Animation */
     .scan-line {
         width: 100%;
         height: 2px;
@@ -158,7 +146,6 @@
         }
     }
 
-    /* --- TEKST & UI --- */
     .camera-instruction-pill {
         margin-bottom: 24px;
         background: rgba(0,0,0,0.6);
@@ -188,7 +175,6 @@
         max-width: 80%;
     }
 
-    /* --- CONTROLS --- */
     .camera-controls {
         position: absolute;
         bottom: 30px;
@@ -201,15 +187,14 @@
         pointer-events: auto;
     }
 
-    /* Justering for landskapsmodus kontroller hvis nødvendig */
     @@media (orientation: landscape) and (max-height: 500px) {
         .camera-controls {
             bottom: 10px;
-            padding: 0 60px; /* Mer padding på sidene i landscape */
+            padding: 0 60px;
         }
 
         .camera-guide-text {
-            display: none; /* Skjul tekst i landscape for å spare plass */
+            display: none;
         }
 
         .camera-instruction-pill {
@@ -276,7 +261,6 @@
         }
     }
 
-    /* --- Generell Form Styling --- */
     .image-preview-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
@@ -331,60 +315,30 @@
     }
 </style>
 
-@* --- 1. CAMERA OVERLAY UI --- *@
+@* --- 1. CAMERA OVERLAY UI (Keep existing) --- *@
 @if (_showCameraOverlay)
 {
     <div class="camera-overlay">
         <video @ref="_videoElement" autoplay playsinline muted class="camera-video"></video>
-
-        @* Dynamisk klasse bestemmer formen på boksen (Landscape/Portrait) *@
         <div class="camera-guide-container @GetOverlayClass()">
-
             <div class="camera-guide-box">
-                @* Step 1: Front Page *@
                 @if (_currentStep == ScanStep.Front)
                 {
-                    <div class="logo-hint-zone">
-                        <span class="logo-label">LOGO</span>
-                    </div>
-
-                    <div class="text-hint-zone">
-                        <span class="text-label">TITTEL HER</span>
-                    </div>
+                    <div class="logo-hint-zone"><span class="logo-label">LOGO</span></div>
+                    <div class="text-hint-zone"><span class="text-label">TITTEL HER</span></div>
                 }
-
-                @* Scan line animation (always active) *@
                 <div class="scan-line"></div>
             </div>
-
-            @* Indikator for hvilket steg vi er på *@
             <div class="camera-instruction-pill">
                 <MudIcon Icon="@GetStepIcon()" Size="Size.Small" Class="mr-2" Style="color: #00E676;" />
                 <span class="step-text">@GetStepTitle()</span>
             </div>
-
-            @* Instruksjonstekst *@
-            <p class="camera-guide-text">
-                @GetInstructionText()
-            </p>
+            <p class="camera-guide-text">@GetInstructionText()</p>
         </div>
-
         <div class="camera-controls">
-            <MudIconButton Icon="@Icons.Material.Rounded.Close"
-                           Color="Color.Surface"
-                           Size="Size.Large"
-                           OnClick="StopCamera" />
-
-            @* Utløserknapp (Deaktivert når den tenker) *@
-            <button class="camera-shutter @(_isProcessingOcr ? "processing" : "")"
-                    disabled="@_isProcessingOcr"
-                    @onclick="CaptureCameraImage">
-            </button>
-
-            @* Teller: 1/3, 2/3 etc *@
-            <div class="step-counter">
-                @((int)_currentStep + 1) / 3
-            </div>
+            <MudIconButton Icon="@Icons.Material.Rounded.Close" Color="Color.Surface" Size="Size.Large" OnClick="StopCamera" />
+            <button class="camera-shutter @(_isProcessingOcr ? "processing" : "")" disabled="@_isProcessingOcr" @onclick="CaptureCameraImage"></button>
+            <div class="step-counter">@((int)_currentStep + 1) / 3</div>
         </div>
     </div>
 }
@@ -403,7 +357,9 @@ else
     <div class="d-flex justify-space-between align-center mb-4">
         <div>
             <h1 class="page-title" style="margin-bottom: 4px; font-size: 24px; font-weight: 700;">Legg til måltid</h1>
-            <p class="page-subtitle" style="color: var(--mud-palette-text-secondary);">Gi kveldens middag en vurdering</p>
+            <p class="page-subtitle" style="color: var(--mud-palette-text-secondary);">
+                @(_fromDraft ? "Tilpass kopiert oppskrift" : "Gi kveldens middag en vurdering")
+            </p>
         </div>
     </div>
 
@@ -485,27 +441,13 @@ else
         <MudStack Row="true" Spacing="2" Class="w-100">
             @if (_isHelloFresh)
             {
-                @* Custom 3-Step Camera *@
-                <MudButton Variant="Variant.Filled"
-                           Color="Color.Success"
-                           StartIcon="@Icons.Material.Rounded.DocumentScanner"
-                           Size="Size.Large"
-                           OnClick="StartCamera"
-                           Class="flex-1"
-                           Style="border-radius: 12px; height: 56px;">
+                <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Rounded.DocumentScanner" Size="Size.Large" OnClick="StartCamera" Class="flex-1" Style="border-radius: 12px; height: 56px;">
                     Start Skanning
                 </MudButton>
             }
             else
             {
-                @* Standard Native Camera *@
-                <MudFileUpload T="IReadOnlyList<IBrowserFile>"
-                               @ref="@_fileUpload"
-                               FilesChanged="OnImagesSelected"
-                               Accept="image/*"
-                               MaximumFileCount="5"
-                               Class="flex-1"
-                               @attributes="@(new Dictionary<string, object> { { "capture", "environment" } })">
+                <MudFileUpload T="IReadOnlyList<IBrowserFile>" @ref="@_fileUpload" FilesChanged="OnImagesSelected" Accept="image/*" MaximumFileCount="5" Class="flex-1" @attributes="@(new Dictionary<string, object> { { "capture", "environment" } })">
                     <ActivatorContent>
                         <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.CameraAlt" Size="Size.Large" FullWidth="true" Style="border-radius: 12px; height: 56px;">
                             Ta bilde
@@ -514,13 +456,7 @@ else
                 </MudFileUpload>
             }
 
-            @* Gallery Upload *@
-            <MudFileUpload T="IReadOnlyList<IBrowserFile>"
-                           @ref="@_galleryUpload"
-                           FilesChanged="OnImagesSelected"
-                           Accept="image/*"
-                           MaximumFileCount="5"
-                           Class="flex-1">
+            <MudFileUpload T="IReadOnlyList<IBrowserFile>" @ref="@_galleryUpload" FilesChanged="OnImagesSelected" Accept="image/*" MaximumFileCount="5" Class="flex-1">
                 <ActivatorContent>
                     <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Rounded.PhotoLibrary" FullWidth="true" OnClick="@(() => _galleryUpload?.OpenFilePickerAsync())" Style="border-radius: 12px; height: 56px; border-style: dashed; border-width: 2px;">
                         Galleri
@@ -596,12 +532,14 @@ else
     private MudFileUpload<IReadOnlyList<IBrowserFile>>? _galleryUpload;
 
     private bool _isSubmitting = false;
+    private bool _fromDraft = false;
     private string? _errorMessage;
 
     // Images
     private List<string> _imagePreviewUrls = new();
     private List<byte[]> _imageData = new();
     private List<string> _imageNames = new();
+    private List<string> _draftImageUrls = new();
 
     // Rating
     private bool _ratingEnabled = true;
@@ -625,30 +563,38 @@ else
         {
             _currentUserName = AuthService.CurrentUserName ?? "Unknown";
         }
+
+        if (FoodService.DraftRecipe != null)
+        {
+            var draft = FoodService.DraftRecipe;
+            _newFood.Name = draft.Name;
+            _newFood.Description = draft.Description;
+            _fromDraft = true;
+
+            // FIX: Handle image transfer
+            if (draft.ImageUrls != null && draft.ImageUrls.Any())
+            {
+                // Add them to the preview list so the user sees them
+                _imagePreviewUrls.AddRange(draft.ImageUrls);
+
+                // Add them to our tracking list so we know these are valid URLs, not base64 blobs
+                _draftImageUrls.AddRange(draft.ImageUrls);
+            }
+
+            FoodService.DraftRecipe = null;
+        }
     }
 
-    private void SetFoodType(bool isHelloFresh)
-    {
-        _isHelloFresh = isHelloFresh;
-    }
+    private void SetFoodType(bool isHelloFresh) => _isHelloFresh = isHelloFresh;
 
     // --- CAMERA LOGIC ---
-
     private async Task StartCamera()
     {
         _currentStep = ScanStep.Front;
         _showCameraOverlay = true;
         await Task.Delay(100);
-
-        try
-        {
-            await JSRuntime.InvokeVoidAsync("cameraInterop.start", _videoElement);
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add("Kunne ikke starte kamera. Sjekk tillatelser.", Severity.Error);
-            _showCameraOverlay = false;
-        }
+        try { await JSRuntime.InvokeVoidAsync("cameraInterop.start", _videoElement); }
+        catch (Exception) { Snackbar.Add("Kunne ikke starte kamera. Sjekk tillatelser.", Severity.Error); _showCameraOverlay = false; }
     }
 
     private async Task StopCamera()
@@ -665,10 +611,7 @@ else
 
         try
         {
-            // 1. Ta bildet via JS
             var base64Data = await JSRuntime.InvokeAsync<string>("cameraInterop.capture", _videoElement);
-
-            // 2. Prosesser data (til liste for UI visning)
             var base64Signature = ";base64,";
             var index = base64Data.IndexOf(base64Signature);
             var cleanBase64 = index >= 0 ? base64Data.Substring(index + base64Signature.Length) : base64Data;
@@ -677,34 +620,23 @@ else
             _imagePreviewUrls.Add(base64Data);
             _imageData.Add(bytes);
 
-            // 3. Logikk basert på steg - HÅNDTER OCR OG NAVNGIVING HER
             switch (_currentStep)
             {
                 case ScanStep.Front:
                     _imageNames.Add("hellofresh_front.jpg");
                     Snackbar.Add("Forside fanget! Analyserer tittel...", Severity.Info);
-
-                    // Steg 1: Prøv å finne tittel (forventer bilde tatt i liggende modus)
                     await TryAutoFillTitle(base64Data);
-
                     _currentStep = ScanStep.Ingredients;
                     break;
-
                 case ScanStep.Ingredients:
                     _imageNames.Add("hellofresh_ingredients.jpg");
                     Snackbar.Add("Ingredienser fanget! Leser liste...", Severity.Info);
-
-                    // Steg 2: Prøv å finne ingredienser (forventer bilde tatt i stående modus)
                     await TryExtractIngredients(base64Data);
-
                     _currentStep = ScanStep.Back;
                     break;
-
                 case ScanStep.Back:
                     _imageNames.Add("hellofresh_back.jpg");
                     Snackbar.Add("Skanning fullført!", Severity.Success);
-
-                    // Steg 3: Ferdig, lukk kamera
                     await StopCamera();
                     _currentStep = ScanStep.Finished;
                     break;
@@ -723,46 +655,17 @@ else
     }
 
     // --- UI HELPERS FOR OVERLAY ---
-
-    private string GetOverlayClass() => _currentStep switch
-    {
-        ScanStep.Front => "step-landscape",     // Bruker CSS for bred boks
-        ScanStep.Ingredients => "step-portrait-tall", // Bruker CSS for høy smal boks
-        _ => "step-portrait-normal"             // Bruker CSS for vanlig A4
-    };
-
-    private string GetStepTitle() => _currentStep switch
-    {
-        ScanStep.Front => "STEG 1: FORSIDE (SNU TELEFONEN)",
-        ScanStep.Ingredients => "STEG 2: INGREDIENSER (RETT OPP)",
-        ScanStep.Back => "STEG 3: FREMGANGSMÅTE",
-        _ => ""
-    };
-
-    private string GetInstructionText() => _currentStep switch
-    {
-        ScanStep.Front => "Hold telefonen vannrett (liggende) for å ta bilde av hele forsiden.",
-        ScanStep.Ingredients => "Hold telefonen loddrett (stående) for å ta bilde av ingredienslisten.",
-        ScanStep.Back => "Hold telefonen loddrett (stående). Ta bilde av hele baksiden.",
-        _ => ""
-    };
-
-    private string GetStepIcon() => _currentStep switch
-    {
-        ScanStep.Front => Icons.Material.Rounded.ScreenRotation, // Ikon som indikerer rotasjon
-        _ => Icons.Material.Rounded.CropPortrait
-    };
+    private string GetOverlayClass() => _currentStep switch { ScanStep.Front => "step-landscape", ScanStep.Ingredients => "step-portrait-tall", _ => "step-portrait-normal" };
+    private string GetStepTitle() => _currentStep switch { ScanStep.Front => "STEG 1: FORSIDE (SNU TELEFONEN)", ScanStep.Ingredients => "STEG 2: INGREDIENSER (RETT OPP)", ScanStep.Back => "STEG 3: FREMGANGSMÅTE", _ => "" };
+    private string GetInstructionText() => _currentStep switch { ScanStep.Front => "Hold telefonen vannrett (liggende) for å ta bilde av hele forsiden.", ScanStep.Ingredients => "Hold telefonen loddrett (stående) for å ta bilde av ingredienslisten.", ScanStep.Back => "Hold telefonen loddrett (stående). Ta bilde av hele baksiden.", _ => "" };
+    private string GetStepIcon() => _currentStep switch { ScanStep.Front => Icons.Material.Rounded.ScreenRotation, _ => Icons.Material.Rounded.CropPortrait };
 
     // --- OCR LOGIC ---
-
-    // OCR for Tittel (Steg 1 - Bilde 1)
     private async Task TryAutoFillTitle(string dataUrl)
     {
         try
         {
-            // Vi antar at OCR tjenesten håndterer 0/90/270 graders rotasjon som før
             var rawText = await OcrService.RecognizeTextAsync(dataUrl);
-
             if (!string.IsNullOrWhiteSpace(rawText))
             {
                 var lines = rawText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
@@ -770,27 +673,14 @@ else
                 {
                     var cleanLine = line.Trim();
                     if (cleanLine.Length < 3) continue;
-
-                    // Regex-vask
+                    // Basic cleanup regex
                     cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\b(HELLO|FRESH)\b", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"^[\d\W_]+", "");
-                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\d+\s*(P|pers|porsjoner)", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\d+(?:-\d+)?\s*min", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-
-                    var stopWords = new[] { " med ", " og ", " servert ", " toppet " };
-                    foreach (var word in stopWords)
-                    {
-                        int idx = cleanLine.IndexOf(word, StringComparison.OrdinalIgnoreCase);
-                        if (idx > 0) cleanLine = cleanLine.Substring(0, idx).Trim();
-                    }
-
-                    // Enkel sjekk for å se om dette ser ut som en tittel
                     if (cleanLine.Length > 3 && cleanLine.Length < 60 && !cleanLine.Any(char.IsDigit))
                     {
                         _newFood.Name = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\s+", " ").Trim();
                         Snackbar.Add($"Tittel funnet: {_newFood.Name}", Severity.Success);
                         await InvokeAsync(StateHasChanged);
-                        break; // Fant tittel, stopp søk
+                        break;
                     }
                 }
             }
@@ -798,7 +688,6 @@ else
         catch (Exception ex) { Console.WriteLine($"Title OCR Error: {ex}"); }
     }
 
-    // OCR for Ingredienser (Steg 2 - Bilde 2)
     private async Task TryExtractIngredients(string dataUrl)
     {
         try
@@ -807,13 +696,10 @@ else
             if (!string.IsNullOrWhiteSpace(rawText))
             {
                 var cleanText = rawText.Replace("\n", ", ").Trim();
-
-                // Legg til, ikke overskriv (hvis bruker skrev noe først)
                 if (string.IsNullOrWhiteSpace(_newFood.Description))
                     _newFood.Description = "Ingredienser: " + cleanText;
                 else
                     _newFood.Description += "\n\nIngredienser: " + cleanText;
-
                 await InvokeAsync(StateHasChanged);
             }
         }
@@ -821,7 +707,6 @@ else
     }
 
     // --- FORM HANDLING ---
-
     private async Task OnImagesSelected(IReadOnlyList<IBrowserFile> files)
     {
         foreach (var file in files)
@@ -835,7 +720,6 @@ else
                 await stream.CopyToAsync(ms);
                 var buffer = ms.ToArray();
                 var base64 = Convert.ToBase64String(buffer);
-
                 _imagePreviewUrls.Add($"data:image/jpeg;base64,{base64}");
                 _imageData.Add(buffer);
                 _imageNames.Add(file.Name);
@@ -846,11 +730,22 @@ else
 
     private void RemoveImage(int index)
     {
-        if (index >= 0 && index < _imageData.Count)
+        // Check if the index corresponds to a draft image (they are added first)
+        if (index < _draftImageUrls.Count)
         {
-            _imageData.RemoveAt(index);
-            _imageNames.RemoveAt(index);
+            _draftImageUrls.RemoveAt(index);
             _imagePreviewUrls.RemoveAt(index);
+        }
+        else
+        {
+            // It's a newly added image. Adjust index relative to _imageData
+            var newImageIndex = index - _draftImageUrls.Count;
+            if (newImageIndex >= 0 && newImageIndex < _imageData.Count)
+            {
+                _imageData.RemoveAt(newImageIndex);
+                _imageNames.RemoveAt(newImageIndex);
+                _imagePreviewUrls.RemoveAt(index);
+            }
         }
     }
 
@@ -869,14 +764,19 @@ else
 
         try
         {
-            var uploadedUrls = new List<string>();
+            var finalImageUrls = new List<string>();
+
+            // 1. Add the draft URLs that were preserved
+            finalImageUrls.AddRange(_draftImageUrls);
+
+            // 2. Upload the NEW images
             for (int i = 0; i < _imageData.Count; i++)
             {
                 var url = await FoodService.UploadImageAsync(_imageData[i], _imageNames[i]);
-                uploadedUrls.Add(url);
+                finalImageUrls.Add(url);
             }
 
-            _newFood.ImageUrls = uploadedUrls;
+            _newFood.ImageUrls = finalImageUrls;
             _newFood.DateAdded = DateTime.UtcNow;
             _newFood.AddedBy = _currentUserName;
             _newFood.IsHelloFresh = _isHelloFresh;
@@ -888,7 +788,7 @@ else
 
             await FoodService.AddFoodAsync(_newFood);
             Snackbar.Add("Måltid lagret!", Severity.Success);
-            Navigation.NavigateTo("");
+            Navigation.NavigateTo("/");
         }
         catch (Exception ex)
         {

@@ -97,7 +97,7 @@ else
             <div class="d-flex flex-column gap-4">
                 @foreach (var recipe in _publicRecipes)
                 {
-                    <div class="food-card animate-in">
+                    <div class="food-card animate-in" @onclick="() => OpenPublicRecipeDetail(recipe)">
                         @if (!string.IsNullOrEmpty(recipe.ImageUrl))
                         {
                             <img src="@recipe.ImageUrl" alt="@recipe.Name" class="food-card-image" />
@@ -142,7 +142,7 @@ else
             <div class="d-flex flex-column gap-2">
                 @foreach (var recipe in _publicRecipes)
                 {
-                    <div class="food-list-item animate-in">
+                    <div class="food-list-item animate-in" @onclick="() => OpenPublicRecipeDetail(recipe)">
                         @if (!string.IsNullOrEmpty(recipe.ImageUrl))
                         {
                             <img src="@recipe.ImageUrl" alt="@recipe.Name" class="food-list-image" />
@@ -166,7 +166,8 @@ else
                                     </span>
                                 </div>
                             }
-                            <MudIconButton Icon="@Icons.Material.Rounded.Add" Size="Size.Small" Color="Color.Primary" OnClick="@(() => AddPublicRecipe(recipe))" />
+                            <MudIconButton Icon="@Icons.Material.Rounded.Add" Size="Size.Small" Color="Color.Primary" 
+                                         OnClick="@(() => AddPublicRecipe(recipe))" />
                         </div>
                     </div>
                 }
@@ -190,7 +191,7 @@ else
             <div class="d-flex flex-column gap-4">
                 @foreach (var recipe in _recipes)
                 {
-                    <div class="food-card animate-in">
+                    <div class="food-card animate-in" @onclick="() => OpenRecipeDetail(recipe)">
                         @if (!string.IsNullOrEmpty(recipe.ImageUrl))
                         {
                             <img src="@recipe.ImageUrl" alt="@recipe.Name" class="food-card-image" />
@@ -230,7 +231,8 @@ else
                                            OnClick="@(() => AddRecipe(recipe, true))">
                                     Kopier
                                 </MudButton>
-                                <MudIconButton Icon="@Icons.Material.Rounded.Link" Size="Size.Small" OnClick="@(() => AddRecipe(recipe, false))" />
+                                <MudIconButton Icon="@Icons.Material.Rounded.Link" Size="Size.Small" 
+                                             OnClick="@(() => AddRecipe(recipe, false))" />
                             </div>
                         </div>
                     </div>
@@ -242,7 +244,7 @@ else
             <div class="d-flex flex-column gap-2">
                 @foreach (var recipe in _recipes)
                 {
-                    <div class="food-list-item animate-in">
+                    <div class="food-list-item animate-in" @onclick="() => OpenRecipeDetail(recipe)">
                         @if (!string.IsNullOrEmpty(recipe.ImageUrl))
                         {
                             <img src="@recipe.ImageUrl" alt="@recipe.Name" class="food-list-image" />
@@ -269,7 +271,7 @@ else
                                     </span>
                                 </div>
                             }
-                            <MudMenu Icon="@Icons.Material.Rounded.MoreVert" Size="Size.Small">
+                            <MudMenu Icon="@Icons.Material.Rounded.MoreVert" Size="Size.Small" @onclick:stopPropagation="true">
                                 <MudMenuItem Icon="@Icons.Material.Rounded.ContentCopy" OnClick="@(() => AddRecipe(recipe, true))">Kopier til liste</MudMenuItem>
                                 <MudMenuItem Icon="@Icons.Material.Rounded.Link" OnClick="@(() => AddRecipe(recipe, false))">Legg til som lenke</MudMenuItem>
                             </MudMenu>
@@ -295,7 +297,7 @@ else
         max-width: 100%;
     }
 
-    /* --- View Toggle Styles (Copied from Home) --- */
+    /* --- View Toggle Styles --- */
     .view-toggle {
         display: flex;
         background: var(--mud-palette-surface);
@@ -336,7 +338,7 @@ else
         box-shadow: 0 2px 8px rgba(0,0,0,0.04);
         transition: all 0.2s ease;
         border: 1px solid transparent;
-        cursor: default; /* Changed from pointer as we have specific buttons now */
+        cursor: pointer;
     }
 
         .food-card:hover {
@@ -388,10 +390,15 @@ else
         gap: 16px;
         transition: all 0.2s ease;
         border: 1px solid transparent;
+        cursor: pointer;
     }
 
+        /* FIX: Changed hover style to match grid view (lift + border) instead of darkening background */
         .food-list-item:hover {
-            background: var(--mud-palette-background-grey);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border-color: var(--mud-palette-lines-default);
+            transform: translateY(-2px);
+            /* Removed: background: var(--mud-palette-background-grey); */
         }
 
     .food-list-image {
@@ -648,9 +655,7 @@ else
 
     private async Task NextPage()
     {
-        // Logic depends on which list is active
         int maxPages = _sourceMode == "community" ? _publicTotalPages : _totalPages;
-
         if (_currentPage < maxPages)
         {
             _currentPage++;
@@ -658,7 +663,19 @@ else
         }
     }
 
-    // Logic to Add HelloFresh Recipe (Global)
+    // Navigates to the details page for a Global (HelloFresh) recipe
+    private void OpenRecipeDetail(GlobalRecipeDto recipe)
+    {
+        Navigation.NavigateTo($"/browse/{recipe.Id}?type=global");
+    }
+
+    // Navigates to the details page for a Public (Community) recipe
+    private void OpenPublicRecipeDetail(PublicRecipeDto recipe)
+    {
+        Navigation.NavigateTo($"/browse/{recipe.Id}?type=public");
+    }
+
+    // Logic to Add HelloFresh Recipe (Global) - Kept for "Quick Add" buttons
     private async Task AddRecipe(GlobalRecipeDto recipe, bool fork)
     {
         if (!HouseholdState.HasHousehold)
@@ -699,7 +716,7 @@ else
         }
     }
 
-    // Logic to Add Community Recipe (Public)
+    // Logic to Add Community Recipe (Public) - Kept for "Quick Add" buttons
     private async Task AddPublicRecipe(PublicRecipeDto recipe)
     {
         if (!HouseholdState.HasHousehold)
@@ -715,7 +732,6 @@ else
                 Name = recipe.Name,
                 Description = recipe.Description,
                 ImageUrls = recipe.ImageUrls
-                // Note: Logic implies we are copying basic data from public to private
             };
 
             await ApiClient.CreateRecipeAsync(dto);

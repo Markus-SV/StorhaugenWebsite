@@ -8,6 +8,7 @@ namespace StorhaugenWebsite.Services
     {
         private readonly IApiClient _apiClient;
         private readonly IAuthService _authService;
+        public FoodItem? DraftRecipe { get; set; } 
         public List<FoodItem> CachedFoods { get; private set; } = new();
         public FoodService(IApiClient apiClient, IAuthService authService)
         {
