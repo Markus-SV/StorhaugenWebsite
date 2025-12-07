@@ -228,9 +228,11 @@ else
     protected override async Task OnInitializedAsync()
     {
         AuthService.OnAuthStateChanged += async () => await InvokeAsync(StateHasChanged);
+
         HouseholdState.OnHouseholdChanged += async () =>
         {
-            if (HouseholdState.HasHousehold && !_foodItems.Any() && !_isLoading)
+            // Only load foods if we have a household and haven't loaded them yet
+            if (HouseholdState.HasHousehold)
             {
                 await LoadFoods();
             }
@@ -252,10 +254,6 @@ else
             }
         }
 
-        // Wait for household state to be initialized
-        await HouseholdState.InitializeAsync();
-
-        // Only load foods if a household is selected
         if (HouseholdState.HasHousehold)
         {
             await LoadFoods();

@@ -15,12 +15,14 @@ public class HouseholdStateService : IHouseholdStateService
     public bool HasHousehold => CurrentHousehold != null;
     public bool NeedsHouseholdSetup => _authService.IsAuthenticated && !HasHousehold && UserHouseholds.Count == 0;
 
+    // FIX: Add state tracking
+    private bool _isInitialized = false;
+    private Task? _currentLoadingTask;
+
     public HouseholdStateService(IApiClient apiClient, IAuthService authService)
     {
         _apiClient = apiClient;
         _authService = authService;
-
-        // Subscribe to auth changes
         _authService.OnAuthStateChanged += OnAuthChanged;
     }
 
@@ -28,38 +30,60 @@ public class HouseholdStateService : IHouseholdStateService
     {
         if (_authService.IsAuthenticated)
         {
-            await InitializeAsync();
+            // FIX: Don't re-fetch if we are already initialized and have data
+            if (!_isInitialized)
+            {
+                await InitializeAsync();
+            }
         }
         else
         {
+            // Reset state on logout
             CurrentHousehold = null;
             UserHouseholds.Clear();
+            _isInitialized = false;
             OnHouseholdChanged?.Invoke();
         }
     }
 
     public async Task InitializeAsync()
     {
-        if (!_authService.IsAuthenticated)
-            return;
+        if (!_authService.IsAuthenticated) return;
 
+        // FIX: Prevent concurrent API calls
+        if (_currentLoadingTask != null && !_currentLoadingTask.IsCompleted)
+        {
+            await _currentLoadingTask;
+            return;
+        }
+
+        // FIX: If already loaded, don't do it again
+        if (_isInitialized && UserHouseholds.Any()) return;
+
+        _currentLoadingTask = LoadDataInternal();
+        await _currentLoadingTask;
+    }
+
+    private async Task LoadDataInternal()
+    {
         try
         {
-            // Get user's households
+            // Get user's households (API Call 1)
             await RefreshHouseholdsAsync();
 
-            // Get user profile to find current household
+            // Get user profile (API Call 2)
             var user = await _apiClient.GetMyProfileAsync();
+
             if (user?.CurrentHouseholdId.HasValue == true)
             {
                 CurrentHousehold = UserHouseholds.FirstOrDefault(h => h.Id == user.CurrentHouseholdId.Value);
             }
             else if (UserHouseholds.Count == 1)
             {
-                // Auto-select if only one household
                 await SetCurrentHouseholdAsync(UserHouseholds[0].Id);
             }
 
+            _isInitialized = true; // Mark as done
             OnHouseholdChanged?.Invoke();
         }
         catch (Exception ex)
@@ -70,20 +94,17 @@ public class HouseholdStateService : IHouseholdStateService
 
     public async Task RefreshHouseholdsAsync()
     {
-        if (!_authService.IsAuthenticated)
-            return;
+        if (!_authService.IsAuthenticated) return;
 
         try
         {
             UserHouseholds = await _apiClient.GetMyHouseholdsAsync();
 
-            // Clear CurrentHousehold if it's no longer in the user's households
             if (CurrentHousehold != null && !UserHouseholds.Any(h => h.Id == CurrentHousehold.Id))
             {
                 CurrentHousehold = null;
             }
 
-            // Auto-select if only one household and none selected
             if (CurrentHousehold == null && UserHouseholds.Count == 1)
             {
                 CurrentHousehold = UserHouseholds[0];
@@ -99,20 +120,12 @@ public class HouseholdStateService : IHouseholdStateService
 
     public async Task SetCurrentHouseholdAsync(Guid householdId)
     {
-        if (!_authService.IsAuthenticated)
-            throw new UnauthorizedAccessException("User is not authenticated");
-
+        if (!_authService.IsAuthenticated) throw new UnauthorizedAccessException("User is not authenticated");
         try
         {
             await _apiClient.SwitchHouseholdAsync(householdId);
             CurrentHousehold = UserHouseholds.FirstOrDefault(h => h.Id == householdId);
-
-            // Also update user profile
-            await _apiClient.UpdateMyProfileAsync(new UpdateUserDto
-            {
-                CurrentHouseholdId = householdId
-            });
-
+            await _apiClient.UpdateMyProfileAsync(new UpdateUserDto { CurrentHouseholdId = householdId });
             OnHouseholdChanged?.Invoke();
         }
         catch (Exception ex)
@@ -124,14 +137,11 @@ public class HouseholdStateService : IHouseholdStateService
 
     public async Task<HouseholdDto> CreateHouseholdAsync(string name)
     {
-        if (!_authService.IsAuthenticated)
-            throw new UnauthorizedAccessException("User is not authenticated");
-
+        if (!_authService.IsAuthenticated) throw new UnauthorizedAccessException("User is not authenticated");
         try
         {
             var household = await _apiClient.CreateHouseholdAsync(new CreateHouseholdDto { Name = name });
             await RefreshHouseholdsAsync();
-            // Backend already sets CurrentHouseholdId, just update local state
             CurrentHousehold = UserHouseholds.FirstOrDefault(h => h.Id == household.Id);
             OnHouseholdChanged?.Invoke();
             return household;
@@ -145,13 +155,8 @@ public class HouseholdStateService : IHouseholdStateService
 
     public async Task<List<HouseholdInviteDto>> GetPendingInvitesAsync()
     {
-        if (!_authService.IsAuthenticated)
-            return new List<HouseholdInviteDto>();
-
-        try
-        {
-            return await _apiClient.GetPendingInvitesAsync();
-        }
+        if (!_authService.IsAuthenticated) return new List<HouseholdInviteDto>();
+        try { return await _apiClient.GetPendingInvitesAsync(); }
         catch (Exception ex)
         {
             Console.WriteLine($"Error getting pending invites: {ex.Message}");
@@ -161,9 +166,7 @@ public class HouseholdStateService : IHouseholdStateService
 
     public async Task AcceptInviteAsync(Guid inviteId)
     {
-        if (!_authService.IsAuthenticated)
-            throw new UnauthorizedAccessException("User is not authenticated");
-
+        if (!_authService.IsAuthenticated) throw new UnauthorizedAccessException("User is not authenticated");
         try
         {
             await _apiClient.AcceptInviteAsync(inviteId);
