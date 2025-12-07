@@ -18,49 +18,49 @@
 </div>
 
 <div class="form-section">
-    <p class="form-section-title">Appearance</p>
-    <MudSelect T="string"
-               Label="Color Theme"
-               Value="@_currentTheme"
-               ValueChanged="OnThemeChanged"
-               Variant="Variant.Outlined"
-               Class="theme-select"
-               AnchorOrigin="Origin.BottomLeft"
-               Style="margin-bottom: 16px;">
-        @foreach (var themeName in ThemeService.GetAvailableThemes())
-        {
-            var colors = ThemeService.GetThemeColors(themeName);
-            <MudSelectItem Value="@themeName">
-                <div class="theme-preview-container">
-                    <div class="mini-website" style="background: @colors.Background; border-color: @colors.Divider;">
-                        <div class="mini-appbar" style="background: @colors.AppbarBackground;"></div>
-                        <div class="mini-sidebar" style="background: @colors.BackgroundGrey;"></div>
-                        <div class="mini-content" style="background: @colors.Surface;">
-                            <div class="mini-primary" style="background: @colors.Primary;"></div>
-                            <div class="mini-text" style="background: @colors.TextPrimary;"></div>
-                            <div class="mini-text-sm" style="background: @colors.TextSecondary;"></div>
-                        </div>
-                    </div>
-                    <span class="theme-name">@GetThemeDisplayName(themeName)</span>
-                </div>
-            </MudSelectItem>
-        }
-    </MudSelect>
-</div>
-
-<div class="form-section">
     <p class="form-section-title">Household</p>
 
     @if (HouseholdState.CurrentHousehold != null)
     {
         <div class="setting-row">
             <div class="setting-info">
-                <MudText Typo="Typo.body1" Style="font-weight: 500;">@HouseholdState.CurrentHousehold.Name</MudText>
+                @if (IsHouseholdLeader)
+                {
+                    <MudTextField @bind-Value="_editHouseholdName"
+                                  Label="Household Name"
+                                  Variant="Variant.Outlined"
+                                  Adornment="Adornment.End"
+                                  AdornmentIcon="@Icons.Material.Filled.Save"
+                                  OnAdornmentClick="UpdateHouseholdName"
+                                  HelperText="You are the leader. Click save to rename." />
+                }
+                else
+                {
+                    <MudText Typo="Typo.body1" Style="font-weight: 500;">@HouseholdState.CurrentHousehold.Name</MudText>
+                }
+
                 <MudText Typo="Typo.caption" Color="Color.Secondary">
-                    @HouseholdState.CurrentHousehold.Members.Count member(s)
+                    @HouseholdState.CurrentHousehold.Members.Count member(s) •
+                    @(HouseholdState.CurrentHousehold.IsPrivate ? "Private" : "Public")
                 </MudText>
             </div>
         </div>
+
+        @if (IsHouseholdLeader)
+        {
+            <div class="setting-row">
+                <div class="setting-info">
+                    <MudText Typo="Typo.body1">Visibility</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        Public households appear in search results
+                    </MudText>
+                </div>
+                <MudSwitch T="bool"
+                           Value="@(!HouseholdState.CurrentHousehold.IsPrivate)"
+                           ValueChanged="OnVisibilityChanged"
+                           Color="Color.Success" />
+            </div>
+        }
 
         @if (HouseholdState.UserHouseholds.Count > 1)
         {
@@ -77,18 +77,19 @@
             </MudSelect>
         }
 
-        <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth="true" StartIcon="@Icons.Material.Rounded.PersonAdd" OnClick="InviteMember" Style="border-radius: 12px; margin-top: 16px;">
-            Invite Member
-        </MudButton>
-
-        <MudButton Variant="Variant.Text" Color="Color.Default" FullWidth="true" OnClick="ViewMembers" Style="margin-top: 8px;">
-            View Members
-        </MudButton>
+        <div class="d-flex gap-2 mt-4">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth="true" StartIcon="@Icons.Material.Rounded.PersonAdd" OnClick="InviteMember" Style="border-radius: 12px;">
+                Invite
+            </MudButton>
+            <MudButton Variant="Variant.Text" Color="Color.Default" FullWidth="true" OnClick="ViewMembers">
+                Members
+            </MudButton>
+        </div>
     }
     else
     {
         <MudAlert Severity="Severity.Info" Class="mb-3">
-            You don't have a household yet. Create your own or ask someone to invite you!
+            You don't have a household yet.
         </MudAlert>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="CreateHousehold">
             Create Household
@@ -251,6 +252,12 @@
     private string _viewMode = "card";
     private UserDto? _userProfile;
     private string? _editDisplayName; // Bound variable for input
+    private string? _editHouseholdName;
+
+    private bool IsHouseholdLeader =>
+        HouseholdState.CurrentHousehold != null &&
+        _userProfile != null &&
+        HouseholdState.CurrentHousehold.CreatedById == _userProfile.Id;
 
     protected override async Task OnInitializedAsync()
     {
@@ -269,6 +276,12 @@
         try
         {
             _userProfile = await ApiClient.GetMyProfileAsync();
+
+            if (HouseholdState.CurrentHousehold != null)
+            {
+                _editHouseholdName = HouseholdState.CurrentHousehold.Name;
+            }
+
             if (_userProfile != null)
             {
                 // 1. Initialize input field
@@ -318,7 +331,49 @@
         }
     }
 
-    // ... Existing Theme/Logout/Household/ShareID methods ...
+    private async Task UpdateHouseholdName()
+    {
+        if (string.IsNullOrWhiteSpace(_editHouseholdName) || HouseholdState.CurrentHousehold == null) return;
+
+        try
+        {
+            await ApiClient.UpdateHouseholdNameAsync(HouseholdState.CurrentHousehold.Id, new UpdateHouseholdDto
+            {
+                Name = _editHouseholdName
+            });
+            await HouseholdState.RefreshHouseholdsAsync(); // Refresh local state
+            Snackbar.Add("Household renamed", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Failed to rename household", Severity.Error);
+            Console.WriteLine(ex.Message);
+        }
+    }
+
+    private async Task OnVisibilityChanged(bool isPublic)
+    {
+        if (HouseholdState.CurrentHousehold == null) return;
+
+        try
+        {
+            await ApiClient.UpdateHouseholdSettingsAsync(HouseholdState.CurrentHousehold.Id, new UpdateHouseholdSettingsDto
+            {
+                IsPrivate = !isPublic
+            });
+
+            // Manually update local state to reflect UI change immediately
+            HouseholdState.CurrentHousehold.IsPrivate = !isPublic;
+            Snackbar.Add(isPublic ? "Household is now Public" : "Household is now Private", Severity.Success);
+        }
+        catch
+        {
+            Snackbar.Add("Failed to update settings", Severity.Error);
+            // Revert switch visually
+            StateHasChanged();
+        }
+    }
+
     private async Task OnThemeChanged(string themeName)
     {
         _currentTheme = themeName;

@@ -1,0 +1,153 @@
+﻿@page "/households"
+@using StorhaugenWebsite.ApiClient
+@using StorhaugenWebsite.DTOs
+@inject IApiClient ApiClient
+@inject IHouseholdStateService HouseholdState
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<div class="d-flex align-center gap-3 mb-6">
+    <h1 class="page-title" style="margin-bottom: 0; font-size: 1.5rem;">Households</h1>
+    <p class="page-subtitle" style="margin: 0;">Find and connect with other kitchens</p>
+</div>
+
+<MudTextField T="string"
+              @bind-Value="_searchQuery"
+              Label="Search households"
+              Placeholder="Type name or Share ID..."
+              Variant="Variant.Outlined"
+              Adornment="Adornment.Start"
+              AdornmentIcon="@Icons.Material.Rounded.Search"
+              OnKeyUp="OnSearchKeyUp"
+              DebounceInterval="500"
+              OnDebounceIntervalElapsed="PerformSearch"
+              Class="mb-6" />
+
+@if (_isLoading)
+{
+    <div class="d-flex justify-center mt-4">
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+    </div>
+}
+else if (!_results.Any() && !string.IsNullOrEmpty(_searchQuery))
+{
+    <div class="d-flex flex-column align-center mt-8">
+        <MudIcon Icon="@Icons.Material.Rounded.SearchOff" Size="Size.Large" Color="Color.Secondary" />
+        <MudText Typo="Typo.h6" Color="Color.Secondary" Class="mt-2">No households found</MudText>
+    </div>
+}
+else if (!_results.Any())
+{
+    <div class="d-flex flex-column align-center mt-8">
+        <MudIcon Icon="@Icons.Material.Rounded.HomeWork" Size="Size.Large" Color="Color.Primary" />
+        <MudText Typo="Typo.h6" Class="mt-2">Search for a household</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">Enter a name or unique Share ID to find friends.</MudText>
+    </div>
+}
+else
+{
+    <div class="d-flex flex-column gap-3">
+        @foreach (var household in _results)
+        {
+            <div class="household-card">
+                <div class="d-flex align-center gap-3">
+                    <MudAvatar Color="Color.Primary" Variant="Variant.Filled">
+                        @household.Name[0].ToString().ToUpper()
+                    </MudAvatar>
+                    
+                    <div style="flex: 1;">
+                        <MudText Typo="Typo.body1" Style="font-weight: 600;">@household.Name</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            @household.MemberCount member(s) • Joined @household.CreatedAt.Year
+                        </MudText>
+                    </div>
+
+                    @if (household.UniqueShareId != null)
+                    {
+                         <MudChip Size="Size.Small" Color="Color.Secondary" T=string Variant="Variant.Text">
+                             ID: @household.UniqueShareId
+                         </MudChip>
+                    }
+                </div>
+                
+                <MudDivider Class="my-3" />
+                
+                <div class="d-flex justify-end gap-2">
+                    <MudButton Variant="Variant.Outlined" 
+                               Size="Size.Small" 
+                               Color="Color.Primary"
+                               OnClick="@(() => RequestFriendship(household))"
+                               Disabled="@(!HouseholdState.HasHousehold)">
+                        Connect
+                    </MudButton>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<style>
+    .household-card {
+        background: var(--mud-palette-surface);
+        padding: 16px;
+        border-radius: 12px;
+        border: 1px solid var(--mud-palette-divider);
+        transition: transform 0.2s;
+    }
+    .household-card:hover {
+        border-color: var(--mud-palette-primary);
+        transform: translateY(-2px);
+    }
+</style>
+
+@code {
+    private string _searchQuery = "";
+    private bool _isLoading = false;
+    private List<HouseholdSearchResultDto> _results = new();
+
+    // Triggered automatically by DebounceInterval
+    private async Task PerformSearch()
+    {
+        if (string.IsNullOrWhiteSpace(_searchQuery))
+        {
+            _results.Clear();
+            return;
+        }
+
+        _isLoading = true;
+        try
+        {
+            _results = await ApiClient.SearchHouseholdsAsync(_searchQuery);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Search error: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnSearchKeyUp(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            await PerformSearch();
+        }
+    }
+
+    private async Task RequestFriendship(HouseholdSearchResultDto target)
+    {
+        if (!HouseholdState.HasHousehold)
+        {
+            Snackbar.Add("You need to create a household first!", Severity.Warning);
+            return;
+        }
+
+        // Add logic here to call ApiClient.RequestFriendshipAsync
+        // using target.Id or target.UniqueShareId
+        Snackbar.Add($"Request sent to {target.Name} (Feature WIP)", Severity.Info);
+    }
+}

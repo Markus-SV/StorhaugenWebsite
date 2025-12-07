@@ -46,6 +46,11 @@ public class CreateHouseholdDto
     public required string Name { get; set; }
 }
 
+public class UpdateHouseholdDto
+{
+    public required string Name { get; set; }
+}
+
 public class UpdateHouseholdSettingsDto
 {
     public bool? IsPrivate { get; set; }

@@ -13,6 +13,7 @@ public interface IApiClient
     Task<HouseholdDto?> GetHouseholdAsync(Guid id);
     Task<HouseholdDto> CreateHouseholdAsync(CreateHouseholdDto dto);
     Task<HouseholdDto> UpdateHouseholdSettingsAsync(Guid id, UpdateHouseholdSettingsDto dto);
+    Task<HouseholdDto> UpdateHouseholdNameAsync(Guid id, UpdateHouseholdDto dto);
     Task<HouseholdDto> RegenerateHouseholdShareIdAsync(Guid id);
     Task SwitchHouseholdAsync(Guid householdId);
     Task<List<HouseholdInviteDto>> GetPendingInvitesAsync();
@@ -48,3 +49,4 @@ public interface IApiClient
     Task<UploadImageResultDto> UploadImageAsync(byte[] imageData, string fileName);
     Task DeleteImageAsync(string fileName);
 }
+

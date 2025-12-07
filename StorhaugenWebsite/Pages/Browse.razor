@@ -338,10 +338,16 @@ else if (_viewMode == "community")
                     </div>
 
                     <div class="recipe-meta">
-                        <div class="meta-item">
-                            <MudIcon Icon="@Icons.Material.Rounded.Person" Size="Size.Small" />
-                            <span>@currentRecipe.AddedByName</span>
+                        <div class="meta-item" style="color: var(--mud-palette-primary); font-weight: 500;">
+                            <MudIcon Icon="@Icons.Material.Rounded.Home" Size="Size.Small" />
+                            <span>@currentRecipe.HouseholdName</span>
                         </div>
+
+                        <div class="meta-item">
+                            <MudIcon Icon="@Icons.Material.Rounded.PersonOutline" Size="Size.Small" />
+                            <span style="font-size: 0.8em;">@currentRecipe.AddedByName</span>
+                        </div>
+
                         <div class="meta-item">
                             <MudIcon Icon="@Icons.Material.Rounded.CalendarMonth" Size="Size.Small" />
                             <span>@currentRecipe.DateAdded.ToString("MMM dd, yyyy")</span>

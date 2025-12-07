@@ -78,6 +78,14 @@ public class ApiClient : IApiClient
         return (await response.Content.ReadFromJsonAsync<HouseholdDto>(_jsonOptions))!;
     }
 
+    public async Task<HouseholdDto> UpdateHouseholdNameAsync(Guid id, UpdateHouseholdDto dto)
+    {
+        await AddAuthHeaderAsync();
+        var response = await _httpClient.PutAsJsonAsync($"/api/households/{id}", dto, _jsonOptions);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<HouseholdDto>(_jsonOptions))!;
+    }
+
     public async Task<HouseholdDto> RegenerateHouseholdShareIdAsync(Guid id)
     {
         await AddAuthHeaderAsync();
