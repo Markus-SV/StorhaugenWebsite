@@ -9,6 +9,8 @@
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @inject IJSRuntime JSRuntime
+@inject IThemeService ThemeService
+
 
 <div class="d-flex align-center gap-3 mb-6">
     <h1 class="page-title" style="margin-bottom: 0; font-size: 1.5rem;">Innstillinger</h1>
@@ -62,6 +64,37 @@
     }
 </div>
 
+<div class="form-section">
+    <p class="form-section-title">Utseende</p>
+    <MudSelect T="string"
+               Label="Color Theme"
+               Value="@_currentTheme"
+               ValueChanged="OnThemeChanged"
+               Variant="Variant.Outlined"
+               Class="theme-select"
+               AnchorOrigin="Origin.BottomLeft"
+               Style="margin-bottom: 16px;">
+        @foreach (var themeName in ThemeService.GetAvailableThemes())
+        {
+            var colors = ThemeService.GetThemeColors(themeName);
+            <MudSelectItem Value="@themeName">
+                <div class="theme-preview-container">
+                    <div class="mini-website" style="background: @colors.Background; border-color: @colors.Divider;">
+                        <div class="mini-appbar" style="background: @colors.AppbarBackground;"></div>
+                        <div class="mini-sidebar" style="background: @colors.BackgroundGrey;"></div>
+                        <div class="mini-content" style="background: @colors.Surface;">
+                            <div class="mini-primary" style="background: @colors.Primary;"></div>
+                            <div class="mini-text" style="background: @colors.TextPrimary;"></div>
+                            <div class="mini-text-sm" style="background: @colors.TextSecondary;"></div>
+                        </div>
+                    </div>
+                    <span class="theme-name">@GetThemeDisplayName(themeName)</span>
+                </div>
+            </MudSelectItem>
+        }
+    </MudSelect>
+</div>
+
 @if (HouseholdState.UserHouseholds.Count > 1)
 {
     <div class="form-section">
@@ -104,11 +137,80 @@
         padding: 12px 0;
         gap: 16px;
     }
+
+    .theme-select .mud-input-slot {
+        min-height: 70px !important;
+        padding: 8px 14px !important;
+    }
+
+    .theme-preview-container {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 8px;
+    }
+
+    .theme-name {
+        font-weight: 500;
+    }
+
+    .mini-website {
+        width: 100px;
+        height: 56px;
+        border-radius: 6px;
+        border: 1px solid;
+        display: flex;
+        flex-wrap: wrap;
+        overflow: hidden;
+        flex-shrink: 0;
+    }
+
+    .mini-appbar {
+        width: 100%;
+        height: 10px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+
+    .mini-sidebar {
+        width: 16px;
+        height: calc(100% - 10px);
+    }
+
+    .mini-content {
+        flex: 1;
+        margin: 4px;
+        border-radius: 3px;
+        padding: 4px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    .mini-primary {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .mini-text {
+        width: 60%;
+        height: 4px;
+        border-radius: 2px;
+    }
+
+    .mini-text-sm {
+        width: 40%;
+        height: 3px;
+        border-radius: 2px;
+    }
 </style>
 
 @code {
     private UserDto? _userProfile;
     private string? _editDisplayName;
+    private string _currentTheme = "Light";
+    private string _viewMode = "card";
 
     protected override async Task OnInitializedAsync()
     {
@@ -133,6 +235,9 @@
         {
             Console.WriteLine($"Error loading user profile: {ex.Message}");
         }
+
+        _currentTheme = ThemeService.GetCurrentThemeName();
+        _viewMode = DeviceState.Settings.ViewMode;
     }
 
     private async Task UpdateDisplayName()
@@ -182,6 +287,28 @@
         {
             Snackbar.Add("Feil ved bytte av husstand", Severity.Error);
         }
+    }
+
+    private async Task OnThemeChanged(string themeName)
+    {
+        _currentTheme = themeName;
+        await ThemeService.SetThemeAsync(themeName);
+    }
+
+
+
+    private string GetThemeDisplayName(string themeName)
+    {
+        return themeName switch
+        {
+            "System" => "System Default",
+            "Light" => "Light",
+            "Dark" => "Dark",
+            "Black" => "Midnight Black",
+            "Material" => "Material Red",
+            "Forest" => "Night Forest",
+            _ => themeName
+        };
     }
 
     private async Task Logout()

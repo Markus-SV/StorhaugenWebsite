@@ -5,6 +5,7 @@ using StorhaugenWebsite;
 using StorhaugenWebsite.Services;
 using StorhaugenWebsite.ApiClient;
 using Supabase;
+using Microsoft.AspNetCore.Components.Authorization;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
@@ -37,7 +38,8 @@ builder.Services.AddScoped(sp => new Supabase.Client(supabaseUrl, supabaseAnonKe
 builder.Services.AddScoped<IAuthService, SupabaseAuthService>();
 builder.Services.AddScoped<IApiClient, ApiClient>();
 builder.Services.AddScoped<IHouseholdStateService, HouseholdStateService>();
-
+builder.Services.AddAuthorizationCore();
+builder.Services.AddScoped<AuthenticationStateProvider, SupabaseAuthStateProvider>();
 // Other Services
 builder.Services.AddScoped<IDeviceStateService, DeviceStateService>();
 builder.Services.AddScoped<IThemeService, ThemeService>();
