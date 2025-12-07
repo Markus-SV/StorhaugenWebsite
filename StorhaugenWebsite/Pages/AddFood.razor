@@ -24,12 +24,31 @@
 }
 else
 {
-    <div class="d-flex justify-space-between align-center mb-6">
+    <div class="d-flex justify-space-between align-center mb-4">
         <div>
             <h1 class="page-title" style="margin-bottom: 4px;">Legg til måltid</h1>
             <p class="page-subtitle">Gi kveldens middag en vurdering</p>
         </div>
     </div>
+
+    <MudPaper Class="pa-2 mb-6 d-flex justify-center gap-2" Elevation="0" Style="background: var(--mud-palette-background-grey); border-radius: 12px;">
+        <MudButton Variant="@(_isHelloFresh ? Variant.Filled : Variant.Text)" 
+                   Color="Color.Success" 
+                   OnClick="@(() => SetFoodType(true))"
+                   Class="flex-1"
+                   Style="border-radius: 10px; transition: all 0.3s;"
+                   StartIcon="@Icons.Custom.Brands.MudBlazor"> @* You can use a leaf icon here if preferred *@
+            HelloFresh
+        </MudButton>
+        <MudButton Variant="@(!_isHelloFresh ? Variant.Filled : Variant.Text)" 
+                   Color="Color.Primary" 
+                   OnClick="@(() => SetFoodType(false))"
+                   Class="flex-1"
+                   Style="border-radius: 10px; transition: all 0.3s;"
+                   StartIcon="@Icons.Material.Rounded.Restaurant">
+            Annet
+        </MudButton>
+    </MudPaper>
 
     @if (!string.IsNullOrEmpty(_errorMessage))
     {
@@ -40,21 +59,29 @@ else
     }
 
     <div class="form-section">
-        <p class="form-section-title">Måltidsdetaljer</p>
+        <div class="d-flex justify-space-between align-center">
+            <p class="form-section-title">Måltidsdetaljer</p>
+            @if (_isHelloFresh)
+            {
+                <MudChip Size="Size.Small" Color="Color.Success" Variant="Variant.Text" Icon="@Icons.Material.Rounded.AutoAwesome">
+                    Autofyll aktiv
+                </MudChip>
+            }
+        </div>
 
         <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
             <MudTextField @bind-Value="_newFood.Name"
-                          Label="Hva spiste vi?"
+                          Label="@(_isHelloFresh ? "Hvilken rett er dette?" : "Hva spiste vi?")"
                           Variant="Variant.Outlined"
-                          Placeholder="f.eks. Taco-tirsdag, Bestemors lasagne"
+                          Placeholder="@(_isHelloFresh ? "Skann oppskriftskort..." : "f.eks. Bestemors lasagne")"
                           Required="true"
                           Disabled="_isReadingText"
                           Style="--mud-default-borderradius: 12px; flex-grow: 1;" />
 
             @if (_isReadingText)
             {
-                <MudProgressCircular Color="Color.Primary" Size="Size.Small" Indeterminate="true" Class="ml-2" />
-                <MudText Typo="Typo.caption" Class="ml-1" Color="Color.Secondary">Leser...</MudText>
+                <MudProgressCircular Color="Color.Success" Size="Size.Small" Indeterminate="true" Class="ml-2" />
+                <MudText Typo="Typo.caption" Class="ml-1" Color="Color.Success">Leser kort...</MudText>
             }
         </MudStack>
 
@@ -94,13 +121,13 @@ else
                            Class="flex-1">
                 <ActivatorContent>
                     <MudButton Variant="Variant.Filled"
-                               Color="Color.Primary"
+                               Color="@(_isHelloFresh ? Color.Success : Color.Primary)"
                                StartIcon="@Icons.Material.Rounded.CameraAlt"
                                Size="Size.Large"
                                FullWidth="true"
                                OnClick="@(() => _fileUpload?.OpenFilePickerAsync())"
                                Style="border-radius: 12px; height: 56px;">
-                        Ta bilde
+                        @(_isHelloFresh ? "Skann kort" : "Ta bilde")
                     </MudButton>
                 </ActivatorContent>
             </MudFileUpload>
@@ -125,15 +152,14 @@ else
         </MudStack>
 
         <p style="margin: 8px 0 0; font-size: 0.8rem; color: var(--mud-palette-text-secondary); text-align: center;">
-            Opptil 5 bilder
+            @(_isHelloFresh ? "Ta bilde av oppskriftskortet for å fylle ut tittelen" : "Opptil 5 bilder")
         </p>
     </div>
 
     <div class="form-section">
         <p class="form-section-title">Din vurdering</p>
-
         <div class="rating-member-card">
-            <div class="rating-member-header">
+             <div class="rating-member-header">
                 <div class="rating-member-info">
                     <div class="rating-member-avatar" style="@($"background: {GetMemberColor(_currentUserName)}")">
                         @(string.IsNullOrEmpty(_currentUserName) ? '?' : _currentUserName[0])
@@ -163,25 +189,25 @@ else
                     </div>
                 </div>
             }
+        </div>
     </div>
-</div>
 
-<div class="form-section">
-    <p class="form-section-title">Synlighet</p>
+    <div class="form-section">
+        <p class="form-section-title">Synlighet</p>
 
-    <div class="visibility-card">
-        <div class="d-flex align-center gap-3">
-            <MudIcon Icon="@(_newFood.IsPublic? Icons.Material.Rounded.Public : Icons.Material.Rounded.Lock)"
-                     Size="Size.Medium"
-                     Color="@(_newFood.IsPublic ? Color.Primary : Color.Default)" />
-            <div style="flex: 1;">
-                <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">
-                    @(_newFood.IsPublic ? "Offentlig" : "Privat")
-                </MudText>
-                <MudText Typo="Typo.caption" Color="Color.Secondary">
-                    @(_newFood.IsPublic
-                                        ? "Alle kan finne dette måltidet under 'Utforsk' og legge det til i sin liste"
-                                        : "Kun din husstand kan se dette måltidet")
+        <div class="visibility-card">
+            <div class="d-flex align-center gap-3">
+                <MudIcon Icon="@(_newFood.IsPublic? Icons.Material.Rounded.Public : Icons.Material.Rounded.Lock)"
+                         Size="Size.Medium"
+                         Color="@(_newFood.IsPublic ? Color.Primary : Color.Default)" />
+                <div style="flex: 1;">
+                    <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">
+                        @(_newFood.IsPublic ? "Offentlig" : "Privat")
+                    </MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        @(_newFood.IsPublic
+                            ? "Alle kan finne dette måltidet under 'Utforsk' og legge det til i sin liste"
+                            : "Kun din husstand kan se dette måltidet")
                     </MudText>
                 </div>
                 <MudSwitch T="bool"
@@ -192,7 +218,7 @@ else
     </div>
 
     <MudButton Variant="Variant.Filled"
-               Color="Color.Primary"
+               Color="@(_isHelloFresh ? Color.Success : Color.Primary)"
                Size="Size.Large"
                FullWidth="true"
                OnClick="SubmitFood"
@@ -224,8 +250,11 @@ else
     private bool _ratingEnabled = true;
     private int _ratingValue = 5;
     private string _currentUserName = "";
+    
+    // NEW: Toggle state. Default to true (HelloFresh) as per request logic focus
+    private bool _isHelloFresh = true; 
 
-    // --- ORDBOK FOR AUTOKORREKTUR ---
+    // ... Existing Vocabulary list ...
     private static readonly List<string> _foodVocabulary = new()
     {
         "Stekt", "Kokt", "Bakt", "Ovnsbakt", "Grillet", "Pannestekt", "Pannestekte",
@@ -237,6 +266,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        // ... Existing initialization logic ...
         if (!AuthService.IsAuthorized)
         {
             await AuthService.InitializeAsync();
@@ -247,14 +277,17 @@ else
             }
         }
 
-        // Wait for household state to be initialized
         await HouseholdState.InitializeAsync();
 
-        // Set current user name if household exists
         if (HouseholdState.HasHousehold)
         {
             _currentUserName = AuthService.CurrentUserName ?? "Unknown";
         }
+    }
+
+    private void SetFoodType(bool isHelloFresh)
+    {
+        _isHelloFresh = isHelloFresh;
     }
 
     private async Task OnImagesSelected(IReadOnlyList<IBrowserFile> files)
@@ -293,7 +326,8 @@ else
                 StateHasChanged();
                 await Task.Delay(100);
 
-                if (isFirstImage && string.IsNullOrWhiteSpace(_newFood.Name))
+                // CHANGED: Only trigger OCR if it's the first image, title is empty, AND HelloFresh mode is active
+                if (isFirstImage && string.IsNullOrWhiteSpace(_newFood.Name) && _isHelloFresh)
                 {
                     _ = TryAutoFillTitle(previewUrl);
                     isFirstImage = false;
@@ -306,6 +340,7 @@ else
         }
     }
 
+    // ... TryAutoFillTitle remains exactly the same as your provided code ...
     private async Task TryAutoFillTitle(string dataUrl)
     {
         if (dataUrl.Length > 10 * 1024 * 1024) return;
@@ -315,33 +350,30 @@ else
 
         try
         {
+            // Existing OCR logic is optimized for HelloFresh cards (detects 270 deg rotation, strips specific words)
+            // So we just call it as before.
             var rawText = await OcrService.RecognizeTextAsync(dataUrl);
-
+            
+            // ... (Rest of your existing OCR parsing logic) ...
             if (!string.IsNullOrWhiteSpace(rawText))
             {
-                var lines = rawText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+               // Copy your existing parsing logic here exactly as it was in the uploaded file
+               // logic for splitting lines, regex replacement, stopWords, etc.
+               var lines = rawText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
 
-                foreach (var line in lines)
-                {
-                    var cleanLine = line.Trim();
+               foreach (var line in lines)
+               {
+                   var cleanLine = line.Trim();
+                   if (cleanLine.Length < 3) continue;
 
-                    if (cleanLine.Length < 3) continue;
-
-                    cleanLine = System.Text.RegularExpressions.Regex.Replace(
-                        cleanLine,
-                        @"\b(HELLO|FRESH)\b",
-                        "",
-                        System.Text.RegularExpressions.RegexOptions.IgnoreCase
-                    );
-
-                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"^[\d\W_]+", "");
-                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"^\b[a-zA-Z]\b\s+", "");
-
-                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\d+\s*(P|pers|porsjoner)", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\d+(?:-\d+)?\s*min", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\([^)]*\)", "");
-
-                    cleanLine = cleanLine.Trim();
+                   cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\b(HELLO|FRESH)\b", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                   cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"^[\d\W_]+", "");
+                   cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"^\b[a-zA-Z]\b\s+", "");
+                   cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\d+\s*(P|pers|porsjoner)", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                   cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\d+(?:-\d+)?\s*min", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                   cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\([^)]*\)", "");
+                   
+                   cleanLine = cleanLine.Trim();
 
                     var stopWords = new[] { " med ", " og ", " servert ", " toppet ", " i " };
                     foreach (var word in stopWords)
@@ -362,10 +394,10 @@ else
                     if (cleanLine.Length > 3 && cleanLine.Length < 60 && !cleanLine.Any(char.IsDigit))
                     {
                         _newFood.Name = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\s+", " ").Trim();
-                        Snackbar.Add($"Found title: {_newFood.Name}", Severity.Success);
+                        Snackbar.Add($"Funnet tittel: {_newFood.Name}", Severity.Success);
                         break;
                     }
-                }
+               }
             }
         }
         catch (Exception ex)
@@ -379,30 +411,27 @@ else
         }
     }
 
-    private string AutoCorrectText(string input)
+    // ... AutoCorrectText and ComputeLevenshteinDistance remain the same ...
+    private string AutoCorrectText(string input) 
     {
+        // (Use your existing implementation)
         var words = input.Split(' ');
         var correctedWords = new List<string>();
-
         foreach (var word in words)
         {
             var cleanWord = word.Trim();
             if (string.IsNullOrWhiteSpace(cleanWord)) continue;
-
             if (_foodVocabulary.Contains(cleanWord, StringComparer.OrdinalIgnoreCase) || cleanWord.Length < 3)
             {
                 correctedWords.Add(cleanWord);
                 continue;
             }
-
             string bestMatch = cleanWord;
             int lowestDistance = int.MaxValue;
-
             foreach (var vocabWord in _foodVocabulary)
             {
                 int distance = ComputeLevenshteinDistance(cleanWord.ToLower(), vocabWord.ToLower());
                 int threshold = vocabWord.Length <= 4 ? 1 : 2;
-
                 if (distance <= threshold && distance < lowestDistance)
                 {
                     lowestDistance = distance;
@@ -413,32 +442,29 @@ else
         }
         return string.Join(" ", correctedWords);
     }
-
+    
     private int ComputeLevenshteinDistance(string s, string t)
     {
-        int n = s.Length;
+        // (Use your existing implementation)
+         int n = s.Length;
         int m = t.Length;
         int[,] d = new int[n + 1, m + 1];
-
         if (n == 0) return m;
         if (m == 0) return n;
-
         for (int i = 0; i <= n; d[i, 0] = i++) { }
         for (int j = 0; j <= m; d[0, j] = j++) { }
-
         for (int i = 1; i <= n; i++)
         {
             for (int j = 1; j <= m; j++)
             {
                 int cost = (t[j - 1] == s[i - 1]) ? 0 : 1;
-                d[i, j] = Math.Min(
-                    Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1),
-                    d[i - 1, j - 1] + cost);
+                d[i, j] = Math.Min(Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1), d[i - 1, j - 1] + cost);
             }
         }
         return d[n, m];
     }
-
+    
+    // ... RemoveImage, ToggleRating, GetMemberColor, etc. remain the same ...
     private void RemoveImage(int index)
     {
         if (index >= 0 && index < _imageData.Count)
@@ -448,11 +474,8 @@ else
             _imagePreviewUrls.RemoveAt(index);
         }
     }
-
-    private void ToggleRating(bool enabled)
-    {
-        _ratingEnabled = enabled;
-    }
+    
+    private void ToggleRating(bool enabled) => _ratingEnabled = enabled;
 
     private async Task SubmitFood()
     {
@@ -477,8 +500,10 @@ else
             _newFood.ImageUrls = uploadedUrls;
             _newFood.DateAdded = DateTime.UtcNow;
             _newFood.AddedBy = _currentUserName;
+            
+            // NEW: Save the HelloFresh status
+            _newFood.IsHelloFresh = _isHelloFresh;
 
-            // Add current user's rating if enabled
             if (_ratingEnabled)
             {
                 _newFood.Ratings[_currentUserName] = _ratingValue;
@@ -500,12 +525,12 @@ else
 
     private string GetMemberColor(string? name)
     {
-        if (string.IsNullOrEmpty(name)) return "hsl(0, 0%, 50%)";
+         if (string.IsNullOrEmpty(name)) return "hsl(0, 0%, 50%)";
         var hash = name.GetHashCode();
         var hue = Math.Abs(hash % 360);
         return $"hsl({hue}, 45%, 45%)";
     }
-
+    
     private string GetRatingBackground(int rating) => rating switch
     {
         >= 8 => "rgba(45, 90, 69, 0.15)",
