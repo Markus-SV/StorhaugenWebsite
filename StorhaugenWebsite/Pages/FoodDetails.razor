@@ -210,19 +210,18 @@ else
         <p class="form-section-title">Ratings</p>
 
         @{
-            var currentUserName = AuthService.CurrentUserName ?? "";
-            var currentUserHasRating = _food.Ratings.TryGetValue(currentUserName, out var currentUserRating) && currentUserRating.HasValue;
+            var currentUserHasRating = _food.Ratings.TryGetValue(CurrentUserDisplayName, out var currentUserRating) && currentUserRating.HasValue;
         }
 
         @* Show current user's rating card first *@
         <div class="rating-member-card">
             <div class="rating-member-header">
                 <div class="rating-member-info">
-                    <div class="rating-member-avatar" style="@($"background: {GetMemberColor(currentUserName)}")">
-                        @(currentUserName.Length > 0 ? currentUserName[0] : '?')
+                    <div class="rating-member-avatar" style="@($"background: {GetMemberColor(CurrentUserDisplayName)}")">
+                        @(CurrentUserDisplayName.Length > 0 ? CurrentUserDisplayName[0] : '?')
                     </div>
                     <div>
-                        <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">@currentUserName</MudText>
+                        <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">@CurrentUserDisplayName</MudText>
                         <MudText Typo="Typo.caption" Color="Color.Primary">(You)</MudText>
                     </div>
                 </div>
@@ -240,7 +239,7 @@ else
                 }
             </div>
 
-            @if (_editingRating == currentUserName)
+            @if (_editingRating == CurrentUserDisplayName)
             {
                 <div class="rating-slider-container">
                     <MudSlider T="int"
@@ -256,7 +255,7 @@ else
                     <MudButton Variant="Variant.Filled"
                                Color="Color.Primary"
                                Size="Size.Small"
-                               OnClick="@(() => SaveRating(currentUserName))"
+                               OnClick="@(() => SaveRating(CurrentUserDisplayName))"
                                Disabled="_isSaving"
                                Style="border-radius: 10px;">
                         Save
@@ -275,7 +274,7 @@ else
                            Color="Color.Primary"
                            Size="Size.Small"
                            StartIcon="@(currentUserHasRating ? Icons.Material.Rounded.Edit : Icons.Material.Rounded.AddCircle)"
-                           OnClick="@(() => StartEditRating(currentUserName, currentUserHasRating ? currentUserRating!.Value : 5))"
+                           OnClick="@(() => StartEditRating(CurrentUserDisplayName, currentUserHasRating ? currentUserRating!.Value : 5))"
                            Class="mt-2"
                            Style="border-radius: 10px;">
                     @(currentUserHasRating ? "Edit rating" : "Add rating")
@@ -284,7 +283,7 @@ else
         </div>
 
         @* Show other members' ratings (read-only) *@
-        @foreach (var rating in _food.Ratings.Where(r => r.Value.HasValue && r.Key != currentUserName))
+        @foreach (var rating in _food.Ratings.Where(r => r.Value.HasValue && r.Key != CurrentUserDisplayName))
         {
             var memberName = rating.Key;
             var ratingValue = rating.Value!.Value;
@@ -305,6 +304,40 @@ else
                 </div>
             </div>
         }
+    </div>
+
+    <!-- Visibility Section -->
+    <div class="form-section">
+        <p class="form-section-title">Visibility</p>
+
+        <div class="visibility-card">
+            <div class="d-flex align-center gap-3">
+                <MudIcon Icon="@(_food.IsPublic ? Icons.Material.Rounded.Public : Icons.Material.Rounded.Lock)"
+                         Size="Size.Medium"
+                         Color="@(_food.IsPublic ? Color.Primary : Color.Default)" />
+                <div style="flex: 1;">
+                    <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">
+                        @(_food.IsPublic ? "Public" : "Private")
+                    </MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        @(_food.IsPublic
+                            ? "Anyone can find this meal in Browse and add it to their list"
+                            : "Only your household can see this meal")
+                    </MudText>
+                </div>
+                <MudSwitch T="bool"
+                           Value="_food.IsPublic"
+                           ValueChanged="@((bool v) => ToggleVisibility(v))"
+                           Color="Color.Primary"
+                           Disabled="_isTogglingVisibility" />
+            </div>
+            @if (_food.IsPublic && !string.IsNullOrEmpty(_food.HouseholdName))
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+                    Shared by @_food.HouseholdName
+                </MudText>
+            }
+        </div>
     </div>
 
     <!-- Action Buttons -->
@@ -397,6 +430,12 @@ else
     private bool _editingNotes = false;
     private string _tempNotes = "";
     private bool _isSavingNotes = false;
+    private bool _isTogglingVisibility = false;
+
+    // Get current user's display name from household members (matches what backend uses for ratings)
+    private string CurrentUserDisplayName => HouseholdState.CurrentHousehold?.Members
+        .FirstOrDefault(m => m.Email.Equals(AuthService.CurrentUserEmail, StringComparison.OrdinalIgnoreCase))?.DisplayName
+        ?? AuthService.CurrentUserName ?? "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -570,6 +609,27 @@ else
         finally
         {
             _isSavingNotes = false;
+        }
+    }
+
+    private async Task ToggleVisibility(bool isPublic)
+    {
+        if (_food == null) return;
+
+        _isTogglingVisibility = true;
+        try
+        {
+            await FoodService.SetPublicStatusAsync(_food.Id, isPublic);
+            _food.IsPublic = isPublic;
+            Snackbar.Add(isPublic ? "Meal is now public!" : "Meal is now private", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isTogglingVisibility = false;
         }
     }
 

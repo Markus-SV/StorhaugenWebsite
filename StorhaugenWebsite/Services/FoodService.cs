@@ -52,7 +52,8 @@ namespace StorhaugenWebsite.Services
                 Name = food.Name,
                 Description = food.Description,
                 ImageUrls = food.ImageUrls,
-                PersonalNotes = null
+                PersonalNotes = null,
+                IsPublic = food.IsPublic
             };
 
             var created = await _apiClient.CreateRecipeAsync(dto);
@@ -140,6 +141,21 @@ namespace StorhaugenWebsite.Services
             await _apiClient.ForkRecipeAsync(recipeId);
         }
 
+        public async Task SetPublicStatusAsync(string id, bool isPublic)
+        {
+            ValidateAuthorization();
+
+            if (!Guid.TryParse(id, out var recipeId))
+                throw new ArgumentException("Invalid ID format.");
+
+            var dto = new UpdateHouseholdRecipeDto
+            {
+                IsPublic = isPublic
+            };
+
+            await _apiClient.UpdateRecipeAsync(recipeId, dto);
+        }
+
         // Map HouseholdRecipeDto to FoodItem for backward compatibility
         private FoodItem MapToFoodItem(HouseholdRecipeDto recipe)
         {
@@ -158,7 +174,9 @@ namespace StorhaugenWebsite.Services
                 GlobalRecipeId = recipe.GlobalRecipeId,
                 GlobalRecipeName = recipe.GlobalRecipeName,
                 IsForked = recipe.IsForked,
-                PersonalNotes = recipe.PersonalNotes
+                PersonalNotes = recipe.PersonalNotes,
+                IsPublic = recipe.IsPublic,
+                HouseholdName = recipe.HouseholdName
             };
         }
     }

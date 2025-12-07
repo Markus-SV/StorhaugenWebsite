@@ -224,6 +224,24 @@ public class ApiClient : IApiClient
         return (await _httpClient.GetFromJsonAsync<List<GlobalRecipeDto>>(url, _jsonOptions)) ?? new();
     }
 
+    // Public Household Recipes (community recipes)
+    public async Task<PublicRecipePagedResult> BrowsePublicRecipesAsync(BrowsePublicRecipesQuery query)
+    {
+        var queryParams = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+            queryParams.Add($"search={Uri.EscapeDataString(query.Search)}");
+
+        queryParams.Add($"sortBy={Uri.EscapeDataString(query.SortBy)}");
+        queryParams.Add($"page={query.Page}");
+        queryParams.Add($"pageSize={query.PageSize}");
+
+        var url = $"/api/household-recipes/public?{string.Join("&", queryParams)}";
+
+        return (await _httpClient.GetFromJsonAsync<PublicRecipePagedResult>(url, _jsonOptions))
+            ?? new PublicRecipePagedResult();
+    }
+
     // Storage Methods
     public async Task<UploadImageResultDto> UploadImageAsync(byte[] imageData, string fileName)
     {

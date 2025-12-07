@@ -166,6 +166,31 @@ else
     </div>
 </div>
 
+<div class="form-section">
+    <p class="form-section-title">Visibility</p>
+
+    <div class="visibility-card">
+        <div class="d-flex align-center gap-3">
+            <MudIcon Icon="@(_newFood.IsPublic ? Icons.Material.Rounded.Public : Icons.Material.Rounded.Lock)"
+                     Size="Size.Medium"
+                     Color="@(_newFood.IsPublic ? Color.Primary : Color.Default)" />
+            <div style="flex: 1;">
+                <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">
+                    @(_newFood.IsPublic ? "Public" : "Private")
+                </MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    @(_newFood.IsPublic
+                        ? "Anyone can find this meal in Browse and add it to their list"
+                        : "Only your household can see this meal")
+                </MudText>
+            </div>
+            <MudSwitch T="bool"
+                       @bind-Value="_newFood.IsPublic"
+                       Color="Color.Primary" />
+        </div>
+    </div>
+</div>
+
     <MudButton Variant="Variant.Filled"
                Color="Color.Primary"
                Size="Size.Large"

@@ -85,6 +85,10 @@ public class HouseholdRecipeDto
     public string? GlobalRecipeName { get; set; }
     public bool IsForked { get; set; }
     public string? PersonalNotes { get; set; }
+
+    // Public sharing
+    public bool IsPublic { get; set; }
+    public string? HouseholdName { get; set; }
 }
 
 public class CreateHouseholdRecipeDto
@@ -96,6 +100,7 @@ public class CreateHouseholdRecipeDto
     public string? PersonalNotes { get; set; }
     public Guid? GlobalRecipeId { get; set; }
     public bool Fork { get; set; } = false;
+    public bool IsPublic { get; set; } = false;
 
     // Additional fields for forking
     public int? PrepTimeMinutes { get; set; }
@@ -113,6 +118,7 @@ public class UpdateHouseholdRecipeDto
     public string? Description { get; set; }
     public List<string>? ImageUrls { get; set; }
     public string? PersonalNotes { get; set; }
+    public bool? IsPublic { get; set; }
 }
 
 public class RateRecipeDto
@@ -170,6 +176,38 @@ public class BrowseGlobalRecipesQuery
     public string SortBy { get; set; } = "popular";
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 20;
+}
+
+// Public Household Recipes (community recipes)
+public class PublicRecipeDto
+{
+    public Guid Id { get; set; }
+    public required string Name { get; set; }
+    public string? Description { get; set; }
+    public List<string> ImageUrls { get; set; } = new();
+    public string? ImageUrl => ImageUrls.FirstOrDefault();
+    public double AverageRating { get; set; }
+    public int RatingCount { get; set; }
+    public DateTime DateAdded { get; set; }
+    public string HouseholdName { get; set; } = string.Empty;
+    public string AddedByName { get; set; } = string.Empty;
+}
+
+public class BrowsePublicRecipesQuery
+{
+    public string? Search { get; set; }
+    public string SortBy { get; set; } = "newest";
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 20;
+}
+
+public class PublicRecipePagedResult
+{
+    public List<PublicRecipeDto> Recipes { get; set; } = new();
+    public int TotalCount { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public int TotalPages => (int)Math.Ceiling(TotalCount / (double)PageSize);
 }
 
 // Storage DTOs

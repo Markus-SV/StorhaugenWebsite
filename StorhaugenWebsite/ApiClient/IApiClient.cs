@@ -35,6 +35,9 @@ public interface IApiClient
     Task<GlobalRecipeDto?> GetGlobalRecipeAsync(Guid id);
     Task<List<GlobalRecipeDto>> SearchGlobalRecipesAsync(string query, int limit = 20);
 
+    // Public Household Recipes (community recipes)
+    Task<PublicRecipePagedResult> BrowsePublicRecipesAsync(BrowsePublicRecipesQuery query);
+
     // Storage
     Task<UploadImageResultDto> UploadImageAsync(byte[] imageData, string fileName);
     Task DeleteImageAsync(string fileName);

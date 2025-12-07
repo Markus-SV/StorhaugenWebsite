@@ -26,12 +26,30 @@
                   DebounceInterval="500"
                   Class="search-field" />
 
-    <!-- Filters Row -->
+    <!-- View Mode Tabs -->
+    <div class="d-flex gap-2 mb-3">
+        <MudChip Color="@(_viewMode == "global" ? Color.Primary : Color.Default)"
+                 OnClick="@(() => SetViewMode("global"))"
+                 T="string"
+                 Icon="@Icons.Material.Rounded.LocalDining">
+            HelloFresh
+        </MudChip>
+        <MudChip Color="@(_viewMode == "community" ? Color.Primary : Color.Default)"
+                 OnClick="@(() => SetViewMode("community"))"
+                 T="string"
+                 Icon="@Icons.Material.Rounded.People">
+            Community
+        </MudChip>
+    </div>
+
+    <!-- Filters Row (only for global recipes) -->
+    @if (_viewMode == "global")
+    {
     <div class="d-flex gap-2 flex-wrap">
         <MudChip Color="@(_hellofreshOnly ? Color.Primary : Color.Default)"
                  OnClick="ToggleHelloFresh"
                  T="string"
-                 Icon="@Icons.Material.Rounded.LocalDining">
+                 Icon="@Icons.Material.Rounded.Verified">
             HelloFresh Only
         </MudChip>
 
@@ -120,6 +138,7 @@
             </ChildContent>
         </MudMenu>
     </div>
+    }
 </div>
 
 @if (_isLoading)
@@ -137,7 +156,7 @@
         }
     </div>
 }
-else if (!_recipes.Any())
+else if (_viewMode == "global" && !_recipes.Any())
 {
     <div class="empty-state">
         <div class="empty-state-icon">
@@ -150,7 +169,17 @@ else if (!_recipes.Any())
         </MudButton>
     </div>
 }
-else
+else if (_viewMode == "community" && !_publicRecipes.Any())
+{
+    <div class="empty-state">
+        <div class="empty-state-icon">
+            <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Large" />
+        </div>
+        <h2 class="empty-state-title">No community recipes yet</h2>
+        <p class="empty-state-text">Be the first to share a recipe with the community!</p>
+    </div>
+}
+else if (_viewMode == "global")
 {
     <div class="d-flex flex-column gap-3">
         @foreach (var recipe in _recipes)
@@ -270,6 +299,96 @@ else
             <MudIconButton Icon="@Icons.Material.Rounded.ChevronRight"
                            OnClick="NextPage"
                            Disabled="@(_currentPage >= _totalPages)"
+                           Size="Size.Small" />
+        </div>
+    }
+}
+else if (_viewMode == "community")
+{
+    <div class="d-flex flex-column gap-3">
+        @foreach (var recipe in _publicRecipes)
+        {
+            var currentRecipe = recipe;
+            <div class="global-recipe-card">
+                @if (!string.IsNullOrEmpty(currentRecipe.ImageUrl))
+                {
+                    <img src="@currentRecipe.ImageUrl" alt="@currentRecipe.Name" class="recipe-card-image" />
+                }
+                else
+                {
+                    <div class="recipe-card-placeholder">
+                        <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" />
+                    </div>
+                }
+                <div class="recipe-card-content">
+                    <div class="d-flex justify-space-between align-start gap-3 mb-2">
+                        <div>
+                            <h3 class="recipe-card-title">@currentRecipe.Name</h3>
+                            <MudChip T="string" Size="Size.Small" Color="Color.Success" Icon="@Icons.Material.Rounded.People" Style="height: 20px; margin-top: 4px;">
+                                @currentRecipe.HouseholdName
+                            </MudChip>
+                        </div>
+                        @if (currentRecipe.AverageRating > 0)
+                        {
+                            <span class="rating-badge rating-high">
+                                <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
+                                @currentRecipe.AverageRating.ToString("0.0")
+                            </span>
+                        }
+                    </div>
+
+                    <div class="recipe-meta">
+                        <div class="meta-item">
+                            <MudIcon Icon="@Icons.Material.Rounded.Person" Size="Size.Small" />
+                            <span>@currentRecipe.AddedByName</span>
+                        </div>
+                        <div class="meta-item">
+                            <MudIcon Icon="@Icons.Material.Rounded.CalendarMonth" Size="Size.Small" />
+                            <span>@currentRecipe.DateAdded.ToString("MMM dd, yyyy")</span>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(currentRecipe.Description))
+                    {
+                        <p class="recipe-description">@currentRecipe.Description</p>
+                    }
+
+                    <div class="d-flex gap-2 mt-3">
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Rounded.ContentCopy"
+                                   OnClick="@(() => AddPublicRecipe(currentRecipe))"
+                                   Disabled="@(!HouseholdState.HasHousehold)"
+                                   Size="Size.Small">
+                            Add to My List
+                        </MudButton>
+                    </div>
+
+                    @if (!HouseholdState.HasHousehold)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Error" Class="mt-2">
+                            Create a household in Settings to add recipes
+                        </MudText>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+
+    <!-- Pagination for community -->
+    @if (_publicTotalPages > 1)
+    {
+        <div class="d-flex justify-center align-center gap-2 mt-4">
+            <MudIconButton Icon="@Icons.Material.Rounded.ChevronLeft"
+                           OnClick="PreviousPage"
+                           Disabled="@(_currentPage <= 1)"
+                           Size="Size.Small" />
+            <MudText Typo="Typo.body2">
+                Page @_currentPage of @_publicTotalPages
+            </MudText>
+            <MudIconButton Icon="@Icons.Material.Rounded.ChevronRight"
+                           OnClick="NextPage"
+                           Disabled="@(_currentPage >= _publicTotalPages)"
                            Size="Size.Small" />
         </div>
     }
@@ -437,6 +556,7 @@ else
 
 @code {
     private List<GlobalRecipeDto> _recipes = new();
+    private List<PublicRecipeDto> _publicRecipes = new();
     private bool _isLoading = true;
     private string _searchQuery = "";
     private string? _selectedCuisine = null;
@@ -448,6 +568,8 @@ else
     private int _pageSize = 20;
     private int _totalRecipes = 0;
     private int _totalPages = 0;
+    private int _publicTotalPages = 0;
+    private string _viewMode = "global";
 
     private readonly List<string> _availableCuisines = new()
     {
@@ -470,27 +592,51 @@ else
         await LoadRecipes();
     }
 
+    private async Task SetViewMode(string mode)
+    {
+        _viewMode = mode;
+        _currentPage = 1;
+        await LoadRecipes();
+    }
+
     private async Task LoadRecipes()
     {
         _isLoading = true;
         try
         {
-            var query = new BrowseGlobalRecipesQuery
+            if (_viewMode == "global")
             {
-                Search = string.IsNullOrWhiteSpace(_searchQuery) ? null : _searchQuery,
-                Cuisine = _selectedCuisine,
-                Difficulty = _selectedDifficulty,
-                MaxPrepTime = _maxPrepTime,
-                HellofreshOnly = _hellofreshOnly,
-                SortBy = _sortBy,
-                Page = _currentPage,
-                PageSize = _pageSize
-            };
+                var query = new BrowseGlobalRecipesQuery
+                {
+                    Search = string.IsNullOrWhiteSpace(_searchQuery) ? null : _searchQuery,
+                    Cuisine = _selectedCuisine,
+                    Difficulty = _selectedDifficulty,
+                    MaxPrepTime = _maxPrepTime,
+                    HellofreshOnly = _hellofreshOnly,
+                    SortBy = _sortBy,
+                    Page = _currentPage,
+                    PageSize = _pageSize
+                };
 
-            var result = await ApiClient.BrowseGlobalRecipesAsync(query);
-            _recipes = result.Recipes;
-            _totalRecipes = result.TotalCount;
-            _totalPages = result.TotalPages;
+                var result = await ApiClient.BrowseGlobalRecipesAsync(query);
+                _recipes = result.Recipes;
+                _totalRecipes = result.TotalCount;
+                _totalPages = result.TotalPages;
+            }
+            else if (_viewMode == "community")
+            {
+                var query = new BrowsePublicRecipesQuery
+                {
+                    Search = string.IsNullOrWhiteSpace(_searchQuery) ? null : _searchQuery,
+                    SortBy = _sortBy == "popular" ? "newest" : _sortBy, // Default to newest for community
+                    Page = _currentPage,
+                    PageSize = _pageSize
+                };
+
+                var result = await ApiClient.BrowsePublicRecipesAsync(query);
+                _publicRecipes = result.Recipes;
+                _publicTotalPages = result.TotalPages;
+            }
         }
         catch (Exception ex)
         {
@@ -625,6 +771,34 @@ else
             {
                 Snackbar.Add($"'{recipe.Name}' linked to your household", Severity.Success);
             }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error adding recipe: {ex.Message}");
+            Snackbar.Add("Failed to add recipe", Severity.Error);
+        }
+    }
+
+    private async Task AddPublicRecipe(PublicRecipeDto recipe)
+    {
+        if (!HouseholdState.HasHousehold)
+        {
+            Snackbar.Add("Please create a household first", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            // Create a copy of the public recipe in the user's household
+            var dto = new CreateHouseholdRecipeDto
+            {
+                Name = recipe.Name,
+                Description = recipe.Description,
+                ImageUrls = recipe.ImageUrls
+            };
+
+            await ApiClient.CreateRecipeAsync(dto);
+            Snackbar.Add($"'{recipe.Name}' added to your list!", Severity.Success);
         }
         catch (Exception ex)
         {
