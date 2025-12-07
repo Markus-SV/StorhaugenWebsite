@@ -135,7 +135,7 @@
         animation: scanAnim 2.5s ease-in-out infinite;
     }
 
-    @keyframes scanAnim {
+    @@keyframes scanAnim {
         0% { top: 5%; opacity: 0; }
         20% { opacity: 1; }
         80% { opacity: 1; }
@@ -392,8 +392,8 @@ else
             <p class="form-section-title">Måltidsdetaljer</p>
             @if (_isHelloFresh && _isProcessingOcr)
             {
-                <MudChip Size="Size.Small" Color="Color.Success" Variant="Variant.Text" Icon="@Icons.Material.Rounded.AutoAwesome">
-                    Analyserer...
+                <MudChip Size="Size.Small" Color="Color.Success" T="string" Variant="Variant.Text" Icon="@Icons.Material.Rounded.AutoAwesome">
+                    Analyserer... 
                 </MudChip>
             }
         </div>
