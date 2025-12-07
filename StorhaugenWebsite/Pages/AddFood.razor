@@ -341,16 +341,19 @@
         <div class="camera-guide-container @GetOverlayClass()">
 
             <div class="camera-guide-box">
-                @* Vis kun hjelpelinjer på steg 1 (Forside) *@
+                @* Step 1: Front Page *@
                 @if (_currentStep == ScanStep.Front)
                 {
-                    <div class="text-hint-zone">
-                        <span class="text-label">TITTEL</span>
-                    </div>
                     <div class="logo-hint-zone">
                         <span class="logo-label">LOGO</span>
                     </div>
+
+                    <div class="text-hint-zone">
+                        <span class="text-label">TITTEL HER</span>
+                    </div>
                 }
+
+                @* Scan line animation (always active) *@
                 <div class="scan-line"></div>
             </div>
 
