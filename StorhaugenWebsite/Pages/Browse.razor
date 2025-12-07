@@ -11,7 +11,7 @@
 @inject ISnackbar Snackbar
 @attribute [Authorize]
 
-<div class="d-flex align-center gap-3 mb-4">
+<div class="d-flex align-center justify-space-between mb-4">
     <h1 class="page-title" style="margin-bottom: 0; font-size: 1.5rem;">Utforsk</h1>
 </div>
 
@@ -26,123 +26,37 @@
                   DebounceInterval="500"
                   Class="search-field" />
 
-    <div class="d-flex gap-2 mb-3">
-        <MudChip Color="@(_viewMode == "global" ? Color.Primary : Color.Default)"
-                 OnClick="@(() => SetViewMode("global"))"
-                 T="string"
-                 Icon="@Icons.Material.Rounded.LocalDining">
-            HelloFresh
-        </MudChip>
-        <MudChip Color="@(_viewMode == "community" ? Color.Primary : Color.Default)"
-                 OnClick="@(() => SetViewMode("community"))"
-                 T="string"
-                 Icon="@Icons.Material.Rounded.People">
-            Fellesskapet
-        </MudChip>
-    </div>
-
-    @if (_viewMode == "global")
-    {
-        <div class="d-flex gap-2 flex-wrap">
-            <MudChip Color="@(_hellofreshOnly ? Color.Primary : Color.Default)"
-                     OnClick="ToggleHelloFresh"
+    <div class="d-flex justify-space-between align-center">
+        <div class="d-flex gap-2">
+            <MudChip Color="@(_sourceMode == "community" ? Color.Primary : Color.Default)"
+                     OnClick="@(() => SetSourceMode("community"))"
                      T="string"
-                     Icon="@Icons.Material.Rounded.Verified">
-                Kun HelloFresh
+                     Icon="@Icons.Material.Rounded.People">
+                Fellesskapet
             </MudChip>
-
-            <MudMenu AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
-                <ActivatorContent>
-                    <MudChip Icon="@Icons.Material.Rounded.Public" T="string"
-                             Color="@(!string.IsNullOrEmpty(_selectedCuisine) ? Color.Primary : Color.Default)">
-                        @(!string.IsNullOrEmpty(_selectedCuisine) ? _selectedCuisine : "Alle kjøkken")
-                    </MudChip>
-                </ActivatorContent>
-                <ChildContent>
-                    <MudMenuItem OnClick="@(() => SetCuisine(null))">Alle kjøkken</MudMenuItem>
-                    <MudDivider />
-                    @foreach (var cuisine in _availableCuisines)
-                    {
-                        <MudMenuItem OnClick="@(() => SetCuisine(cuisine))">@cuisine</MudMenuItem>
-                    }
-                </ChildContent>
-            </MudMenu>
-
-            <MudMenu AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
-                <ActivatorContent>
-                    <MudChip T="string" Icon="@Icons.Material.Rounded.Speed"
-                             Color="@(!string.IsNullOrEmpty(_selectedDifficulty) ? Color.Primary : Color.Default)">
-                        @(!string.IsNullOrEmpty(_selectedDifficulty) ? _selectedDifficulty : "Vanskelighetsgrad")
-                    </MudChip>
-                </ActivatorContent>
-                <ChildContent>
-                    <MudMenuItem OnClick="@(() => SetDifficulty(null))">Alle</MudMenuItem>
-                    <MudDivider />
-                    <MudMenuItem OnClick="@(() => SetDifficulty("Easy"))">Lett</MudMenuItem>
-                    <MudMenuItem OnClick="@(() => SetDifficulty("Medium"))">Medium</MudMenuItem>
-                    <MudMenuItem OnClick="@(() => SetDifficulty("Hard"))">Vanskelig</MudMenuItem>
-                </ChildContent>
-            </MudMenu>
-
-            <MudMenu AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
-                <ActivatorContent>
-                    <MudChip T="string" Icon="@Icons.Material.Rounded.AccessTime"
-                             Color="@(_maxPrepTime.HasValue ? Color.Primary : Color.Default)">
-                        @(_maxPrepTime.HasValue ? $"≤ {_maxPrepTime} min" : "Tid")
-                    </MudChip>
-                </ActivatorContent>
-                <ChildContent>
-                    <MudMenuItem OnClick="@(() => SetMaxPrepTime(null))">All tid</MudMenuItem>
-                    <MudDivider />
-                    <MudMenuItem OnClick="@(() => SetMaxPrepTime(15))">≤ 15 min</MudMenuItem>
-                    <MudMenuItem OnClick="@(() => SetMaxPrepTime(30))">≤ 30 min</MudMenuItem>
-                    <MudMenuItem OnClick="@(() => SetMaxPrepTime(45))">≤ 45 min</MudMenuItem>
-                    <MudMenuItem OnClick="@(() => SetMaxPrepTime(60))">≤ 60 min</MudMenuItem>
-                </ChildContent>
-            </MudMenu>
-
-            <MudMenu AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
-                <ActivatorContent>
-                    <MudChip T="string" Icon="@Icons.Material.Rounded.Sort"
-                             Color="Color.Default">
-                        Sortering: @GetSortLabel()
-                    </MudChip>
-                </ActivatorContent>
-                <ChildContent>
-                    <MudMenuItem OnClick="@(() => SetSort("popular"))">
-                        <div class="d-flex align-center gap-2">
-                            <MudIcon Icon="@Icons.Material.Rounded.TrendingUp" Size="Size.Small" />
-                            <span>Populært</span>
-                        </div>
-                    </MudMenuItem>
-                    <MudMenuItem OnClick="@(() => SetSort("newest"))">
-                        <div class="d-flex align-center gap-2">
-                            <MudIcon Icon="@Icons.Material.Rounded.NewReleases" Size="Size.Small" />
-                            <span>Nyest</span>
-                        </div>
-                    </MudMenuItem>
-                    <MudMenuItem OnClick="@(() => SetSort("rating"))">
-                        <div class="d-flex align-center gap-2">
-                            <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
-                            <span>Vurdering</span>
-                        </div>
-                    </MudMenuItem>
-                    <MudMenuItem OnClick="@(() => SetSort("name"))">
-                        <div class="d-flex align-center gap-2">
-                            <MudIcon Icon="@Icons.Material.Rounded.SortByAlpha" Size="Size.Small" />
-                            <span>Navn</span>
-                        </div>
-                    </MudMenuItem>
-                </ChildContent>
-            </MudMenu>
+            <MudChip Color="@(_sourceMode == "hellofresh" ? Color.Primary : Color.Default)"
+                     OnClick="@(() => SetSourceMode("hellofresh"))"
+                     T="string"
+                     Icon="@Icons.Material.Rounded.LocalDining">
+                HelloFresh
+            </MudChip>
         </div>
-    }
+
+        <div class="view-toggle">
+            <button class="view-toggle-btn @(_viewMode == "card" ? "active" : "")" @onclick="@(() => SetViewMode("card"))">
+                <MudIcon Icon="@Icons.Material.Rounded.GridView" Size="Size.Small" />
+            </button>
+            <button class="view-toggle-btn @(_viewMode == "list" ? "active" : "")" @onclick="@(() => SetViewMode("list"))">
+                <MudIcon Icon="@Icons.Material.Rounded.ViewList" Size="Size.Small" />
+            </button>
+        </div>
+    </div>
 </div>
 
 @if (_isLoading)
 {
-    @* <div class="d-flex flex-column gap-3">
-        @for (int i = 0; i < 6; i++)
+    <div class="d-flex flex-column gap-3">
+        @for (int i = 0; i < 3; i++)
         {
             <div class="skeleton-card">
                 <div class="skeleton-image"></div>
@@ -152,22 +66,9 @@
                 </div>
             </div>
         }
-    </div> *@
-}
-else if (_viewMode == "global" && !_recipes.Any())
-{
-    <div class="empty-state">
-        <div class="empty-state-icon">
-            <MudIcon Icon="@Icons.Material.Rounded.SearchOff" Size="Size.Large" />
-        </div>
-        <h2 class="empty-state-title">Ingen oppskrifter funnet</h2>
-        <p class="empty-state-text">Prøv å endre filtre eller søk</p>
-        <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="ClearFilters">
-            Tøm alle filtre
-        </MudButton>
     </div>
 }
-else if (_viewMode == "community" && !_publicRecipes.Any())
+else if (_sourceMode == "community" && !_publicRecipes.Any())
 {
     <div class="empty-state">
         <div class="empty-state-icon">
@@ -177,314 +78,377 @@ else if (_viewMode == "community" && !_publicRecipes.Any())
         <p class="empty-state-text">Bli den første til å dele en oppskrift med fellesskapet!</p>
     </div>
 }
-else if (_viewMode == "global")
+else if (_sourceMode == "hellofresh" && !_recipes.Any())
 {
-    <div class="d-flex flex-column gap-3">
-        @foreach (var recipe in _recipes)
-        {
-            var currentRecipe = recipe;
-            <div class="global-recipe-card">
-                @if (!string.IsNullOrEmpty(currentRecipe.ImageUrl))
-                {
-                    <img src="@currentRecipe.ImageUrl" alt="@currentRecipe.Name" class="recipe-card-image" />
-                }
-                else
-                {
-                    <div class="recipe-card-placeholder">
-                        <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" />
-                    </div>
-                }
-                <div class="recipe-card-content">
-                    <div class="d-flex justify-space-between align-start gap-3 mb-2">
-                        <div>
-                            <h3 class="recipe-card-title">@currentRecipe.Name</h3>
-                            @if (currentRecipe.IsHellofresh)
-                            {
-                                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Icon="@Icons.Material.Rounded.LocalDining" Style="height: 20px; margin-top: 4px;">
-                                    HelloFresh
-                                </MudChip>
-                            }
-                        </div>
-                        @if (currentRecipe.AverageRating > 0)
-                        {
-                            <span class="rating-badge rating-high">
-                                <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
-                                @currentRecipe.AverageRating.ToString("0.0")
-                            </span>
-                        }
-                    </div>
-
-                    <div class="recipe-meta">
-                        @if (currentRecipe.PrepTimeMinutes.HasValue)
-                        {
-                            <div class="meta-item">
-                                <MudIcon Icon="@Icons.Material.Rounded.AccessTime" Size="Size.Small" />
-                                <span>@currentRecipe.PrepTimeMinutes min</span>
-                            </div>
-                        }
-                        @if (!string.IsNullOrEmpty(currentRecipe.Difficulty))
-                        {
-                            <div class="meta-item">
-                                <MudIcon Icon="@Icons.Material.Rounded.Speed" Size="Size.Small" />
-                                <span>@currentRecipe.Difficulty</span>
-                            </div>
-                        }
-                        @if (!string.IsNullOrEmpty(currentRecipe.Cuisine))
-                        {
-                            <div class="meta-item">
-                                <MudIcon Icon="@Icons.Material.Rounded.Public" Size="Size.Small" />
-                                <span>@currentRecipe.Cuisine</span>
-                            </div>
-                        }
-                    </div>
-
-                    @if (!string.IsNullOrEmpty(currentRecipe.Description))
-                    {
-                        <p class="recipe-description">@currentRecipe.Description</p>
-                    }
-
-                    @if (currentRecipe.Tags?.Any() == true)
-                    {
-                        <div class="recipe-tags">
-                            @foreach (var tag in currentRecipe.Tags.Take(5))
-                            {
-                                <MudChip T="string" Size="Size.Small" Style="height: 24px;">@tag</MudChip>
-                            }
-                        </div>
-                    }
-
-                    <div class="d-flex gap-2 mt-3">
-                        <MudButton Variant="Variant.Filled"
-                                   Color="Color.Primary"
-                                   StartIcon="@Icons.Material.Rounded.Link"
-                                   OnClick="@(() => AddRecipe(currentRecipe, false))"
-                                   Disabled="@(!HouseholdState.HasHousehold)"
-                                   Size="Size.Small">
-                            Legg til som lenke
-                        </MudButton>
-                        <MudButton Variant="Variant.Outlined"
-                                   Color="Color.Primary"
-                                   StartIcon="@Icons.Material.Rounded.ContentCopy"
-                                   OnClick="@(() => AddRecipe(currentRecipe, true))"
-                                   Disabled="@(!HouseholdState.HasHousehold)"
-                                   Size="Size.Small">
-                            Legg til som kopi
-                        </MudButton>
-                    </div>
-
-                    @if (!HouseholdState.HasHousehold)
-                    {
-                        <MudText Typo="Typo.caption" Color="Color.Error" Class="mt-2">
-                            Opprett en husstand i Innstillinger for å legge til oppskrifter
-                        </MudText>
-                    }
-                </div>
-            </div>
-        }
-    </div>
-
-    <!-- Pagination -->
-    @if (_totalPages > 1)
-    {
-        <div class="d-flex justify-center align-center gap-2 mt-4">
-            <MudIconButton Icon="@Icons.Material.Rounded.ChevronLeft"
-                           OnClick="PreviousPage"
-                           Disabled="@(_currentPage <= 1)"
-                           Size="Size.Small" />
-            <MudText Typo="Typo.body2">
-                Side @_currentPage av @_totalPages
-            </MudText>
-            <MudIconButton Icon="@Icons.Material.Rounded.ChevronRight"
-                           OnClick="NextPage"
-                           Disabled="@(_currentPage >= _totalPages)"
-                           Size="Size.Small" />
+    <div class="empty-state">
+        <div class="empty-state-icon">
+            <MudIcon Icon="@Icons.Material.Rounded.SearchOff" Size="Size.Large" />
         </div>
-    }
+        <h2 class="empty-state-title">Ingen oppskrifter funnet</h2>
+        <p class="empty-state-text">Prøv å endre søket ditt</p>
+    </div>
 }
-else if (_viewMode == "community")
+else
 {
-    <div class="d-flex flex-column gap-3">
-        @foreach (var recipe in _publicRecipes)
+    @if (_sourceMode == "community")
+    {
+        @if (_viewMode == "card")
         {
-            var currentRecipe = recipe;
-            <div class="global-recipe-card">
-                @if (!string.IsNullOrEmpty(currentRecipe.ImageUrl))
+            <div class="d-flex flex-column gap-4">
+                @foreach (var recipe in _publicRecipes)
                 {
-                    <img src="@currentRecipe.ImageUrl" alt="@currentRecipe.Name" class="recipe-card-image" />
-                }
-                else
-                {
-                    <div class="recipe-card-placeholder">
-                        <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" />
-                    </div>
-                }
-                <div class="recipe-card-content">
-                    <div class="d-flex justify-space-between align-start gap-3 mb-2">
-                        <div>
-                            <h3 class="recipe-card-title">@currentRecipe.Name</h3>
-                            <MudChip T="string" Size="Size.Small" Color="Color.Success" Icon="@Icons.Material.Rounded.People" Style="height: 20px; margin-top: 4px;">
-                                @currentRecipe.HouseholdName
-                            </MudChip>
-                        </div>
-                        @if (currentRecipe.AverageRating > 0)
+                    <div class="food-card animate-in">
+                        @if (!string.IsNullOrEmpty(recipe.ImageUrl))
                         {
-                            <span class="rating-badge rating-high">
-                                <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
-                                @currentRecipe.AverageRating.ToString("0.0")
-                            </span>
+                            <img src="@recipe.ImageUrl" alt="@recipe.Name" class="food-card-image" />
                         }
-                    </div>
+                        else
+                        {
+                            <div class="food-card-placeholder">
+                                <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" />
+                            </div>
+                        }
+                        <div class="food-card-content">
+                            <div class="d-flex justify-space-between align-start gap-3">
+                                <div>
+                                    <h3 class="food-card-title">@recipe.Name</h3>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">@recipe.HouseholdName</MudText>
+                                </div>
+                                @if (recipe.AverageRating > 0)
+                                {
+                                    <span class="rating-badge rating-high">
+                                        <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
+                                        @recipe.AverageRating.ToString("0.0")
+                                    </span>
+                                }
+                            </div>
 
-                    <div class="recipe-meta">
-                        <div class="meta-item" style="color: var(--mud-palette-primary); font-weight: 500;">
-                            <MudIcon Icon="@Icons.Material.Rounded.Home" Size="Size.Small" />
-                            <span>@currentRecipe.HouseholdName</span>
+                            <p class="food-card-meta mt-2">Delt av @recipe.AddedByName • @recipe.DateAdded.ToString("d MMM")</p>
+
+                            <div class="mt-3">
+                                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                                           StartIcon="@Icons.Material.Rounded.Add"
+                                           OnClick="@(() => AddPublicRecipe(recipe))">
+                                    Legg til
+                                </MudButton>
+                            </div>
                         </div>
-
-                        <div class="meta-item">
-                            <MudIcon Icon="@Icons.Material.Rounded.PersonOutline" Size="Size.Small" />
-                            <span style="font-size: 0.8em;">@currentRecipe.AddedByName</span>
-                        </div>
-
-                        <div class="meta-item">
-                            <MudIcon Icon="@Icons.Material.Rounded.CalendarMonth" Size="Size.Small" />
-                            <span>@currentRecipe.DateAdded.ToString("MMM dd, yyyy")</span>
-                        </div>
                     </div>
-
-                    @if (!string.IsNullOrEmpty(currentRecipe.Description))
-                    {
-                        <p class="recipe-description">@currentRecipe.Description</p>
-                    }
-
-                    <div class="d-flex gap-2 mt-3">
-                        <MudButton Variant="Variant.Filled"
-                                   Color="Color.Primary"
-                                   StartIcon="@Icons.Material.Rounded.ContentCopy"
-                                   OnClick="@(() => AddPublicRecipe(currentRecipe))"
-                                   Disabled="@(!HouseholdState.HasHousehold)"
-                                   Size="Size.Small">
-                            Legg til i min liste
-                        </MudButton>
-                    </div>
-
-                    @if (!HouseholdState.HasHousehold)
-                    {
-                        <MudText Typo="Typo.caption" Color="Color.Error" Class="mt-2">
-                            Opprett en husstand i Innstillinger for å legge til oppskrifter
-                        </MudText>
-                    }
-                </div>
+                }
             </div>
         }
-    </div>
+        else // List View
+        {
+            <div class="d-flex flex-column gap-2">
+                @foreach (var recipe in _publicRecipes)
+                {
+                    <div class="food-list-item animate-in">
+                        @if (!string.IsNullOrEmpty(recipe.ImageUrl))
+                        {
+                            <img src="@recipe.ImageUrl" alt="@recipe.Name" class="food-list-image" />
+                        }
+                        else
+                        {
+                            <div class="food-list-placeholder">
+                                <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small" />
+                            </div>
+                        }
+                        <div class="food-list-content">
+                            <h3 class="food-list-title">@recipe.Name</h3>
+                            <p class="food-list-date">@recipe.HouseholdName • @recipe.AddedByName</p>
+                        </div>
+                        <div class="d-flex align-center gap-2">
+                            @if (recipe.AverageRating > 0)
+                            {
+                                <div class="food-list-rating">
+                                    <span class="rating-badge rating-high">
+                                        @recipe.AverageRating.ToString("0.0")
+                                    </span>
+                                </div>
+                            }
+                            <MudIconButton Icon="@Icons.Material.Rounded.Add" Size="Size.Small" Color="Color.Primary" OnClick="@(() => AddPublicRecipe(recipe))" />
+                        </div>
+                    </div>
+                }
+            </div>
+        }
 
-    <!-- Pagination for community -->
-    @if (_publicTotalPages > 1)
+        @if (_publicTotalPages > 1)
+        {
+            <div class="d-flex justify-center align-center gap-2 mt-4">
+                <MudIconButton Icon="@Icons.Material.Rounded.ChevronLeft" OnClick="PreviousPage" Disabled="@(_currentPage <= 1)" Size="Size.Small" />
+                <MudText Typo="Typo.body2">Side @_currentPage av @_publicTotalPages</MudText>
+                <MudIconButton Icon="@Icons.Material.Rounded.ChevronRight" OnClick="NextPage" Disabled="@(_currentPage >= _publicTotalPages)" Size="Size.Small" />
+            </div>
+        }
+    }
+
+    @if (_sourceMode == "hellofresh")
     {
-        <div class="d-flex justify-center align-center gap-2 mt-4">
-            <MudIconButton Icon="@Icons.Material.Rounded.ChevronLeft"
-                           OnClick="PreviousPage"
-                           Disabled="@(_currentPage <= 1)"
-                           Size="Size.Small" />
-            <MudText Typo="Typo.body2">
-                Page @_currentPage of @_publicTotalPages
-            </MudText>
-            <MudIconButton Icon="@Icons.Material.Rounded.ChevronRight"
-                           OnClick="NextPage"
-                           Disabled="@(_currentPage >= _publicTotalPages)"
-                           Size="Size.Small" />
-        </div>
+        @if (_viewMode == "card")
+        {
+            <div class="d-flex flex-column gap-4">
+                @foreach (var recipe in _recipes)
+                {
+                    <div class="food-card animate-in">
+                        @if (!string.IsNullOrEmpty(recipe.ImageUrl))
+                        {
+                            <img src="@recipe.ImageUrl" alt="@recipe.Name" class="food-card-image" />
+                        }
+                        else
+                        {
+                            <div class="food-card-placeholder">
+                                <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" />
+                            </div>
+                        }
+                        <div class="food-card-content">
+                            <div class="d-flex justify-space-between align-start gap-3">
+                                <h3 class="food-card-title">@recipe.Name</h3>
+                                @if (recipe.AverageRating > 0)
+                                {
+                                    <span class="rating-badge rating-high">
+                                        <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
+                                        @recipe.AverageRating.ToString("0.0")
+                                    </span>
+                                }
+                            </div>
+
+                            <div class="d-flex gap-3 mt-2 food-card-meta">
+                                @if (recipe.PrepTimeMinutes.HasValue)
+                                {
+                                    <span>@recipe.PrepTimeMinutes min</span>
+                                }
+                                @if (!string.IsNullOrEmpty(recipe.Difficulty))
+                                {
+                                    <span>• @recipe.Difficulty</span>
+                                }
+                            </div>
+
+                            <div class="d-flex gap-2 mt-3">
+                                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                                           StartIcon="@Icons.Material.Rounded.ContentCopy"
+                                           OnClick="@(() => AddRecipe(recipe, true))">
+                                    Kopier
+                                </MudButton>
+                                <MudIconButton Icon="@Icons.Material.Rounded.Link" Size="Size.Small" OnClick="@(() => AddRecipe(recipe, false))" />
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else // List View
+        {
+            <div class="d-flex flex-column gap-2">
+                @foreach (var recipe in _recipes)
+                {
+                    <div class="food-list-item animate-in">
+                        @if (!string.IsNullOrEmpty(recipe.ImageUrl))
+                        {
+                            <img src="@recipe.ImageUrl" alt="@recipe.Name" class="food-list-image" />
+                        }
+                        else
+                        {
+                            <div class="food-list-placeholder">
+                                <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small" />
+                            </div>
+                        }
+                        <div class="food-list-content">
+                            <h3 class="food-list-title">@recipe.Name</h3>
+                            <p class="food-list-date">
+                                @(recipe.PrepTimeMinutes.HasValue ? $"{recipe.PrepTimeMinutes} min" : "")
+                                @(!string.IsNullOrEmpty(recipe.Cuisine) ? $"• {recipe.Cuisine}" : "")
+                            </p>
+                        </div>
+                        <div class="d-flex align-center gap-2">
+                            @if (recipe.AverageRating > 0)
+                            {
+                                <div class="food-list-rating">
+                                    <span class="rating-badge rating-high">
+                                        @recipe.AverageRating.ToString("0.0")
+                                    </span>
+                                </div>
+                            }
+                            <MudMenu Icon="@Icons.Material.Rounded.MoreVert" Size="Size.Small">
+                                <MudMenuItem Icon="@Icons.Material.Rounded.ContentCopy" OnClick="@(() => AddRecipe(recipe, true))">Kopier til liste</MudMenuItem>
+                                <MudMenuItem Icon="@Icons.Material.Rounded.Link" OnClick="@(() => AddRecipe(recipe, false))">Legg til som lenke</MudMenuItem>
+                            </MudMenu>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        @if (_totalPages > 1)
+        {
+            <div class="d-flex justify-center align-center gap-2 mt-4">
+                <MudIconButton Icon="@Icons.Material.Rounded.ChevronLeft" OnClick="PreviousPage" Disabled="@(_currentPage <= 1)" Size="Size.Small" />
+                <MudText Typo="Typo.body2">Side @_currentPage av @_totalPages</MudText>
+                <MudIconButton Icon="@Icons.Material.Rounded.ChevronRight" OnClick="NextPage" Disabled="@(_currentPage >= _totalPages)" Size="Size.Small" />
+            </div>
+        }
     }
 }
 
 <style>
     .search-field {
-        max-width: 600px;
+        max-width: 100%;
     }
 
-    .global-recipe-card {
+    /* --- View Toggle Styles (Copied from Home) --- */
+    .view-toggle {
+        display: flex;
         background: var(--mud-palette-surface);
-        border-radius: 16px;
-        overflow: hidden;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        border: 1px solid var(--mud-palette-lines-default);
+        border-radius: 8px;
+        padding: 2px;
+    }
+
+    .view-toggle-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border: none;
+        background: transparent;
+        color: var(--mud-palette-text-secondary);
+        border-radius: 6px;
+        cursor: pointer;
         transition: all 0.2s ease;
     }
 
-        .global-recipe-card:hover {
-            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+        .view-toggle-btn:hover {
+            background: var(--mud-palette-action-default-hover);
+            color: var(--mud-palette-text-primary);
+        }
+
+        .view-toggle-btn.active {
+            background: var(--mud-palette-primary-hover);
+            color: var(--mud-palette-primary-text);
+        }
+
+    /* --- Food Card Styles (Grid) --- */
+    .food-card {
+        background: var(--mud-palette-surface);
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        transition: all 0.2s ease;
+        border: 1px solid transparent;
+        cursor: default; /* Changed from pointer as we have specific buttons now */
+    }
+
+        .food-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border-color: var(--mud-palette-lines-default);
             transform: translateY(-2px);
         }
 
-    .recipe-card-image {
+    .food-card-image {
         width: 100%;
-        height: 200px;
+        height: 180px;
         object-fit: cover;
     }
 
-    .recipe-card-placeholder {
+    .food-card-placeholder {
         width: 100%;
-        height: 200px;
+        height: 180px;
         background: var(--mud-palette-background-grey);
         display: flex;
         align-items: center;
         justify-content: center;
+        color: var(--mud-palette-text-disabled);
+    }
+
+    .food-card-content {
+        padding: 16px;
+    }
+
+    .food-card-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin: 0 0 4px 0;
+        color: var(--mud-palette-text-primary);
+        line-height: 1.3;
+    }
+
+    .food-card-meta {
+        font-size: 0.85rem;
         color: var(--mud-palette-text-secondary);
     }
 
-    .recipe-card-content {
-        padding: 20px;
-    }
-
-    .recipe-card-title {
-        font-size: 1.25rem;
-        font-weight: 600;
-        margin: 0;
-        color: var(--mud-palette-text-primary);
-    }
-
-    .recipe-meta {
-        display: flex;
-        gap: 16px;
-        margin: 12px 0;
-        flex-wrap: wrap;
-    }
-
-    .meta-item {
+    /* --- Food List Styles (List) --- */
+    .food-list-item {
         display: flex;
         align-items: center;
-        gap: 4px;
-        color: var(--mud-palette-text-secondary);
-        font-size: 0.875rem;
+        padding: 12px;
+        background: var(--mud-palette-surface);
+        border-radius: 12px;
+        gap: 16px;
+        transition: all 0.2s ease;
+        border: 1px solid transparent;
     }
 
-    .recipe-description {
-        color: var(--mud-palette-text-secondary);
-        font-size: 0.875rem;
-        margin: 12px 0;
-        line-height: 1.5;
+        .food-list-item:hover {
+            background: var(--mud-palette-background-grey);
+        }
+
+    .food-list-image {
+        width: 60px;
+        height: 60px;
+        border-radius: 8px;
+        object-fit: cover;
+        flex-shrink: 0;
     }
 
-    .recipe-tags {
+    .food-list-placeholder {
+        width: 60px;
+        height: 60px;
+        border-radius: 8px;
+        background: var(--mud-palette-background-grey);
         display: flex;
-        gap: 6px;
-        flex-wrap: wrap;
-        margin-top: 12px;
+        align-items: center;
+        justify-content: center;
+        color: var(--mud-palette-text-disabled);
+        flex-shrink: 0;
     }
 
+    .food-list-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .food-list-title {
+        font-size: 1rem;
+        font-weight: 600;
+        margin: 0 0 4px 0;
+        color: var(--mud-palette-text-primary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .food-list-date {
+        font-size: 0.85rem;
+        color: var(--mud-palette-text-secondary);
+    }
+
+    /* --- Shared & Utils --- */
     .rating-badge {
         display: inline-flex;
         align-items: center;
-        gap: 4px;
-        padding: 6px 12px;
-        border-radius: 20px;
+        gap: 3px;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.75rem;
         font-weight: 600;
-        font-size: 0.875rem;
+        flex-shrink: 0;
     }
 
     .rating-high {
-        background: rgba(76, 175, 80, 0.15);
-        color: #4CAF50;
+        background: rgba(76, 175, 80, 0.1);
+        color: #2e7d32;
     }
 
     .empty-state {
@@ -510,16 +474,30 @@ else if (_viewMode == "community")
         margin: 0 0 24px 0;
     }
 
+    /* Animation Keyframes */
+    .animate-in {
+        animation: fadeIn 0.4s ease-out forwards;
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    @@keyframes fadeIn {
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
     .skeleton-card {
         background: var(--mud-palette-surface);
         border-radius: 16px;
         overflow: hidden;
-        height: 350px;
+        height: 300px;
     }
 
     .skeleton-image {
         width: 100%;
-        height: 200px;
+        height: 180px;
         background: linear-gradient(90deg, var(--mud-palette-background-grey) 25%, var(--mud-palette-divider) 50%, var(--mud-palette-background-grey) 75%);
         background-size: 200% 100%;
         animation: shimmer 1.5s infinite;
@@ -563,34 +541,44 @@ else if (_viewMode == "community")
     private List<PublicRecipeDto> _publicRecipes = new();
     private bool _isLoading = true;
     private string _searchQuery = "";
-    private string? _selectedCuisine = null;
-    private string? _selectedDifficulty = null;
-    private int? _maxPrepTime = null;
-    private bool _hellofreshOnly = false;
-    private string _sortBy = "popular";
+
+    // Default to "community" as requested
+    private string _sourceMode = "community";
+
+    // View mode (Card vs List), default to card
+    private string _viewMode = "card";
+
+    // Pagination variables
     private int _currentPage = 1;
     private int _pageSize = 20;
     private int _totalRecipes = 0;
     private int _totalPages = 0;
     private int _publicTotalPages = 0;
-    private string _viewMode = "global";
-
-    private readonly List<string> _availableCuisines = new()
-    {
-        "Italian", "Mexican", "Asian", "American", "Mediterranean",
-        "Indian", "French", "Thai", "Japanese", "Chinese"
-    };
 
     protected override async Task OnInitializedAsync()
     {
+        // Try to load persisted view mode settings
+        if (!string.IsNullOrEmpty(DeviceState.Settings.ViewMode))
+        {
+            _viewMode = DeviceState.Settings.ViewMode;
+        }
+
+        await LoadRecipes();
+    }
+
+    private async Task SetSourceMode(string mode)
+    {
+        if (_sourceMode == mode) return;
+        _sourceMode = mode;
+        _currentPage = 1;
         await LoadRecipes();
     }
 
     private async Task SetViewMode(string mode)
     {
         _viewMode = mode;
-        _currentPage = 1;
-        await LoadRecipes();
+        // Optionally save this preference to DeviceState if you want persistence across pages
+        await DeviceState.SetViewModeAsync(mode);
     }
 
     private async Task LoadRecipes()
@@ -598,16 +586,13 @@ else if (_viewMode == "community")
         _isLoading = true;
         try
         {
-            if (_viewMode == "global")
+            if (_sourceMode == "hellofresh")
             {
                 var query = new BrowseGlobalRecipesQuery
                 {
                     Search = string.IsNullOrWhiteSpace(_searchQuery) ? null : _searchQuery,
-                    Cuisine = _selectedCuisine,
-                    Difficulty = _selectedDifficulty,
-                    MaxPrepTime = _maxPrepTime,
-                    HellofreshOnly = _hellofreshOnly,
-                    SortBy = _sortBy,
+                    HellofreshOnly = true, // Enforce HelloFresh only
+                    SortBy = "popular",
                     Page = _currentPage,
                     PageSize = _pageSize
                 };
@@ -617,12 +602,12 @@ else if (_viewMode == "community")
                 _totalRecipes = result.TotalCount;
                 _totalPages = result.TotalPages;
             }
-            else if (_viewMode == "community")
+            else // community
             {
                 var query = new BrowsePublicRecipesQuery
                 {
                     Search = string.IsNullOrWhiteSpace(_searchQuery) ? null : _searchQuery,
-                    SortBy = _sortBy == "popular" ? "newest" : _sortBy, // Default to newest for community
+                    SortBy = "newest",
                     Page = _currentPage,
                     PageSize = _pageSize
                 };
@@ -635,7 +620,7 @@ else if (_viewMode == "community")
         catch (Exception ex)
         {
             Console.WriteLine($"Error loading recipes: {ex.Message}");
-            Snackbar.Add("Failed to load recipes", Severity.Error);
+            Snackbar.Add("Kunne ikke laste oppskrifter", Severity.Error);
         }
         finally
         {
@@ -652,53 +637,6 @@ else if (_viewMode == "community")
         }
     }
 
-    private async Task ToggleHelloFresh()
-    {
-        _hellofreshOnly = !_hellofreshOnly;
-        _currentPage = 1;
-        await LoadRecipes();
-    }
-
-    private async Task SetCuisine(string? cuisine)
-    {
-        _selectedCuisine = cuisine;
-        _currentPage = 1;
-        await LoadRecipes();
-    }
-
-    private async Task SetDifficulty(string? difficulty)
-    {
-        _selectedDifficulty = difficulty;
-        _currentPage = 1;
-        await LoadRecipes();
-    }
-
-    private async Task SetMaxPrepTime(int? minutes)
-    {
-        _maxPrepTime = minutes;
-        _currentPage = 1;
-        await LoadRecipes();
-    }
-
-    private async Task SetSort(string sortBy)
-    {
-        _sortBy = sortBy;
-        _currentPage = 1;
-        await LoadRecipes();
-    }
-
-    private async Task ClearFilters()
-    {
-        _searchQuery = "";
-        _selectedCuisine = null;
-        _selectedDifficulty = null;
-        _maxPrepTime = null;
-        _hellofreshOnly = false;
-        _sortBy = "popular";
-        _currentPage = 1;
-        await LoadRecipes();
-    }
-
     private async Task PreviousPage()
     {
         if (_currentPage > 1)
@@ -710,25 +648,17 @@ else if (_viewMode == "community")
 
     private async Task NextPage()
     {
-        if (_currentPage < _totalPages)
+        // Logic depends on which list is active
+        int maxPages = _sourceMode == "community" ? _publicTotalPages : _totalPages;
+
+        if (_currentPage < maxPages)
         {
             _currentPage++;
             await LoadRecipes();
         }
     }
 
-    private string GetSortLabel()
-    {
-        return _sortBy switch
-        {
-            "popular" => "Populært",
-            "newest" => "Nyest",
-            "rating" => "Vurdering",
-            "name" => "Navn",
-            _ => "Populært"
-        };
-    }
-
+    // Logic to Add HelloFresh Recipe (Global)
     private async Task AddRecipe(GlobalRecipeDto recipe, bool fork)
     {
         if (!HouseholdState.HasHousehold)
@@ -758,13 +688,9 @@ else if (_viewMode == "community")
             await ApiClient.CreateRecipeAsync(dto);
 
             if (fork)
-            {
                 Snackbar.Add($"'{recipe.Name}' kopiert til din husstand", Severity.Success);
-            }
             else
-            {
                 Snackbar.Add($"'{recipe.Name}' lenket til din husstand", Severity.Success);
-            }
         }
         catch (Exception ex)
         {
@@ -773,22 +699,23 @@ else if (_viewMode == "community")
         }
     }
 
+    // Logic to Add Community Recipe (Public)
     private async Task AddPublicRecipe(PublicRecipeDto recipe)
     {
         if (!HouseholdState.HasHousehold)
         {
-            Snackbar.Add("Please create a household first", Severity.Warning);
+            Snackbar.Add("Vennligst opprett en husstand først", Severity.Warning);
             return;
         }
 
         try
         {
-            // Create a copy of the public recipe in the user's household
             var dto = new CreateHouseholdRecipeDto
             {
                 Name = recipe.Name,
                 Description = recipe.Description,
                 ImageUrls = recipe.ImageUrls
+                // Note: Logic implies we are copying basic data from public to private
             };
 
             await ApiClient.CreateRecipeAsync(dto);
