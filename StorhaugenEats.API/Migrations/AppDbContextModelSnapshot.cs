@@ -240,6 +240,17 @@ namespace StorhaugenEats.API.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("name");
 
+                    b.Property<bool>("IsPrivate")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_private");
+
+                    b.Property<string>("UniqueShareId")
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasColumnName("unique_share_id");
+
                     b.Property<string>("Settings")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -254,6 +265,9 @@ namespace StorhaugenEats.API.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("LeaderId");
+
+                    b.HasIndex("UniqueShareId")
+                        .IsUnique();
 
                     b.ToTable("households", (string)null);
                 });
@@ -313,6 +327,60 @@ namespace StorhaugenEats.API.Migrations
                     b.HasIndex("InvitedUserId");
 
                     b.ToTable("household_invites", (string)null);
+                });
+
+            modelBuilder.Entity("StorhaugenEats.API.Models.HouseholdFriendship", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Message")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("message");
+
+                    b.Property<Guid>("RequestedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requested_by_user_id");
+
+                    b.Property<Guid?>("RespondedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("responded_by_user_id");
+
+                    b.Property<DateTime?>("RespondedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("responded_at");
+
+                    b.Property<Guid>("RequesterHouseholdId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requester_household_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("pending")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("TargetHouseholdId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("target_household_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequesterHouseholdId", "TargetHouseholdId")
+                        .IsUnique();
+
+                    b.HasIndex("TargetHouseholdId");
+
+                    b.ToTable("household_friendships", (string)null);
                 });
 
             modelBuilder.Entity("StorhaugenEats.API.Models.HouseholdMember", b =>
@@ -392,6 +460,12 @@ namespace StorhaugenEats.API.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("is_archived");
 
+                    b.Property<bool>("IsPublic")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_public");
+
                     b.Property<string>("LocalDescription")
                         .HasColumnType("text")
                         .HasColumnName("local_description");
@@ -424,6 +498,9 @@ namespace StorhaugenEats.API.Migrations
                     b.HasIndex("ArchivedById");
 
                     b.HasIndex("GlobalRecipeId");
+
+                    b.HasIndex("IsPublic")
+                        .HasFilter("is_public = true");
 
                     b.HasIndex("HouseholdId", "GlobalRecipeId")
                         .IsUnique()
@@ -559,6 +636,8 @@ namespace StorhaugenEats.API.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Leader");
+                    b.Navigation("ReceivedFriendRequests");
+                    b.Navigation("SentFriendRequests");
                 });
 
             modelBuilder.Entity("StorhaugenEats.API.Models.HouseholdInvite", b =>
@@ -585,6 +664,25 @@ namespace StorhaugenEats.API.Migrations
                     b.Navigation("InvitedByUser");
 
                     b.Navigation("InvitedUser");
+                });
+
+            modelBuilder.Entity("StorhaugenEats.API.Models.HouseholdFriendship", b =>
+                {
+                    b.HasOne("StorhaugenEats.API.Models.Household", "RequesterHousehold")
+                        .WithMany("SentFriendRequests")
+                        .HasForeignKey("RequesterHouseholdId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("StorhaugenEats.API.Models.Household", "TargetHousehold")
+                        .WithMany("ReceivedFriendRequests")
+                        .HasForeignKey("TargetHouseholdId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RequesterHousehold");
+
+                    b.Navigation("TargetHousehold");
                 });
 
             modelBuilder.Entity("StorhaugenEats.API.Models.HouseholdMember", b =>

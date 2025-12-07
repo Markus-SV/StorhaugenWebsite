@@ -113,6 +113,7 @@ namespace StorhaugenEats.API.Migrations
                     local_image_url = table.Column<string>(type: "text", nullable: true),
                     personal_notes = table.Column<string>(type: "text", nullable: true),
                     added_by_user_id = table.Column<Guid>(type: "uuid", nullable: true),
+                    is_public = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
                     is_archived = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
                     archived_date = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     archived_by_user_id = table.Column<Guid>(type: "uuid", nullable: true),
@@ -281,6 +282,12 @@ namespace StorhaugenEats.API.Migrations
                 name: "IX_household_recipes_global_recipe_id",
                 table: "household_recipes",
                 column: "global_recipe_id");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_household_recipes_is_public",
+                table: "household_recipes",
+                column: "is_public",
+                filter: "is_public = true");
 
             migrationBuilder.CreateIndex(
                 name: "IX_household_recipes_household_id_global_recipe_id",

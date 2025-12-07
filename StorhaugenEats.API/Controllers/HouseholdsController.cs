@@ -1,3 +1,4 @@
+using System.Linq;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -39,6 +40,8 @@ public class HouseholdsController : ControllerBase
                 CreatedById = h.LeaderId ?? Guid.Empty,
                 CreatedByName = h.Leader != null ? h.Leader.DisplayName : null,
                 CreatedAt = h.CreatedAt,
+                UniqueShareId = h.UniqueShareId,
+                IsPrivate = h.IsPrivate,
                 Members = h.HouseholdMembers.Select(m => new HouseholdMemberDto
                 {
                     UserId = m.UserId,
@@ -70,6 +73,8 @@ public class HouseholdsController : ControllerBase
                 CreatedById = h.LeaderId ?? Guid.Empty,
                 CreatedByName = h.Leader != null ? h.Leader.DisplayName : null,
                 CreatedAt = h.CreatedAt,
+                UniqueShareId = h.UniqueShareId,
+                IsPrivate = h.IsPrivate,
                 Members = h.HouseholdMembers.Select(m => new HouseholdMemberDto
                 {
                     UserId = m.UserId,
@@ -101,7 +106,9 @@ public class HouseholdsController : ControllerBase
             Name = dto.Name,
             LeaderId = userId,
             CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            UpdatedAt = DateTime.UtcNow,
+            UniqueShareId = await GenerateUniqueHouseholdShareIdAsync(),
+            IsPrivate = false
         };
 
         _context.Households.Add(household);
@@ -133,6 +140,8 @@ public class HouseholdsController : ControllerBase
             CreatedById = userId,
             CreatedByName = user?.DisplayName,
             CreatedAt = household.CreatedAt,
+            UniqueShareId = household.UniqueShareId,
+            IsPrivate = household.IsPrivate,
             Members = new List<HouseholdMemberDto>
             {
                 new HouseholdMemberDto
@@ -408,5 +417,93 @@ public class HouseholdsController : ControllerBase
         await _context.SaveChangesAsync();
 
         return Ok(new { message = "Left household successfully" });
+    }
+
+    /// <summary>
+    /// Update household settings such as privacy
+    /// </summary>
+    [HttpPut("{id}/settings")]
+    public async Task<ActionResult<HouseholdDto>> UpdateHouseholdSettings(Guid id, [FromBody] UpdateHouseholdSettingsDto dto)
+    {
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
+
+        var household = await _context.Households.FirstOrDefaultAsync(h => h.Id == id && h.LeaderId == userId);
+        if (household == null)
+            return NotFound(new { message = "Household not found or you are not the creator" });
+
+        if (dto.IsPrivate.HasValue)
+        {
+            household.IsPrivate = dto.IsPrivate.Value;
+        }
+
+        household.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        return await GetHousehold(id);
+    }
+
+    /// <summary>
+    /// Regenerate the household share ID
+    /// </summary>
+    [HttpPost("{id}/regenerate-share-id")]
+    public async Task<ActionResult<HouseholdDto>> RegenerateShareId(Guid id)
+    {
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
+
+        var household = await _context.Households.FirstOrDefaultAsync(h => h.Id == id && h.LeaderId == userId);
+        if (household == null)
+            return NotFound(new { message = "Household not found or you are not the creator" });
+
+        household.UniqueShareId = await GenerateUniqueHouseholdShareIdAsync();
+        household.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        return await GetHousehold(id);
+    }
+
+    /// <summary>
+    /// Search for households (only non-private are returned unless exact share ID match)
+    /// </summary>
+    [HttpGet("search")]
+    [AllowAnonymous]
+    public async Task<ActionResult<List<HouseholdSearchResultDto>>> SearchHouseholds([FromQuery] string query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return new List<HouseholdSearchResultDto>();
+
+        var normalized = query.Trim().ToUpperInvariant();
+
+        var households = await _context.Households
+            .Where(h => (!h.IsPrivate && h.Name.ToUpper().Contains(normalized)) || (h.UniqueShareId == normalized))
+            .Select(h => new HouseholdSearchResultDto
+            {
+                Id = h.Id,
+                Name = h.Name,
+                UniqueShareId = h.UniqueShareId,
+                MemberCount = h.HouseholdMembers.Count,
+                CreatedAt = h.CreatedAt,
+                IsPrivate = h.IsPrivate
+            })
+            .OrderBy(h => h.IsPrivate)
+            .ThenBy(h => h.Name)
+            .ToListAsync();
+
+        return households;
+    }
+
+    private async Task<string> GenerateUniqueHouseholdShareIdAsync()
+    {
+        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        var random = new Random();
+        string shareId;
+
+        do
+        {
+            shareId = new string(Enumerable.Range(0, 12)
+                .Select(_ => chars[random.Next(chars.Length)])
+                .ToArray());
+        } while (await _context.Households.AnyAsync(h => h.UniqueShareId == shareId));
+
+        return shareId;
     }
 }

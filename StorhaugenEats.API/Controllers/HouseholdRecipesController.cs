@@ -37,6 +37,7 @@ public class HouseholdRecipesController : ControllerBase
 
         var query = _context.HouseholdRecipes
             .Include(hr => hr.GlobalRecipe)
+            .Include(hr => hr.Household)
             .Include(hr => hr.AddedByUser)
             .Include(hr => hr.ArchivedBy)
             .Include(hr => hr.Ratings).ThenInclude(r => r.User)
@@ -68,6 +69,7 @@ public class HouseholdRecipesController : ControllerBase
 
         var recipe = await _context.HouseholdRecipes
             .Include(hr => hr.GlobalRecipe)
+            .Include(hr => hr.Household)
             .Include(hr => hr.AddedByUser)
             .Include(hr => hr.ArchivedBy)
             .Include(hr => hr.Ratings).ThenInclude(r => r.User)
@@ -108,7 +110,8 @@ public class HouseholdRecipesController : ControllerBase
                 AddedByUserId = userId,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
-                IsArchived = false
+                IsArchived = false,
+                IsPublic = dto.IsPublic
             };
 
             if (dto.Fork)
@@ -144,7 +147,8 @@ public class HouseholdRecipesController : ControllerBase
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
                 IsArchived = false,
-                GlobalRecipeId = null
+                GlobalRecipeId = null,
+                IsPublic = dto.IsPublic
             };
         }
 
@@ -154,6 +158,7 @@ public class HouseholdRecipesController : ControllerBase
         // Reload with includes
         recipe = await _context.HouseholdRecipes
             .Include(hr => hr.GlobalRecipe)
+            .Include(hr => hr.Household)
             .Include(hr => hr.AddedByUser)
             .Include(hr => hr.Ratings).ThenInclude(r => r.User)
             .FirstAsync(hr => hr.Id == recipe.Id);
@@ -175,6 +180,7 @@ public class HouseholdRecipesController : ControllerBase
 
         var recipe = await _context.HouseholdRecipes
             .Include(hr => hr.GlobalRecipe)
+            .Include(hr => hr.Household)
             .Include(hr => hr.AddedByUser)
             .Include(hr => hr.ArchivedBy)
             .Include(hr => hr.Ratings).ThenInclude(r => r.User)
@@ -213,6 +219,11 @@ public class HouseholdRecipesController : ControllerBase
         {
             // Personal notes can always be updated
             recipe.PersonalNotes = dto.PersonalNotes;
+        }
+
+        if (dto.IsPublic.HasValue)
+        {
+            recipe.IsPublic = dto.IsPublic.Value;
         }
 
         await _context.SaveChangesAsync();
@@ -291,6 +302,7 @@ public class HouseholdRecipesController : ControllerBase
 
         var recipe = await _context.HouseholdRecipes
             .Include(hr => hr.GlobalRecipe)
+            .Include(hr => hr.Household)
             .Include(hr => hr.AddedByUser)
             .Include(hr => hr.Ratings).ThenInclude(r => r.User)
             .FirstOrDefaultAsync(hr => hr.Id == id && hr.HouseholdId == user.CurrentHouseholdId);
@@ -347,6 +359,7 @@ public class HouseholdRecipesController : ControllerBase
         // Reload recipe with updated ratings
         recipe = await _context.HouseholdRecipes
             .Include(hr => hr.GlobalRecipe)
+            .Include(hr => hr.Household)
             .Include(hr => hr.AddedByUser)
             .Include(hr => hr.Ratings).ThenInclude(r => r.User)
             .FirstAsync(hr => hr.Id == id);
@@ -368,6 +381,7 @@ public class HouseholdRecipesController : ControllerBase
 
         var recipe = await _context.HouseholdRecipes
             .Include(hr => hr.GlobalRecipe)
+            .Include(hr => hr.Household)
             .Include(hr => hr.AddedByUser)
             .Include(hr => hr.Ratings).ThenInclude(r => r.User)
             .FirstOrDefaultAsync(hr => hr.Id == id && hr.HouseholdId == user.CurrentHouseholdId);
@@ -391,6 +405,75 @@ public class HouseholdRecipesController : ControllerBase
         await _context.SaveChangesAsync();
 
         return Ok(MapToDto(recipe));
+    }
+
+    /// <summary>
+    /// Browse public recipes across all households
+    /// </summary>
+    [HttpGet("public")]
+    [AllowAnonymous]
+    public async Task<ActionResult<PublicRecipePagedResult>> GetPublicRecipes(
+        [FromQuery] string? search = null,
+        [FromQuery] string sortBy = "newest",
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 20;
+
+        var query = _context.HouseholdRecipes
+            .Include(hr => hr.GlobalRecipe)
+            .Include(hr => hr.Household)
+            .Include(hr => hr.AddedByUser)
+            .Include(hr => hr.Ratings)
+            .Where(hr => hr.IsPublic && !hr.IsArchived);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLower();
+            query = query.Where(hr =>
+                (hr.LocalTitle != null && hr.LocalTitle.ToLower().Contains(term)) ||
+                (hr.GlobalRecipe != null && hr.GlobalRecipe.Title.ToLower().Contains(term)) ||
+                (hr.Household != null && hr.Household.Name.ToLower().Contains(term)));
+        }
+
+        query = sortBy switch
+        {
+            "rating" => query.OrderByDescending(hr => hr.Ratings.Any() ? hr.Ratings.Average(r => r.Score) : 0)
+                               .ThenByDescending(hr => hr.CreatedAt),
+            _ => query.OrderByDescending(hr => hr.CreatedAt)
+        };
+
+        var totalCount = await query.CountAsync();
+        var recipes = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        var dto = new PublicRecipePagedResult
+        {
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount,
+            Recipes = recipes.Select(r => new PublicRecipeDto
+            {
+                Id = r.Id,
+                Name = r.DisplayTitle,
+                Description = r.LocalDescription ?? r.GlobalRecipe?.Description,
+                ImageUrls = !string.IsNullOrEmpty(r.LocalImageUrl)
+                    ? new List<string> { r.LocalImageUrl }
+                    : (r.GlobalRecipe?.ImageUrls != null ? Helpers.JsonHelper.JsonToList(r.GlobalRecipe.ImageUrls) : new List<string>()),
+                AverageRating = r.Ratings.Any() ? r.Ratings.Average(rt => rt.Score) : 0,
+                RatingCount = r.Ratings.Count,
+                DateAdded = r.CreatedAt,
+                HouseholdName = r.Household?.Name ?? string.Empty,
+                AddedByName = r.AddedByUser?.DisplayName,
+                HouseholdId = r.HouseholdId,
+                GlobalRecipeId = r.GlobalRecipeId
+            }).ToList()
+        };
+
+        return Ok(dto);
     }
 
     /// <summary>
@@ -464,7 +547,9 @@ public class HouseholdRecipesController : ControllerBase
             GlobalRecipeId = recipe.GlobalRecipeId,
             GlobalRecipeName = recipe.GlobalRecipe?.Title,
             IsForked = !recipe.GlobalRecipeId.HasValue,
-            PersonalNotes = recipe.PersonalNotes
+            PersonalNotes = recipe.PersonalNotes,
+            IsPublic = recipe.IsPublic,
+            HouseholdName = recipe.Household?.Name
         };
     }
 }

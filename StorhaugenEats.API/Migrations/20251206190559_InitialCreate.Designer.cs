@@ -395,6 +395,12 @@ namespace StorhaugenEats.API.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("is_archived");
 
+                    b.Property<bool>("IsPublic")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_public");
+
                     b.Property<string>("LocalDescription")
                         .HasColumnType("text")
                         .HasColumnName("local_description");
@@ -427,6 +433,9 @@ namespace StorhaugenEats.API.Migrations
                     b.HasIndex("ArchivedById");
 
                     b.HasIndex("GlobalRecipeId");
+
+                    b.HasIndex("IsPublic")
+                        .HasFilter("is_public = true");
 
                     b.HasIndex("HouseholdId", "GlobalRecipeId")
                         .IsUnique()
