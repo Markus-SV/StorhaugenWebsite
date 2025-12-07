@@ -8,7 +8,7 @@ namespace StorhaugenWebsite.Services
     {
         private readonly IApiClient _apiClient;
         private readonly IAuthService _authService;
-
+        public List<FoodItem> CachedFoods { get; private set; } = new();
         public FoodService(IApiClient apiClient, IAuthService authService)
         {
             _apiClient = apiClient;
@@ -28,7 +28,15 @@ namespace StorhaugenWebsite.Services
             if (!_authService.IsAuthenticated) throw new UnauthorizedAccessException();
 
             var recipes = await _apiClient.GetRecipesAsync(includeArchived);
-            return recipes.Select(MapToFoodItem).ToList();
+            var mappedRecipes = recipes.Select(MapToFoodItem).ToList();
+
+            // Update the cache if we are fetching the standard active list
+            if (!includeArchived)
+            {
+                CachedFoods = mappedRecipes;
+            }
+
+            return mappedRecipes;
         }
 
         public async Task<FoodItem?> GetFoodByIdAsync(string id)

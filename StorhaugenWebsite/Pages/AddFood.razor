@@ -1,4 +1,5 @@
 @page "/add"
+@using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Forms
 @using StorhaugenWebsite.Models
 @using StorhaugenWebsite.Services
@@ -8,6 +9,7 @@
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @inject IOcrService OcrService
+@attribute [Authorize]
 @inject IJSRuntime JSRuntime
 
 @* --- 1. CAMERA OVERLAY UI --- *@
@@ -50,7 +52,6 @@
 
 @if (!HouseholdState.HasHousehold)
 {
-    // ... (Keep existing empty state code) ...
     <div class="empty-state">
         <div class="empty-state-icon">
             <MudIcon Icon="@Icons.Material.Rounded.Home" Size="Size.Large" />
@@ -64,7 +65,6 @@
 }
 else
 {
-    // ... (Keep existing header code) ...
     <div class="d-flex justify-space-between align-center mb-4">
         <div>
             <h1 class="page-title" style="margin-bottom: 4px;">Legg til måltid</h1>
@@ -72,7 +72,6 @@ else
         </div>
     </div>
 
-    // ... (Keep food type selector) ...
     <MudPaper Class="pa-2 mb-6 d-flex justify-center gap-2" Elevation="0" Style="background: var(--mud-palette-background-grey); border-radius: 12px;">
         <MudButton Variant="@(_isHelloFresh? Variant.Filled: Variant.Text)"
                    Color="Color.Success"
@@ -92,7 +91,6 @@ else
         </MudButton>
     </MudPaper>
 
-    // ... (Keep error message) ...
     @if (!string.IsNullOrEmpty(_errorMessage))
     {
         <MudAlert Severity="Severity.Error" Class="mb-4" Dense="true" ShowCloseIcon="true" CloseIconClicked="@(() => _errorMessage = null)"
@@ -101,7 +99,6 @@ else
         </MudAlert>
     }
 
-    // ... (Keep Name/Desc inputs) ...
     <div class="form-section">
         <div class="d-flex justify-space-between align-center">
             <p class="form-section-title">Måltidsdetaljer</p>
@@ -218,7 +215,6 @@ else
         </MudStack>
     </div>
 
-    // ... (Keep Rating, Visibility, Submit Button code - no changes needed below this point) ...
     <div class="form-section">
         <p class="form-section-title">Din vurdering</p>
         <div class="rating-member-card">
@@ -301,7 +297,6 @@ else
 }
 
 @code {
-    // ... (Keep existing variables) ...
     private FoodItem _newFood = new();
     private MudFileUpload<IReadOnlyList<IBrowserFile>>? _fileUpload;
     private MudFileUpload<IReadOnlyList<IBrowserFile>>? _galleryUpload;
@@ -320,18 +315,8 @@ else
     private ElementReference _videoElement;
     private bool _showCameraOverlay = false;
 
-    // ... (Keep OnInitializedAsync) ...
     protected override async Task OnInitializedAsync()
     {
-        if (!AuthService.IsAuthorized)
-        {
-            await AuthService.InitializeAsync();
-            if (!AuthService.IsAuthorized)
-            {
-                Navigation.NavigateTo("login");
-                return;
-            }
-        }
         await HouseholdState.InitializeAsync();
         if (HouseholdState.HasHousehold)
         {

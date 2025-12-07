@@ -1,4 +1,5 @@
 ﻿@page "/"
+@using Microsoft.AspNetCore.Authorization
 @using MudBlazor
 @using StorhaugenWebsite.Models
 @using StorhaugenWebsite.Services
@@ -8,6 +9,7 @@
 @inject IHouseholdStateService HouseholdState
 @inject NavigationManager Navigation
 @inject IDeviceStateService DeviceState
+@attribute [Authorize]
 
 @if (HouseholdState.HasHousehold)
 {
@@ -172,48 +174,105 @@ else
     }
     else
     {
-        <div class="d-flex flex-column gap-2">
-            @{
-                var listIndex = 0;
-            }
-            @foreach (var food in GetSortedFoods())
-            {
-                var currentFood = food;
-                var delay = listIndex++;
-                <div class="food-list-item animate-in animate-delay-@Math.Min(delay, 4)" @onclick="() => OpenFoodDetail(currentFood)">
-                    @if (currentFood.ImageUrls.Any())
-                    {
-                        <img src="@currentFood.ImageUrls.First()" alt="@currentFood.Name" class="food-list-image" />
-                    }
-                    else
-                    {
-                        <div class="food-list-placeholder">
-                            <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small" />
+        @if (_viewMode == "card")
+        {
+            <div class="d-flex flex-column gap-4">
+                @{
+                    var index = 0;
+                }
+                @foreach (var food in GetSortedFoods())
+                {
+                    var currentFood = food;
+                    var delay = index++;
+
+                    // 1. DYNAMIC ANIMATION LOGIC
+                    // Only add 'animate-in' if _shouldAnimate is true
+                    var animClass = _shouldAnimate ? $"animate-in animate-delay-{Math.Min(delay, 4)}" : "";
+
+                    // 2. APPLY THE VARIABLE
+                    <div @key="currentFood.Id" class="food-card @animClass" @onclick="() => OpenFoodDetail(currentFood)">
+                        @if (currentFood.ImageUrls.Any())
+                        {
+                            <img src="@currentFood.ImageUrls.First()" alt="@currentFood.Name" class="food-card-image" />
+                        }
+                        else
+                        {
+                            <div class="food-card-placeholder">
+                                <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" />
+                            </div>
+                        }
+                        <div class="food-card-content">
+                            <div class="d-flex justify-space-between align-start gap-3">
+                                <h3 class="food-card-title">@currentFood.Name</h3>
+                                <span class="rating-badge @GetRatingClass(currentFood.AverageRating)">
+                                    <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
+                                    @currentFood.AverageRating.ToString("0.0")
+                                </span>
+                            </div>
+                            <div class="member-ratings">
+                                @foreach (var rating in currentFood.Ratings.Where(r => r.Value.HasValue))
+                                {
+                                    var member = rating.Key;
+                                    <div class="member-rating">
+                                        <div class="member-rating-avatar" style="@($"background: {GetMemberColor(member)}")">@member[0]</div>
+                                        <span class="member-rating-value">@rating.Value</span>
+                                    </div>
+                                }
+                            </div>
+                            <p class="food-card-meta">@currentFood.DateAdded.ToString("MMM dd, yyyy")</p>
                         </div>
-                    }
-                    <div class="food-list-content">
-                        <h3 class="food-list-title">@currentFood.Name</h3>
-                        <div class="member-ratings">
-                            @foreach (var rating in currentFood.Ratings.Where(r => r.Value.HasValue))
-                            {
-                                var member = rating.Key;
-                                var r = rating.Value;
-                                <div class="member-rating">
-                                    <div class="member-rating-avatar" style="@($"background: {GetMemberColor(member)}")">@member[0]</div>
-                                    <span class="member-rating-value">@r</span>
-                                </div>
-                            }
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="d-flex flex-column gap-2">
+                @{
+                    var listIndex = 0;
+                }
+                @foreach (var food in GetSortedFoods())
+                {
+                    var currentFood = food;
+                    var delay = listIndex++;
+
+                    // DYNAMIC ANIMATION LOGIC (Already correct in your list view, kept for consistency)
+                    var animClass = _shouldAnimate ? $"animate-in animate-delay-{Math.Min(delay, 4)}" : "";
+
+                    <div @key="currentFood.Id" class="food-list-item @animClass" @onclick="() => OpenFoodDetail(currentFood)">
+                        @if (currentFood.ImageUrls.Any())
+                        {
+                            <img src="@currentFood.ImageUrls.First()" alt="@currentFood.Name" class="food-list-image" />
+                        }
+                        else
+                        {
+                            <div class="food-list-placeholder">
+                                <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small" />
+                            </div>
+                        }
+                        <div class="food-list-content">
+                            <h3 class="food-list-title">@currentFood.Name</h3>
+                            <div class="member-ratings">
+                                @foreach (var rating in currentFood.Ratings.Where(r => r.Value.HasValue))
+                                {
+                                    var member = rating.Key;
+                                    <div class="member-rating">
+                                        <div class="member-rating-avatar" style="@($"background: {GetMemberColor(member)}")">@member[0]</div>
+                                        <span class="member-rating-value">@rating.Value</span>
+                                    </div>
+                                }
+                            </div>
+                            <p class="food-list-date">@currentFood.DateAdded.ToString("MMM dd")</p>
                         </div>
-                        <p class="food-list-date">@currentFood.DateAdded.ToString("MMM dd")</p>
+                        <div class="food-list-rating">
+                            <span class="rating-badge @GetRatingClass(currentFood.AverageRating)">
+                                @currentFood.AverageRating.ToString("0.0")
+                            </span>
+                        </div>
                     </div>
-                    <div class="food-list-rating">
-                        <span class="rating-badge @GetRatingClass(currentFood.AverageRating)">
-                            @currentFood.AverageRating.ToString("0.0")
-                        </span>
-                    </div>
-                </div>
-            }
-        </div>
+                }
+            </div>
+        }
     }
 }
 
@@ -224,6 +283,7 @@ else
     private string _currentSort = "date";
     private bool _sortDescending = true;
     private string _viewMode = "card";
+    private bool _shouldAnimate = true;
 
     protected override async Task OnInitializedAsync()
     {
@@ -231,7 +291,6 @@ else
 
         HouseholdState.OnHouseholdChanged += async () =>
         {
-            // Only load foods if we have a household and haven't loaded them yet
             if (HouseholdState.HasHousehold)
             {
                 await LoadFoods();
@@ -244,16 +303,6 @@ else
         _currentSort = DeviceState.Settings.SortBy ?? "date";
         _sortDescending = DeviceState.Settings.SortDescending;
 
-        if (!AuthService.IsAuthorized)
-        {
-            await AuthService.InitializeAsync();
-            if (!AuthService.IsAuthorized)
-            {
-                Navigation.NavigateTo("login");
-                return;
-            }
-        }
-
         if (HouseholdState.HasHousehold)
         {
             await LoadFoods();
@@ -262,20 +311,54 @@ else
 
     private async Task LoadFoods()
     {
-        _isLoading = true;
-        _foodItems = await FoodService.GetAllFoodsAsync(false);
+        // 1. INSTANT: Check if cache exists
+        if (FoodService.CachedFoods != null && FoodService.CachedFoods.Any())
+        {
+            _foodItems = FoodService.CachedFoods;
+            _isLoading = false;
+
+            // DISABLE animation because we are showing cached data instantly
+            _shouldAnimate = false;
+
+            StateHasChanged();
+        }
+        else
+        {
+            _isLoading = true;
+            // ENABLE animation because this is a fresh load from empty
+            _shouldAnimate = true;
+        }
+
+        // 2. BACKGROUND: Fetch fresh data
+        var freshFoods = await FoodService.GetAllFoodsAsync(false);
+
+        // 3. UPDATE: Swap in the fresh data
+        _foodItems = freshFoods;
         _isLoading = false;
+
+        // Note: We leave _shouldAnimate as it was.
+        // If it was false (cached), it stays false so the update doesn't trigger a jump.
+
+        StateHasChanged();
     }
 
     private async Task SetViewMode(string mode)
     {
+        if (_viewMode == mode) return;
+
+        // 1. Enable animation because the user explicitly requested a layout change
+        _shouldAnimate = true;
+
         _viewMode = mode;
-        // Save preference using DeviceStateService
         await DeviceState.SetViewModeAsync(mode);
+        // StateHasChanged() is called automatically by Blazor for event handlers
     }
 
     private async Task SetSort(string sort)
     {
+        // 1. Enable animation so the items visually reorder
+        _shouldAnimate = true;
+
         if (_currentSort == sort)
         {
             _sortDescending = !_sortDescending;
@@ -286,14 +369,15 @@ else
             _sortDescending = true;
         }
 
-        // Save sort preference
         await DeviceState.SetSortAsync(_currentSort, _sortDescending);
     }
 
     private async Task ToggleSortDirection()
     {
+        // 1. Enable animation for direction flip
+        _shouldAnimate = true;
+
         _sortDescending = !_sortDescending;
-        // Save sort preference
         await DeviceState.SetSortAsync(_currentSort, _sortDescending);
     }
 

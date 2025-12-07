@@ -1,8 +1,10 @@
 ﻿@page "/archived"
+@using Microsoft.AspNetCore.Authorization
 @inject IAuthService AuthService
 @inject IFoodService FoodService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
+@attribute [Authorize]
 
 <div class="d-flex align-center gap-3 mb-6">
 
@@ -96,16 +98,6 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        if (!AuthService.IsAuthorized)
-        {
-            await AuthService.InitializeAsync();
-            if (!AuthService.IsAuthorized)
-            {
-                Navigation.NavigateTo("login");
-                return;
-            }
-        }
-
         await LoadArchivedItems();
     }
 
