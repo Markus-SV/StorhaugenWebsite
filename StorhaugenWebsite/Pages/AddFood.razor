@@ -18,17 +18,28 @@
 
         <div class="camera-guide-container">
             <div class="camera-guide-box">
+
+                <div class="text-hint-zone">
+                    <span class="text-label">TITTEL HER</span>
+                </div>
+
+                <div class="logo-hint-zone"></div>
+                <span class="logo-label">LOGO</span>
+
                 <div class="scan-line"></div>
             </div>
-            <p class="camera-guide-text">Plasser oppskriftsnavnet innenfor ruten</p>
+
+            <p class="camera-guide-text">
+                Hold telefonen stående. <br />
+                Match logoen oppe i hjørnet.
+            </p>
         </div>
 
         <div class="camera-controls">
             <MudIconButton Icon="@Icons.Material.Rounded.Close"
                            Color="Color.Surface"
                            Size="Size.Large"
-                           OnClick="StopCamera"
-                           Class="camera-btn-secondary" />
+                           OnClick="StopCamera" />
 
             <button class="camera-shutter" @onclick="CaptureCameraImage"></button>
 
