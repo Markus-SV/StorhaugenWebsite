@@ -90,6 +90,7 @@ else
                            @ref="@_fileUpload"
                            FilesChanged="OnImagesSelected"
                            Accept="image/*"
+                           Capture="environment"
                            MaximumFileCount="5"
                            Class="flex-1">
                 <ActivatorContent>
@@ -108,7 +109,7 @@ else
             <MudFileUpload T="IReadOnlyList<IBrowserFile>"
                            @ref="@_galleryUpload"
                            FilesChanged="OnImagesSelected"
-                           Accept=".png,.jpg,.jpeg,.webp"
+                           Accept="image/jpeg,image/jpg,image/png,image/webp"
                            MaximumFileCount="5"
                            Class="flex-1">
                 <ActivatorContent>
