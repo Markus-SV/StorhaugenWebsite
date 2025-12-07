@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "StorhaugenWebsite",
   "resources": {
-    "hash": "sha256-Xx6m/VBIltcC+lwf5LCQyO3ppMketvlc/mVKvgVY3oo=",
+    "hash": "sha256-bGv5fEugsYbiCKZuBTLl2ZSt2d7KB/ZyZWlORuwLDis=",
     "jsModuleNative": {
       "dotnet.native.js": "sha256-vtotCeXt2UD6oc459laJT32vBgigZ+eLoUmdeFkvYDk="
     },
@@ -18,9 +18,9 @@
     },
     "coreAssembly": {},
     "assembly": {
-      "Microsoft.AspNetCore.Components.wasm": "sha256-sPaQn01Kfj9552ieTKLF6dtjHNOs5O8ktSD22IvPcig=",
+      "Microsoft.AspNetCore.Components.wasm": "sha256-QaPFXPhwpg+3u4Ejzl5M50wDdHY3hYcxGPCTS+FGWFY=",
       "Microsoft.AspNetCore.Components.Forms.wasm": "sha256-70I0Lw89C4AA5nPSRfm3J9jWRzusgkg+q7+dLbIK3Zc=",
-      "Microsoft.AspNetCore.Components.Web.wasm": "sha256-AAg0KFEF2zBqCQT1KFFhtiAKuGDxNcDgmL+1Xi/69B4=",
+      "Microsoft.AspNetCore.Components.Web.wasm": "sha256-zItcn8N37BtRHFU+3ULA9+I5RFWyyeN5w1DlP97O6vw=",
       "Microsoft.AspNetCore.Components.WebAssembly.wasm": "sha256-z4Tf7abymOq31FvU79vGwB8YFnYSb5DjMJHZJDj5fa8=",
       "Microsoft.Extensions.Configuration.wasm": "sha256-od574rRtVVRJj+24jbl8j3GdQFpxlJOpSx+pEMw1Q18=",
       "Microsoft.Extensions.Configuration.Abstractions.wasm": "sha256-XR+WUfg8LtnrwdXFBnV+qO3ROyp6cYCfl1AZajIAheM=",
@@ -111,7 +111,7 @@
       "System.wasm": "sha256-I4hhyMuUoHdrzDopL9tlnkL/Skg+0OO+gmkOXNT3dcg=",
       "netstandard.wasm": "sha256-t3MI3G1cq2XOhj4SxHWG+1ZMvGILcE+Ck4NUy7FasYI=",
       "System.Private.CoreLib.wasm": "sha256-ymHpmaL2SVhBqI/5tKPLdp/p/I4Daxwtuj1B4jJRvLc=",
-      "StorhaugenWebsite.wasm": "sha256-VyHD4T4EB45qzQKMGPDypm/+1HAlCuz319SNcxQFqbA="
+      "StorhaugenWebsite.wasm": "sha256-ZgRcOsGc5vEdE1cRT3MJVno1p7FC2wF8bBLL5iyJ+Mw="
     }
   },
   "cacheBootResources": true,

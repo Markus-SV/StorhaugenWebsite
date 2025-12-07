@@ -60,7 +60,7 @@
 
 .bottom-nav-inner {
     width: 100%;
-    max-width: 320px; /* Reduced width for a cleaner look */
+    max-width: 360px; /* Reduced width for a cleaner look */
     background: var(--mud-palette-surface);
     border-radius: 24px;
     /* Much tighter padding (Top/Bottom: 6px, Left/Right: 20px) */
@@ -85,8 +85,8 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    width: 100px;
     gap: 2px; /* Tighter gap */
-    padding: 0 12px;
     border: none;
     background: transparent;
     color: var(--mud-palette-text-secondary);
