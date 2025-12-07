@@ -28,6 +28,8 @@ public class HouseholdDto
     public string? CreatedByName { get; set; }
     public DateTime CreatedAt { get; set; }
     public List<HouseholdMemberDto> Members { get; set; } = new();
+    public string? UniqueShareId { get; set; }
+    public bool IsPrivate { get; set; }
 }
 
 public class HouseholdMemberDto
@@ -182,13 +184,14 @@ public class BrowseGlobalRecipesQuery
 public class PublicRecipeDto
 {
     public Guid Id { get; set; }
-    public required string Name { get; set; }
+    public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public List<string> ImageUrls { get; set; } = new();
     public string? ImageUrl => ImageUrls.FirstOrDefault();
     public double AverageRating { get; set; }
     public int RatingCount { get; set; }
     public DateTime DateAdded { get; set; }
+    public Guid HouseholdId { get; set; }
     public string HouseholdName { get; set; } = string.Empty;
     public string AddedByName { get; set; } = string.Empty;
 }

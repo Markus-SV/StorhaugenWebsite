@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using StorhaugenEats.API.Data;
@@ -11,9 +12,11 @@ using StorhaugenEats.API.Data;
 namespace StorhaugenEats.API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251207133857_AddPublicRecipesAndFriendships")]
+    partial class AddPublicRecipesAndFriendships
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -454,10 +457,8 @@ namespace StorhaugenEats.API.Migrations
                         .HasColumnName("is_archived");
 
                     b.Property<bool>("IsPublic")
-                       .ValueGeneratedOnAdd()
-                       .HasColumnType("boolean")
-                       .HasDefaultValue(false)
-                       .HasColumnName("is_public");
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_public");
 
                     b.Property<string>("LocalDescription")
                         .HasColumnType("text")

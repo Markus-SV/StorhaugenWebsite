@@ -17,6 +17,7 @@ public class AppDbContext : DbContext
     public DbSet<Rating> Ratings { get; set; }
     public DbSet<HouseholdInvite> HouseholdInvites { get; set; }
     public DbSet<EtlSyncLog> EtlSyncLogs { get; set; }
+    public DbSet<HouseholdFriendship> HouseholdFriendships { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -31,6 +32,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Rating>().ToTable("ratings");
         modelBuilder.Entity<HouseholdInvite>().ToTable("household_invites");
         modelBuilder.Entity<EtlSyncLog>().ToTable("etl_sync_log");
+        modelBuilder.Entity<HouseholdFriendship>().ToTable("household_friendships");
 
         // User configuration
         modelBuilder.Entity<User>(entity =>
@@ -53,6 +55,9 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(255);
+            entity.Property(e => e.IsPrivate).HasDefaultValue(false);
+            entity.Property(e => e.UniqueShareId).HasMaxLength(12);
+            entity.HasIndex(e => e.UniqueShareId).IsUnique();
             entity.Property(e => e.Settings)
                 .HasColumnType("jsonb")
                 .HasDefaultValue("{}");
@@ -114,11 +119,14 @@ public class AppDbContext : DbContext
             entity.Property(e => e.LocalTitle).HasMaxLength(255);
             entity.Property(e => e.LocalIngredients).HasColumnType("jsonb");
             entity.Property(e => e.IsArchived).HasDefaultValue(false);
+            entity.Property(e => e.IsPublic).HasDefaultValue(false);
 
             // Unique constraint: household can't have duplicate global recipes
             entity.HasIndex(e => new { e.HouseholdId, e.GlobalRecipeId })
                 .IsUnique()
                 .HasFilter("global_recipe_id IS NOT NULL");
+
+            entity.HasIndex(e => e.IsPublic).HasFilter("is_public = true");
 
             entity.HasOne(e => e.Household)
                 .WithMany(h => h.HouseholdRecipes)
@@ -134,6 +142,25 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.AddedByUserId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<HouseholdFriendship>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Status).IsRequired().HasMaxLength(20).HasDefaultValue("pending");
+
+            // Prevent duplicate requests
+            entity.HasIndex(e => new { e.RequesterHouseholdId, e.TargetHouseholdId }).IsUnique();
+
+            entity.HasOne(e => e.RequesterHousehold)
+                .WithMany(h => h.SentFriendRequests)
+                .HasForeignKey(e => e.RequesterHouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.TargetHousehold)
+                .WithMany(h => h.ReceivedFriendRequests)
+                .HasForeignKey(e => e.TargetHouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // Rating configuration

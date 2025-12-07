@@ -29,6 +29,9 @@ public class HouseholdRecipe
     [Column("local_ingredients", TypeName = "jsonb")]
     public string? LocalIngredients { get; set; }
 
+    [Column("is_public")]
+    public bool IsPublic { get; set; } = false;
+
     [Column("local_image_url")]
     public string? LocalImageUrl { get; set; }
 

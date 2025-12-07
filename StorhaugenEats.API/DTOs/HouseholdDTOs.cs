@@ -8,6 +8,8 @@ public class HouseholdDto
     public string? CreatedByName { get; set; }
     public DateTime CreatedAt { get; set; }
     public List<HouseholdMemberDto> Members { get; set; } = new();
+    public string? UniqueShareId { get; set; }
+    public bool IsPrivate { get; set; }
 }
 
 public class HouseholdMemberDto
@@ -27,6 +29,12 @@ public class CreateHouseholdDto
 public class UpdateHouseholdDto
 {
     public required string Name { get; set; }
+    public bool? IsPrivate { get; set; }
+}
+
+public class UpdateHouseholdSettingsDto
+{
+    public bool? IsPrivate { get; set; }
 }
 
 public class InviteToHouseholdDto

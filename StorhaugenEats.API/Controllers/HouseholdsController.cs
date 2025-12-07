@@ -87,6 +87,36 @@ public class HouseholdsController : ControllerBase
         return Ok(household);
     }
 
+    [HttpPut("{id}/settings")]
+    public async Task<ActionResult<HouseholdDto>> UpdateHouseholdSettings(Guid id, [FromBody] UpdateHouseholdSettingsDto dto)
+    {
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
+        var household = await _context.Households.FirstOrDefaultAsync(h => h.Id == id && h.LeaderId == userId);
+
+        if (household == null) return NotFound(new { message = "Household not found or you are not the leader" });
+
+        if (dto.IsPrivate.HasValue) household.IsPrivate = dto.IsPrivate.Value;
+
+        // Generate Share ID if it doesn't exist and we're saving settings
+        if (string.IsNullOrEmpty(household.UniqueShareId))
+        {
+            household.UniqueShareId = await GenerateUniqueHouseholdShareIdAsync();
+        }
+
+        await _context.SaveChangesAsync();
+
+        // Return full DTO (re-query or map existing)
+        // ... existing mapping logic ...
+        return Ok(new HouseholdDto
+        {
+            Id = household.Id,
+            Name = household.Name,
+            IsPrivate = household.IsPrivate,
+            UniqueShareId = household.UniqueShareId
+            /* map other fields */
+        });
+    }
+
     /// <summary>
     /// Create a new household
     /// </summary>
@@ -96,18 +126,20 @@ public class HouseholdsController : ControllerBase
         var userId = await _currentUserService.GetOrCreateUserIdAsync();
         var user = await _context.Users.FindAsync(userId);
 
+        // 1. Generate the ID here and assign it to the entity
         var household = new Household
         {
             Name = dto.Name,
             LeaderId = userId,
             CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            UpdatedAt = DateTime.UtcNow,
+            UniqueShareId = await GenerateUniqueHouseholdShareIdAsync(), 
+            IsPrivate = false
         };
 
         _context.Households.Add(household);
-        await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync(); // Now it's saved to the DB
 
-        // Add creator as first member
         var member = new HouseholdMember
         {
             HouseholdId = household.Id,
@@ -116,7 +148,6 @@ public class HouseholdsController : ControllerBase
         };
         _context.HouseholdMembers.Add(member);
 
-        // Set as user's current household
         if (user != null)
         {
             user.CurrentHouseholdId = household.Id;
@@ -125,7 +156,7 @@ public class HouseholdsController : ControllerBase
 
         await _context.SaveChangesAsync();
 
-        // Build and return DTO directly (don't call GetHousehold internally)
+        // 2. Read it from the entity for the DTO
         var householdDto = new HouseholdDto
         {
             Id = household.Id,
@@ -133,17 +164,19 @@ public class HouseholdsController : ControllerBase
             CreatedById = userId,
             CreatedByName = user?.DisplayName,
             CreatedAt = household.CreatedAt,
+            UniqueShareId = household.UniqueShareId, // <--- Just read the value
+            IsPrivate = household.IsPrivate,         // <--- Don't forget this too
             Members = new List<HouseholdMemberDto>
+        {
+            new HouseholdMemberDto
             {
-                new HouseholdMemberDto
-                {
-                    UserId = userId,
-                    Email = user?.Email ?? "",
-                    DisplayName = user?.DisplayName,
-                    AvatarUrl = user?.AvatarUrl,
-                    JoinedAt = member.JoinedAt
-                }
+                UserId = userId,
+                Email = user?.Email ?? "",
+                DisplayName = user?.DisplayName,
+                AvatarUrl = user?.AvatarUrl,
+                JoinedAt = member.JoinedAt
             }
+        }
         };
 
         return CreatedAtAction(nameof(GetHousehold), new { id = household.Id }, householdDto);
@@ -408,5 +441,20 @@ public class HouseholdsController : ControllerBase
         await _context.SaveChangesAsync();
 
         return Ok(new { message = "Left household successfully" });
+    }
+
+    private async Task<string> GenerateUniqueHouseholdShareIdAsync()
+    {
+        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        var random = new Random();
+
+        while (true)
+        {
+            var id = new string(Enumerable.Repeat(chars, 8).Select(s => s[random.Next(s.Length)]).ToArray());
+            if (!await _context.Households.AnyAsync(h => h.UniqueShareId == id))
+            {
+                return id;
+            }
+        }
     }
 }
