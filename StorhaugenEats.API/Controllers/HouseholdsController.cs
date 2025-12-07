@@ -449,29 +449,6 @@ public class HouseholdsController : ControllerBase
     }
 
     /// <summary>
-    /// Update household settings such as privacy
-    /// </summary>
-    [HttpPut("{id}/settings")]
-    public async Task<ActionResult<HouseholdDto>> UpdateHouseholdSettings(Guid id, [FromBody] UpdateHouseholdSettingsDto dto)
-    {
-        var userId = await _currentUserService.GetOrCreateUserIdAsync();
-
-        var household = await _context.Households.FirstOrDefaultAsync(h => h.Id == id && h.LeaderId == userId);
-        if (household == null)
-            return NotFound(new { message = "Household not found or you are not the creator" });
-
-        if (dto.IsPrivate.HasValue)
-        {
-            household.IsPrivate = dto.IsPrivate.Value;
-        }
-
-        household.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
-
-        return await GetHousehold(id);
-    }
-
-    /// <summary>
     /// Regenerate the household share ID
     /// </summary>
     [HttpPost("{id}/regenerate-share-id")]

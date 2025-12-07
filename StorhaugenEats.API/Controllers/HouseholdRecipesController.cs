@@ -83,74 +83,7 @@ public class HouseholdRecipesController : ControllerBase
         return Ok(MapToDto(recipe));
     }
 
-    /// <summary>
-    /// Get all public recipes from all households (for community browsing)
-    /// </summary>
-    [HttpGet("public")]
-    [AllowAnonymous]
-    public async Task<ActionResult<PublicRecipePagedResult>> GetPublicRecipes(
-        [FromQuery] string? search = null,
-        [FromQuery] string sortBy = "newest",
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20)
-    {
-        if (page < 1) page = 1;
-        if (pageSize < 1) pageSize = 20;
-
-        var query = _context.HouseholdRecipes
-            .Include(hr => hr.GlobalRecipe)
-            .Include(hr => hr.Household)
-            .Include(hr => hr.AddedByUser)
-            .Include(hr => hr.Ratings)
-            .Where(hr => hr.IsPublic && !hr.IsArchived);
-
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            var term = search.Trim().ToLower();
-            query = query.Where(hr =>
-                (hr.LocalTitle != null && hr.LocalTitle.ToLower().Contains(term)) ||
-                (hr.GlobalRecipe != null && hr.GlobalRecipe.Title.ToLower().Contains(term)) ||
-                (hr.Household != null && hr.Household.Name.ToLower().Contains(term)));
-        }
-
-        query = sortBy switch
-        {
-            "rating" => query.OrderByDescending(hr => hr.Ratings.Any() ? hr.Ratings.Average(r => r.Score) : 0)
-                               .ThenByDescending(hr => hr.CreatedAt),
-            _ => query.OrderByDescending(hr => hr.CreatedAt)
-        };
-
-        var totalCount = await query.CountAsync();
-        var recipes = await query
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
-
-        var dto = new PublicRecipePagedResult
-        {
-            Page = page,
-            PageSize = pageSize,
-            TotalCount = totalCount,
-            Recipes = recipes.Select(r => new PublicRecipeDto
-            {
-                Id = r.Id,
-                Name = r.DisplayTitle,
-                Description = r.LocalDescription ?? r.GlobalRecipe?.Description,
-                ImageUrls = !string.IsNullOrEmpty(r.LocalImageUrl)
-                    ? new List<string> { r.LocalImageUrl }
-                    : (r.GlobalRecipe?.ImageUrls != null ? Helpers.JsonHelper.JsonToList(r.GlobalRecipe.ImageUrls) : new List<string>()),
-                AverageRating = r.Ratings.Any() ? r.Ratings.Average(rt => rt.Score) : 0,
-                RatingCount = r.Ratings.Count,
-                DateAdded = r.CreatedAt,
-                HouseholdName = r.Household?.Name ?? string.Empty,
-                AddedByName = r.AddedByUser?.DisplayName,
-                HouseholdId = r.HouseholdId,
-                GlobalRecipeId = r.GlobalRecipeId
-            }).ToList()
-        };
-
-        return Ok(dto);
-    }
+  
 
     /// <summary>
     /// Add a new recipe to the household (custom or from global)

@@ -37,11 +37,6 @@ public class UpdateHouseholdSettingsDto
     public bool? IsPrivate { get; set; }
 }
 
-public class UpdateHouseholdSettingsDto
-{
-    public bool? IsPrivate { get; set; }
-}
-
 public class InviteToHouseholdDto
 {
     public string? Email { get; set; }

@@ -18,7 +18,6 @@ public class AppDbContext : DbContext
     public DbSet<HouseholdInvite> HouseholdInvites { get; set; }
     public DbSet<HouseholdFriendship> HouseholdFriendships { get; set; }
     public DbSet<EtlSyncLog> EtlSyncLogs { get; set; }
-    public DbSet<HouseholdFriendship> HouseholdFriendships { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -63,9 +62,6 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Settings)
                 .HasColumnType("jsonb")
                 .HasDefaultValue("{}");
-            entity.Property(e => e.IsPrivate).HasDefaultValue(false);
-            entity.Property(e => e.UniqueShareId).HasMaxLength(12);
-            entity.HasIndex(e => e.UniqueShareId).IsUnique();
 
             entity.HasOne(e => e.Leader)
                 .WithMany()

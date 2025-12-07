@@ -21,13 +21,6 @@ public class Household
     [Column("settings", TypeName = "jsonb")]
     public string Settings { get; set; } = "{}";
 
-    [Column("is_private")]
-    public bool IsPrivate { get; set; } = false;
-
-    [Column("unique_share_id")]
-    [MaxLength(12)]
-    public string? UniqueShareId { get; set; }
-
     [Column("created_at")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
@@ -46,9 +39,6 @@ public class Household
     public ICollection<User> Members { get; set; } = new List<User>();
     public ICollection<HouseholdRecipe> HouseholdRecipes { get; set; } = new List<HouseholdRecipe>();
     public ICollection<HouseholdMember> HouseholdMembers { get; set; } = new List<HouseholdMember>();
-    public ICollection<HouseholdFriendship> SentFriendRequests { get; set; } = new List<HouseholdFriendship>();
-    public ICollection<HouseholdFriendship> ReceivedFriendRequests { get; set; } = new List<HouseholdFriendship>();
-
     public ICollection<HouseholdFriendship> SentFriendRequests { get; set; } = new List<HouseholdFriendship>();
     public ICollection<HouseholdFriendship> ReceivedFriendRequests { get; set; } = new List<HouseholdFriendship>();
 
