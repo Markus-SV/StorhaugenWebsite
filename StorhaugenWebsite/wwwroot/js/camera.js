@@ -3,8 +3,16 @@
 
     start: async (videoElement) => {
         try {
-            // We request a very high resolution. 
-            // The browser will automatically provide the best the hardware can handle (e.g., 4K or 1080p).
+            // 1. PRØV Å LÅSE SKJERMEN TIL PORTRETT (Fungerer på Android/Installed Apps)
+            if (screen.orientation && screen.orientation.lock) {
+                try {
+                    await screen.orientation.lock("portrait");
+                } catch (e) {
+                    console.log("Kunne ikke låse skjermretning (vanlig i nettleser):", e);
+                }
+            }
+
+            // 2. Start kamera (Samme som før)
             const constraints = {
                 audio: false,
                 video: {

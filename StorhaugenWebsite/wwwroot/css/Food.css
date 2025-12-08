@@ -353,9 +353,11 @@
 
 
 
+/* =========================================
+   CAMERA OVERLAY - FORCED PORTRAIT
+   ========================================= */
 
-
-/* 1. Main Container & Video Stream */
+/* 1. Main Container */
 .camera-overlay {
     position: fixed;
     top: 0;
@@ -364,9 +366,12 @@
     height: 100vh;
     background: #000;
     z-index: 9999;
+    overflow: hidden;
+    /* Sentrering for innholdet */
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    align-items: center;
+    justify-content: center;
 }
 
 .camera-video {
@@ -376,66 +381,88 @@
     position: absolute;
     top: 0;
     left: 0;
-    /* --- FIX: Prevent Mirroring --- */
-    /* This ensures moving phone LEFT moves image LEFT */
+    /* Forhindre speiling */
     transform: scaleX(1) !important;
-    -webkit-transform: scaleX(1) !important;
 }
 
-/* 2. The Guide Box Container */
+/* 2. Guide Box Container */
 .camera-guide-container {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    pointer-events: none; /* Let clicks pass through to buttons */
+    pointer-events: none;
     display: flex;
     justify-content: center;
     align-items: center;
 }
 
-/* 3. The Scanning Box (Shared Styles) */
+/* 3. Boksen som viser hvor man skal skanne */
 .camera-guide-box {
-    position: relative; /* So hints inside align to this box */
+    position: relative;
     border: 2px solid rgba(255, 255, 255, 0.8);
     border-radius: 12px;
-    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7); /* Darkens everything outside */
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7);
     transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 /* =========================================
-   STEP SPECIFIC STYLES
+   VISUAL LOCK - MOTVIRK ROTASJON
    ========================================= */
 
-/* --- STEP 1: HelloFresh Front (Landscape Card) --- */
-
-/* Scenario A: Phone is VERTICAL (Portrait) */
-.camera-guide-container.step-landscape .camera-guide-box {
-    width: 90vw;
-    /* We force a landscape aspect ratio even on a portrait screen */
-    aspect-ratio: 16/9;
-}
-
-/* Scenario B: Phone is HORIZONTAL (Landscape) - The Fix */
+/* Dette er magien. Hvis telefonen roteres til landskap, 
+   roterer vi HELE overlayet -90 grader slik at det 
+   ser ut som det fortsatt er i portrett.
+*/
 @media (orientation: landscape) {
-    .camera-guide-container.step-landscape .camera-guide-box {
-        width: 85vw;
-        height: 85vh;
-        aspect-ratio: unset; /* Let it fill the screen naturally */
-        max-width: 1200px;
+    .camera-overlay {
+        /* Bytt bredde og høyde slik at det passer skjermen "feil vei" */
+        width: 100vh;
+        height: 100vw;
+        /* Roter tilbake -90 grader */
+        transform: rotate(-90deg);
+        transform-origin: center;
+        /* Tving posisjon til midten av skjermen */
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        /* Flytt tilbake til sentrum etter rotasjon */
+        margin-left: -50vh; /* Halvparten av ny bredde */
+        margin-top: -50vw; /* Halvparten av ny høyde */
     }
 }
 
-/* Hints specific to HelloFresh Front Card */
+/* =========================================
+   STEG-SPESIFIKKE BOKSER (Alltid Portrett)
+   ========================================= */
+
+/* STEG 1: HelloFresh Forside (Liggende kort) */
+/* Vi viser nå en liggende boks PÅ en stående skjerm. */
+.camera-guide-container.step-landscape .camera-guide-box {
+    width: 90vw; /* Nesten hele bredden av telefonen */
+    aspect-ratio: 9/16; /* Høy boks (Portrett-form) for å fange liggende kort */
+}
+
+/* Hvis du vil at boksen skal være "liggende" inni portrett-modusen (slik at man må snu kortet, ikke telefonen): */
+/*
+.camera-guide-container.step-landscape .camera-guide-box {
+    width: 90%;
+    aspect-ratio: 16/9; 
+}
+*/
+
+/* Hint for Forside */
 .step-landscape .logo-hint-zone {
     position: absolute;
-    top: 10%;
-    right: 5%;
-    width: 15%;
-    aspect-ratio: 1/1;
-    border: 2px dashed #9ACD32; /* HelloFresh Green */
+    top: 80px;
+    right: 20px;
+    width: 60px;
+    height: 60px;
+    border: 2px dashed #9ACD32;
     border-radius: 50%;
+    /* Roter ikoner slik at de matcher kortet */
+    transform: rotate(90deg);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -446,46 +473,46 @@
     color: #9ACD32;
     font-size: 10px;
     font-weight: 800;
-    text-transform: uppercase;
 }
 
 .step-landscape .text-hint-zone {
     position: absolute;
-    top: 15%;
-    left: 5%;
-    width: 60%;
-    height: 15%;
+    top: 40px;
+    right: 100px;
+    width: 50vh;
+    height: 60px;
     border: 1px dashed rgba(255,255,255,0.5);
     display: flex;
     align-items: center;
-    padding-left: 10px;
+    justify-content: center;
+    /* Roter teksten slik at den leses "oppover" langs siden */
+    transform-origin: center right;
+    transform: rotate(90deg) translate(50%, -50%);
 }
 
 .step-landscape .text-label {
-    color: rgba(255,255,255,0.8);
+    color: white;
     font-size: 14px;
     font-weight: bold;
     letter-spacing: 1px;
 }
 
-/* --- STEP 2: Ingredients (Tall List) --- */
+/* STEG 2: Ingredienser (Lang liste) */
 .camera-guide-container.step-portrait-tall .camera-guide-box {
     width: 65vw;
     height: 70vh;
 }
 
-/* --- STEP 3: Back Page (Standard Paper) --- */
+/* STEG 3: Bakside (Standard) */
 .camera-guide-container.step-portrait-normal .camera-guide-box {
     width: 85vw;
-    aspect-ratio: 210/297; /* A4 Ratio */
-    max-width: 500px;
+    aspect-ratio: 210/297;
 }
 
 /* =========================================
-   ANIMATIONS & UI ELEMENTS
+   UI ELEMENTER
    ========================================= */
 
-/* The Green Laser Scan Line */
 .scan-line {
     width: 100%;
     height: 2px;
@@ -494,7 +521,6 @@
     top: 0;
     box-shadow: 0 0 10px #00E676;
     animation: scanAnim 2.5s ease-in-out infinite;
-    opacity: 0.8;
 }
 
 @keyframes scanAnim {
@@ -517,28 +543,21 @@
     }
 }
 
-/* Controls at the bottom */
 .camera-controls {
     position: absolute;
     bottom: 40px;
-    left: 0;
     width: 100%;
     display: flex;
-    justify-content: space-between; /* Spreads buttons out */
-    align-items: center;
-    padding: 0 40px;
+    justify-content: space-between;
+    padding: 0 32px;
     z-index: 10000;
-    pointer-events: auto; /* Re-enable clicks */
     box-sizing: border-box;
 }
 
-/* Instruction Pill (Top Center) */
 .camera-instruction-pill {
     position: absolute;
-    top: 20px; /* Moves it to top of screen, independent of box */
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0,0,0,0.7);
+    top: 24px;
+    background: rgba(0,0,0,0.6);
     padding: 8px 16px;
     border-radius: 20px;
     display: flex;
@@ -546,7 +565,6 @@
     border: 1px solid rgba(255,255,255,0.2);
     backdrop-filter: blur(4px);
     z-index: 10001;
-    white-space: nowrap;
 }
 
 .step-text {
@@ -554,24 +572,4 @@
     font-weight: bold;
     font-size: 12px;
     letter-spacing: 1px;
-}
-
-/* Adjustments for Landscape Mode UI */
-@media (orientation: landscape) and (max-height: 500px) {
-    .camera-controls {
-        bottom: 20px;
-        padding: 0 60px;
-    }
-
-    .camera-instruction-pill {
-        top: 10px;
-        transform: translateX(-50%) scale(0.9);
-    }
-
-    .step-portrait-tall .camera-guide-box,
-    .step-portrait-normal .camera-guide-box {
-        height: 85vh;
-        width: auto;
-        aspect-ratio: 210/297;
-    }
 }
