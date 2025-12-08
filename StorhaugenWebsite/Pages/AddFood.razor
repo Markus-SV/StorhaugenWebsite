@@ -456,9 +456,19 @@ else
                 </MudFileUpload>
             }
 
-            <MudFileUpload T="IReadOnlyList<IBrowserFile>" @ref="@_galleryUpload" FilesChanged="OnImagesSelected" Accept="image/*" MaximumFileCount="5" Class="flex-1">
+            <MudFileUpload T="IReadOnlyList<IBrowserFile>"
+                           @ref="@_galleryUpload"
+                           FilesChanged="OnImagesSelected"
+                           Accept=".jpg, .jpeg, .png, .heic, image/*"
+                           MaximumFileCount="5"
+                           Class="flex-1">
                 <ActivatorContent>
-                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Rounded.PhotoLibrary" FullWidth="true" OnClick="@(() => _galleryUpload?.OpenFilePickerAsync())" Style="border-radius: 12px; height: 56px; border-style: dashed; border-width: 2px;">
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Secondary"
+                               StartIcon="@Icons.Material.Rounded.PhotoLibrary"
+                               FullWidth="true"
+                               OnClick="@(() => _galleryUpload?.OpenFilePickerAsync())"
+                               Style="border-radius: 12px; height: 56px; border-style: dashed; border-width: 2px;">
                         Galleri
                     </MudButton>
                 </ActivatorContent>
@@ -714,17 +724,29 @@ else
             if (_imageData.Count >= 5) break;
             try
             {
-                var fileToRead = await file.RequestImageFileAsync("image/jpeg", 1200, 1200);
-                using var stream = fileToRead.OpenReadStream(maxAllowedSize: 1024 * 1024 * 30);
+                // Øk maxAllowedSize kraftig (50MB) for å håndtere store iPhone-bilder
+                long maxFileSize = 1024L * 1024L * 50L;
+
+                // RequestImageFileAsync konverterer HEIC til JPEG automatisk i nettleseren
+                var fileToRead = await file.RequestImageFileAsync("image/jpeg", 1500, 1500);
+
+                using var stream = fileToRead.OpenReadStream(maxAllowedSize: maxFileSize);
                 using var ms = new MemoryStream();
                 await stream.CopyToAsync(ms);
+
                 var buffer = ms.ToArray();
                 var base64 = Convert.ToBase64String(buffer);
+
                 _imagePreviewUrls.Add($"data:image/jpeg;base64,{base64}");
                 _imageData.Add(buffer);
-                _imageNames.Add(file.Name);
+                _imageNames.Add(file.Name); // Merk: RequestImageFileAsync endrer ofte navnet, men dette går fint
             }
-            catch { }
+            catch (Exception ex)
+            {
+                // Legg til en feilmelding hvis et bilde feiler (nyttig for debugging på mobil)
+                Console.WriteLine($"Feil ved opplasting av bilde {file.Name}: {ex.Message}");
+                Snackbar.Add($"Kunne ikke laste opp {file.Name}. Bildet er kanskje for stort.", Severity.Warning);
+            }
         }
     }
 

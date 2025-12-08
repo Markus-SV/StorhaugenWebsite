@@ -350,18 +350,18 @@
 
 /*-----------------------------------------------------------OVERLAY--------------------------------------------------------------------*/
 
+/* food.css */
 
-/* =========================================
-   CAMERA OVERLAY - HARD LOCK PORTRAIT
-   ========================================= */
+/*-----------------------------------------------------------OVERLAY--------------------------------------------------------------------*/
 
-/* 1. Hovedcontainer - LÅSER POSISJONEN */
+/* 1. Hovedcontainer */
 .camera-overlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100vw;
-    height: 100vh;
+    height: 100vh; /* Bruk 100dvh for mobil hvis støttet, ellers 100vh */
+    height: 100dvh;
     background: #000;
     z-index: 9999;
     overflow: hidden;
@@ -370,18 +370,18 @@
     justify-content: center;
 }
 
-/* 2. Videostrøm - Hindrer speiling */
+/* 2. Videostrøm - Dekker alltid hele skjermen */
 .camera-video {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: cover; /* Dette sørger for at videoen aldri får svarte kanter */
     position: absolute;
     top: 0;
     left: 0;
     transform: scaleX(1) !important;
 }
 
-/* 3. Guide Container - Dekker alt */
+/* 3. Guide Container */
 .camera-guide-container {
     position: absolute;
     top: 0;
@@ -392,45 +392,31 @@
     display: flex;
     justify-content: center;
     align-items: center;
+    z-index: 10002; /* Sørg for at guiden ligger over videoen */
 }
 
-/* =========================================
-   ROTAJONSLÅS (ANTI-LANDSCAPE HACK)
-   ========================================= */
-/* Dette tvinger appen til å se ut som den er i portrett 
-   SELV OM du holder telefonen i landskap. 
-*/
-@media (orientation: landscape) {
-    .camera-overlay {
-        /* Bytt om på høyde og bredde for å fylle skjermen sidelengs */
-        width: 100vh;
-        height: 100vw;
-        /* Roter hele nettsiden -90 grader (mot klokka) */
-        transform: rotate(-90deg);
-        /* Tving sentrering etter rotasjon */
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform-origin: center center;
-        margin: 0;
-        translate: -50% -50%; /* Moderne sentrering */
-    }
-}
+    /* --- FJERN HELE "ROTAJONSLÅS / ANTI-LANDSCAPE HACK" BLOKKEN HERFRA --- */
+    /* Ved å fjerne den, slipper du at bildet flipper rundt på iPhone. 
+   Appen vil rotere naturlig hvis man er i nettleser, men holde seg i portrait
+   hvis installert som PWA. */
 
-/* =========================================
+
+    /* =========================================
    STEG 1: HELLO FRESH (LIGGENDE KORT)
    ========================================= */
 
-/* Selve rammen man skal sikte på */
-.camera-guide-container.step-landscape .camera-guide-box {
-    /* En stor boks som fyller skjermen */
-    width: 90vw;
-    height: 80vh;
-    border: 3px solid rgba(255, 255, 255, 0.9);
-    border-radius: 16px;
-    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.8);
-    position: relative;
-}
+    /* ... (Resten av CSSen din under her er fin og kan beholdes) ... */
+    .camera-guide-container.step-landscape .camera-guide-box {
+        /* ... dine eksisterende stiler ... */
+        width: 90vw;
+        height: 80vh;
+        border: 3px solid rgba(255, 255, 255, 0.9);
+        border-radius: 16px;
+        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.8);
+        position: relative;
+    }
+
+/* ... behold resten av filen som den var ... */
 
 /* --- LOGO GUIDE (Firkantet, Øverst til høyre) --- */
 .step-landscape .logo-hint-zone {
