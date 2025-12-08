@@ -348,9 +348,14 @@
 
 
 
-/* OVERLAY */
+/*-----------------------------------------------------------OVERLAY--------------------------------------------------------------------*/
 
-/* --- Camera Overlay Styles --- */
+
+
+
+
+
+/* 1. Main Container & Video Stream */
 .camera-overlay {
     position: fixed;
     top: 0;
@@ -361,6 +366,7 @@
     z-index: 9999;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .camera-video {
@@ -370,93 +376,116 @@
     position: absolute;
     top: 0;
     left: 0;
-    /* --- THE FIX: Prevent Mirroring --- */
+    /* --- FIX: Prevent Mirroring --- */
+    /* This ensures moving phone LEFT moves image LEFT */
     transform: scaleX(1) !important;
     -webkit-transform: scaleX(1) !important;
-    -moz-transform: scaleX(1) !important;
 }
 
-/* Container for guide-boksen */
+/* 2. The Guide Box Container */
 .camera-guide-container {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    pointer-events: none;
-}
-
-    /* --- STEP 1: Front Page (Landscape card scanned in Portrait) --- */
-    /* This is the box you asked to change */
-    .camera-guide-container.step-landscape .camera-guide-box {
-        /* Make the box cover most of the screen since the actual image is big */
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 90vw;
-        aspect-ratio: 9/16; /* Portrait aspect ratio to match phone screen */
-        border: 2px solid rgba(255, 255, 255, 0.4); /* Faint border for whole area */
-        border-radius: 12px;
-        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
-    }
-
-/* --- NEW LAYOUT: Logo & Title (Top Right, Rotated) --- */
-
-/* 1. The Logo Zone (Rotated 90 degrees) */
-.step-landscape .logo-hint-zone {
-    position: absolute;
-    top: 80px; /* Distance from top */
-    right: 20px; /* Distance from right edge */
-    width: 60px;
-    height: 60px;
-    border: 2px dashed #9ACD32; /* HelloFresh Green */
-    border-radius: 50%;
-    /* Rotate 90 degrees as requested */
-    transform: rotate(90deg);
+    pointer-events: none; /* Let clicks pass through to buttons */
     display: flex;
     justify-content: center;
     align-items: center;
-    background: rgba(0, 0, 0, 0.3);
+}
+
+/* 3. The Scanning Box (Shared Styles) */
+.camera-guide-box {
+    position: relative; /* So hints inside align to this box */
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    border-radius: 12px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7); /* Darkens everything outside */
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* =========================================
+   STEP SPECIFIC STYLES
+   ========================================= */
+
+/* --- STEP 1: HelloFresh Front (Landscape Card) --- */
+
+/* Scenario A: Phone is VERTICAL (Portrait) */
+.camera-guide-container.step-landscape .camera-guide-box {
+    width: 90vw;
+    /* We force a landscape aspect ratio even on a portrait screen */
+    aspect-ratio: 16/9;
+}
+
+/* Scenario B: Phone is HORIZONTAL (Landscape) - The Fix */
+@media (orientation: landscape) {
+    .camera-guide-container.step-landscape .camera-guide-box {
+        width: 85vw;
+        height: 85vh;
+        aspect-ratio: unset; /* Let it fill the screen naturally */
+        max-width: 1200px;
+    }
+}
+
+/* Hints specific to HelloFresh Front Card */
+.step-landscape .logo-hint-zone {
+    position: absolute;
+    top: 10%;
+    right: 5%;
+    width: 15%;
+    aspect-ratio: 1/1;
+    border: 2px dashed #9ACD32; /* HelloFresh Green */
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: rgba(0,0,0,0.3);
 }
 
 .step-landscape .logo-label {
     color: #9ACD32;
-    font-size: 12px;
+    font-size: 10px;
     font-weight: 800;
     text-transform: uppercase;
 }
 
-/* 2. The Title Zone (Beside the logo) */
 .step-landscape .text-hint-zone {
     position: absolute;
-    /* Position it to the LEFT of the logo (since we are top-right aligned) */
-    top: 40px;
-    right: 100px; /* 20px (margin) + 60px (logo width) + 20px (gap) */
-
-    width: 60vh; /* Long enough for title */
-    height: 80px;
-    border: 2px dashed rgba(255, 255, 255, 0.7);
-    border-radius: 8px;
-    background: rgba(0,0,0,0.2);
-    /* Rotate this 90 degrees too, so the text inside is readable 
-       if the user tilts their head, or keep it vertical? 
-       Assuming you want the BOX rotated so it runs down the side: */
-    transform-origin: center right;
-    transform: rotate(90deg) translate(50%, -50%);
+    top: 15%;
+    left: 5%;
+    width: 60%;
+    height: 15%;
+    border: 1px dashed rgba(255,255,255,0.5);
     display: flex;
     align-items: center;
-    justify-content: center;
+    padding-left: 10px;
 }
 
 .step-landscape .text-label {
-    color: white;
-    font-size: 16px;
+    color: rgba(255,255,255,0.8);
+    font-size: 14px;
     font-weight: bold;
-    letter-spacing: 2px;
+    letter-spacing: 1px;
 }
 
-/* --- Keep Scan Line Animation --- */
+/* --- STEP 2: Ingredients (Tall List) --- */
+.camera-guide-container.step-portrait-tall .camera-guide-box {
+    width: 65vw;
+    height: 70vh;
+}
+
+/* --- STEP 3: Back Page (Standard Paper) --- */
+.camera-guide-container.step-portrait-normal .camera-guide-box {
+    width: 85vw;
+    aspect-ratio: 210/297; /* A4 Ratio */
+    max-width: 500px;
+}
+
+/* =========================================
+   ANIMATIONS & UI ELEMENTS
+   ========================================= */
+
+/* The Green Laser Scan Line */
 .scan-line {
     width: 100%;
     height: 2px;
@@ -464,7 +493,8 @@
     position: absolute;
     top: 0;
     box-shadow: 0 0 10px #00E676;
-    animation: scanAnim 3s ease-in-out infinite;
+    animation: scanAnim 2.5s ease-in-out infinite;
+    opacity: 0.8;
 }
 
 @keyframes scanAnim {
@@ -487,36 +517,61 @@
     }
 }
 
-/* --- Step 2 & 3 Styles (unchanged/cleaned) --- */
-.camera-guide-container.step-portrait-tall .camera-guide-box {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 70vw;
-    height: 60vh;
-    border: 2px solid white;
-    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7);
-}
-
-.camera-guide-container.step-portrait-normal .camera-guide-box {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 85vw;
-    aspect-ratio: 210/297;
-    border: 2px solid white;
-    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7);
-}
-
-/* --- UI Controls --- */
+/* Controls at the bottom */
 .camera-controls {
     position: absolute;
     bottom: 40px;
+    left: 0;
     width: 100%;
     display: flex;
-    justify-content: space-around;
+    justify-content: space-between; /* Spreads buttons out */
     align-items: center;
+    padding: 0 40px;
     z-index: 10000;
+    pointer-events: auto; /* Re-enable clicks */
+    box-sizing: border-box;
+}
+
+/* Instruction Pill (Top Center) */
+.camera-instruction-pill {
+    position: absolute;
+    top: 20px; /* Moves it to top of screen, independent of box */
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.7);
+    padding: 8px 16px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    border: 1px solid rgba(255,255,255,0.2);
+    backdrop-filter: blur(4px);
+    z-index: 10001;
+    white-space: nowrap;
+}
+
+.step-text {
+    color: #00E676;
+    font-weight: bold;
+    font-size: 12px;
+    letter-spacing: 1px;
+}
+
+/* Adjustments for Landscape Mode UI */
+@media (orientation: landscape) and (max-height: 500px) {
+    .camera-controls {
+        bottom: 20px;
+        padding: 0 60px;
+    }
+
+    .camera-instruction-pill {
+        top: 10px;
+        transform: translateX(-50%) scale(0.9);
+    }
+
+    .step-portrait-tall .camera-guide-box,
+    .step-portrait-normal .camera-guide-box {
+        height: 85vh;
+        width: auto;
+        aspect-ratio: 210/297;
+    }
 }
