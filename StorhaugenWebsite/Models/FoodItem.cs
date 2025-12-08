@@ -17,7 +17,7 @@
         public bool IsArchived { get; set; } = false;
         public DateTime? ArchivedDate { get; set; }
         public string? ArchivedBy { get; set; }
-
+         
         // Multi-tenant fields
         public Guid? GlobalRecipeId { get; set; }
         public string? GlobalRecipeName { get; set; }

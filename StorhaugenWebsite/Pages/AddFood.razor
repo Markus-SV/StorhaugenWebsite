@@ -12,314 +12,12 @@
 @attribute [Authorize]
 @inject IJSRuntime JSRuntime
 
-<style>
-    /* ... existing styles ... */
-    .camera-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        background: #000;
-        z-index: 9999;
-        display: flex;
-        flex-direction: column;
-    }
-
-    .camera-video {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        position: absolute;
-        top: 0;
-        left: 0;
-    }
-
-    .camera-guide-container {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        width: 100%;
-        height: 100%;
-        pointer-events: none;
-        transition: all 0.5s ease;
-    }
-
-    .camera-guide-box {
-        border: 2px solid rgba(255, 255, 255, 0.8);
-        border-radius: 12px;
-        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7);
-        position: relative;
-        overflow: hidden;
-        background: transparent;
-        transition: all 0.5s cubic-bezier(0.4, 0.0, 0.2, 1);
-    }
-
-    .camera-guide-container.step-landscape .camera-guide-box {
-        width: 80vw;
-        aspect-ratio: 297/210;
-        max-height: 85vh;
-    }
-
-    .camera-guide-container.step-portrait-tall .camera-guide-box {
-        width: 60vw;
-        aspect-ratio: 1/2.5;
-        max-height: 70vh;
-    }
-
-    .camera-guide-container.step-portrait-normal .camera-guide-box {
-        width: 85vw;
-        aspect-ratio: 210/297;
-        max-width: 450px;
-    }
-
-    .step-landscape .text-hint-zone {
-        position: absolute;
-        top: 15%;
-        left: 5%;
-        width: 60%;
-        height: 15%;
-        border: 1px dashed rgba(255,255,255,0.5);
-        display: flex;
-        align-items: center;
-        padding-left: 10px;
-    }
-
-    .step-landscape .text-label {
-        color: rgba(255,255,255,0.8);
-        font-size: 14px;
-        font-weight: bold;
-    }
-
-    .step-landscape .logo-hint-zone {
-        position: absolute;
-        top: 10%;
-        right: 5%;
-        width: 12%;
-        aspect-ratio: 1/1;
-        border: 2px dashed #9ACD32;
-        border-radius: 50%;
-        opacity: 0.6;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }
-
-    .step-landscape .logo-label {
-        color: #9ACD32;
-        font-size: 10px;
-        font-weight: bold;
-    }
-
-    .scan-line {
-        width: 100%;
-        height: 2px;
-        background: #00E676;
-        position: absolute;
-        top: 0;
-        box-shadow: 0 0 10px #00E676;
-        animation: scanAnim 2.5s ease-in-out infinite;
-    }
-
-    @@keyframes scanAnim {
-        0% {
-            top: 5%;
-            opacity: 0;
-        }
-
-        20% {
-            opacity: 1;
-        }
-
-        80% {
-            opacity: 1;
-        }
-
-        100% {
-            top: 95%;
-            opacity: 0;
-        }
-    }
-
-    .camera-instruction-pill {
-        margin-bottom: 24px;
-        background: rgba(0,0,0,0.6);
-        padding: 8px 16px;
-        border-radius: 20px;
-        display: flex;
-        align-items: center;
-        border: 1px solid rgba(255,255,255,0.2);
-        backdrop-filter: blur(4px);
-    }
-
-    .step-text {
-        color: #00E676;
-        font-weight: bold;
-        font-size: 12px;
-        letter-spacing: 1px;
-    }
-
-    .camera-guide-text {
-        margin-top: 24px;
-        color: white;
-        text-align: center;
-        font-size: 16px;
-        font-weight: 500;
-        white-space: pre-wrap;
-        text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-        max-width: 80%;
-    }
-
-    .camera-controls {
-        position: absolute;
-        bottom: 30px;
-        width: 100%;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0 32px;
-        z-index: 10000;
-        pointer-events: auto;
-    }
-
-    @@media (orientation: landscape) and (max-height: 500px) {
-        .camera-controls {
-            bottom: 10px;
-            padding: 0 60px;
-        }
-
-        .camera-guide-text {
-            display: none;
-        }
-
-        .camera-instruction-pill {
-            margin-bottom: 10px;
-        }
-    }
-
-    .step-counter {
-        color: white;
-        font-weight: bold;
-        font-size: 14px;
-        width: 48px;
-        text-align: center;
-        background: rgba(255,255,255,0.1);
-        padding: 4px 8px;
-        border-radius: 8px;
-    }
-
-    .camera-shutter {
-        width: 72px;
-        height: 72px;
-        border-radius: 50%;
-        background: rgba(255, 255, 255, 0.2);
-        border: 4px solid white;
-        position: relative;
-        transition: all 0.2s;
-        cursor: pointer;
-    }
-
-        .camera-shutter::after {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            background: white;
-            transition: all 0.2s;
-        }
-
-        .camera-shutter:active {
-            transform: scale(0.95);
-        }
-
-        .camera-shutter.processing {
-            border-color: #999;
-            pointer-events: none;
-        }
-
-            .camera-shutter.processing::after {
-                width: 20px;
-                height: 20px;
-                background: #999;
-                border-radius: 2px;
-                animation: spin 1s infinite linear;
-            }
-
-    @@keyframes spin {
-        100% {
-            -webkit-transform: rotate(360deg);
-            transform: rotate(360deg);
-        }
-    }
-
-    .image-preview-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-        gap: 8px;
-        margin-bottom: 16px;
-    }
-
-    .image-preview-item {
-        position: relative;
-        aspect-ratio: 1;
-        border-radius: 8px;
-        overflow: hidden;
-    }
-
-        .image-preview-item img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-    .image-preview-remove {
-        position: absolute;
-        top: 4px;
-        right: 4px;
-        background: rgba(0,0,0,0.5);
-        border: none;
-        color: white;
-        border-radius: 50%;
-        width: 24px;
-        height: 24px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-    }
-
-    .form-section {
-        background: var(--mud-palette-surface);
-        padding: 20px;
-        border-radius: 16px;
-        margin-bottom: 16px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-    }
-
-    .form-section-title {
-        font-size: 0.85rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        color: var(--mud-palette-text-secondary);
-        margin-bottom: 12px;
-    }
-</style>
-
-@* --- 1. CAMERA OVERLAY UI (Keep existing) --- *@
+@* --- 1. CAMERA OVERLAY UI --- *@
 @if (_showCameraOverlay)
 {
     <div class="camera-overlay">
         <video @ref="_videoElement" autoplay playsinline muted class="camera-video"></video>
+
         <div class="camera-guide-container @GetOverlayClass()">
             <div class="camera-guide-box">
                 @if (_currentStep == ScanStep.Front)
@@ -329,12 +27,15 @@
                 }
                 <div class="scan-line"></div>
             </div>
+
             <div class="camera-instruction-pill">
                 <MudIcon Icon="@GetStepIcon()" Size="Size.Small" Class="mr-2" Style="color: #00E676;" />
                 <span class="step-text">@GetStepTitle()</span>
             </div>
+
             <p class="camera-guide-text">@GetInstructionText()</p>
         </div>
+
         <div class="camera-controls">
             <MudIconButton Icon="@Icons.Material.Rounded.Close" Color="Color.Surface" Size="Size.Large" OnClick="StopCamera" />
             <button class="camera-shutter @(_isProcessingOcr ? "processing" : "")" disabled="@_isProcessingOcr" @onclick="CaptureCameraImage"></button>
@@ -345,7 +46,7 @@
 
 @if (!HouseholdState.HasHousehold)
 {
-    <div class="empty-state pa-8 text-center">
+    <div class="empty-state">
         <MudIcon Icon="@Icons.Material.Rounded.Home" Size="Size.Large" Class="mb-4" />
         <h2>Ingen husstand valgt</h2>
         <p class="mb-4">Du må opprette eller bli med i en husstand.</p>
@@ -356,8 +57,8 @@ else
 {
     <div class="d-flex justify-space-between align-center mb-4">
         <div>
-            <h1 class="page-title" style="margin-bottom: 4px; font-size: 24px; font-weight: 700;">Legg til måltid</h1>
-            <p class="page-subtitle" style="color: var(--mud-palette-text-secondary);">
+            <h1 class="page-title">Legg til måltid</h1>
+            <p class="page-subtitle">
                 @(_fromDraft ? "Tilpass kopiert oppskrift" : "Gi kveldens middag en vurdering")
             </p>
         </div>
@@ -571,13 +272,9 @@ else
             _newFood.Description = draft.Description;
             _fromDraft = true;
 
-            // FIX: Handle image transfer
             if (draft.ImageUrls != null && draft.ImageUrls.Any())
             {
-                // Add them to the preview list so the user sees them
                 _imagePreviewUrls.AddRange(draft.ImageUrls);
-
-                // Add them to our tracking list so we know these are valid URLs, not base64 blobs
                 _draftImageUrls.AddRange(draft.ImageUrls);
             }
 
@@ -673,7 +370,6 @@ else
                 {
                     var cleanLine = line.Trim();
                     if (cleanLine.Length < 3) continue;
-                    // Basic cleanup regex
                     cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\b(HELLO|FRESH)\b", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                     if (cleanLine.Length > 3 && cleanLine.Length < 60 && !cleanLine.Any(char.IsDigit))
                     {
@@ -730,7 +426,6 @@ else
 
     private void RemoveImage(int index)
     {
-        // Check if the index corresponds to a draft image (they are added first)
         if (index < _draftImageUrls.Count)
         {
             _draftImageUrls.RemoveAt(index);
@@ -738,7 +433,6 @@ else
         }
         else
         {
-            // It's a newly added image. Adjust index relative to _imageData
             var newImageIndex = index - _draftImageUrls.Count;
             if (newImageIndex >= 0 && newImageIndex < _imageData.Count)
             {
@@ -765,11 +459,8 @@ else
         try
         {
             var finalImageUrls = new List<string>();
-
-            // 1. Add the draft URLs that were preserved
             finalImageUrls.AddRange(_draftImageUrls);
 
-            // 2. Upload the NEW images
             for (int i = 0; i < _imageData.Count; i++)
             {
                 var url = await FoodService.UploadImageAsync(_imageData[i], _imageNames[i]);
