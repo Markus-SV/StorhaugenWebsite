@@ -1,4 +1,34 @@
-﻿/* --- 1. GENERAL PAGE STYLES --- */
+﻿/* --- 1. LANDSCAPE BLOCKER --- */
+#landscape-blocker {
+    display: none; /* Skjult som standard */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh; /* Mobile viewport fix */
+    background: #0f172a; /* Mørk bakgrunn */
+    z-index: 999999; /* Over alt annet */
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    text-align: center;
+    padding: 20px;
+}
+
+/* Kun vis blocker når skjermen faktisk er i Landscape */
+@media screen and (orientation: landscape) {
+    #landscape-blocker {
+        display: flex !important;
+    }
+    /* Skjul innholdet bak slik at man ikke kan scrolle */
+    .app-content-container {
+        display: none !important;
+    }
+}
+
+/* --- 2. GENERAL PAGE STYLES --- */
 .page-title {
     margin-bottom: 4px;
     font-size: 24px;
@@ -14,29 +44,33 @@
     text-align: center;
 }
 
-/* --- 2. CAMERA OVERLAY & VIDEO (Updated) --- */
+/* --- 3. CAMERA OVERLAY & VIDEO --- */
 .camera-overlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100vw;
     height: 100vh;
+    height: 100dvh;
     background: #000;
     z-index: 9999;
     display: flex;
-    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
 }
 
 .camera-video {
     width: 100%;
     height: 100%;
-    object-fit: cover; /* Fills the screen properly */
+    object-fit: cover;
     position: absolute;
     top: 0;
     left: 0;
+    transform: scaleX(1) !important;
 }
 
-/* Container for overlays */
+/* Container for guide-boksen */
 .camera-guide-container {
     position: absolute;
     top: 0;
@@ -44,106 +78,106 @@
     width: 100%;
     height: 100%;
     pointer-events: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10002;
     transition: all 0.5s ease;
 }
 
-/* --- 3. SCAN GUIDES (Updated Logic) --- */
-
-/* STEP 1: Landscape Mode (Rotated Logic) */
-.camera-guide-container.step-landscape .camera-guide-box {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 90vw;
-    aspect-ratio: 9/16; /* Portrait aspect ratio to match phone screen */
-    border: 2px solid rgba(255, 255, 255, 0.4);
-    border-radius: 12px;
-    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+.camera-guide-box {
+    border: 3px solid rgba(255, 255, 255, 0.9);
+    border-radius: 16px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.8);
     position: relative;
     overflow: hidden;
+    background: transparent;
 }
 
-/* Rotated Logo Zone (Top Right) */
+/* --- 4. STEP SPECIFIC STYLES --- */
+
+/* STEP 1: Landscape Mode (Visuelt "liggende" boks på stående skjerm) */
+.camera-guide-container.step-landscape .camera-guide-box {
+    width: 90vw;
+    aspect-ratio: 9/16; /* Tvinger boksen til å være høy */
+    max-height: 80vh;
+}
+
+/* Logo Hint Zone (Rotert 90 grader) */
 .step-landscape .logo-hint-zone {
     position: absolute;
-    top: 80px;
-    right: 20px;
-    width: 60px;
-    height: 60px;
+    top: 25px;
+    right: 25px;
+    width: 80px;
+    height: 80px;
+    border-radius: 12px;
     border: 2px dashed #9ACD32;
-    border-radius: 50%;
-    transform: rotate(90deg);
+    background: rgba(0, 0, 0, 0.5);
     display: flex;
-    justify-content: center;
+    flex-direction: column;
     align-items: center;
-    background: rgba(0, 0, 0, 0.3);
+    justify-content: center;
+    transform: rotate(90deg); /* Roter innholdet */
 }
+
+    .step-landscape .logo-hint-zone::before {
+        content: '';
+        display: block;
+        width: 24px;
+        height: 24px;
+        background-color: #9ACD32;
+        border-radius: 50% 50% 0 50%;
+        transform: rotate(45deg);
+        margin-bottom: 4px;
+    }
 
 .step-landscape .logo-label {
-    color: #9ACD32;
-    font-size: 12px;
+    color: #ffffff;
     font-weight: 800;
+    font-size: 11px;
     text-transform: uppercase;
+    text-align: center;
+    line-height: 1;
 }
 
-/* Rotated Title Zone (Left of Logo) */
+/* Text Hint Zone (Rotert 90 grader) */
 .step-landscape .text-hint-zone {
     position: absolute;
-    top: 40px;
-    right: 100px; /* margin + logo width + gap */
-    width: 60vh;
-    height: 80px;
-    border: 2px dashed rgba(255, 255, 255, 0.7);
+    top: 120px;
+    right: 25px;
+    width: 80px;
+    height: 50vh;
+    border: 1px dashed rgba(255,255,255,0.4);
     border-radius: 8px;
-    background: rgba(0, 0, 0, 0.2);
-    transform-origin: center right;
-    transform: rotate(90deg) translate(50%, -50%);
     display: flex;
     align-items: center;
     justify-content: center;
-    padding-left: 10px;
 }
 
 .step-landscape .text-label {
-    color: white;
+    color: rgba(255,255,255,0.9);
     font-size: 16px;
-    font-weight: bold;
-    letter-spacing: 2px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transform: rotate(90deg);
 }
 
 /* STEP 2: Ingredients (Portrait Tall) */
 .camera-guide-container.step-portrait-tall .camera-guide-box {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 70vw;
-    height: 60vh;
-    border: 2px solid white;
-    border-radius: 12px;
-    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7);
-    position: relative;
-    overflow: hidden;
+    width: 65vw;
+    height: 70vh;
 }
 
-/* STEP 3: Method (Portrait Normal) */
+/* STEP 3: Normal Portrait */
 .camera-guide-container.step-portrait-normal .camera-guide-box {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
     width: 85vw;
     aspect-ratio: 210/297;
-    border: 2px solid white;
-    border-radius: 12px;
-    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7);
-    position: relative;
-    overflow: hidden;
+    max-width: 450px;
 }
 
-/* --- 4. ANIMATIONS & UI ELEMENTS --- */
-
+/* --- 5. ANIMATIONS & CONTROLS --- */
 .scan-line {
     width: 100%;
     height: 2px;
@@ -151,24 +185,32 @@
     position: absolute;
     top: 0;
     box-shadow: 0 0 10px #00E676;
-    animation: scanAnim 3s ease-in-out infinite;
+    animation: scanAnim 3s infinite;
 }
 
 @keyframes scanAnim {
-    0% { top: 5%; opacity: 0; }
-    20% { opacity: 1; }
-    80% { opacity: 1; }
-    100% { top: 95%; opacity: 0; }
+    0% {
+        top: 5%;
+        opacity: 0;
+    }
+
+    20% {
+        opacity: 1;
+    }
+
+    80% {
+        opacity: 1;
+    }
+
+    100% {
+        top: 95%;
+        opacity: 0;
+    }
 }
 
 .camera-instruction-pill {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    /* Adjust placement if it overlaps guide box too much */
-    margin-top: 180px; 
-    
+    top: 24px; /* Plassert øverst */
     background: rgba(0,0,0,0.6);
     padding: 8px 16px;
     border-radius: 20px;
@@ -183,29 +225,23 @@
     color: #00E676;
     font-weight: bold;
     font-size: 12px;
-    letter-spacing: 1px;
 }
 
 .camera-guide-text {
     position: absolute;
     bottom: 120px;
-    left: 0;
-    width: 100%;
-    
     color: white;
     text-align: center;
     font-size: 16px;
     font-weight: 500;
-    white-space: pre-wrap;
     text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-    padding: 0 32px;
+    max-width: 80%;
     z-index: 10001;
 }
 
-/* --- 5. CAMERA CONTROLS --- */
 .camera-controls {
     position: absolute;
-    bottom: 40px;
+    bottom: 30px;
     width: 100%;
     display: flex;
     justify-content: space-between;
@@ -233,94 +269,45 @@
     background: rgba(255, 255, 255, 0.2);
     border: 4px solid white;
     position: relative;
-    transition: all 0.2s;
     cursor: pointer;
+    transition: transform 0.1s;
 }
 
-.camera-shutter::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    background: white;
-    transition: all 0.2s;
-}
+    .camera-shutter::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: white;
+    }
 
-.camera-shutter:active {
-    transform: scale(0.95);
-}
+    .camera-shutter:active {
+        transform: scale(0.95);
+    }
 
-.camera-shutter.processing {
-    border-color: #999;
-    pointer-events: none;
-}
+    .camera-shutter.processing {
+        border-color: #999;
+        pointer-events: none;
+    }
 
-.camera-shutter.processing::after {
-    width: 20px;
-    height: 20px;
-    background: #999;
-    border-radius: 2px;
-    animation: spin 1s infinite linear;
-}
+        .camera-shutter.processing::after {
+            width: 20px;
+            height: 20px;
+            background: #999;
+            animation: spin 1s infinite linear;
+        }
 
 @keyframes spin {
-    100% { transform: rotate(360deg); }
-}
-
-@media (orientation: landscape) and (max-height: 500px) {
-    .camera-controls {
-        bottom: 10px;
-        padding: 0 60px;
-    }
-    .camera-guide-text {
-        display: none;
-    }
-    .camera-instruction-pill {
-        display: none;
+    100% {
+        transform: rotate(360deg);
     }
 }
 
-/* --- 6. IMAGE PREVIEW & FORM STYLES --- */
-.image-preview-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-    gap: 8px;
-    margin-bottom: 16px;
-}
-
-.image-preview-item {
-    position: relative;
-    aspect-ratio: 1;
-    border-radius: 8px;
-    overflow: hidden;
-}
-
-.image-preview-item img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.image-preview-remove {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    background: rgba(0,0,0,0.5);
-    border: none;
-    color: white;
-    border-radius: 50%;
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-}
-
+/* --- 6. FORM & IMAGE STYLES --- */
 .form-section {
     background: var(--mud-palette-surface);
     padding: 20px;
@@ -336,4 +323,40 @@
     letter-spacing: 0.5px;
     color: var(--mud-palette-text-secondary);
     margin-bottom: 12px;
+}
+
+.image-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.image-preview-item {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+    .image-preview-item img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+.image-preview-remove {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: rgba(0,0,0,0.5);
+    border: none;
+    color: white;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
 }
