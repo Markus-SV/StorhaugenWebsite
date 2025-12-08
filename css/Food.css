@@ -351,12 +351,11 @@
 /*-----------------------------------------------------------OVERLAY--------------------------------------------------------------------*/
 
 
-
 /* =========================================
-   CAMERA OVERLAY - FORCED VISUAL LOCK
+   CAMERA OVERLAY - HARD LOCK PORTRAIT
    ========================================= */
 
-/* 1. Hovedcontainer - Låser posisjon */
+/* 1. Hovedcontainer - LÅSER POSISJONEN */
 .camera-overlay {
     position: fixed;
     top: 0;
@@ -382,7 +381,7 @@
     transform: scaleX(1) !important;
 }
 
-/* 3. Guide Container */
+/* 3. Guide Container - Dekker alt */
 .camera-guide-container {
     position: absolute;
     top: 0;
@@ -396,24 +395,25 @@
 }
 
 /* =========================================
-   ROTAJONSLÅS (ANTI-LANDSCAPE)
+   ROTAJONSLÅS (ANTI-LANDSCAPE HACK)
    ========================================= */
-/* Dette er "hacken". Hvis nettleseren registrerer at du har snudd telefonen (Landscape),
-   tvinger vi hele nettsiden til å rotere -90 grader tilbake. 
-   Dette gir illusjonen av at appen er låst i Portrett.
+/* Dette tvinger appen til å se ut som den er i portrett 
+   SELV OM du holder telefonen i landskap. 
 */
 @media (orientation: landscape) {
     .camera-overlay {
-        width: 100vh; /* Bytt høyde/bredde for å fylle skjermen riktig vei */
+        /* Bytt om på høyde og bredde for å fylle skjermen sidelengs */
+        width: 100vh;
         height: 100vw;
-        transform: rotate(-90deg); /* Roter motstatt vei av telefonen */
-        transform-origin: center;
-        /* Sentrerings-fix etter rotasjon */
+        /* Roter hele nettsiden -90 grader (mot klokka) */
+        transform: rotate(-90deg);
+        /* Tving sentrering etter rotasjon */
         position: fixed;
-        left: 50%;
         top: 50%;
-        margin-left: -50vh;
-        margin-top: -50vw;
+        left: 50%;
+        transform-origin: center center;
+        margin: 0;
+        translate: -50% -50%; /* Moderne sentrering */
     }
 }
 
@@ -421,88 +421,91 @@
    STEG 1: HELLO FRESH (LIGGENDE KORT)
    ========================================= */
 
-/* Hovedboksen - Nå en HØY boks (Portrett) som fyller skjermen */
+/* Selve rammen man skal sikte på */
 .camera-guide-container.step-landscape .camera-guide-box {
+    /* En stor boks som fyller skjermen */
     width: 90vw;
-    height: 85vh; /* Fyller nesten hele høyden */
+    height: 80vh;
     border: 3px solid rgba(255, 255, 255, 0.9);
     border-radius: 16px;
-    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.85);
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.8);
     position: relative;
 }
 
-/* --- LOGO GUIDE (Firkantet, Rotert 90 grader) --- */
+/* --- LOGO GUIDE (Firkantet, Øverst til høyre) --- */
 .step-landscape .logo-hint-zone {
     position: absolute;
-    top: 20px; /* Plassert øverst i portrett (Blir høyre i landskap) */
-    right: 20px;
-    width: 70px;
-    height: 70px; /* Kvadratisk, ikke sirkel */
-
+    /* Plassert øverst til høyre i "Portrett"-visningen */
+    top: 25px;
+    right: 25px;
+    width: 80px;
+    height: 80px;
+    /* ENDRING: Firkant med avrundede hjørner (IKKE SIRKEL) */
+    border-radius: 12px;
     border: 2px dashed #9ACD32;
-    border-radius: 8px; /* Lett avrundede hjørner */
-    background: rgba(0, 0, 0, 0.4);
+    background: rgba(0, 0, 0, 0.5);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    /* VIKTIG: Roter innholdet 90 grader slik at det leses riktig når telefonen snus */
+    /* Roter innholdet 90 grader slik at det leses riktig når telefonen er snudd */
     transform: rotate(90deg);
 }
 
+    /* Lime-illustrasjon */
     .step-landscape .logo-hint-zone::before {
         content: '';
         display: block;
-        width: 20px;
-        height: 20px;
+        width: 24px;
+        height: 24px;
         background-color: #9ACD32;
         border-radius: 50% 50% 0 50%;
         transform: rotate(45deg);
         margin-bottom: 4px;
     }
 
+/* Tekst i logo-boks */
 .step-landscape .logo-label {
     color: #ffffff;
     font-weight: 800;
-    font-size: 9px;
+    font-size: 11px;
     text-transform: uppercase;
     text-align: center;
-    line-height: 1.1;
+    line-height: 1;
 }
 
-/* --- TITTEL GUIDE (Rotert 90 grader) --- */
+/* --- TITTEL GUIDE (Justert plassering) --- */
 .step-landscape .text-hint-zone {
     position: absolute;
-    /* Plassering relativt til stående boks */
-    top: 30px;
-    left: 20px;
-    /* Dimensjoner */
-    width: 60px; /* Smal bredde (blir høyde når snudd) */
-    height: 50vh; /* Lang høyde (blir bredde når snudd) */
+    /* Vi forankrer denne i forhold til toppen, men lenger ned enn logoen */
+    /* I portrett-koordinater betyr dette "til venstre" for logoen når snudd */
+    top: 120px;
+    right: 25px; /* Samme avstand fra høyre kant som logoen */
+
+    width: 80px; /* Smal bredde (blir høyde visuelt) */
+    height: 50vh; /* Lang høyde (blir bredde visuelt) */
 
     border: 1px dashed rgba(255,255,255,0.4);
     border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
-    /* VIKTIG: Roter rammen 90 grader med klokka */
-    /* Men siden vi vil ha teksten langstrak, er det enklere å rotere innholdet */
 }
 
 .step-landscape .text-label {
-    color: rgba(255,255,255,0.8);
+    color: rgba(255,255,255,0.9);
     font-size: 16px;
     font-weight: 700;
     letter-spacing: 1px;
     text-transform: uppercase;
     white-space: nowrap;
-    /* Roter teksten 90 grader slik at den leses nedover i portrett */
-    /* Når du snur telefonen, blir den vannrett og lesbar! */
+    /* Roter teksten 90 grader slik at den går "nedover" */
+    /* Når du snur telefonen, vil denne teksten ligge vannrett! */
     transform: rotate(90deg);
 }
 
 /* =========================================
-   ANDRE STEG (Ingen endring nødvendig)
+   ANDRE STEG (Ingen endring)
    ========================================= */
 .camera-guide-container.step-portrait-tall .camera-guide-box {
     width: 65vw;
@@ -558,6 +561,7 @@
     box-sizing: border-box;
 }
 
+/* Pilla i toppen */
 .camera-instruction-pill {
     position: absolute;
     top: 24px;
