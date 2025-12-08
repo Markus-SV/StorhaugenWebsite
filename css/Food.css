@@ -366,12 +366,14 @@
 .camera-video {
     width: 100%;
     height: 100%;
-    /* 'Cover' fills the screen. Since we fixed resolution in JS, 
-       this will now look sharp. */
     object-fit: cover;
     position: absolute;
     top: 0;
     left: 0;
+    /* --- THE FIX: Prevent Mirroring --- */
+    transform: scaleX(1) !important;
+    -webkit-transform: scaleX(1) !important;
+    -moz-transform: scaleX(1) !important;
 }
 
 /* Container for guide-boksen */
