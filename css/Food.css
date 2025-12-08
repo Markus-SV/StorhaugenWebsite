@@ -566,3 +566,28 @@
     font-weight: bold;
     font-size: 12px;
 }
+
+/* --- LANDSCAPE BLOCKER --- */
+#landscape-blocker {
+    display: none; /* VIKTIG: Skjult som standard! */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #0f172a; /* Mørk bakgrunn som dekker alt */
+    z-index: 999999;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    text-align: center;
+    padding: 20px;
+}
+
+/* Kun vis blocker hvis telefonen er i Landscape */
+@media screen and (orientation: landscape) {
+    #landscape-blocker {
+        display: flex !important;
+    }
+}
