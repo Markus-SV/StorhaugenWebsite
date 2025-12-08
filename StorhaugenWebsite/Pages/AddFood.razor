@@ -14,12 +14,14 @@
 
 <style>
     /* ... existing styles ... */
+    /* Sørg for at du har lagt inn CSS for #landscape-blocker i food.css som beskrevet tidligere */
+
     .camera-overlay {
         position: fixed;
         top: 0;
         left: 0;
         width: 100vw;
-        height: 100vh;
+        height: 100dvh; /* Bruk dvh for mobil */
         background: #000;
         z-index: 9999;
         display: flex;
@@ -35,6 +37,8 @@
         left: 0;
     }
 
+    /* ... (Behold resten av stilene dine her) ... */
+
     .camera-guide-container {
         position: absolute;
         top: 50%;
@@ -48,6 +52,7 @@
         height: 100%;
         pointer-events: none;
         transition: all 0.5s ease;
+        z-index: 10002;
     }
 
     .camera-guide-box {
@@ -60,6 +65,7 @@
         transition: all 0.5s cubic-bezier(0.4, 0.0, 0.2, 1);
     }
 
+    /* Behold alle dine step-landscape / step-portrait klasser her ... */
     .camera-guide-container.step-landscape .camera-guide-box {
         width: 80vw;
         aspect-ratio: 297/210;
@@ -78,6 +84,7 @@
         max-width: 450px;
     }
 
+    /* ... (Resten av CSS) ... */
     .step-landscape .text-hint-zone {
         position: absolute;
         top: 15%;
@@ -315,7 +322,16 @@
     }
 </style>
 
-@* --- 1. CAMERA OVERLAY UI (Keep existing) --- *@
+@* --- 0. LANDSCAPE BLOCKER (NY! Vises kun når skjermen roteres) --- *@
+<div id="landscape-blocker">
+    <MudIcon Icon="@Icons.Material.Rounded.ScreenLockPortrait" Style="font-size: 64px; margin-bottom: 20px; color: #E07A2E;" />
+    <h2 style="font-family: 'Fraunces', serif;">Vennligst snu telefonen</h2>
+    <p style="opacity: 0.7; max-width: 300px; margin-top: 10px;">
+        Storhaugen Eats er designet for å brukes i portrettmodus.
+    </p>
+</div>
+
+@* --- 1. CAMERA OVERLAY UI (Existing) --- *@
 @if (_showCameraOverlay)
 {
     <div class="camera-overlay">
@@ -456,23 +472,23 @@ else
                 </MudFileUpload>
             }
 
-            <MudFileUpload T="IReadOnlyList<IBrowserFile>"
-                           @ref="@_galleryUpload"
-                           FilesChanged="OnImagesSelected"
-                           Accept=".jpg, .jpeg, .png, .heic, image/*"
-                           MaximumFileCount="5"
-                           Class="flex-1">
-                <ActivatorContent>
-                    <MudButton Variant="Variant.Outlined"
-                               Color="Color.Secondary"
-                               StartIcon="@Icons.Material.Rounded.PhotoLibrary"
-                               FullWidth="true"
-                               OnClick="@(() => _galleryUpload?.OpenFilePickerAsync())"
-                               Style="border-radius: 12px; height: 56px; border-style: dashed; border-width: 2px;">
-                        Galleri
-                    </MudButton>
-                </ActivatorContent>
-            </MudFileUpload>
+            @* --- 2. NY GALLERI KNAPP (iOS Friendly) --- *@
+            @* Vi bruker skjult input + JS interop for å unngå minnekrasj på iPhone *@
+            <input type="file"
+                   id="galleryInput"
+                   accept="image/*, .heic"
+                   multiple
+                   style="display: none;"
+                   @onchange="OnGalleryFileSelected" />
+
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Rounded.PhotoLibrary"
+                       FullWidth="true"
+                       OnClick="TriggerGalleryClick"
+                       Style="border-radius: 12px; height: 56px; border-style: dashed; border-width: 2px;">
+                Galleri
+            </MudButton>
         </MudStack>
     </div>
 
@@ -538,8 +554,11 @@ else
 @code {
     // --- STATE VARIABLES ---
     private FoodItem _newFood = new();
+
+    // Vi beholder _fileUpload kun for "Ta Bilde" knappen i Annet-modus
     private MudFileUpload<IReadOnlyList<IBrowserFile>>? _fileUpload;
-    private MudFileUpload<IReadOnlyList<IBrowserFile>>? _galleryUpload;
+
+    // FJERN: private MudFileUpload... _galleryUpload; -> Erstattet med manuell knapp
 
     private bool _isSubmitting = false;
     private bool _fromDraft = false;
@@ -565,6 +584,13 @@ else
     private enum ScanStep { Front, Ingredients, Back, Finished }
     private ScanStep _currentStep = ScanStep.Front;
 
+    // DTO for bilder fra JS
+    public class ProcessedImage
+    {
+        public string Name { get; set; } = "";
+        public string Data { get; set; } = "";
+    }
+
     // --- INITIALIZATION ---
     protected override async Task OnInitializedAsync()
     {
@@ -581,13 +607,9 @@ else
             _newFood.Description = draft.Description;
             _fromDraft = true;
 
-            // FIX: Handle image transfer
             if (draft.ImageUrls != null && draft.ImageUrls.Any())
             {
-                // Add them to the preview list so the user sees them
                 _imagePreviewUrls.AddRange(draft.ImageUrls);
-
-                // Add them to our tracking list so we know these are valid URLs, not base64 blobs
                 _draftImageUrls.AddRange(draft.ImageUrls);
             }
 
@@ -597,7 +619,48 @@ else
 
     private void SetFoodType(bool isHelloFresh) => _isHelloFresh = isHelloFresh;
 
-    // --- CAMERA LOGIC ---
+    // --- NEW: GALLERY HANDLING FOR IPHONE (Fix) ---
+    private async Task TriggerGalleryClick()
+    {
+        // Trykker på den skjulte input-en via JS
+        await JSRuntime.InvokeVoidAsync("eval", "document.getElementById('galleryInput').click()");
+    }
+
+    private async Task OnGalleryFileSelected()
+    {
+        try
+        {
+            _isSubmitting = true;
+            StateHasChanged();
+
+            // Kall JS-funksjonen som resizer bilder FØR de treffer C# minnet
+            var images = await JSRuntime.InvokeAsync<List<ProcessedImage>>("imageTools.processInputFile", "galleryInput");
+
+            foreach (var img in images)
+            {
+                if (_imageData.Count >= 5) break;
+
+                // Data format: "data:image/jpeg;base64,....."
+                var base64Pure = img.Data.Split(',')[1];
+                var bytes = Convert.FromBase64String(base64Pure);
+
+                _imagePreviewUrls.Add(img.Data);
+                _imageData.Add(bytes);
+                _imageNames.Add(img.Name);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Kunne ikke hente bilder: " + ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    // --- CAMERA LOGIC (Beholdes) ---
     private async Task StartCamera()
     {
         _currentStep = ScanStep.Front;
@@ -664,13 +727,13 @@ else
         }
     }
 
-    // --- UI HELPERS FOR OVERLAY ---
+    // --- UI HELPERS ---
     private string GetOverlayClass() => _currentStep switch { ScanStep.Front => "step-landscape", ScanStep.Ingredients => "step-portrait-tall", _ => "step-portrait-normal" };
     private string GetStepTitle() => _currentStep switch { ScanStep.Front => "STEG 1: FORSIDE (SNU TELEFONEN)", ScanStep.Ingredients => "STEG 2: INGREDIENSER (RETT OPP)", ScanStep.Back => "STEG 3: FREMGANGSMÅTE", _ => "" };
     private string GetInstructionText() => _currentStep switch { ScanStep.Front => "Hold telefonen vannrett (liggende) for å ta bilde av hele forsiden.", ScanStep.Ingredients => "Hold telefonen loddrett (stående) for å ta bilde av ingredienslisten.", ScanStep.Back => "Hold telefonen loddrett (stående). Ta bilde av hele baksiden.", _ => "" };
     private string GetStepIcon() => _currentStep switch { ScanStep.Front => Icons.Material.Rounded.ScreenRotation, _ => Icons.Material.Rounded.CropPortrait };
 
-    // --- OCR LOGIC ---
+    // --- OCR LOGIC (Beholdes) ---
     private async Task TryAutoFillTitle(string dataUrl)
     {
         try
@@ -683,7 +746,6 @@ else
                 {
                     var cleanLine = line.Trim();
                     if (cleanLine.Length < 3) continue;
-                    // Basic cleanup regex
                     cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\b(HELLO|FRESH)\b", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                     if (cleanLine.Length > 3 && cleanLine.Length < 60 && !cleanLine.Any(char.IsDigit))
                     {
@@ -716,43 +778,36 @@ else
         catch (Exception ex) { Console.WriteLine("Ingredient OCR Error: " + ex.Message); }
     }
 
-    // --- FORM HANDLING ---
+    // --- OLD FORM HANDLING (Kun for "Annet" -> "Ta Bilde") ---
     private async Task OnImagesSelected(IReadOnlyList<IBrowserFile> files)
     {
+        // Dette brukes kun av "Ta Bilde"-knappen nå. Galleri bruker OnGalleryFileSelected.
         foreach (var file in files)
         {
             if (_imageData.Count >= 5) break;
             try
             {
-                // Øk maxAllowedSize kraftig (50MB) for å håndtere store iPhone-bilder
-                long maxFileSize = 1024L * 1024L * 50L;
-
-                // RequestImageFileAsync konverterer HEIC til JPEG automatisk i nettleseren
-                var fileToRead = await file.RequestImageFileAsync("image/jpeg", 1500, 1500);
-
-                using var stream = fileToRead.OpenReadStream(maxAllowedSize: maxFileSize);
+                // Prøver å være safe her også, men gallery-knappen er den kritiske
+                var fileToRead = await file.RequestImageFileAsync("image/jpeg", 1200, 1200);
+                using var stream = fileToRead.OpenReadStream(maxAllowedSize: 1024L * 1024L * 30L);
                 using var ms = new MemoryStream();
                 await stream.CopyToAsync(ms);
-
                 var buffer = ms.ToArray();
                 var base64 = Convert.ToBase64String(buffer);
-
                 _imagePreviewUrls.Add($"data:image/jpeg;base64,{base64}");
                 _imageData.Add(buffer);
-                _imageNames.Add(file.Name); // Merk: RequestImageFileAsync endrer ofte navnet, men dette går fint
+                _imageNames.Add(file.Name);
             }
             catch (Exception ex)
             {
-                // Legg til en feilmelding hvis et bilde feiler (nyttig for debugging på mobil)
-                Console.WriteLine($"Feil ved opplasting av bilde {file.Name}: {ex.Message}");
-                Snackbar.Add($"Kunne ikke laste opp {file.Name}. Bildet er kanskje for stort.", Severity.Warning);
+                Console.WriteLine($"Feil ved opplasting: {ex.Message}");
+                Snackbar.Add("Kunne ikke laste opp bilde.", Severity.Warning);
             }
         }
     }
 
     private void RemoveImage(int index)
     {
-        // Check if the index corresponds to a draft image (they are added first)
         if (index < _draftImageUrls.Count)
         {
             _draftImageUrls.RemoveAt(index);
@@ -760,7 +815,6 @@ else
         }
         else
         {
-            // It's a newly added image. Adjust index relative to _imageData
             var newImageIndex = index - _draftImageUrls.Count;
             if (newImageIndex >= 0 && newImageIndex < _imageData.Count)
             {
@@ -787,11 +841,8 @@ else
         try
         {
             var finalImageUrls = new List<string>();
-
-            // 1. Add the draft URLs that were preserved
             finalImageUrls.AddRange(_draftImageUrls);
 
-            // 2. Upload the NEW images
             for (int i = 0; i < _imageData.Count; i++)
             {
                 var url = await FoodService.UploadImageAsync(_imageData[i], _imageNames[i]);
@@ -804,9 +855,7 @@ else
             _newFood.IsHelloFresh = _isHelloFresh;
 
             if (_ratingEnabled)
-            {
                 _newFood.Ratings[_currentUserName] = _ratingValue;
-            }
 
             await FoodService.AddFoodAsync(_newFood);
             Snackbar.Add("Måltid lagret!", Severity.Success);
