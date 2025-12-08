@@ -352,224 +352,96 @@
 
 
 
-
 /* =========================================
-   CAMERA OVERLAY - FORCED PORTRAIT
+   STEG 1: HELLO FRESH FORSIDE (LANDSCAPE)
    ========================================= */
 
-/* 1. Main Container */
-.camera-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: #000;
-    z-index: 9999;
-    overflow: hidden;
-    /* Sentrering for innholdet */
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-}
-
-.camera-video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    position: absolute;
-    top: 0;
-    left: 0;
-    /* Forhindre speiling */
-    transform: scaleX(1) !important;
-}
-
-/* 2. Guide Box Container */
-.camera-guide-container {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-/* 3. Boksen som viser hvor man skal skanne */
-.camera-guide-box {
+/* Dette er hovedboksen for steg 1. 
+   Den dekker nå nesten hele skjermen (90vw bredde, 80vh høyde). */
+.camera-guide-container.step-landscape .camera-guide-box {
+    width: 92vw;
+    height: 82vh;
+    border: 3px solid rgba(255, 255, 255, 0.9);
+    border-radius: 16px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.85); /* Mørkere bakgrunn rundt */
     position: relative;
-    border: 2px solid rgba(255, 255, 255, 0.8);
-    border-radius: 12px;
-    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7);
-    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
-/* =========================================
-   VISUAL LOCK - MOTVIRK ROTASJON
-   ========================================= */
-
-/* Dette er magien. Hvis telefonen roteres til landskap, 
-   roterer vi HELE overlayet -90 grader slik at det 
-   ser ut som det fortsatt er i portrett.
-*/
-@media (orientation: landscape) {
-    .camera-overlay {
-        /* Bytt bredde og høyde slik at det passer skjermen "feil vei" */
-        width: 100vh;
-        height: 100vw;
-        /* Roter tilbake -90 grader */
-        transform: rotate(-90deg);
-        transform-origin: center;
-        /* Tving posisjon til midten av skjermen */
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        /* Flytt tilbake til sentrum etter rotasjon */
-        margin-left: -50vh; /* Halvparten av ny bredde */
-        margin-top: -50vw; /* Halvparten av ny høyde */
-    }
-}
-
-/* =========================================
-   STEG-SPESIFIKKE BOKSER (Alltid Portrett)
-   ========================================= */
-
-/* STEG 1: HelloFresh Forside (Liggende kort) */
-/* Vi viser nå en liggende boks PÅ en stående skjerm. */
-.camera-guide-container.step-landscape .camera-guide-box {
-    width: 90vw; /* Nesten hele bredden av telefonen */
-    aspect-ratio: 9/16; /* Høy boks (Portrett-form) for å fange liggende kort */
-}
-
-/* Hvis du vil at boksen skal være "liggende" inni portrett-modusen (slik at man må snu kortet, ikke telefonen): */
-/*
-.camera-guide-container.step-landscape .camera-guide-box {
-    width: 90%;
-    aspect-ratio: 16/9; 
-}
-*/
-
-/* Hint for Forside */
+/* --- LOGO GUIDE (Øverst til høyre) --- */
+/* Dette lager boksen som viser hvor logoen skal være */
 .step-landscape .logo-hint-zone {
     position: absolute;
-    top: 80px;
-    right: 20px;
-    width: 60px;
-    height: 60px;
-    border: 2px dashed #9ACD32;
-    border-radius: 50%;
-    /* Roter ikoner slik at de matcher kortet */
-    transform: rotate(90deg);
+    top: 20px; /* Avstand fra toppen av boksen */
+    right: 20px; /* Avstand fra høyre side av boksen */
+
     display: flex;
-    justify-content: center;
+    flex-direction: column; /* Lime over tekst */
     align-items: center;
-    background: rgba(0,0,0,0.3);
+    justify-content: center;
+    padding: 10px;
+    border: 2px dashed #9ACD32; /* HelloFresh Lime Green */
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 12px;
+    width: 80px;
+    height: auto;
 }
+
+    /* Selve "Limen" (Sirkel illustrasjon) */
+    .step-landscape .logo-hint-zone::before {
+        content: '';
+        display: block;
+        width: 24px;
+        height: 24px;
+        background-color: #9ACD32;
+        border-radius: 50% 50% 0 50%; /* Lager en enkel lime-form */
+        transform: rotate(45deg);
+        margin-bottom: 4px;
+    }
+
+/* Teksten "HELLO FRESH" inni boksen */
+.step-landscape .logo-label {
+    color: #ffffff;
+    font-family: 'Inter', sans-serif; /* Eller din font */
+    font-weight: 800;
+    font-size: 10px;
+    line-height: 1.1;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+    /* Legger til 'FRESH' under 'HELLO' via CSS for å herme logoen */
+    .step-landscape .logo-label::after {
+        content: "FRESH";
+        display: block;
+        color: #ffffff;
+    }
 
 .step-landscape .logo-label {
-    color: #9ACD32;
-    font-size: 10px;
-    font-weight: 800;
+    /* Dette setter teksten til bare "HELLO" i HTML, 
+       eller du kan fjerne teksten i HTML og bruke content her.
+       La oss anta at HTML-en din har <span class="logo-label">HELLO<br>FRESH</span> 
+       eller vi justerer det her: */
+    content: "HELLO";
 }
 
+/* --- TITTEL GUIDE (Resten av plassen) --- */
 .step-landscape .text-hint-zone {
     position: absolute;
-    top: 40px;
-    right: 100px;
-    width: 50vh;
+    top: 30px;
+    left: 20px;
+    right: 120px; /* Slutter før logo-boksen */
     height: 60px;
-    border: 1px dashed rgba(255,255,255,0.5);
+    border: 1px dashed rgba(255,255,255,0.3);
+    border-radius: 8px;
     display: flex;
     align-items: center;
-    justify-content: center;
-    /* Roter teksten slik at den leses "oppover" langs siden */
-    transform-origin: center right;
-    transform: rotate(90deg) translate(50%, -50%);
+    padding-left: 15px;
 }
 
 .step-landscape .text-label {
-    color: white;
+    color: rgba(255,255,255,0.6);
     font-size: 14px;
-    font-weight: bold;
+    font-weight: 600;
     letter-spacing: 1px;
-}
-
-/* STEG 2: Ingredienser (Lang liste) */
-.camera-guide-container.step-portrait-tall .camera-guide-box {
-    width: 65vw;
-    height: 70vh;
-}
-
-/* STEG 3: Bakside (Standard) */
-.camera-guide-container.step-portrait-normal .camera-guide-box {
-    width: 85vw;
-    aspect-ratio: 210/297;
-}
-
-/* =========================================
-   UI ELEMENTER
-   ========================================= */
-
-.scan-line {
-    width: 100%;
-    height: 2px;
-    background: #00E676;
-    position: absolute;
-    top: 0;
-    box-shadow: 0 0 10px #00E676;
-    animation: scanAnim 2.5s ease-in-out infinite;
-}
-
-@keyframes scanAnim {
-    0% {
-        top: 5%;
-        opacity: 0;
-    }
-
-    20% {
-        opacity: 1;
-    }
-
-    80% {
-        opacity: 1;
-    }
-
-    100% {
-        top: 95%;
-        opacity: 0;
-    }
-}
-
-.camera-controls {
-    position: absolute;
-    bottom: 40px;
-    width: 100%;
-    display: flex;
-    justify-content: space-between;
-    padding: 0 32px;
-    z-index: 10000;
-    box-sizing: border-box;
-}
-
-.camera-instruction-pill {
-    position: absolute;
-    top: 24px;
-    background: rgba(0,0,0,0.6);
-    padding: 8px 16px;
-    border-radius: 20px;
-    display: flex;
-    align-items: center;
-    border: 1px solid rgba(255,255,255,0.2);
-    backdrop-filter: blur(4px);
-    z-index: 10001;
-}
-
-.step-text {
-    color: #00E676;
-    font-weight: bold;
-    font-size: 12px;
-    letter-spacing: 1px;
+    text-transform: uppercase;
 }
