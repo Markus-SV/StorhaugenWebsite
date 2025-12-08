@@ -634,17 +634,28 @@
         try
         {
             _isSubmitting = true;
+            // Marker at vi jobber med OCR hvis vi er i HelloFresh-modus
+            if (_isHelloFresh) _isProcessingOcr = true;
             StateHasChanged();
 
-            // Calls the JS function to resize images in the browser before sending to C#
-            // IMPORTANT: 'imageTools' must exist in camera.js
+            // Henter ferdig resizet base64 fra JS
             var images = await JSRuntime.InvokeAsync<List<ProcessedImage>>("imageTools.processInputFile", "galleryInput");
+
+            if (images == null || images.Count == 0) return;
+
+            // --- NY LOGIKK: Kjør OCR på det første bildet hvis navnet er tomt ---
+            if (_isHelloFresh && string.IsNullOrWhiteSpace(_newFood.Name) && images.Count > 0)
+            {
+                Snackbar.Add("Analyserer bilde fra galleri...", Severity.Info);
+                // Vi sender Data (som er full base64 string) til funksjonen
+                await TryAutoFillTitle(images[0].Data);
+            }
+            // -------------------------------------------------------------------
 
             foreach (var img in images)
             {
                 if (_imageData.Count >= 5) break;
 
-                // Data comes as "data:image/jpeg;base64,....."
                 var base64Pure = img.Data.Split(',')[1];
                 var bytes = Convert.FromBase64String(base64Pure);
 
@@ -655,20 +666,13 @@
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"JS Interop Error: {ex.Message}");
-            // Friendly error message if JS is missing
-            if (ex.Message.Contains("Could not find 'imageTools"))
-            {
-                Snackbar.Add("Feil: JavaScript (camera.js) er ikke oppdatert. Tøm nettleser-cache.", Severity.Error);
-            }
-            else
-            {
-                Snackbar.Add("Kunne ikke hente bilder: " + ex.Message, Severity.Error);
-            }
+            Console.WriteLine($"Feil i galleri-opplasting: {ex.Message}");
+            Snackbar.Add("Noe gikk galt med bildebehandlingen.", Severity.Error);
         }
         finally
         {
             _isSubmitting = false;
+            _isProcessingOcr = false; // Husk å skru av denne!
             StateHasChanged();
         }
     }
@@ -750,26 +754,62 @@
     {
         try
         {
+            // Debug: Sjekk om vi faktisk kaller tjenesten
+            Console.WriteLine("Starter OCR...");
+
             var rawText = await OcrService.RecognizeTextAsync(dataUrl);
+
+            // Debug: Se hva som kommer tilbake
+            Console.WriteLine($"OCR Resultat: {rawText}");
+
             if (!string.IsNullOrWhiteSpace(rawText))
             {
                 var lines = rawText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+
                 foreach (var line in lines)
                 {
                     var cleanLine = line.Trim();
+
+                    // Hopp over veldig korte linjer
                     if (cleanLine.Length < 3) continue;
-                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\b(HELLO|FRESH)\b", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                    if (cleanLine.Length > 3 && cleanLine.Length < 60 && !cleanLine.Any(char.IsDigit))
+
+                    // Fjern "Hello Fresh" støy, men behold resten
+                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\b(HELLO|FRESH|OPPSKRIFT|RECIPE)\b", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    cleanLine = cleanLine.Trim();
+
+                    // --- ENDRET FILTRERING ---
+                    // 1. Tillat lengre titler (opp til 80 tegn)
+                    // 2. FJERN sjekken for "Any(char.IsDigit)". Den dreper for mange gyldige titler.
+                    // 3. Sjekk heller at linjen inneholder minst én bokstav.
+                    if (cleanLine.Length > 3 && cleanLine.Length < 80 && cleanLine.Any(char.IsLetter))
                     {
+                        // Rydd opp dobbel mellomrom
                         _newFood.Name = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\s+", " ").Trim();
+
                         Snackbar.Add($"Tittel funnet: {_newFood.Name}", Severity.Success);
                         await InvokeAsync(StateHasChanged);
+
+                        // Vi fant en kandidat, stopp løkken
                         break;
                     }
                 }
+
+                // Hvis vi gikk gjennom alle linjene uten å finne noe
+                if (string.IsNullOrWhiteSpace(_newFood.Name))
+                {
+                    Console.WriteLine("Fant ingen linjer som oppfylte kriteriene.");
+                }
+            }
+            else
+            {
+                Console.WriteLine("OCR returnerte tom tekst.");
             }
         }
-        catch (Exception ex) { Console.WriteLine($"Title OCR Error: {ex}"); }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Title OCR Error: {ex}");
+            Snackbar.Add($"OCR Feil: {ex.Message}", Severity.Warning);
+        }
     }
 
     private async Task TryExtractIngredients(string dataUrl)
