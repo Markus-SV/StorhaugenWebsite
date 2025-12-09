@@ -418,24 +418,45 @@ public class HouseholdsController : ControllerBase
     {
         var userId = await _currentUserService.GetOrCreateUserIdAsync();
 
+        // 1. Get the membership to remove
         var membership = await _context.HouseholdMembers
             .FirstOrDefaultAsync(hm => hm.HouseholdId == id && hm.UserId == userId);
 
         if (membership == null)
             return NotFound(new { message = "You are not a member of this household" });
 
-        // Check if user is the creator and there are other members
         var household = await _context.Households.FindAsync(id);
-        if (household?.LeaderId == userId)
-        {
-            var memberCount = await _context.HouseholdMembers.CountAsync(hm => hm.HouseholdId == id);
-            if (memberCount > 1)
-                return BadRequest(new { message = "Cannot leave household as creator while other members exist. Transfer ownership or remove all members first." });
-        }
+        if (household == null) return NotFound();
 
+        // 2. Remove the user
         _context.HouseholdMembers.Remove(membership);
 
-        // If this was user's current household, clear it
+        // 3. Handle Ownership Transfer
+        if (household.LeaderId == userId)
+        {
+            // Check if there are ANY other members remaining
+            // Note: We haven't saved changes yet, so the current user is technically still in the DB count if we don't filter them out.
+            // Better logic: Query for "next best leader"
+            var newLeaderCandidate = await _context.HouseholdMembers
+                .Where(hm => hm.HouseholdId == id && hm.UserId != userId)
+                .OrderBy(hm => hm.JoinedAt) // Oldest member inherits ownership
+                .FirstOrDefaultAsync();
+
+            if (newLeaderCandidate != null)
+            {
+                // Transfer ownership
+                household.LeaderId = newLeaderCandidate.UserId;
+            }
+            else
+            {
+                // No other members left? Delete the household entirely.
+                // Depending on your rules, you might want to soft-delete or just leave it empty.
+                // Usually, if the last person leaves, the household dies.
+                _context.Households.Remove(household);
+            }
+        }
+
+        // 4. Update User's Current Household Context
         var user = await _context.Users.FindAsync(userId);
         if (user?.CurrentHouseholdId == id)
         {

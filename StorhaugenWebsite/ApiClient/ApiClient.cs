@@ -179,6 +179,12 @@ public class ApiClient : IApiClient
         return await _httpClient.GetFromJsonAsync<HouseholdRecipeDto>($"/api/household-recipes/{id}", _jsonOptions);
     }
 
+    public async Task<PublicRecipeDto?> GetPublicRecipeAsync(Guid id)
+    {
+        await AddAuthHeaderAsync();
+        return await _httpClient.GetFromJsonAsync<PublicRecipeDto>($"api/household-recipes/public/{id}", _jsonOptions);
+    }
+
     public async Task<HouseholdRecipeDto> CreateRecipeAsync(CreateHouseholdRecipeDto dto)
     {
         await AddAuthHeaderAsync();

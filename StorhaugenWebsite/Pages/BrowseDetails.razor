@@ -1,0 +1,223 @@
+@page "/browse/{Id}"
+@using Microsoft.AspNetCore.Authorization
+@using StorhaugenWebsite.ApiClient
+@using StorhaugenWebsite.DTOs
+@inject IApiClient ApiClient
+@inject IFoodService FoodService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject IHouseholdStateService HouseholdState
+@attribute [Authorize]
+
+<div class="detail-header">
+    <button class="detail-back-btn" @onclick="@(() => Navigation.NavigateTo("browse"))">
+        <MudIcon Icon="@Icons.Material.Rounded.ArrowBack" Size="Size.Small" />
+        Tilbake
+    </button>
+</div>
+
+@if (_isLoading)
+{
+    <div class="p-4 d-flex justify-center">
+        <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+    </div>
+}
+else if (_recipe == null)
+{
+    <div class="empty-state">
+        <MudIcon Icon="@Icons.Material.Rounded.Error" Size="Size.Large" />
+        <h2>Oppskrift ikke funnet</h2>
+    </div>
+}
+else
+{
+    @if (!string.IsNullOrEmpty(_recipe.ImageUrl))
+    {
+        <img src="@_recipe.ImageUrl" class="detail-hero-image" />
+    }
+    else
+    {
+        <div class="detail-hero-placeholder">
+            <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" />
+        </div>
+    }
+
+    <div class="detail-content">
+        <div class="d-flex justify-space-between align-start gap-3">
+            <h1 class="detail-title">@_recipe.Name</h1>
+            @if (_recipe.AverageRating > 0)
+            {
+                <span class="rating-badge rating-high">
+                    <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
+                    @_recipe.AverageRating.ToString("0.0")
+                </span>
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(_householdName))
+        {
+            <MudChip Size="Size.Small" T=string Icon="@Icons.Material.Rounded.People" Color="Color.Tertiary" Class="mt-2">
+                Delt av @_householdName
+            </MudChip>
+        }
+        else if (_isHelloFresh)
+        {
+            <MudChip Size="Size.Small" T=string Icon="@Icons.Material.Rounded.LocalDining" Color="Color.Primary" Class="mt-2">
+                HelloFresh
+            </MudChip>
+        }
+
+        @if (!string.IsNullOrEmpty(_recipe.Description))
+        {
+            <p class="detail-description mt-4">@_recipe.Description</p>
+        }
+
+        <div class="action-buttons mt-6">
+            @if (_isHelloFresh)
+            {
+                <div class="action-card">
+                    <div class="d-flex gap-3">
+                        <MudIcon Icon="@Icons.Material.Rounded.Link" Color="Color.Primary" Size="Size.Medium" />
+                        <div>
+                            <h3 class="action-title">Lagre som referanse</h3>
+                            <p class="action-desc">
+                                Lenker direkte til denne oppskriften. Flere familier kan rangere samme rett, og ratingen blir delt.
+                            </p>
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="mt-2"
+                                       OnClick="AddToMyListAsLink" Disabled="_isProcessing">
+                                Legg til i min liste
+                            </MudButton>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <div class="action-card mt-3">
+                <div class="d-flex gap-3">
+                    <MudIcon Icon="@Icons.Material.Rounded.ContentCopy" Color="Color.Secondary" Size="Size.Medium" />
+                    <div>
+                        <h3 class="action-title">Kopier og tilpass</h3>
+                        <p class="action-desc">
+                            Lager en kopi som du kan redigere. Du kan endre ingredienser og navn før du lagrer.
+                        </p>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true" Class="mt-2"
+                                   OnClick="CustomizeAndAdd">
+                            Tilpass og legg til
+                        </MudButton>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .detail-hero-image { width: 100%; height: 250px; object-fit: cover; border-radius: 0 0 24px 24px; }
+    .detail-hero-placeholder { width: 100%; height: 250px; background: var(--mud-palette-background-grey); display: flex; align-items: center; justify-content: center; border-radius: 0 0 24px 24px; color: var(--mud-palette-text-disabled); }
+    .detail-content { padding: 24px; }
+    .detail-title { font-size: 1.75rem; font-weight: 700; line-height: 1.2; margin: 0; }
+    .detail-description { color: var(--mud-palette-text-secondary); line-height: 1.6; }
+    
+    .action-card {
+        background: var(--mud-palette-surface);
+        border: 1px solid var(--mud-palette-lines-default);
+        border-radius: 16px;
+        padding: 16px;
+    }
+    .action-title { font-weight: 600; font-size: 1rem; margin-bottom: 4px; }
+    .action-desc { font-size: 0.85rem; color: var(--mud-palette-text-secondary); margin-bottom: 0; }
+</style>
+
+@code {
+    [Parameter] public string Id { get; set; } = "";
+    [SupplyParameterFromQuery] public string Type { get; set; } = ""; // "global" or "public"
+
+    private dynamic? _recipe; // Using dynamic to handle both DTO types simply for display
+    private bool _isLoading = true;
+    private bool _isProcessing = false;
+    private bool _isHelloFresh = false;
+    private string? _householdName;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _isLoading = true;
+        try
+        {
+            if (Guid.TryParse(Id, out var guid))
+            {
+                if (Type == "global")
+                {
+                    var globalRecipe = await ApiClient.GetGlobalRecipeAsync(guid);
+                    if (globalRecipe != null)
+                    {
+                        // Map to a common structure or use dynamic if structure is similar
+                        _recipe = globalRecipe;
+                        _isHelloFresh = true;
+                    }
+                }
+                else // type == "public"
+                {
+                    // FIX: Call the new API endpoint
+                    var publicRecipe = await ApiClient.GetPublicRecipeAsync(guid);
+                    if (publicRecipe != null)
+                    {
+                        _recipe = publicRecipe;
+                        _householdName = publicRecipe.HouseholdName;
+                        _isHelloFresh = false;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+            Snackbar.Add("Feil ved lasting av oppskrift", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    // Logic for "Option A: Reference"
+    private async Task AddToMyListAsLink()
+    {
+        if (!HouseholdState.HasHousehold) return;
+        _isProcessing = true;
+        try
+        {
+            var dto = new CreateHouseholdRecipeDto { GlobalRecipeId = Guid.Parse(Id), Fork = false };
+            await ApiClient.CreateRecipeAsync(dto);
+            Snackbar.Add("Oppskrift lagret!", Severity.Success);
+            Navigation.NavigateTo("");
+        }
+        catch
+        {
+            Snackbar.Add("Kunne ikke lagre oppskrift", Severity.Error);
+        }
+        _isProcessing = false;
+    }
+
+    // Logic for "Option B: Customize/Copy"
+    private void CustomizeAndAdd()
+    {
+        if (_recipe == null) return;
+
+        // Populate the draft in the service
+        FoodService.DraftRecipe = new FoodItem
+        {
+            Name = _recipe.Name,
+            Description = _recipe.Description,
+            ImageUrls = _recipe.ImageUrls ?? new List<string>(),
+            // Map other fields as necessary
+        };
+        
+        // Navigate to Add page (user must ensure AddFood.razor checks FoodService.DraftRecipe on init)
+        Navigation.NavigateTo("add");
+    }
+}

@@ -92,7 +92,6 @@
 <style>
     .members-dialog {
         padding: 8px 0;
-        min-width: 400px;
     }
 
     .dialog-header {
@@ -167,18 +166,9 @@
 
     private bool CanLeaveHousehold()
     {
-        if (Household == null)
-            return false;
+        if (Household == null) return false;
 
-        var currentMember = Household.Members.FirstOrDefault();
-        if (currentMember == null)
-            return false;
-
-        // Can't leave if you're the creator and there are other members
-        var isCreator = currentMember.UserId == Household.CreatedById;
-        var hasOtherMembers = Household.Members.Count > 1;
-
-        return !isCreator || !hasOtherMembers;
+        return true;
     }
 
     private async Task LeaveHousehold()

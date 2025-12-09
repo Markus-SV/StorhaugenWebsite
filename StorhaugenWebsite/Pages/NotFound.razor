@@ -4,3 +4,119 @@
 
 <h3>Not Found</h3>
 <p>Sorry, the content you are looking for does not exist.</p>
+
+@* Yes, absolutely! That is the cleanest and most robust architectural solution.
+
+Transforming a recipe into a GlobalRecipe upon "publishing" solves the referencing problem entirely. It unifies your data structure so that "Browsing" only ever looks at one table (global_recipes), and "Adding" always works the same way (linking to a global ID).
+
+Why this is the best approach
+Solves the "Conundrum": Since the recipe now lives in the global_recipes table, other households can link to it using the existing global_recipe_id column.
+
+Unified "Browse" Logic: You no longer need separate API calls for "HelloFresh" vs. "Community". You just query global_recipes and filter by is_hellofresh.
+
+Shared Ratings: If 10 families add your lasagna, they are all rating the same GlobalRecipe row. The average rating becomes real and valuable.
+
+"Master" Version: As the creator, if you update the Global Recipe, everyone who linked to it (added as reference) sees the improvement.
+
+How to Implement "Publishing"
+You need to create a specific endpoint that "promotes" a local household recipe to the global table.
+
+1. Backend Controller (HouseholdRecipesController.cs)
+Add a new PublishRecipe endpoint. This logic takes your local data, creates a global entry, and then links your local copy to it.
+
+C#
+
+[HttpPost("{id}/publish")]
+public async Task<ActionResult<HouseholdRecipeDto>> PublishRecipe(Guid id)
+{
+    var userId = await _currentUserService.GetOrCreateUserIdAsync();
+    var user = await _context.Users.FindAsync(userId);
+
+    if (user?.CurrentHouseholdId == null)
+        return BadRequest(new { message = "You must select a household first" });
+
+    // 1. Fetch the local recipe
+    var localRecipe = await _context.HouseholdRecipes
+        .FirstOrDefaultAsync(hr => hr.Id == id && hr.HouseholdId == user.CurrentHouseholdId);
+
+    if (localRecipe == null) return NotFound();
+    if (localRecipe.GlobalRecipeId != null) 
+        return BadRequest(new { message = "This recipe is already linked to a global recipe." });
+
+    // 2. Create the Global Recipe
+    var globalRecipe = new GlobalRecipe
+    {
+        Id = Guid.NewGuid(),
+        Title = localRecipe.LocalTitle ?? "Untitled",
+        Description = localRecipe.LocalDescription,
+        ImageUrl = localRecipe.LocalImageUrl, // Assume single image or primary
+        ImageUrls = localRecipe.LocalImageUrl ?? "[]", // Simplified mapping
+        CreatedByUserId = userId,
+        IsPublic = true,
+        IsHellofresh = false, // Crucial distinction
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow,
+        TotalTimesAdded = 1, // You are the first one adding it
+        Ingredients = localRecipe.LocalIngredients ?? "[]", // Map your ingredients
+        Tags = "[]"
+    };
+
+    _context.GlobalRecipes.Add(globalRecipe);
+
+    // 3. Link the Local Recipe to the new Global one
+    // We clear local overrides so it "syncs" with the published version
+    localRecipe.GlobalRecipeId = globalRecipe.Id;
+    localRecipe.IsPublic = true; // Flag for UI
+    localRecipe.LocalTitle = null; 
+    localRecipe.LocalDescription = null;
+    localRecipe.LocalImageUrl = null; 
+
+    await _context.SaveChangesAsync();
+
+    return Ok(MapToDto(localRecipe));
+}
+2. Refactoring the "Browse" Logic
+Now that community recipes are GlobalRecipes, you can simplify your Browse page significantly. You no longer need to search household_recipes.
+
+Updated GlobalRecipesController.cs logic:
+
+Your existing BrowseGlobalRecipes endpoint works almost as-is! You just need to tweak how you interpret the filters.
+
+HelloFresh Tab: Filter IsHelloFresh == true.
+
+Community Tab: Filter IsHelloFresh == false.
+
+C#
+
+// Inside GlobalRecipesController.BrowseRecipes
+
+if (query.HellofreshOnly)
+{
+    queryable = queryable.Where(gr => gr.IsHellofresh);
+}
+else if (query.CommunityOnly) // Add this flag to your query DTO
+{
+    // Community recipes are just global recipes made by users
+    queryable = queryable.Where(gr => !gr.IsHellofresh);
+}
+3. Frontend Changes (BrowseDetail.razor)
+With this change, the "Add Reference" button now works for everyone, because everything in the Browse tab has a GlobalRecipeId.
+
+Browse.razor: You can delete BrowsePublicRecipesQuery and PublicRecipeDto. Just use BrowseGlobalRecipesQuery for everything, toggling a boolean for the tabs.
+
+BrowseDetail.razor: The "Add as Reference" button now works for Community recipes because they are global recipes.
+
+The New User Flow
+User A creates "Spicy Tacos" in their household (Local only).
+
+User A clicks "Make Public" (new button in food/{id}).
+
+System creates a GlobalRecipe for "Spicy Tacos" and links User A's copy to it.
+
+User B goes to "Browse" -> "Community". They see "Spicy Tacos".
+
+User B clicks "Add as Reference". They get a link to User A's "Spicy Tacos".
+
+User B rates it 5 stars. The global rating updates. User A sees their recipe has 5 stars.
+
+This aligns your app with standard "Social Recipe App" architecture and solves your data isolation issues. *@

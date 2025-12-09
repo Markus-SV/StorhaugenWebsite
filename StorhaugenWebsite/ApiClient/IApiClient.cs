@@ -25,6 +25,7 @@ public interface IApiClient
     Task<List<HouseholdFriendshipDto>> GetHouseholdFriendshipsAsync();
     Task<HouseholdFriendshipDto> SendHouseholdFriendRequestAsync(SendFriendRequestDto dto);
     Task<HouseholdFriendshipDto> RespondHouseholdFriendRequestAsync(Guid requestId, RespondFriendRequestDto dto);
+    Task<PublicRecipeDto?> GetPublicRecipeAsync(Guid id);
 
     // Household Recipes
     Task<List<HouseholdRecipeDto>> GetRecipesAsync(bool includeArchived = false);

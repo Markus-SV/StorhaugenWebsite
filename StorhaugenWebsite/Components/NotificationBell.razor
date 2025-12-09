@@ -10,25 +10,26 @@
           Overlap="true"
           Visible="@(_pendingInvites.Count > 0)"
           Class="notification-badge">
+
     <MudMenu Icon="@Icons.Material.Rounded.Notifications"
              Color="Color.Inherit"
              Size="Size.Medium"
              AnchorOrigin="Origin.BottomRight"
              TransformOrigin="Origin.TopRight"
-             Dense="true">
-        @if (_isLoading)
-        {
-            <MudMenuItem Disabled="true">
-                <div class="d-flex align-center gap-2 pa-2">
+             Dense="true"
+             PopoverClass="notification-popover">
+
+        <ChildContent>
+            @if (_isLoading)
+            {
+                <div class="d-flex align-center gap-2 pa-4">
                     <MudProgressCircular Size="Size.Small" Indeterminate="true" />
                     <MudText Typo="Typo.body2">Loading...</MudText>
                 </div>
-            </MudMenuItem>
-        }
-        else if (_pendingInvites.Count == 0)
-        {
-            <MudMenuItem Disabled="true">
-                <div class="d-flex flex-column align-center pa-3" style="min-width: 250px;">
+            }
+            else if (_pendingInvites.Count == 0)
+            {
+                <div class="d-flex flex-column align-center pa-4" style="min-width: 250px;">
                     <MudIcon Icon="@Icons.Material.Rounded.NotificationsNone"
                              Color="Color.Secondary"
                              Size="Size.Large" />
@@ -36,46 +37,47 @@
                         No pending invitations
                     </MudText>
                 </div>
-            </MudMenuItem>
-        }
-        else
-        {
-            <div style="max-height: 400px; overflow-y: auto; min-width: 300px;">
-                @foreach (var invite in _pendingInvites)
-                {
-                    <MudMenuItem Disabled="true" Style="opacity: 1;">
-                        <div class="invite-item">
+            }
+            else
+            {
+                <div style="max-height: 400px; overflow-y: auto; min-width: 320px;">
+                    @foreach (var invite in _pendingInvites)
+                    {
+                        <div class="invite-row">
                             <div class="invite-info">
                                 <MudText Typo="Typo.subtitle2" Style="font-weight: 600;">
                                     @invite.HouseholdName
                                 </MudText>
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block">
                                     Invited by @invite.InvitedByName
                                 </MudText>
                                 <MudText Typo="Typo.caption" Color="Color.Secondary">
                                     @GetTimeAgo(invite.CreatedAt)
                                 </MudText>
                             </div>
+
                             <div class="invite-actions">
                                 <MudIconButton Icon="@Icons.Material.Rounded.Check"
                                                Color="Color.Success"
                                                Size="Size.Small"
-                                               OnClick="@(() => AcceptInvite(invite))"
-                                               Disabled="_processingInviteId == invite.Id"
+                                               Variant="Variant.Filled"
+                                               OnClick="@((e) => AcceptInvite(invite))"
+                                               Disabled="@(_processingInviteId == invite.Id)"
                                                Title="Accept" />
+
                                 <MudIconButton Icon="@Icons.Material.Rounded.Close"
                                                Color="Color.Error"
                                                Size="Size.Small"
-                                               OnClick="@(() => RejectInvite(invite))"
-                                               Disabled="_processingInviteId == invite.Id"
+                                               Variant="Variant.Outlined"
+                                               OnClick="@((e) => RejectInvite(invite))"
+                                               Disabled="@(_processingInviteId == invite.Id)"
                                                Title="Decline" />
                             </div>
                         </div>
-                    </MudMenuItem>
-                    <MudDivider />
-                }
-            </div>
-        }
+                    }
+                </div>
+            }
+        </ChildContent>
     </MudMenu>
 </MudBadge>
 
@@ -87,14 +89,20 @@
         padding: 0 4px;
     }
 
-    .invite-item {
+    /* Styles to replicate MudMenuItem look but keep it interactive */
+    .invite-row {
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 12px;
-        padding: 8px 4px;
-        min-width: 280px;
+        padding: 12px 16px;
+        transition: background-color 0.2s;
+        cursor: default;
     }
+
+        .invite-row:hover {
+            background-color: var(--mud-palette-action-hover);
+        }
 
     .invite-info {
         flex: 1;
@@ -103,12 +111,13 @@
 
     .invite-actions {
         display: flex;
-        gap: 4px;
+        gap: 8px;
         flex-shrink: 0;
     }
 </style>
 
 @code {
+    // Keep your existing C# code as-is
     private List<HouseholdInviteDto> _pendingInvites = new();
     private bool _isLoading = true;
     private Guid? _processingInviteId;
@@ -118,7 +127,6 @@
     {
         await LoadPendingInvites();
 
-        // Set up periodic refresh every 30 seconds
         _refreshTimer = new System.Threading.Timer(
             async _ => await InvokeAsync(async () =>
             {
@@ -158,8 +166,6 @@
             await ApiClient.AcceptInviteAsync(invite.Id);
             _pendingInvites.Remove(invite);
             Snackbar.Add($"Joined {invite.HouseholdName}!", Severity.Success);
-
-            // Refresh household state
             await HouseholdState.RefreshHouseholdsAsync();
         }
         catch (Exception ex)
@@ -200,16 +206,10 @@
     private string GetTimeAgo(DateTime createdAt)
     {
         var diff = DateTime.UtcNow - createdAt;
-
-        if (diff.TotalMinutes < 1)
-            return "Just now";
-        if (diff.TotalMinutes < 60)
-            return $"{(int)diff.TotalMinutes}m ago";
-        if (diff.TotalHours < 24)
-            return $"{(int)diff.TotalHours}h ago";
-        if (diff.TotalDays < 7)
-            return $"{(int)diff.TotalDays}d ago";
-
+        if (diff.TotalMinutes < 1) return "Just now";
+        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h ago";
+        if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}d ago";
         return createdAt.ToString("MMM d");
     }
 
