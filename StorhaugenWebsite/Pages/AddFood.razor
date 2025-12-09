@@ -133,7 +133,7 @@
             <MudTextField @bind-Value="_newFood.Description"
                           Label="Beskrivelse / Ingredienser"
                           Variant="Variant.Outlined"
-                          Lines="5"
+                          Lines="8"
                           Placeholder="Ingredienser blir lagt til her..."
                           Style="--mud-default-borderradius: 12px;" />
         </div>
@@ -264,57 +264,40 @@
     private bool _isSubmitting = false;
     private bool _fromDraft = false;
     private string? _errorMessage;
-
-    // Image Lists
     private List<string> _imagePreviewUrls = new();
     private List<byte[]> _imageData = new();
     private List<string> _imageNames = new();
     private List<string> _draftImageUrls = new();
-
-    // Rating
     private bool _ratingEnabled = true;
     private int _ratingValue = 5;
     private string _currentUserName = "";
     private bool _isHelloFresh = true;
-
-    // Camera
     private ElementReference _videoElement;
     private bool _showCameraOverlay = false;
     private bool _isProcessingOcr = false;
-
     private enum ScanStep { Front, Ingredients, Back, Finished }
     private ScanStep _currentStep = ScanStep.Front;
-
     public class ProcessedImage { public string Name { get; set; } = ""; public string Data { get; set; } = ""; }
 
     // --- INITIALIZATION ---
     protected override async Task OnInitializedAsync()
     {
         await HouseholdState.InitializeAsync();
-        if (HouseholdState.HasHousehold)
-        {
-            _currentUserName = AuthService.CurrentUserName ?? "Unknown";
-        }
-
+        if (HouseholdState.HasHousehold) _currentUserName = AuthService.CurrentUserName ?? "Unknown";
         if (FoodService.DraftRecipe != null)
         {
             var draft = FoodService.DraftRecipe;
             _newFood.Name = draft.Name;
             _newFood.Description = draft.Description;
             _fromDraft = true;
-
-            if (draft.ImageUrls != null)
-            {
-                _imagePreviewUrls.AddRange(draft.ImageUrls);
-                _draftImageUrls.AddRange(draft.ImageUrls);
-            }
+            if (draft.ImageUrls != null) { _imagePreviewUrls.AddRange(draft.ImageUrls); _draftImageUrls.AddRange(draft.ImageUrls); }
             FoodService.DraftRecipe = null;
         }
     }
 
     private void SetFoodType(bool isHelloFresh) => _isHelloFresh = isHelloFresh;
 
-    // --- IPHONE GALLERY FIX ---
+    // --- GALLERY UPLOAD (Fixed for Multiple Images) ---
     private async Task TriggerGalleryClick()
     {
         await JSRuntime.InvokeVoidAsync("eval", "document.getElementById('galleryInput').click()");
@@ -329,23 +312,45 @@
             StateHasChanged();
 
             var images = await JSRuntime.InvokeAsync<List<ProcessedImage>>("imageTools.processInputFile", "galleryInput");
-
             if (images == null || images.Count == 0) return;
 
-            if (_isHelloFresh && string.IsNullOrWhiteSpace(_newFood.Name) && images.Count > 0)
-            {
-                Snackbar.Add("Analyserer bilde fra galleri...", Severity.Info);
-                await TryAutoFillTitle(images[0].Data);
-            }
+            bool ingredientsFound = false;
 
-            foreach (var img in images)
+            // Process ALL uploaded images for OCR
+            for (int i = 0; i < images.Count; i++)
             {
-                if (_imageData.Count >= 5) break;
-                var base64Pure = img.Data.Split(',')[1];
-                var bytes = Convert.FromBase64String(base64Pure);
-                _imagePreviewUrls.Add(img.Data);
-                _imageData.Add(bytes);
-                _imageNames.Add(img.Name);
+                var img = images[i];
+
+                // 1. Add to visual list
+                if (_imageData.Count < 5)
+                {
+                    var base64Pure = img.Data.Split(',')[1];
+                    _imageData.Add(Convert.FromBase64String(base64Pure));
+                    _imagePreviewUrls.Add(img.Data);
+                    _imageNames.Add(img.Name);
+                }
+
+                // 2. OCR Logic
+                if (_isHelloFresh)
+                {
+                    // Only try to find title on the FIRST image, and only if we don't have one
+                    if (i == 0 && string.IsNullOrWhiteSpace(_newFood.Name))
+                    {
+                        Snackbar.Add("Analyserer forside...", Severity.Info);
+                        await TryAutoFillTitle(img.Data);
+                    }
+
+                    // Try to find ingredients on ALL images until we find them
+                    if (!ingredientsFound && string.IsNullOrWhiteSpace(_newFood.Description))
+                    {
+                        // Simple check to skip the front cover for ingredients if we already found a Title
+                        // (Optimization: Front cover usually doesn't have ingredients list)
+                        if (i == 0 && !string.IsNullOrWhiteSpace(_newFood.Name)) continue;
+
+                        Snackbar.Add($"Ser etter ingredienser (Bilde {i + 1})...", Severity.Info);
+                        ingredientsFound = await TryExtractIngredients(img.Data);
+                    }
+                }
             }
         }
         catch (Exception ex)
@@ -361,36 +366,151 @@
         }
     }
 
-    // --- CAMERA LOGIC ---
+    // --- OCR LOGIC (Fixed Cleanup) ---
+    private async Task TryAutoFillTitle(string dataUrl)
+    {
+        try
+        {
+            var rawText = await OcrService.RecognizeTextAsync(dataUrl);
+            if (!string.IsNullOrWhiteSpace(rawText))
+            {
+                var lines = rawText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var line in lines)
+                {
+                    var cleanLine = line.Trim();
+                    // Remove HelloFresh common headers
+                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\b(HELLO|FRESH|OPPSKRIFT|RECIPE)\b", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+                    // Remove leading garbage characters (non-alphanumeric at start of string)
+                    // This fixes the 'sprø issue
+                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"^[^a-zA-ZæøåÆØÅ0-9]+", "").Trim();
+
+                    // Heuristic: Titles are usually between 5 and 60 chars
+                    if (cleanLine.Length > 5 && cleanLine.Length < 60 && cleanLine.Any(char.IsLetter))
+                    {
+                        // Capitalize first letter properly
+                        cleanLine = char.ToUpper(cleanLine[0]) + cleanLine.Substring(1);
+
+                        _newFood.Name = cleanLine;
+                        Snackbar.Add($"Tittel funnet: {_newFood.Name}", Severity.Success);
+                        await InvokeAsync(StateHasChanged);
+                        break;
+                    }
+                }
+            }
+        }
+        catch (Exception ex) { Console.WriteLine($"Title OCR Error: {ex}"); }
+    }
+
+    // Returns true if ingredients were successfully added
+    private async Task<bool> TryExtractIngredients(string dataUrl)
+    {
+        try
+        {
+            var rawText = await OcrService.RecognizeTextAsync(dataUrl);
+            if (string.IsNullOrWhiteSpace(rawText)) return false;
+
+            var lines = rawText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries)
+                               .Select(l => l.Trim())
+                               .Where(l => l.Length > 2) // Skip tiny garbage
+                               .ToList();
+
+            var cleanIngredients = new List<string>();
+
+            // 1. Detection: Does this look like an ingredient list?
+            bool hasKeywords = lines.Any(l => l.ToLower().Contains("ingredienser") || l.ToLower().Contains("allergener") || l.ToLower().Contains("kcal"));
+            // If checking a "Back" image, we might not see the word "Ingredienser" if OCR cropped it,
+            // so we also check for common ingredients.
+            bool hasCommonFood = lines.Any(l => l.ToLower().Contains("salt") || l.ToLower().Contains("pepper") || l.ToLower().Contains("sukker") || l.ToLower().Contains("vann"));
+
+            if (!hasKeywords && !hasCommonFood) return false;
+
+            // 2. Cleaning & Merging
+            for (int i = 0; i < lines.Count; i++)
+            {
+                var current = lines[i];
+
+                // Skip Header Noise
+                if (current.ToLower().Contains("hello fresh") || current.ToLower().Contains("oppskrift")) continue;
+
+                // Skip Symbol Garbage (like the |a/ in your screenshot)
+                // If line has < 2 letters, it's likely noise
+                if (current.Count(char.IsLetter) < 2) continue;
+
+                // CLEANUP: Remove leading/trailing symbols that aren't letters/numbers
+                current = System.Text.RegularExpressions.Regex.Replace(current, @"^[^a-zA-ZæøåÆØÅ0-9]+", "");
+
+                // MERGE LOGIC:
+                // If this line starts with a LOWERCASE letter, it probably belongs to the previous line.
+                // e.g. "Panko" (newline) "paneringsmel"
+                if (cleanIngredients.Count > 0 && char.IsLower(current[0]))
+                {
+                    int lastIdx = cleanIngredients.Count - 1;
+                    cleanIngredients[lastIdx] = cleanIngredients[lastIdx] + " " + current;
+                }
+                // Digit merging (e.g. "600 g" -> "Poteter")
+                else if (char.IsDigit(current[0]) && i + 1 < lines.Count)
+                {
+                    // Check if next line starts with letter
+                    var next = lines[i + 1];
+                    if (char.IsLetter(next.FirstOrDefault()))
+                    {
+                        cleanIngredients.Add($"{current} {next}");
+                        i++; // Skip next
+                    }
+                    else
+                    {
+                        cleanIngredients.Add(current);
+                    }
+                }
+                else
+                {
+                    // Just a standard ingredient line (capitalize first letter)
+                    if (current.Length > 0)
+                        cleanIngredients.Add(char.ToUpper(current[0]) + current.Substring(1));
+                }
+            }
+
+            if (cleanIngredients.Any())
+            {
+                // Remove duplicates just in case
+                cleanIngredients = cleanIngredients.Distinct().ToList();
+
+                _newFood.Description = "Ingredienser:\n" + string.Join("\n", cleanIngredients);
+                await InvokeAsync(StateHasChanged);
+                return true;
+            }
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Ingredient OCR Error: {ex.Message}");
+            return false;
+        }
+    }
+
+    // --- CAMERA LOGIC (Unchanged mostly) ---
     private async Task StartCamera()
     {
         _currentStep = ScanStep.Front;
         _showCameraOverlay = true;
         await Task.Delay(100);
         try { await JSRuntime.InvokeVoidAsync("cameraInterop.start", _videoElement); }
-        catch (Exception) { Snackbar.Add("Kunne ikke starte kamera. Sjekk tillatelser.", Severity.Error); _showCameraOverlay = false; }
+        catch (Exception) { Snackbar.Add("Kunne ikke starte kamera.", Severity.Error); _showCameraOverlay = false; }
     }
-
-    private async Task StopCamera()
-    {
-        await JSRuntime.InvokeVoidAsync("cameraInterop.stop", _videoElement);
-        _showCameraOverlay = false;
-    }
+    private async Task StopCamera() { await JSRuntime.InvokeVoidAsync("cameraInterop.stop", _videoElement); _showCameraOverlay = false; }
 
     private async Task CaptureCameraImage()
     {
         if (_isProcessingOcr) return;
         _isProcessingOcr = true;
         StateHasChanged();
-
         try
         {
             var base64Data = await JSRuntime.InvokeAsync<string>("cameraInterop.capture", _videoElement);
             var cleanBase64 = base64Data.Contains(",") ? base64Data.Split(',')[1] : base64Data;
-            var bytes = Convert.FromBase64String(cleanBase64);
-
             _imagePreviewUrls.Add(base64Data);
-            _imageData.Add(bytes);
+            _imageData.Add(Convert.FromBase64String(cleanBase64));
 
             if (_currentStep == ScanStep.Front)
             {
@@ -409,247 +529,62 @@
             else if (_currentStep == ScanStep.Back)
             {
                 _imageNames.Add("hf_back.jpg");
-                Snackbar.Add("Skanning fullført!", Severity.Success);
+                Snackbar.Add("Ferdig!", Severity.Success);
                 await StopCamera();
                 _currentStep = ScanStep.Finished;
             }
         }
-        catch (Exception)
-        {
-            Snackbar.Add("Feil ved bildeopptak.", Severity.Error);
-        }
-        finally
-        {
-            _isProcessingOcr = false;
-            StateHasChanged();
-        }
+        catch { Snackbar.Add("Feil ved bildeopptak.", Severity.Error); }
+        finally { _isProcessingOcr = false; StateHasChanged(); }
     }
 
-    // --- HELPERS ---
-    private string GetOverlayClass() => _currentStep switch { ScanStep.Front => "step-landscape", ScanStep.Ingredients => "step-portrait-tall", _ => "step-portrait-normal" };
-    private string GetStepTitle() => _currentStep switch { ScanStep.Front => "1: FORSIDE (SNU)", ScanStep.Ingredients => "2: INGREDIENSER", ScanStep.Back => "3: FREMGANGSMÅTE", _ => "" };
-    private string GetInstructionText() => _currentStep switch { ScanStep.Front => "Hold telefonen vannrett.", ScanStep.Ingredients => "Hold telefonen loddrett.", ScanStep.Back => "Hold telefonen loddrett.", _ => "" };
-    private string GetStepIcon() => _currentStep switch { ScanStep.Front => Icons.Material.Rounded.ScreenRotation, _ => Icons.Material.Rounded.CropPortrait };
-
-    // --- OCR LOGIC ---
-    private async Task TryAutoFillTitle(string dataUrl)
-    {
-        try
-        {
-            // OcrService likely calls our JS `ocrInterop.recognizeTextFromImage`.
-            // Our updated JS now handles the 270 degree rotation internally!
-            var rawText = await OcrService.RecognizeTextAsync(dataUrl);
-
-            if (!string.IsNullOrWhiteSpace(rawText))
-            {
-                var lines = rawText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
-
-                foreach (var line in lines)
-                {
-                    var cleanLine = line.Trim();
-                    // Clean up common HelloFresh headers
-                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\b(HELLO|FRESH|OPPSKRIFT|RECIPE)\b", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                    cleanLine = cleanLine.Trim();
-
-                    // HelloFresh titles are usually 3+ words, e.g. "Sprø Katsu Kylling"
-                    if (cleanLine.Length > 5 && cleanLine.Length < 80 && cleanLine.Any(char.IsLetter))
-                    {
-                        // Capitalize first letter properly
-                        cleanLine = char.ToUpper(cleanLine[0]) + cleanLine.Substring(1).ToLower();
-                        _newFood.Name = cleanLine;
-                        Snackbar.Add($"Tittel funnet: {_newFood.Name}", Severity.Success);
-                        await InvokeAsync(StateHasChanged);
-                        break;
-                    }
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Title OCR Error: {ex}");
-        }
-    }
-
-    private async Task TryExtractIngredients(string dataUrl)
-    {
-        try
-        {
-            var rawText = await OcrService.RecognizeTextAsync(dataUrl);
-
-            if (!string.IsNullOrWhiteSpace(rawText))
-            {
-                var lines = rawText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries)
-                                   .Select(l => l.Trim())
-                                   .Where(l => !string.IsNullOrEmpty(l))
-                                   .ToList();
-
-                var cleanIngredients = new List<string>();
-
-                // LOGIC: Merge lines where OCR split quantity and name
-                // E.g. Line 1: "600 g" -> Line 2: "Poteter"
-                for (int i = 0; i < lines.Count; i++)
-                {
-                    var current = lines[i];
-
-                    // Skip "header" noise
-                    if (current.Length < 2) continue;
-                    if (current.ToLower().Contains("hello") || current.ToLower().Contains("oppskrift")) continue;
-
-                    // Check if line starts with digit (Quantity)
-                    if (char.IsDigit(current[0]))
-                    {
-                        // If this line ends with a digit or a unit (g, ml, stk), it might belong to the NEXT line
-                        if (i + 1 < lines.Count)
-                        {
-                            var next = lines[i + 1];
-                            // If next line starts with a letter, merge them
-                            if (char.IsLetter(next[0]))
-                            {
-                                cleanIngredients.Add($"{current} {next}");
-                                i++; // Skip next line
-                                continue;
-                            }
-                        }
-                    }
-
-                    // Otherwise just add the line if it looks like an ingredient (has letters)
-                    if (current.Any(char.IsLetter))
-                    {
-                        cleanIngredients.Add(current);
-                    }
-                }
-
-                if (cleanIngredients.Any())
-                {
-                    var result = string.Join("\n", cleanIngredients); // Use newline for ingredients list
-                    if (string.IsNullOrWhiteSpace(_newFood.Description))
-                        _newFood.Description = "Ingredienser:\n" + result;
-                    else
-                        _newFood.Description += "\n\nIngredienser:\n" + result;
-
-                    await InvokeAsync(StateHasChanged);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Ingredient OCR Error: {ex.Message}");
-        }
-    }
-
-    // --- STANDARD UPLOAD ---
+    // --- STANDARD UPLOAD & HELPERS ---
     private async Task OnImagesSelected(IReadOnlyList<IBrowserFile> files)
     {
         foreach (var file in files)
         {
             if (_imageData.Count >= 5) break;
-            try
-            {
-                var fileToRead = await file.RequestImageFileAsync("image/jpeg", 1200, 1200);
-                using var stream = fileToRead.OpenReadStream(maxAllowedSize: 1024L * 1024L * 30L);
-                using var ms = new MemoryStream();
-                await stream.CopyToAsync(ms);
-                var buffer = ms.ToArray();
-                var base64 = Convert.ToBase64String(buffer);
-
-                _imagePreviewUrls.Add($"data:image/jpeg;base64,{base64}");
-                _imageData.Add(buffer);
-                _imageNames.Add(file.Name);
-            }
-            catch (Exception)
-            {
-                Snackbar.Add("Feil ved bildeopplasting.", Severity.Warning);
-            }
+            var fileToRead = await file.RequestImageFileAsync("image/jpeg", 1200, 1200);
+            using var stream = fileToRead.OpenReadStream(30 * 1024 * 1024);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            var buffer = ms.ToArray();
+            _imagePreviewUrls.Add($"data:image/jpeg;base64,{Convert.ToBase64String(buffer)}");
+            _imageData.Add(buffer);
+            _imageNames.Add(file.Name);
         }
     }
-
     private void RemoveImage(int index)
     {
-        if (index < _draftImageUrls.Count)
-        {
-            _draftImageUrls.RemoveAt(index);
-            _imagePreviewUrls.RemoveAt(index);
-        }
+        if (index < _draftImageUrls.Count) { _draftImageUrls.RemoveAt(index); _imagePreviewUrls.RemoveAt(index); }
         else
         {
-            var newImageIndex = index - _draftImageUrls.Count;
-            if (newImageIndex >= 0 && newImageIndex < _imageData.Count)
-            {
-                _imageData.RemoveAt(newImageIndex);
-                _imageNames.RemoveAt(newImageIndex);
-                _imagePreviewUrls.RemoveAt(index);
-            }
+            var newIdx = index - _draftImageUrls.Count;
+            if (newIdx >= 0 && newIdx < _imageData.Count) { _imageData.RemoveAt(newIdx); _imageNames.RemoveAt(newIdx); _imagePreviewUrls.RemoveAt(index); }
         }
     }
-
     private void ToggleRating(bool enabled) => _ratingEnabled = enabled;
-
     private async Task SubmitFood()
     {
-        if (string.IsNullOrWhiteSpace(_newFood.Name))
-        {
-            _errorMessage = "Du må gi måltidet et navn.";
-            return;
-        }
-
+        if (string.IsNullOrWhiteSpace(_newFood.Name)) { _errorMessage = "Navn mangler."; return; }
         _isSubmitting = true;
-        _errorMessage = null;
-
         try
         {
-            var finalImageUrls = new List<string>();
-            finalImageUrls.AddRange(_draftImageUrls);
-
-            for (int i = 0; i < _imageData.Count; i++)
-            {
-                var url = await FoodService.UploadImageAsync(_imageData[i], _imageNames[i]);
-                finalImageUrls.Add(url);
-            }
-
-            _newFood.ImageUrls = finalImageUrls;
-            _newFood.DateAdded = DateTime.UtcNow;
-            _newFood.AddedBy = _currentUserName;
-            _newFood.IsHelloFresh = _isHelloFresh;
-
-            if (_ratingEnabled)
-            {
-                _newFood.Ratings[_currentUserName] = _ratingValue;
-            }
-
+            var urls = new List<string>(_draftImageUrls);
+            for (int i = 0; i < _imageData.Count; i++) urls.Add(await FoodService.UploadImageAsync(_imageData[i], _imageNames[i]));
+            _newFood.ImageUrls = urls; _newFood.DateAdded = DateTime.UtcNow; _newFood.AddedBy = _currentUserName; _newFood.IsHelloFresh = _isHelloFresh;
+            if (_ratingEnabled) _newFood.Ratings[_currentUserName] = _ratingValue;
             await FoodService.AddFoodAsync(_newFood);
-            Snackbar.Add("Måltid lagret!", Severity.Success);
             Navigation.NavigateTo("/");
         }
-        catch (Exception ex)
-        {
-            _errorMessage = $"Feil ved lagring: {ex.Message}";
-        }
-        finally
-        {
-            _isSubmitting = false;
-        }
+        catch (Exception ex) { _errorMessage = ex.Message; }
+        finally { _isSubmitting = false; }
     }
-
-    // --- UTILS ---
-    private string GetMemberColor(string? name)
-    {
-        if (string.IsNullOrEmpty(name)) return "hsl(0, 0%, 50%)";
-        var hash = name.GetHashCode();
-        var hue = Math.Abs(hash % 360);
-        return $"hsl({hue}, 45%, 45%)";
-    }
-
-    private string GetRatingBackground(int rating) => rating switch
-    {
-        >= 8 => "rgba(45, 90, 69, 0.15)",
-        >= 5 => "rgba(212, 160, 23, 0.15)",
-        _ => "rgba(196, 69, 54, 0.15)"
-    };
-
-    private string GetRatingTextColor(int rating) => rating switch
-    {
-        >= 8 => "#2D5A45",
-        >= 5 => "#A17D00",
-        _ => "#C44536"
-    };
+    private string GetMemberColor(string? n) => string.IsNullOrEmpty(n) ? "grey" : $"hsl({Math.Abs(n.GetHashCode() % 360)}, 45%, 45%)";
+    private string GetRatingBackground(int r) => r >= 8 ? "rgba(45,90,69,0.15)" : r >= 5 ? "rgba(212,160,23,0.15)" : "rgba(196,69,54,0.15)";
+    private string GetRatingTextColor(int r) => r >= 8 ? "#2D5A45" : r >= 5 ? "#A17D00" : "#C44536";
+    private string GetOverlayClass() => _currentStep switch { ScanStep.Front => "step-landscape", ScanStep.Ingredients => "step-portrait-tall", _ => "step-portrait-normal" };
+    private string GetStepTitle() => _currentStep switch { ScanStep.Front => "1: FORSIDE (SNU)", ScanStep.Ingredients => "2: INGREDIENSER", ScanStep.Back => "3: FREMGANGSMÅTE", _ => "" };
+    private string GetInstructionText() => _currentStep == ScanStep.Front ? "Hold telefonen vannrett." : "Hold telefonen loddrett.";
+    private string GetStepIcon() => _currentStep == ScanStep.Front ? Icons.Material.Rounded.ScreenRotation : Icons.Material.Rounded.CropPortrait;
 }
