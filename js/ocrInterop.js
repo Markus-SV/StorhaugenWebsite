@@ -173,16 +173,21 @@ async function tryRecognize(worker, imgElement, rotation) {
     return result.data.text;
 }
 
+// REPLACE THESE FUNCTIONS IN ocrinterop.js
+
 function countLetters(text) {
     if (!text) return 0;
-    return text.replace(/[^a-zA-ZæøåÆØÅ]/g, '').length;
+    // Fix: Count Letters AND Numbers as valid content
+    return text.replace(/[^a-zA-ZæøåÆØÅ0-9]/g, '').length;
 }
 
 function isTextGarbage(text) {
-    if (!text || text.length < 5) return true;
-    const letterCount = countLetters(text);
-    // If less than 35% of the content is actual letters, it's likely noise/garbage
-    return (letterCount / text.length) < 0.35;
+    if (!text || text.length < 3) return true; // Lowered min length slightly
+    const validCharCount = countLetters(text);
+
+    // Ingredients often have many spaces/newlines, so we lower the threshold
+    // If less than 30% of the content is alphanumeric, it's noise
+    return (validCharCount / text.length) < 0.30;
 }
 
 // Advanced Preprocessing: High Contrast Grayscale (Better than hard threshold)
