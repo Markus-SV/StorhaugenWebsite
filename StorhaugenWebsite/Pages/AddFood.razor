@@ -488,36 +488,52 @@
         try
         {
             var rawText = await OcrService.RecognizeTextAsync(dataUrl);
+
             if (!string.IsNullOrWhiteSpace(rawText))
             {
-                // Split by lines
+                // Split into lines
                 var lines = rawText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
-
-                var validIngredients = new List<string>();
+                var cleanIngredients = new List<string>();
 
                 foreach (var line in lines)
                 {
                     var clean = line.Trim();
-                    // Filter out short garbage (often results from icons)
+
+                    // FILTER 1: Skip very short lines (often noise from icons)
                     if (clean.Length < 3) continue;
 
-                    // Filter out lines that are just numbers or weird symbols
-                    if (!clean.Any(char.IsLetter)) continue;
+                    // FILTER 2: Skip lines that are mostly symbols/numbers (like "4 2 1 a")
+                    // Count letters in the line
+                    int letterCount = clean.Count(char.IsLetter);
+                    if (letterCount < 3) continue;
 
-                    validIngredients.Add(clean);
+                    // FILTER 3: Known HelloFresh headers to skip
+                    if (clean.ToLower().Contains("hello") ||
+                        clean.ToLower().Contains("fresh") ||
+                        clean.ToLower().Contains("oppskrift")) continue;
+
+                    cleanIngredients.Add(clean);
                 }
 
-                var cleanText = string.Join(", ", validIngredients);
+                // Join cleanly with commas
+                var result = string.Join(", ", cleanIngredients);
 
-                if (string.IsNullOrWhiteSpace(_newFood.Description))
-                    _newFood.Description = "Ingredienser: " + cleanText;
-                else
-                    _newFood.Description += "\n\nIngredienser: " + cleanText;
+                if (!string.IsNullOrWhiteSpace(result))
+                {
+                    if (string.IsNullOrWhiteSpace(_newFood.Description))
+                        _newFood.Description = "Ingredienser: " + result;
+                    else
+                        _newFood.Description += "\n\nIngredienser: " + result;
 
-                await InvokeAsync(StateHasChanged);
+                    // Force UI refresh
+                    await InvokeAsync(StateHasChanged);
+                }
             }
         }
-        catch (Exception ex) { Console.WriteLine("Ingredient OCR Error: " + ex.Message); }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Ingredient OCR Error: {ex.Message}");
+        }
     }
 
     // --- STANDARD UPLOAD (Used for "Take Picture" in Other mode) ---
