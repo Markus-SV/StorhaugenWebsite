@@ -404,6 +404,8 @@
 
     // REPLACE THIS METHOD IN addfood.razor
 
+    // REPLACE THIS METHOD IN addfood.razor
+
     private async Task<bool> TryExtractIngredients(string dataUrl)
     {
         try
@@ -411,68 +413,75 @@
             var rawText = await OcrService.RecognizeTextAsync(dataUrl);
             if (string.IsNullOrWhiteSpace(rawText)) return false;
 
-            // Split by lines and clean up whitespace
-            var lines = rawText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries)
-                               .Select(l => l.Trim())
-                               .Where(l => l.Length > 2) // Skip tiny noise
-                               .ToList();
+            // --- STEP 1: INITIAL CLEANING & COLUMN SPLITTING ---
+            // The OCR reads "Panko          Bacon" as one line.
+            // We must split by large gaps to separate the columns.
 
+            var rawLines = rawText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+            var flattenedList = new List<string>();
+
+            foreach (var line in rawLines)
+            {
+                // Regex: Look for 3 or more spaces in a row (\s{3,})
+                // This detects the gap between the Left column and Right column
+                var columns = System.Text.RegularExpressions.Regex.Split(line, @"\s{3,}");
+
+                foreach (var col in columns)
+                {
+                    var trimmed = col.Trim();
+                    // Remove symbols (bullets, dashes) from start
+                    trimmed = System.Text.RegularExpressions.Regex.Replace(trimmed, @"^[^a-zA-ZæøåÆØÅ0-9]+", "").Trim();
+
+                    if (trimmed.Length > 2)
+                    {
+                        flattenedList.Add(trimmed);
+                    }
+                }
+            }
+
+            // --- STEP 2: INTELLIGENT MERGING & FILTERING ---
             var cleanIngredients = new List<string>();
             int foodConfidence = 0;
 
-            // A list of common words found in HelloFresh/Ingredient lists to help us recognize this IS a food list
             var commonFoodWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "gulrot", "potet", "løk", "hvitløk", "tomat", "agurk", "salat", "spinat", "kål", "bønner", "mais", "paprika", "chili", "ingefær", "lime", "sitron", "urter", "persille", "koriander",
             "kylling", "kjøtt", "biff", "svin", "bacon", "pølse", "skinke", "fisk", "laks", "torsk", "reker",
             "ris", "pasta", "nudler", "bygg", "hvete", "brød", "tortilla", "buns", "panko",
             "saus", "soyasaus", "fløte", "rømme", "melk", "yoghurt", "ost", "cheddar", "mozzarella", "parmesan", "smør", "olje", "eddik",
-            "krydder", "salt", "pepper", "sukker", "honning", "buljong", "fond", "aioli", "majones"
+            "krydder", "salt", "pepper", "sukker", "honning", "buljong", "fond", "aioli", "majones", "curry"
         };
 
-            // 1. Process lines
-            foreach (var line in lines)
+            foreach (var currentLine in flattenedList)
             {
-                var cleanLine = line.Trim();
-
-                // Skip obvious headers/garbage
-                if (cleanLine.ToLower().Contains("hello fresh") || cleanLine.ToLower().Contains("oppskrift")) continue;
-
-                // Remove non-alphanumeric noise from start (e.g., symbols like • or -)
-                cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"^[^a-zA-ZæøåÆØÅ0-9]+", "").Trim();
-
-                if (string.IsNullOrWhiteSpace(cleanLine)) continue;
-
-                // CHECK: Does this line contain a known food word?
-                // We check if any word in the line matches our list
-                bool containsFoodWord = cleanLine.Split(' ').Any(word => commonFoodWords.Contains(word.Trim(',', '.')));
-
+                // CHECK: Is this a known food?
+                bool containsFoodWord = currentLine.Split(' ').Any(word => commonFoodWords.Contains(word.Trim(',', '.')));
                 if (containsFoodWord) foodConfidence++;
 
-                // MERGE LOGIC:
-                // If line starts with lowercase, append to previous line (e.g. "Panko" ...newline... "paneringsmel")
-                if (cleanIngredients.Count > 0 && char.IsLower(cleanLine[0]))
+                // CHECK: Merge Logic
+                // If the line starts with lowercase (e.g., "paneringsmel" after "Panko"),
+                // or starts with brackets like "(kål...", attach it to the previous line.
+                bool isContinuation = cleanIngredients.Count > 0 && (char.IsLower(currentLine[0]) || currentLine.StartsWith("("));
+
+                if (isContinuation)
                 {
                     int lastIdx = cleanIngredients.Count - 1;
-                    cleanIngredients[lastIdx] = cleanIngredients[lastIdx] + " " + cleanLine;
+                    // Add a space and append
+                    cleanIngredients[lastIdx] = cleanIngredients[lastIdx] + " " + currentLine;
                 }
                 else
                 {
                     // Capitalize first letter and add as new item
-                    cleanIngredients.Add(char.ToUpper(cleanLine[0]) + cleanLine.Substring(1));
+                    cleanIngredients.Add(char.ToUpper(currentLine[0]) + currentLine.Substring(1));
                 }
             }
 
-            // 2. Final Decision
-            // If we found at least 2 known food words OR the list looks structured (5+ short items), accept it.
-            // We relax the check because the user explicitly took a photo of ingredients.
-            bool looksLikeList = cleanIngredients.Count >= 4 && cleanIngredients.All(i => i.Length < 40);
+            // --- STEP 3: FINAL CHECK ---
+            bool looksLikeList = cleanIngredients.Count >= 4 && cleanIngredients.All(i => i.Length < 50);
 
             if (foodConfidence >= 2 || looksLikeList)
             {
-                // Remove duplicates
                 cleanIngredients = cleanIngredients.Distinct().ToList();
-
                 if (cleanIngredients.Count > 0)
                 {
                     _newFood.Description = "Ingredienser:\n" + string.Join("\n", cleanIngredients);
