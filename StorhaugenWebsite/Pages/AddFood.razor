@@ -402,7 +402,8 @@
         catch (Exception ex) { Console.WriteLine($"Title OCR Error: {ex}"); }
     }
 
-    // Returns true if ingredients were successfully added
+    // REPLACE THIS METHOD IN addfood.razor
+
     private async Task<bool> TryExtractIngredients(string dataUrl)
     {
         try
@@ -410,76 +411,76 @@
             var rawText = await OcrService.RecognizeTextAsync(dataUrl);
             if (string.IsNullOrWhiteSpace(rawText)) return false;
 
+            // Split by lines and clean up whitespace
             var lines = rawText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries)
                                .Select(l => l.Trim())
-                               .Where(l => l.Length > 2) // Skip tiny garbage
+                               .Where(l => l.Length > 2) // Skip tiny noise
                                .ToList();
 
             var cleanIngredients = new List<string>();
+            int foodConfidence = 0;
 
-            // 1. Detection: Does this look like an ingredient list?
-            bool hasKeywords = lines.Any(l => l.ToLower().Contains("ingredienser") || l.ToLower().Contains("allergener") || l.ToLower().Contains("kcal"));
-            // If checking a "Back" image, we might not see the word "Ingredienser" if OCR cropped it,
-            // so we also check for common ingredients.
-            bool hasCommonFood = lines.Any(l => l.ToLower().Contains("salt") || l.ToLower().Contains("pepper") || l.ToLower().Contains("sukker") || l.ToLower().Contains("vann"));
+            // A list of common words found in HelloFresh/Ingredient lists to help us recognize this IS a food list
+            var commonFoodWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "gulrot", "potet", "løk", "hvitløk", "tomat", "agurk", "salat", "spinat", "kål", "bønner", "mais", "paprika", "chili", "ingefær", "lime", "sitron", "urter", "persille", "koriander",
+            "kylling", "kjøtt", "biff", "svin", "bacon", "pølse", "skinke", "fisk", "laks", "torsk", "reker",
+            "ris", "pasta", "nudler", "bygg", "hvete", "brød", "tortilla", "buns", "panko",
+            "saus", "soyasaus", "fløte", "rømme", "melk", "yoghurt", "ost", "cheddar", "mozzarella", "parmesan", "smør", "olje", "eddik",
+            "krydder", "salt", "pepper", "sukker", "honning", "buljong", "fond", "aioli", "majones"
+        };
 
-            if (!hasKeywords && !hasCommonFood) return false;
-
-            // 2. Cleaning & Merging
-            for (int i = 0; i < lines.Count; i++)
+            // 1. Process lines
+            foreach (var line in lines)
             {
-                var current = lines[i];
+                var cleanLine = line.Trim();
 
-                // Skip Header Noise
-                if (current.ToLower().Contains("hello fresh") || current.ToLower().Contains("oppskrift")) continue;
+                // Skip obvious headers/garbage
+                if (cleanLine.ToLower().Contains("hello fresh") || cleanLine.ToLower().Contains("oppskrift")) continue;
 
-                // Skip Symbol Garbage (like the |a/ in your screenshot)
-                // If line has < 2 letters, it's likely noise
-                if (current.Count(char.IsLetter) < 2) continue;
+                // Remove non-alphanumeric noise from start (e.g., symbols like • or -)
+                cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"^[^a-zA-ZæøåÆØÅ0-9]+", "").Trim();
 
-                // CLEANUP: Remove leading/trailing symbols that aren't letters/numbers
-                current = System.Text.RegularExpressions.Regex.Replace(current, @"^[^a-zA-ZæøåÆØÅ0-9]+", "");
+                if (string.IsNullOrWhiteSpace(cleanLine)) continue;
+
+                // CHECK: Does this line contain a known food word?
+                // We check if any word in the line matches our list
+                bool containsFoodWord = cleanLine.Split(' ').Any(word => commonFoodWords.Contains(word.Trim(',', '.')));
+
+                if (containsFoodWord) foodConfidence++;
 
                 // MERGE LOGIC:
-                // If this line starts with a LOWERCASE letter, it probably belongs to the previous line.
-                // e.g. "Panko" (newline) "paneringsmel"
-                if (cleanIngredients.Count > 0 && char.IsLower(current[0]))
+                // If line starts with lowercase, append to previous line (e.g. "Panko" ...newline... "paneringsmel")
+                if (cleanIngredients.Count > 0 && char.IsLower(cleanLine[0]))
                 {
                     int lastIdx = cleanIngredients.Count - 1;
-                    cleanIngredients[lastIdx] = cleanIngredients[lastIdx] + " " + current;
-                }
-                // Digit merging (e.g. "600 g" -> "Poteter")
-                else if (char.IsDigit(current[0]) && i + 1 < lines.Count)
-                {
-                    // Check if next line starts with letter
-                    var next = lines[i + 1];
-                    if (char.IsLetter(next.FirstOrDefault()))
-                    {
-                        cleanIngredients.Add($"{current} {next}");
-                        i++; // Skip next
-                    }
-                    else
-                    {
-                        cleanIngredients.Add(current);
-                    }
+                    cleanIngredients[lastIdx] = cleanIngredients[lastIdx] + " " + cleanLine;
                 }
                 else
                 {
-                    // Just a standard ingredient line (capitalize first letter)
-                    if (current.Length > 0)
-                        cleanIngredients.Add(char.ToUpper(current[0]) + current.Substring(1));
+                    // Capitalize first letter and add as new item
+                    cleanIngredients.Add(char.ToUpper(cleanLine[0]) + cleanLine.Substring(1));
                 }
             }
 
-            if (cleanIngredients.Any())
+            // 2. Final Decision
+            // If we found at least 2 known food words OR the list looks structured (5+ short items), accept it.
+            // We relax the check because the user explicitly took a photo of ingredients.
+            bool looksLikeList = cleanIngredients.Count >= 4 && cleanIngredients.All(i => i.Length < 40);
+
+            if (foodConfidence >= 2 || looksLikeList)
             {
-                // Remove duplicates just in case
+                // Remove duplicates
                 cleanIngredients = cleanIngredients.Distinct().ToList();
 
-                _newFood.Description = "Ingredienser:\n" + string.Join("\n", cleanIngredients);
-                await InvokeAsync(StateHasChanged);
-                return true;
+                if (cleanIngredients.Count > 0)
+                {
+                    _newFood.Description = "Ingredienser:\n" + string.Join("\n", cleanIngredients);
+                    await InvokeAsync(StateHasChanged);
+                    return true;
+                }
             }
+
             return false;
         }
         catch (Exception ex)
