@@ -490,11 +490,30 @@
             var rawText = await OcrService.RecognizeTextAsync(dataUrl);
             if (!string.IsNullOrWhiteSpace(rawText))
             {
-                var cleanText = rawText.Replace("\n", ", ").Trim();
+                // Split by lines
+                var lines = rawText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+
+                var validIngredients = new List<string>();
+
+                foreach (var line in lines)
+                {
+                    var clean = line.Trim();
+                    // Filter out short garbage (often results from icons)
+                    if (clean.Length < 3) continue;
+
+                    // Filter out lines that are just numbers or weird symbols
+                    if (!clean.Any(char.IsLetter)) continue;
+
+                    validIngredients.Add(clean);
+                }
+
+                var cleanText = string.Join(", ", validIngredients);
+
                 if (string.IsNullOrWhiteSpace(_newFood.Description))
                     _newFood.Description = "Ingredienser: " + cleanText;
                 else
                     _newFood.Description += "\n\nIngredienser: " + cleanText;
+
                 await InvokeAsync(StateHasChanged);
             }
         }
