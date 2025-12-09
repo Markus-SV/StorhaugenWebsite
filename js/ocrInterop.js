@@ -50,7 +50,6 @@
     }
 };
 
-// --- DETTE ER DELEN SOM MANGLER FOR DEG: ---
 window.imageTools = {
     processInputFile: async (inputId) => {
         const input = document.getElementById(inputId);

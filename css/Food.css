@@ -1,15 +1,102 @@
 /* ==========================================================================
-   ADD & EDIT FOOD FORMS
-   Contains styles for input sections, rating sliders, and image uploads.
+   1. LANDSCAPE BLOCKER & DEVICE ORIENTATION
+   Unique logic to handle device rotation for camera features.
    ========================================================================== */
 
-/* Form Styles */
+#landscape-blocker {
+    display: none; /* Hidden by default */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh; /* Mobile viewport fix */
+    background: #0f172a; /* Dark background */
+    z-index: 999999; /* Above everything */
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    text-align: center;
+    padding: 20px;
+}
+
+/* Only show blocker when screen is actually in Landscape */
+@media screen and (orientation: landscape) {
+    #landscape-blocker {
+        display: flex !important;
+    }
+    /* Hide content behind it to prevent scrolling */
+    .app-content-container {
+        display: none !important;
+    }
+}
+
+/* ==========================================================================
+   2. GLOBAL PAGE STYLES & HEADERS
+   Merged: Prioritizing 'Fraunces' font and MudBlazor palette variables.
+   ========================================================================== */
+
+.page-header {
+    margin-bottom: 24px;
+}
+
+.page-title {
+    font-family: 'Fraunces', Georgia, serif; /* Kept fancy font from File 1 */
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--mud-palette-text-primary);
+    margin-bottom: 4px;
+    letter-spacing: -0.02em;
+}
+
+.page-subtitle {
+    font-size: 0.9rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 60px 24px;
+}
+
+.empty-state-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: var(--mud-palette-divider-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    color: var(--mud-palette-text-secondary);
+}
+
+.empty-state-title {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.empty-state-text {
+    color: var(--mud-palette-text-secondary);
+    margin-bottom: 24px;
+}
+
+/* ==========================================================================
+   3. FORM STYLES & INPUTS
+   Merged: Unified .form-section and image uploads.
+   ========================================================================== */
+
 .form-section {
     background: var(--mud-palette-surface);
-    border-radius: var(--card-radius);
+    border-radius: var(--card-radius, 16px); /* Fallback to 16px if variable missing */
     padding: 20px;
     margin-bottom: 16px;
     border: 1px solid var(--mud-palette-divider);
+    /* box-shadow removed to keep consistent with flat border design of File 1 */
 }
 
 .form-section-title {
@@ -21,7 +108,7 @@
     margin-bottom: 16px;
 }
 
-/* Rating Slider */
+/* Rating Slider Components */
 .rating-member-card {
     background: var(--mud-palette-background);
     border-radius: 14px;
@@ -71,13 +158,17 @@
     font-size: 1rem;
 }
 
-/* Image Upload */
+/* ==========================================================================
+   4. IMAGE UPLOAD & PREVIEWS
+   Merged: Used the interactive/hover styles from File 1.
+   ========================================================================== */
+
 .image-upload-area {
     border: 2px dashed var(--mud-palette-divider);
     border-radius: 14px;
     padding: 24px;
     text-align: center;
-    transition: var(--transition-fast);
+    transition: var(--transition-fast, 0.2s ease);
     cursor: pointer;
 }
 
@@ -120,37 +211,284 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: var(--transition-fast);
+    transition: var(--transition-fast, 0.2s ease);
 }
 
     .image-preview-remove:hover {
         background: var(--mud-palette-error);
     }
 
-
 /* ==========================================================================
-   FOOD LIST / INDEX PAGE
-   Contains headers, view toggles, sorting, empty states, and skeletons.
+   5. CAMERA OVERLAY & SCANNING LOGIC
+   Taken entirely from File 2.
    ========================================================================== */
 
-/* Page Headers */
-.page-header {
-    margin-bottom: 24px;
+.camera-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    background: #000;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
 }
 
-.page-title {
-    font-family: 'Fraunces', Georgia, serif;
-    font-size: 1.75rem;
-    font-weight: 600;
-    color: var(--mud-palette-text-primary);
-    margin-bottom: 4px;
-    letter-spacing: -0.02em;
+.camera-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform: scaleX(1) !important;
 }
 
-.page-subtitle {
-    font-size: 0.9rem;
-    color: var(--mud-palette-text-secondary);
+/* Guide Box Container */
+.camera-guide-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10002;
+    transition: all 0.5s ease;
 }
+
+.camera-guide-box {
+    border: 3px solid rgba(255, 255, 255, 0.9);
+    border-radius: 16px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.8);
+    position: relative;
+    overflow: hidden;
+    background: transparent;
+}
+
+/* --- Camera Scanning Steps --- */
+
+/* STEP 1: Landscape Mode (Visual "Landscape" box on Portrait screen) */
+.camera-guide-container.step-landscape .camera-guide-box {
+    width: 90vw;
+    aspect-ratio: 9/16; /* Forces tall box */
+    max-height: 80vh;
+}
+
+/* Logo Hint Zone (Rotated 90 deg) */
+.step-landscape .logo-hint-zone {
+    position: absolute;
+    top: 25px;
+    right: 25px;
+    width: 80px;
+    height: 80px;
+    border-radius: 12px;
+    border: 2px dashed #9ACD32;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transform: rotate(90deg);
+}
+
+    .step-landscape .logo-hint-zone::before {
+        content: '';
+        display: block;
+        width: 24px;
+        height: 24px;
+        background-color: #9ACD32;
+        border-radius: 50% 50% 0 50%;
+        transform: rotate(45deg);
+        margin-bottom: 4px;
+    }
+
+.step-landscape .logo-label {
+    color: #ffffff;
+    font-weight: 800;
+    font-size: 11px;
+    text-transform: uppercase;
+    text-align: center;
+    line-height: 1;
+}
+
+/* Text Hint Zone (Rotated 90 deg) */
+.step-landscape .text-hint-zone {
+    position: absolute;
+    top: 120px;
+    right: 25px;
+    width: 80px;
+    height: 50vh;
+    border: 1px dashed rgba(255,255,255,0.4);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.step-landscape .text-label {
+    color: rgba(255,255,255,0.9);
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transform: rotate(90deg);
+}
+
+/* STEP 2: Ingredients (Portrait Tall) */
+.camera-guide-container.step-portrait-tall .camera-guide-box {
+    width: 65vw;
+    height: 70vh;
+}
+
+/* STEP 3: Normal Portrait */
+.camera-guide-container.step-portrait-normal .camera-guide-box {
+    width: 85vw;
+    aspect-ratio: 210/297;
+    max-width: 450px;
+}
+
+/* --- Camera Animations & Controls --- */
+
+.scan-line {
+    width: 100%;
+    height: 2px;
+    background: #00E676;
+    position: absolute;
+    top: 0;
+    box-shadow: 0 0 10px #00E676;
+    animation: scanAnim 3s infinite;
+}
+
+@keyframes scanAnim {
+    0% {
+        top: 5%;
+        opacity: 0;
+    }
+
+    20% {
+        opacity: 1;
+    }
+
+    80% {
+        opacity: 1;
+    }
+
+    100% {
+        top: 95%;
+        opacity: 0;
+    }
+}
+
+.camera-instruction-pill {
+    position: absolute;
+    top: 24px;
+    background: rgba(0,0,0,0.6);
+    padding: 8px 16px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    border: 1px solid rgba(255,255,255,0.2);
+    backdrop-filter: blur(4px);
+    z-index: 10001;
+}
+
+.step-text {
+    color: #00E676;
+    font-weight: bold;
+    font-size: 12px;
+}
+
+.camera-guide-text {
+    position: absolute;
+    bottom: 120px;
+    color: white;
+    text-align: center;
+    font-size: 16px;
+    font-weight: 500;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+    max-width: 80%;
+    z-index: 10001;
+}
+
+.camera-controls {
+    position: absolute;
+    bottom: 30px;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 32px;
+    z-index: 10000;
+    pointer-events: auto;
+}
+
+.step-counter {
+    color: white;
+    font-weight: bold;
+    font-size: 14px;
+    width: 48px;
+    text-align: center;
+    background: rgba(255,255,255,0.1);
+    padding: 4px 8px;
+    border-radius: 8px;
+}
+
+.camera-shutter {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    border: 4px solid white;
+    position: relative;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+
+    .camera-shutter::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: white;
+    }
+
+    .camera-shutter:active {
+        transform: scale(0.95);
+    }
+
+    .camera-shutter.processing {
+        border-color: #999;
+        pointer-events: none;
+    }
+
+        .camera-shutter.processing::after {
+            width: 20px;
+            height: 20px;
+            background: #999;
+            animation: spin 1s infinite linear;
+        }
+
+@keyframes spin {
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+/* ==========================================================================
+   6. FOOD LIST & UTILITIES (VIEW TOGGLE, SORTING, SKELETONS)
+   ========================================================================== */
 
 /* View Toggle */
 .view-toggle-container {
@@ -180,7 +518,7 @@
     color: var(--mud-palette-text-secondary);
     cursor: pointer;
     border-radius: 8px;
-    transition: var(--transition-fast);
+    transition: var(--transition-fast, 0.2s);
 }
 
     .view-toggle-btn:hover {
@@ -204,47 +542,17 @@
     cursor: pointer;
     font-size: 0.875rem;
     color: var(--mud-palette-text-secondary);
-    transition: var(--transition-fast);
+    transition: var(--transition-fast, 0.2s);
 }
 
     .sort-dropdown:hover {
         border-color: var(--mud-palette-primary);
     }
 
-/* Empty State */
-.empty-state {
-    text-align: center;
-    padding: 60px 24px;
-}
-
-.empty-state-icon {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    background: var(--mud-palette-divider-light);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto 20px;
-    color: var(--mud-palette-text-secondary);
-}
-
-.empty-state-title {
-    font-family: 'Fraunces', Georgia, serif;
-    font-size: 1.25rem;
-    font-weight: 600;
-    margin-bottom: 8px;
-}
-
-.empty-state-text {
-    color: var(--mud-palette-text-secondary);
-    margin-bottom: 24px;
-}
-
 /* Skeleton Loading */
 .skeleton-card {
     background: var(--mud-palette-surface);
-    border-radius: var(--card-radius);
+    border-radius: var(--card-radius, 12px);
     overflow: hidden;
     border: 1px solid var(--mud-palette-divider);
 }
@@ -276,10 +584,8 @@
         width: 40%;
     }
 
-
 /* ==========================================================================
-   FOOD DETAILS PAGE
-   Contains styles for the detail view, carousel, and description text.
+   7. FOOD DETAILS PAGE
    ========================================================================== */
 
 .detail-header {
@@ -298,7 +604,7 @@
     font-size: 0.875rem;
     font-weight: 500;
     cursor: pointer;
-    transition: var(--transition-fast);
+    transition: var(--transition-fast, 0.2s);
     font-family: 'DM Sans', system-ui, sans-serif;
 }
 
@@ -308,14 +614,14 @@
     }
 
 .detail-image-carousel {
-    border-radius: var(--card-radius);
+    border-radius: var(--card-radius, 12px);
     overflow: hidden;
     margin-bottom: 20px;
 }
 
 .detail-info-card {
     background: var(--mud-palette-surface);
-    border-radius: var(--card-radius);
+    border-radius: var(--card-radius, 12px);
     padding: 20px;
     margin-bottom: 20px;
     border: 1px solid var(--mud-palette-divider);
@@ -344,250 +650,4 @@
     background: var(--mud-palette-background);
     border-radius: 14px;
     padding: 14px;
-}
-
-
-
-/*-----------------------------------------------------------OVERLAY--------------------------------------------------------------------*/
-
-/* food.css */
-
-/*-----------------------------------------------------------OVERLAY--------------------------------------------------------------------*/
-
-/* 1. Hovedcontainer */
-.camera-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh; /* Bruk 100dvh for mobil hvis støttet, ellers 100vh */
-    height: 100dvh;
-    background: #000;
-    z-index: 9999;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* 2. Videostrøm - Dekker alltid hele skjermen */
-.camera-video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover; /* Dette sørger for at videoen aldri får svarte kanter */
-    position: absolute;
-    top: 0;
-    left: 0;
-    transform: scaleX(1) !important;
-}
-
-/* 3. Guide Container */
-.camera-guide-container {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 10002; /* Sørg for at guiden ligger over videoen */
-}
-
-    /* --- FJERN HELE "ROTAJONSLÅS / ANTI-LANDSCAPE HACK" BLOKKEN HERFRA --- */
-    /* Ved å fjerne den, slipper du at bildet flipper rundt på iPhone. 
-   Appen vil rotere naturlig hvis man er i nettleser, men holde seg i portrait
-   hvis installert som PWA. */
-
-
-    /* =========================================
-   STEG 1: HELLO FRESH (LIGGENDE KORT)
-   ========================================= */
-
-    /* ... (Resten av CSSen din under her er fin og kan beholdes) ... */
-    .camera-guide-container.step-landscape .camera-guide-box {
-        /* ... dine eksisterende stiler ... */
-        width: 90vw;
-        height: 80vh;
-        border: 3px solid rgba(255, 255, 255, 0.9);
-        border-radius: 16px;
-        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.8);
-        position: relative;
-    }
-
-/* ... behold resten av filen som den var ... */
-
-/* --- LOGO GUIDE (Firkantet, Øverst til høyre) --- */
-.step-landscape .logo-hint-zone {
-    position: absolute;
-    /* Plassert øverst til høyre i "Portrett"-visningen */
-    top: 25px;
-    right: 25px;
-    width: 80px;
-    height: 80px;
-    /* ENDRING: Firkant med avrundede hjørner (IKKE SIRKEL) */
-    border-radius: 12px;
-    border: 2px dashed #9ACD32;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    /* Roter innholdet 90 grader slik at det leses riktig når telefonen er snudd */
-    transform: rotate(90deg);
-}
-
-    /* Lime-illustrasjon */
-    .step-landscape .logo-hint-zone::before {
-        content: '';
-        display: block;
-        width: 24px;
-        height: 24px;
-        background-color: #9ACD32;
-        border-radius: 50% 50% 0 50%;
-        transform: rotate(45deg);
-        margin-bottom: 4px;
-    }
-
-/* Tekst i logo-boks */
-.step-landscape .logo-label {
-    color: #ffffff;
-    font-weight: 800;
-    font-size: 11px;
-    text-transform: uppercase;
-    text-align: center;
-    line-height: 1;
-}
-
-/* --- TITTEL GUIDE (Justert plassering) --- */
-.step-landscape .text-hint-zone {
-    position: absolute;
-    /* Vi forankrer denne i forhold til toppen, men lenger ned enn logoen */
-    /* I portrett-koordinater betyr dette "til venstre" for logoen når snudd */
-    top: 120px;
-    right: 25px; /* Samme avstand fra høyre kant som logoen */
-
-    width: 80px; /* Smal bredde (blir høyde visuelt) */
-    height: 50vh; /* Lang høyde (blir bredde visuelt) */
-
-    border: 1px dashed rgba(255,255,255,0.4);
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.step-landscape .text-label {
-    color: rgba(255,255,255,0.9);
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    white-space: nowrap;
-    /* Roter teksten 90 grader slik at den går "nedover" */
-    /* Når du snur telefonen, vil denne teksten ligge vannrett! */
-    transform: rotate(90deg);
-}
-
-/* =========================================
-   ANDRE STEG (Ingen endring)
-   ========================================= */
-.camera-guide-container.step-portrait-tall .camera-guide-box {
-    width: 65vw;
-    height: 70vh;
-}
-
-.camera-guide-container.step-portrait-normal .camera-guide-box {
-    width: 85vw;
-    aspect-ratio: 210/297;
-}
-
-/* =========================================
-   UI KONTROLLER
-   ========================================= */
-.scan-line {
-    width: 100%;
-    height: 2px;
-    background: #00E676;
-    position: absolute;
-    top: 0;
-    box-shadow: 0 0 10px #00E676;
-    animation: scanAnim 3s infinite;
-}
-
-@keyframes scanAnim {
-    0% {
-        top: 5%;
-        opacity: 0;
-    }
-
-    20% {
-        opacity: 1;
-    }
-
-    80% {
-        opacity: 1;
-    }
-
-    100% {
-        top: 95%;
-        opacity: 0;
-    }
-}
-
-.camera-controls {
-    position: absolute;
-    bottom: 40px;
-    width: 100%;
-    display: flex;
-    justify-content: space-between;
-    padding: 0 32px;
-    z-index: 10000;
-    box-sizing: border-box;
-}
-
-/* Pilla i toppen */
-.camera-instruction-pill {
-    position: absolute;
-    top: 24px;
-    background: rgba(0,0,0,0.6);
-    padding: 8px 16px;
-    border-radius: 20px;
-    display: flex;
-    align-items: center;
-    border: 1px solid rgba(255,255,255,0.2);
-    backdrop-filter: blur(4px);
-    z-index: 10001;
-}
-
-.step-text {
-    color: #00E676;
-    font-weight: bold;
-    font-size: 12px;
-}
-
-/* --- LANDSCAPE BLOCKER --- */
-#landscape-blocker {
-    display: none; /* VIKTIG: Skjult som standard! */
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: #0f172a; /* Mørk bakgrunn som dekker alt */
-    z-index: 999999;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    text-align: center;
-    padding: 20px;
-}
-
-/* Kun vis blocker hvis telefonen er i Landscape */
-@media screen and (orientation: landscape) {
-    #landscape-blocker {
-        display: flex !important;
-    }
 }
