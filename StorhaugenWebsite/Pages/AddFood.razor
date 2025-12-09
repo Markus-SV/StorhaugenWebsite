@@ -12,7 +12,7 @@
 @attribute [Authorize]
 @inject IJSRuntime JSRuntime
 
-@* --- 1. LANDSCAPE BLOCKER (Skjult via CSS i portrett) --- *@
+@* --- 1. LANDSCAPE BLOCKER --- *@
 <div id="landscape-blocker">
     <MudIcon Icon="@Icons.Material.Rounded.ScreenLockPortrait" Style="font-size: 64px; margin-bottom: 20px; color: #E07A2E;" />
     <h2 style="font-family: 'Fraunces', serif;">Vennligst snu telefonen</h2>
@@ -31,18 +31,14 @@
             <div class="camera-guide-box">
                 @if (_currentStep == ScanStep.Front)
                 {
-                    @* MODIFIED: SVG Logo that looks like the real card *@
                     <div class="logo-hint-zone">
                         <svg width="60" height="80" viewBox="0 0 100 120" xmlns="http://www.w3.org/2000/svg" fill="#fff">
                             <path d="M50 0 C25 0 5 20 5 45 C5 70 25 90 50 90 C75 90 95 70 95 45 C95 35 90 15 80 5" fill="#9ACD32" />
                             <path d="M80 5 C85 0 95 0 95 10 C95 5 85 5 80 5 Z" fill="#76a11e" />
                             <text x="50" y="105" font-family="Arial, sans-serif" font-weight="900" font-size="14" text-anchor="middle" letter-spacing="1">HELLO</text>
-
                             <text x="50" y="118" font-family="Arial, sans-serif" font-weight="900" font-size="14" text-anchor="middle" letter-spacing="1">FRESH</text>
                         </svg>
                     </div>
-
-                    @* Re-positioned Text Hint *@
                     <div class="text-hint-zone">
                         <span class="text-label">TITTEL HER</span>
                     </div>
@@ -187,13 +183,7 @@
                     </MudFileUpload>
                 }
 
-                @* --- HIDDEN INPUT FOR GALLERY (IOS MEMORY FIX) --- *@
-                <input type="file"
-                       id="galleryInput"
-                       accept="image/*, .heic"
-                       multiple
-                       style="display: none;"
-                       @onchange="OnGalleryFileSelected" />
+                <input type="file" id="galleryInput" accept="image/*, .heic" multiple style="display: none;" @onchange="OnGalleryFileSelected" />
 
                 <MudButton Variant="Variant.Outlined"
                            Color="Color.Secondary"
@@ -271,7 +261,6 @@
     // --- STATE VARIABLES ---
     private FoodItem _newFood = new();
     private MudFileUpload<IReadOnlyList<IBrowserFile>>? _fileUpload;
-
     private bool _isSubmitting = false;
     private bool _fromDraft = false;
     private string? _errorMessage;
@@ -296,7 +285,6 @@
     private enum ScanStep { Front, Ingredients, Back, Finished }
     private ScanStep _currentStep = ScanStep.Front;
 
-    // DTO for data returned from JS
     public class ProcessedImage { public string Name { get; set; } = ""; public string Data { get; set; } = ""; }
 
     // --- INITIALIZATION ---
@@ -326,7 +314,7 @@
 
     private void SetFoodType(bool isHelloFresh) => _isHelloFresh = isHelloFresh;
 
-    // --- IPHONE GALLERY FIX START ---
+    // --- IPHONE GALLERY FIX ---
     private async Task TriggerGalleryClick()
     {
         await JSRuntime.InvokeVoidAsync("eval", "document.getElementById('galleryInput').click()");
@@ -344,7 +332,6 @@
 
             if (images == null || images.Count == 0) return;
 
-            // --- NY LOGIKK: Kjør OCR på det første bildet hvis navnet er tomt ---
             if (_isHelloFresh && string.IsNullOrWhiteSpace(_newFood.Name) && images.Count > 0)
             {
                 Snackbar.Add("Analyserer bilde fra galleri...", Severity.Info);
@@ -354,10 +341,8 @@
             foreach (var img in images)
             {
                 if (_imageData.Count >= 5) break;
-
                 var base64Pure = img.Data.Split(',')[1];
                 var bytes = Convert.FromBase64String(base64Pure);
-
                 _imagePreviewUrls.Add(img.Data);
                 _imageData.Add(bytes);
                 _imageNames.Add(img.Name);
@@ -375,7 +360,6 @@
             StateHasChanged();
         }
     }
-    // --- IPHONE GALLERY FIX END ---
 
     // --- CAMERA LOGIC ---
     private async Task StartCamera()
@@ -447,11 +431,13 @@
     private string GetInstructionText() => _currentStep switch { ScanStep.Front => "Hold telefonen vannrett.", ScanStep.Ingredients => "Hold telefonen loddrett.", ScanStep.Back => "Hold telefonen loddrett.", _ => "" };
     private string GetStepIcon() => _currentStep switch { ScanStep.Front => Icons.Material.Rounded.ScreenRotation, _ => Icons.Material.Rounded.CropPortrait };
 
-    // --- OCR ---
+    // --- OCR LOGIC ---
     private async Task TryAutoFillTitle(string dataUrl)
     {
         try
         {
+            // OcrService likely calls our JS `ocrInterop.recognizeTextFromImage`.
+            // Our updated JS now handles the 270 degree rotation internally!
             var rawText = await OcrService.RecognizeTextAsync(dataUrl);
 
             if (!string.IsNullOrWhiteSpace(rawText))
@@ -461,14 +447,16 @@
                 foreach (var line in lines)
                 {
                     var cleanLine = line.Trim();
-                    if (cleanLine.Length < 3) continue;
-
+                    // Clean up common HelloFresh headers
                     cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\b(HELLO|FRESH|OPPSKRIFT|RECIPE)\b", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                     cleanLine = cleanLine.Trim();
 
-                    if (cleanLine.Length > 3 && cleanLine.Length < 80 && cleanLine.Any(char.IsLetter))
+                    // HelloFresh titles are usually 3+ words, e.g. "Sprø Katsu Kylling"
+                    if (cleanLine.Length > 5 && cleanLine.Length < 80 && cleanLine.Any(char.IsLetter))
                     {
-                        _newFood.Name = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\s+", " ").Trim();
+                        // Capitalize first letter properly
+                        cleanLine = char.ToUpper(cleanLine[0]) + cleanLine.Substring(1).ToLower();
+                        _newFood.Name = cleanLine;
                         Snackbar.Add($"Tittel funnet: {_newFood.Name}", Severity.Success);
                         await InvokeAsync(StateHasChanged);
                         break;
@@ -479,7 +467,6 @@
         catch (Exception ex)
         {
             Console.WriteLine($"Title OCR Error: {ex}");
-            Snackbar.Add($"OCR Feil: {ex.Message}", Severity.Warning);
         }
     }
 
@@ -491,41 +478,55 @@
 
             if (!string.IsNullOrWhiteSpace(rawText))
             {
-                // Split into lines
-                var lines = rawText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+                var lines = rawText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries)
+                                   .Select(l => l.Trim())
+                                   .Where(l => !string.IsNullOrEmpty(l))
+                                   .ToList();
+
                 var cleanIngredients = new List<string>();
 
-                foreach (var line in lines)
+                // LOGIC: Merge lines where OCR split quantity and name
+                // E.g. Line 1: "600 g" -> Line 2: "Poteter"
+                for (int i = 0; i < lines.Count; i++)
                 {
-                    var clean = line.Trim();
+                    var current = lines[i];
 
-                    // FILTER 1: Skip very short lines (often noise from icons)
-                    if (clean.Length < 3) continue;
+                    // Skip "header" noise
+                    if (current.Length < 2) continue;
+                    if (current.ToLower().Contains("hello") || current.ToLower().Contains("oppskrift")) continue;
 
-                    // FILTER 2: Skip lines that are mostly symbols/numbers (like "4 2 1 a")
-                    // Count letters in the line
-                    int letterCount = clean.Count(char.IsLetter);
-                    if (letterCount < 3) continue;
+                    // Check if line starts with digit (Quantity)
+                    if (char.IsDigit(current[0]))
+                    {
+                        // If this line ends with a digit or a unit (g, ml, stk), it might belong to the NEXT line
+                        if (i + 1 < lines.Count)
+                        {
+                            var next = lines[i + 1];
+                            // If next line starts with a letter, merge them
+                            if (char.IsLetter(next[0]))
+                            {
+                                cleanIngredients.Add($"{current} {next}");
+                                i++; // Skip next line
+                                continue;
+                            }
+                        }
+                    }
 
-                    // FILTER 3: Known HelloFresh headers to skip
-                    if (clean.ToLower().Contains("hello") ||
-                        clean.ToLower().Contains("fresh") ||
-                        clean.ToLower().Contains("oppskrift")) continue;
-
-                    cleanIngredients.Add(clean);
+                    // Otherwise just add the line if it looks like an ingredient (has letters)
+                    if (current.Any(char.IsLetter))
+                    {
+                        cleanIngredients.Add(current);
+                    }
                 }
 
-                // Join cleanly with commas
-                var result = string.Join(", ", cleanIngredients);
-
-                if (!string.IsNullOrWhiteSpace(result))
+                if (cleanIngredients.Any())
                 {
+                    var result = string.Join("\n", cleanIngredients); // Use newline for ingredients list
                     if (string.IsNullOrWhiteSpace(_newFood.Description))
-                        _newFood.Description = "Ingredienser: " + result;
+                        _newFood.Description = "Ingredienser:\n" + result;
                     else
-                        _newFood.Description += "\n\nIngredienser: " + result;
+                        _newFood.Description += "\n\nIngredienser:\n" + result;
 
-                    // Force UI refresh
                     await InvokeAsync(StateHasChanged);
                 }
             }
@@ -536,7 +537,7 @@
         }
     }
 
-    // --- STANDARD UPLOAD (Used for "Take Picture" in Other mode) ---
+    // --- STANDARD UPLOAD ---
     private async Task OnImagesSelected(IReadOnlyList<IBrowserFile> files)
     {
         foreach (var file in files)
@@ -650,5 +651,5 @@
         >= 8 => "#2D5A45",
         >= 5 => "#A17D00",
         _ => "#C44536"
-    }; 
+    };
 }
