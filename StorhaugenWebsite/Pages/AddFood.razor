@@ -31,8 +31,21 @@
             <div class="camera-guide-box">
                 @if (_currentStep == ScanStep.Front)
                 {
-                    <div class="logo-hint-zone"><span class="logo-label">HELLO<br />FRESH</span></div>
-                    <div class="text-hint-zone"><span class="text-label">TITTEL HER</span></div>
+                    @* MODIFIED: SVG Logo that looks like the real card *@
+                    <div class="logo-hint-zone">
+                        <svg width="60" height="80" viewBox="0 0 100 120" xmlns="http://www.w3.org/2000/svg" fill="#fff">
+                            <path d="M50 0 C25 0 5 20 5 45 C5 70 25 90 50 90 C75 90 95 70 95 45 C95 35 90 15 80 5" fill="#9ACD32" />
+                            <path d="M80 5 C85 0 95 0 95 10 C95 5 85 5 80 5 Z" fill="#76a11e" />
+                            <text x="50" y="105" font-family="Arial, sans-serif" font-weight="900" font-size="14" text-anchor="middle" letter-spacing="1">HELLO</text>
+
+                            <text x="50" y="118" font-family="Arial, sans-serif" font-weight="900" font-size="14" text-anchor="middle" letter-spacing="1">FRESH</text>
+                        </svg>
+                    </div>
+
+                    @* Re-positioned Text Hint *@
+                    <div class="text-hint-zone">
+                        <span class="text-label">TITTEL HER</span>
+                    </div>
                 }
                 <div class="scan-line"></div>
             </div>

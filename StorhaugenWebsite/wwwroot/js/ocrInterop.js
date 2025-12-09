@@ -1,23 +1,26 @@
-﻿window.cameraInterop = {
+﻿// ==========================================
+// 1. CAMERA INTEROP (Video Stream & Capture)
+// ==========================================
+window.cameraInterop = {
     stream: null,
 
     start: async (videoElement) => {
         try {
-            // Prøv å låse skjermretning hvis mulig (Android/PWA)
+            // Attempt to lock orientation to portrait on mobile
             if (screen.orientation && screen.orientation.lock) {
                 try {
                     await screen.orientation.lock("portrait");
                 } catch (e) {
-                    // Ignorer feil her, støttes ikke av alle
+                    // Ignore if not supported
                 }
             }
 
             const constraints = {
                 audio: false,
                 video: {
-                    facingMode: 'environment',
-                    width: { min: 1280, ideal: 4096 },
-                    height: { min: 720, ideal: 2160 }
+                    facingMode: 'environment', // Use back camera
+                    width: { min: 1280, ideal: 1920 }, // High resolution for OCR
+                    height: { min: 720, ideal: 1080 }
                 }
             };
 
@@ -50,6 +53,9 @@
     }
 };
 
+// ==========================================
+// 2. IMAGE TOOLS (Resize & Processing)
+// ==========================================
 window.imageTools = {
     processInputFile: async (inputId) => {
         const input = document.getElementById(inputId);
@@ -62,7 +68,7 @@ window.imageTools = {
         for (let i = 0; i < input.files.length; i++) {
             const file = input.files[i];
             try {
-                // Resize til max 1200px
+                // Resize to max 1200px for consistency
                 const base64 = await resizeImage(file, 1200, 1200);
                 processedImages.push({
                     name: file.name,
@@ -73,13 +79,12 @@ window.imageTools = {
             }
         }
 
-        // Nullstill input for å kunne velge samme fil igjen
+        // Reset input
         input.value = '';
         return processedImages;
     }
 };
 
-// Hjelpefunksjon
 function resizeImage(file, maxWidth, maxHeight) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -109,7 +114,6 @@ function resizeImage(file, maxWidth, maxHeight) {
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
 
-                // Returner ren JPEG base64
                 resolve(canvas.toDataURL('image/jpeg', 0.8));
             };
             img.onerror = reject;
@@ -117,3 +121,32 @@ function resizeImage(file, maxWidth, maxHeight) {
         reader.onerror = reject;
     });
 }
+
+// ==========================================
+// 3. OCR INTEROP (Text Recognition)
+// This was missing and caused your error!
+// ==========================================
+window.ocrInterop = {
+    recognizeTextFromImage: async (base64Image) => {
+        // Ensure Tesseract is loaded in your index.html
+        if (typeof Tesseract === 'undefined') {
+            console.error("Tesseract.js is not loaded.");
+            return "Feil: Tesseract library mangler i index.html.";
+        }
+
+        try {
+            console.log("Starting OCR...");
+            // Run recognition (using 'nor' for Norwegian, fallback to 'eng')
+            const result = await Tesseract.recognize(
+                base64Image,
+                'nor',
+                { logger: m => console.log(m) }
+            );
+
+            return result.data.text;
+        } catch (error) {
+            console.error("OCR Error:", error);
+            return null;
+        }
+    }
+};

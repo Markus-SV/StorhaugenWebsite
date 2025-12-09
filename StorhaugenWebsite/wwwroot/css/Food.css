@@ -276,37 +276,27 @@
 
 /* STEP 1: Landscape Mode (Visual "Landscape" box on Portrait screen) */
 .camera-guide-container.step-landscape .camera-guide-box {
-    width: 90vw;
-    aspect-ratio: 9/16; /* Forces tall box */
-    max-height: 80vh;
+    width: 95vw; /* Wider */
+    aspect-ratio: 3/4; /* Shorter (was 9/16) */
+    max-height: 70vh;
 }
 
-/* Logo Hint Zone (Rotated 90 deg) */
+/* Logo Hint Zone - MODIFIED: Removed CSS Lemon hack, optimized for SVG */
 .step-landscape .logo-hint-zone {
     position: absolute;
-    top: 25px;
-    right: 25px;
-    width: 80px;
-    height: 80px;
-    border-radius: 12px;
-    border: 2px dashed #9ACD32;
-    background: rgba(0, 0, 0, 0.5);
+    top: 20px;
+    right: 20px;
+    /* Removed fixed width/height to let SVG scale */
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    transform: rotate(90deg);
+    transform: rotate(90deg); /* Keep rotation for landscape card */
+    opacity: 0.9;
 }
 
     .step-landscape .logo-hint-zone::before {
-        content: '';
-        display: block;
-        width: 24px;
-        height: 24px;
-        background-color: #9ACD32;
-        border-radius: 50% 50% 0 50%;
-        transform: rotate(45deg);
-        margin-bottom: 4px;
+        display: none;
     }
 
 .step-landscape .logo-label {
@@ -321,11 +311,12 @@
 /* Text Hint Zone (Rotated 90 deg) */
 .step-landscape .text-hint-zone {
     position: absolute;
-    top: 120px;
-    right: 25px;
-    width: 80px;
-    height: 50vh;
-    border: 1px dashed rgba(255,255,255,0.4);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(90deg);
+    width: 60vh; /* Based on height since it's rotated */
+    height: 60px;
+    border: 2px dashed rgba(255,255,255,0.5);
     border-radius: 8px;
     display: flex;
     align-items: center;
@@ -445,11 +436,12 @@
     width: 72px;
     height: 72px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.2);
-    border: 4px solid white;
+    background: rgba(255, 255, 255, 0.3); /* Semi-transparent outer ring */
+    border: 4px solid #fff; /* Solid white border */
     position: relative;
     cursor: pointer;
-    transition: transform 0.1s;
+    transition: transform 0.1s, background 0.2s;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5); /* Drop shadow to separate from background */
 }
 
     .camera-shutter::after {
@@ -458,14 +450,16 @@
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        width: 60px;
-        height: 60px;
+        width: 54px; /* Slightly smaller inner circle */
+        height: 54px;
         border-radius: 50%;
-        background: white;
+        background: #ffffff; /* Solid white inner button */
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
     }
 
     .camera-shutter:active {
         transform: scale(0.95);
+        background: rgba(255, 255, 255, 0.5);
     }
 
     .camera-shutter.processing {
