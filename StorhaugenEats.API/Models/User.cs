@@ -41,8 +41,23 @@ public class User
     [Column("updated_at")]
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    // New fields for user-centric social features
+    [Column("is_profile_public")]
+    public bool IsProfilePublic { get; set; } = true;
+
+    [Column("bio")]
+    [MaxLength(500)]
+    public string? Bio { get; set; }
+
+    [Column("favorite_cuisines", TypeName = "jsonb")]
+    public string FavoriteCuisines { get; set; } = "[]";
+
     // Navigation properties
     public Household? CurrentHousehold { get; set; }
+    public ICollection<UserRecipe> UserRecipes { get; set; } = new List<UserRecipe>();
+    public ICollection<UserFriendship> SentFriendRequests { get; set; } = new List<UserFriendship>();
+    public ICollection<UserFriendship> ReceivedFriendRequests { get; set; } = new List<UserFriendship>();
+    public ICollection<ActivityFeedItem> Activities { get; set; } = new List<ActivityFeedItem>();
 
     // Backward compatibility properties
     [NotMapped]

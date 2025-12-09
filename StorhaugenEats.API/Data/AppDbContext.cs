@@ -19,6 +19,11 @@ public class AppDbContext : DbContext
     public DbSet<HouseholdFriendship> HouseholdFriendships { get; set; }
     public DbSet<EtlSyncLog> EtlSyncLogs { get; set; }
 
+    // New user-centric tables
+    public DbSet<UserRecipe> UserRecipes { get; set; }
+    public DbSet<UserFriendship> UserFriendships { get; set; }
+    public DbSet<ActivityFeedItem> ActivityFeedItems { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -33,7 +38,11 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<HouseholdInvite>().ToTable("household_invites");
         modelBuilder.Entity<HouseholdFriendship>().ToTable("household_friendships");
         modelBuilder.Entity<EtlSyncLog>().ToTable("etl_sync_log");
-        modelBuilder.Entity<HouseholdFriendship>().ToTable("household_friendships");
+
+        // New user-centric tables
+        modelBuilder.Entity<UserRecipe>().ToTable("user_recipes");
+        modelBuilder.Entity<UserFriendship>().ToTable("user_friendships");
+        modelBuilder.Entity<ActivityFeedItem>().ToTable("activity_feed");
 
         // User configuration
         modelBuilder.Entity<User>(entity =>
@@ -223,6 +232,119 @@ public class AppDbContext : DbContext
             entity.Property(e => e.WeeksSynced).HasMaxLength(255);
 
             entity.HasIndex(e => e.StartedAt);
+        });
+
+        // ==========================================
+        // NEW USER-CENTRIC ENTITY CONFIGURATIONS
+        // ==========================================
+
+        // UserRecipe configuration
+        modelBuilder.Entity<UserRecipe>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.LocalTitle).HasMaxLength(255);
+            entity.Property(e => e.LocalIngredients).HasColumnType("jsonb");
+            entity.Property(e => e.LocalImageUrls).HasColumnType("jsonb").HasDefaultValue("[]");
+            entity.Property(e => e.Visibility).IsRequired().HasMaxLength(20).HasDefaultValue("private");
+            entity.Property(e => e.IsArchived).HasDefaultValue(false);
+
+            // Indexes for common queries
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.GlobalRecipeId);
+            entity.HasIndex(e => e.Visibility);
+            entity.HasIndex(e => e.CreatedAt);
+
+            // Relationships
+            entity.HasOne(e => e.User)
+                .WithMany(u => u.UserRecipes)
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.GlobalRecipe)
+                .WithMany()
+                .HasForeignKey(e => e.GlobalRecipeId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // UserFriendship configuration
+        modelBuilder.Entity<UserFriendship>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Status).IsRequired().HasMaxLength(20).HasDefaultValue("pending");
+            entity.Property(e => e.Message).HasMaxLength(255);
+
+            // Prevent duplicate friend requests between the same two users
+            entity.HasIndex(e => new { e.RequesterUserId, e.TargetUserId }).IsUnique();
+
+            // Indexes for common queries
+            entity.HasIndex(e => e.RequesterUserId);
+            entity.HasIndex(e => e.TargetUserId);
+            entity.HasIndex(e => e.Status);
+
+            // Prevent self-friending at database level
+            entity.ToTable(t => t.HasCheckConstraint("CK_UserFriendship_NoSelf", "requester_user_id != target_user_id"));
+
+            // Relationships
+            entity.HasOne(e => e.RequesterUser)
+                .WithMany(u => u.SentFriendRequests)
+                .HasForeignKey(e => e.RequesterUserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.TargetUser)
+                .WithMany(u => u.ReceivedFriendRequests)
+                .HasForeignKey(e => e.TargetUserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ActivityFeedItem configuration
+        modelBuilder.Entity<ActivityFeedItem>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ActivityType).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.TargetType).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Metadata).HasColumnType("jsonb").HasDefaultValue("{}");
+
+            // Indexes for efficient feed queries
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.CreatedAt).IsDescending();
+            entity.HasIndex(e => e.ActivityType);
+
+            // Composite index for feed pagination
+            entity.HasIndex(e => new { e.UserId, e.CreatedAt });
+
+            // Relationships
+            entity.HasOne(e => e.User)
+                .WithMany(u => u.Activities)
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Update Rating to support UserRecipe
+        modelBuilder.Entity<Rating>(entity =>
+        {
+            entity.HasOne(e => e.UserRecipe)
+                .WithMany(r => r.Ratings)
+                .HasForeignKey(e => e.UserRecipeId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Update GlobalRecipe for publishing relationship
+        modelBuilder.Entity<GlobalRecipe>(entity =>
+        {
+            entity.Property(e => e.IsEditable).HasDefaultValue(true);
+
+            entity.HasOne(e => e.PublishedFromUserRecipe)
+                .WithMany()
+                .HasForeignKey(e => e.PublishedFromUserRecipeId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // Update User with new fields
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.Property(e => e.IsProfilePublic).HasDefaultValue(true);
+            entity.Property(e => e.Bio).HasMaxLength(500);
+            entity.Property(e => e.FavoriteCuisines).HasColumnType("jsonb").HasDefaultValue("[]");
         });
     }
 }

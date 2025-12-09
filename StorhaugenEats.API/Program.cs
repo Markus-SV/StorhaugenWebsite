@@ -51,6 +51,11 @@ builder.Services.AddScoped<IHelloFreshScraperService, HelloFreshScraperService>(
 // HTTP Client for scraper
 builder.Services.AddHttpClient<IHelloFreshScraperService, HelloFreshScraperService>();
 
+// New User-Centric Services
+builder.Services.AddScoped<IUserFriendshipService, UserFriendshipService>();
+builder.Services.AddScoped<IActivityFeedService, ActivityFeedService>();
+builder.Services.AddScoped<IUserRecipeService, UserRecipeService>();
+
 // JWT Authentication (Supabase JWT)
 var jwtSecret = builder.Configuration["Supabase:JwtSecret"] ?? throw new InvalidOperationException("JWT Secret not configured");
 builder.Services.AddAuthentication(options =>

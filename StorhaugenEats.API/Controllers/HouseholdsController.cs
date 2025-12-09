@@ -16,11 +16,16 @@ public class HouseholdsController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IUserRecipeService _userRecipeService;
 
-    public HouseholdsController(AppDbContext context, ICurrentUserService currentUserService)
+    public HouseholdsController(
+        AppDbContext context,
+        ICurrentUserService currentUserService,
+        IUserRecipeService userRecipeService)
     {
         _context = context;
         _currentUserService = currentUserService;
+        _userRecipeService = userRecipeService;
     }
 
     /// <summary>
@@ -532,5 +537,49 @@ public class HouseholdsController : ControllerBase
         } while (await _context.Households.AnyAsync(h => h.UniqueShareId == shareId));
 
         return shareId;
+    }
+
+    // ==========================================
+    // NEW: HOUSEHOLD RECIPE AGGREGATION ENDPOINTS
+    // ==========================================
+
+    /// <summary>
+    /// Get combined recipes from all household members (the "Family Cookbook" view).
+    /// </summary>
+    [HttpGet("{id}/combined-recipes")]
+    public async Task<ActionResult<AggregatedRecipePagedResult>> GetCombinedRecipes(
+        Guid id,
+        [FromQuery] GetCombinedRecipesQuery query)
+    {
+        try
+        {
+            var userId = await _currentUserService.GetOrCreateUserIdAsync();
+            var result = await _userRecipeService.GetHouseholdRecipesAsync(id, userId, query);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Get "common favorites" - recipes that multiple household members have rated highly.
+    /// </summary>
+    [HttpGet("{id}/common-favorites")]
+    public async Task<ActionResult<List<CommonFavoriteDto>>> GetCommonFavorites(
+        Guid id,
+        [FromQuery] GetCommonFavoritesQuery query)
+    {
+        try
+        {
+            var userId = await _currentUserService.GetOrCreateUserIdAsync();
+            var result = await _userRecipeService.GetCommonFavoritesAsync(id, userId, query);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 }

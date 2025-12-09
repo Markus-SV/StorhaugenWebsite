@@ -92,8 +92,22 @@ public class GlobalRecipe
     [Column("updated_at")]
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    // Publishing-related fields
+    /// <summary>
+    /// Reference to the original UserRecipe this was published from (if any).
+    /// </summary>
+    [Column("published_from_user_recipe_id")]
+    public Guid? PublishedFromUserRecipeId { get; set; }
+
+    /// <summary>
+    /// Whether this recipe can be edited. HelloFresh recipes are not editable.
+    /// </summary>
+    [Column("is_editable")]
+    public bool IsEditable { get; set; } = true;
+
     // Navigation properties
     public User? CreatedByUser { get; set; }
+    public UserRecipe? PublishedFromUserRecipe { get; set; }
     public ICollection<Rating> Ratings { get; set; } = new List<Rating>();
 
     // Backward compatibility properties
