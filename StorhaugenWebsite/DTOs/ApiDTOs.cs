@@ -339,8 +339,10 @@ public class PublishRecipeResultDto
 
 public class GetUserRecipesQuery
 {
+    public string? Search { get; set; }
     public string? Visibility { get; set; }
     public bool IncludeArchived { get; set; } = false;
+    public bool? LinkedOnly { get; set; }
     public string SortBy { get; set; } = "date";
     public bool SortDescending { get; set; } = true;
     public int Page { get; set; } = 1;
@@ -349,7 +351,7 @@ public class GetUserRecipesQuery
 
 public class UserRecipePagedResult
 {
-    public List<UserRecipeDto> Recipes { get; set; } = new();
+    public List<UserRecipeDto> Items { get; set; } = new();
     public int TotalCount { get; set; }
     public int Page { get; set; }
     public int PageSize { get; set; }
@@ -378,11 +380,14 @@ public class UserFriendshipDto
     public DateTime CreatedAt { get; set; }
     public DateTime? RespondedAt { get; set; }
     public int RecipeCount { get; set; }
+
+    // For pending requests display
+    public string OtherUserName => FriendDisplayName;
 }
 
 public class FriendshipListDto
 {
-    public List<UserFriendshipDto> Friends { get; set; } = new();
+    public List<FriendProfileDto> Friends { get; set; } = new();
     public List<UserFriendshipDto> PendingSent { get; set; } = new();
     public List<UserFriendshipDto> PendingReceived { get; set; } = new();
     public int TotalFriends => Friends.Count;
@@ -393,7 +398,14 @@ public class SendUserFriendRequestDto
 {
     public Guid? TargetUserId { get; set; }
     public string? TargetShareId { get; set; }
+    public string? TargetEmail { get; set; }
     public string? Message { get; set; }
+}
+
+public enum FriendRequestAction
+{
+    Accept,
+    Reject
 }
 
 public class RespondUserFriendRequestDto
@@ -404,6 +416,7 @@ public class RespondUserFriendRequestDto
 public class FriendProfileDto
 {
     public Guid Id { get; set; }
+    public Guid FriendshipId { get; set; }
     public string DisplayName { get; set; } = string.Empty;
     public string? AvatarUrl { get; set; }
     public string ShareId { get; set; } = string.Empty;
@@ -411,16 +424,23 @@ public class FriendProfileDto
     public bool IsProfilePublic { get; set; }
     public List<string> FavoriteCuisines { get; set; } = new();
     public int RecipeCount { get; set; }
+    public int FriendCount { get; set; }
     public DateTime JoinedAt { get; set; }
 }
 
 public class UserSearchResultDto
 {
     public Guid Id { get; set; }
+    public Guid UserId => Id;
     public string DisplayName { get; set; } = string.Empty;
     public string? AvatarUrl { get; set; }
     public string ShareId { get; set; } = string.Empty;
     public string FriendshipStatus { get; set; } = "none";
+    public int MutualFriendCount { get; set; }
+
+    // Computed properties for UI
+    public bool IsFriend => FriendshipStatus == "accepted";
+    public bool HasPendingRequest { get; set; }
 }
 
 // ==========================================
@@ -440,7 +460,14 @@ public class ActivityFeedItemDto
     public string? RecipeImageUrl { get; set; }
     public int? RatingScore { get; set; }
     public string? HouseholdName { get; set; }
+    public string? TargetUserName { get; set; }
     public DateTime CreatedAt { get; set; }
+
+    // Aliases for component compatibility
+    public string ActorName => UserDisplayName;
+    public Guid? RecipeId => TargetType == "recipe" ? TargetId : null;
+    public string? RecipeTitle => RecipeName;
+    public int? Rating => RatingScore;
 
     public string Description => ActivityType switch
     {
@@ -454,8 +481,8 @@ public class ActivityFeedItemDto
 
 public class ActivityFeedQuery
 {
-    public List<string>? Types { get; set; }
-    public List<Guid>? UserIds { get; set; }
+    public List<string>? ActivityTypes { get; set; }
+    public List<Guid>? FriendIds { get; set; }
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 20;
 }
@@ -468,6 +495,7 @@ public class ActivityFeedPagedResult
     public int PageSize { get; set; }
     public int TotalPages => (int)Math.Ceiling(TotalCount / (double)PageSize);
     public bool HasMore => Page < TotalPages;
+    public bool HasNextPage => Page < TotalPages;
 }
 
 public class ActivitySummaryDto
@@ -540,9 +568,20 @@ public class GetCommonFavoritesQuery
     public int Limit { get; set; } = 20;
 }
 
+public class AggregatedRecipeQuery
+{
+    public string? Search { get; set; }
+    public List<Guid>? MemberIds { get; set; }
+    public int? MinimumRating { get; set; }
+    public string SortBy { get; set; } = "date";
+    public bool SortDescending { get; set; } = true;
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 50;
+}
+
 public class AggregatedRecipePagedResult
 {
-    public List<AggregatedRecipeDto> Recipes { get; set; } = new();
+    public List<AggregatedRecipeDto> Items { get; set; } = new();
     public int TotalCount { get; set; }
     public int Page { get; set; }
     public int PageSize { get; set; }

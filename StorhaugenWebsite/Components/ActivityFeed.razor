@@ -1,0 +1,260 @@
+@using MudBlazor
+@using StorhaugenWebsite.DTOs
+@using StorhaugenWebsite.Services
+@inject IActivityFeedService FeedService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<div class="activity-feed">
+    @if (_isLoading)
+    {
+        <div class="d-flex flex-column gap-3">
+            @for (int i = 0; i < 5; i++)
+            {
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="80px" />
+            }
+        </div>
+    }
+    else if (!_feedItems.Any())
+    {
+        <div class="empty-state">
+            <MudIcon Icon="@Icons.Material.Rounded.RssFeed" Size="Size.Large" Color="Color.Default" />
+            <MudText Typo="Typo.h6" Class="mt-2">Ingen aktivitet ennå</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Legg til venner for å se hva de lager!
+            </MudText>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Href="/friends" Class="mt-3">
+                Finn venner
+            </MudButton>
+        </div>
+    }
+    else
+    {
+        <div class="d-flex flex-column gap-3">
+            @foreach (var item in _feedItems)
+            {
+                <MudPaper Class="pa-3 activity-card" Elevation="1" @onclick="() => NavigateToRecipe(item)">
+                    <div class="d-flex gap-3">
+                        <MudAvatar Color="@GetActivityColor(item.ActivityType)" Size="Size.Medium">
+                            @(item.ActorName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                        </MudAvatar>
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-center gap-2">
+                                <MudText Typo="Typo.body1" Class="font-weight-medium">
+                                    @item.ActorName
+                                </MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @GetTimeAgo(item.CreatedAt)
+                                </MudText>
+                            </div>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">
+                                @GetActivityDescription(item)
+                            </MudText>
+                            @if (!string.IsNullOrEmpty(item.RecipeTitle))
+                            {
+                                <div class="d-flex align-center gap-2 mt-2">
+                                    <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small" Color="Color.Default" />
+                                    <MudText Typo="Typo.body2" Class="font-weight-medium">@item.RecipeTitle</MudText>
+                                    @if (item.Rating.HasValue)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="@GetRatingColor(item.Rating.Value)">
+                                            @item.Rating.Value/10
+                                        </MudChip>
+                                    }
+                                </div>
+                            }
+                        </div>
+                        @if (!string.IsNullOrEmpty(item.RecipeImageUrl))
+                        {
+                            <MudImage Src="@item.RecipeImageUrl"
+                                     Alt="@item.RecipeTitle"
+                                     Width="60"
+                                     Height="60"
+                                     ObjectFit="ObjectFit.Cover"
+                                     Class="rounded" />
+                        }
+                    </div>
+                </MudPaper>
+            }
+        </div>
+
+        @if (_hasMorePages)
+        {
+            <div class="d-flex justify-center mt-4">
+                <MudButton Variant="Variant.Outlined"
+                          Color="Color.Primary"
+                          OnClick="LoadMore"
+                          Disabled="_isLoadingMore">
+                    @if (_isLoadingMore)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    }
+                    Last inn mer
+                </MudButton>
+            </div>
+        }
+    }
+</div>
+
+<style>
+    .activity-card {
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .activity-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public bool ShowOnlyMyActivity { get; set; } = false;
+
+    [Parameter]
+    public int PageSize { get; set; } = 20;
+
+    private List<ActivityFeedItemDto> _feedItems = new();
+    private bool _isLoading = true;
+    private bool _isLoadingMore = false;
+    private bool _hasMorePages = false;
+    private int _currentPage = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFeed();
+    }
+
+    private async Task LoadFeed()
+    {
+        _isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            ActivityFeedPagedResult result;
+            if (ShowOnlyMyActivity)
+            {
+                result = await FeedService.GetMyActivityAsync(_currentPage, PageSize);
+            }
+            else
+            {
+                result = await FeedService.GetFeedAsync(new ActivityFeedQuery
+                {
+                    Page = _currentPage,
+                    PageSize = PageSize
+                });
+            }
+
+            _feedItems = result.Items;
+            _hasMorePages = result.HasNextPage;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Kunne ikke laste aktivitetsfeed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadMore()
+    {
+        _isLoadingMore = true;
+        _currentPage++;
+        StateHasChanged();
+
+        try
+        {
+            ActivityFeedPagedResult result;
+            if (ShowOnlyMyActivity)
+            {
+                result = await FeedService.GetMyActivityAsync(_currentPage, PageSize);
+            }
+            else
+            {
+                result = await FeedService.GetFeedAsync(new ActivityFeedQuery
+                {
+                    Page = _currentPage,
+                    PageSize = PageSize
+                });
+            }
+
+            _feedItems.AddRange(result.Items);
+            _hasMorePages = result.HasNextPage;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Kunne ikke laste mer: {ex.Message}", Severity.Error);
+            _currentPage--;
+        }
+        finally
+        {
+            _isLoadingMore = false;
+            StateHasChanged();
+        }
+    }
+
+    private void NavigateToRecipe(ActivityFeedItemDto item)
+    {
+        if (item.RecipeId.HasValue)
+        {
+            Navigation.NavigateTo($"/food/{item.RecipeId}");
+        }
+    }
+
+    private Color GetActivityColor(string activityType)
+    {
+        return activityType switch
+        {
+            "recipe_rated" => Color.Warning,
+            "recipe_added" => Color.Success,
+            "recipe_published" => Color.Info,
+            "friend_added" => Color.Primary,
+            _ => Color.Default
+        };
+    }
+
+    private Color GetRatingColor(int rating)
+    {
+        return rating switch
+        {
+            >= 8 => Color.Success,
+            >= 5 => Color.Warning,
+            _ => Color.Error
+        };
+    }
+
+    private string GetActivityDescription(ActivityFeedItemDto item)
+    {
+        return item.ActivityType switch
+        {
+            "recipe_rated" => $"ga en vurdering",
+            "recipe_added" => "la til en ny oppskrift",
+            "recipe_published" => "publiserte en oppskrift",
+            "friend_added" => $"ble venn med {item.TargetUserName}",
+            "recipe_forked" => "kopierte en oppskrift",
+            _ => item.ActivityType
+        };
+    }
+
+    private string GetTimeAgo(DateTime dateTime)
+    {
+        var diff = DateTime.UtcNow - dateTime;
+
+        if (diff.TotalMinutes < 1)
+            return "akkurat nå";
+        if (diff.TotalMinutes < 60)
+            return $"{(int)diff.TotalMinutes} min siden";
+        if (diff.TotalHours < 24)
+            return $"{(int)diff.TotalHours} t siden";
+        if (diff.TotalDays < 7)
+            return $"{(int)diff.TotalDays} d siden";
+        if (diff.TotalDays < 30)
+            return $"{(int)(diff.TotalDays / 7)} u siden";
+
+        return dateTime.ToString("dd. MMM");
+    }
+}

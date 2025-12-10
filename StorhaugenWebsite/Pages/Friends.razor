@@ -1,0 +1,333 @@
+@page "/friends"
+@using Microsoft.AspNetCore.Authorization
+@using MudBlazor
+@using StorhaugenWebsite.DTOs
+@using StorhaugenWebsite.Services
+@inject IUserFriendshipService FriendshipService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@attribute [Authorize]
+
+<MudText Typo="Typo.h5" Class="mb-4">Venner</MudText>
+
+<MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" Class="mb-4">
+    <MudTabPanel Text="Venner" BadgeData="@_friends.Count" BadgeColor="Color.Primary">
+        @if (_isLoading)
+        {
+            <div class="d-flex flex-column gap-3 mt-4">
+                @for (int i = 0; i < 3; i++)
+                {
+                    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="60px" />
+                }
+            </div>
+        }
+        else if (!_friends.Any())
+        {
+            <div class="empty-state mt-4">
+                <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Large" Color="Color.Default" />
+                <MudText Typo="Typo.h6" Class="mt-2">Ingen venner ennå</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Søk etter brukere for å legge til venner</MudText>
+            </div>
+        }
+        else
+        {
+            <div class="d-flex flex-column gap-2 mt-4">
+                @foreach (var friend in _friends)
+                {
+                    <MudPaper Class="pa-3" Elevation="1">
+                        <div class="d-flex align-center gap-3">
+                            <MudAvatar Color="Color.Primary" Size="Size.Medium">
+                                @(friend.DisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                            </MudAvatar>
+                            <div class="flex-grow-1">
+                                <MudText Typo="Typo.body1">@friend.DisplayName</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @friend.RecipeCount oppskrifter · @friend.FriendCount venner
+                                </MudText>
+                            </div>
+                            <MudIconButton Icon="@Icons.Material.Rounded.PersonRemove"
+                                          Color="Color.Error"
+                                          Size="Size.Small"
+                                          OnClick="@(() => RemoveFriend(friend))" />
+                        </div>
+                    </MudPaper>
+                }
+            </div>
+        }
+    </MudTabPanel>
+
+    <MudTabPanel Text="Forespørsler" BadgeData="@_pendingReceived.Count" BadgeColor="Color.Warning">
+        @if (_pendingReceived.Any())
+        {
+            <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2">Mottatte forespørsler</MudText>
+            <div class="d-flex flex-column gap-2">
+                @foreach (var request in _pendingReceived)
+                {
+                    <MudPaper Class="pa-3" Elevation="1">
+                        <div class="d-flex align-center gap-3">
+                            <MudAvatar Color="Color.Secondary" Size="Size.Medium">
+                                @(request.OtherUserName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                            </MudAvatar>
+                            <div class="flex-grow-1">
+                                <MudText Typo="Typo.body1">@request.OtherUserName</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    Sendt @request.CreatedAt.ToString("dd. MMM")
+                                </MudText>
+                            </div>
+                            <MudButtonGroup Variant="Variant.Outlined" Size="Size.Small">
+                                <MudButton Color="Color.Success" OnClick="@(() => AcceptRequest(request))">
+                                    Godta
+                                </MudButton>
+                                <MudButton Color="Color.Error" OnClick="@(() => RejectRequest(request))">
+                                    Avslå
+                                </MudButton>
+                            </MudButtonGroup>
+                        </div>
+                    </MudPaper>
+                }
+            </div>
+        }
+
+        @if (_pendingSent.Any())
+        {
+            <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2">Sendte forespørsler</MudText>
+            <div class="d-flex flex-column gap-2">
+                @foreach (var request in _pendingSent)
+                {
+                    <MudPaper Class="pa-3" Elevation="1">
+                        <div class="d-flex align-center gap-3">
+                            <MudAvatar Color="Color.Tertiary" Size="Size.Medium">
+                                @(request.OtherUserName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                            </MudAvatar>
+                            <div class="flex-grow-1">
+                                <MudText Typo="Typo.body1">@request.OtherUserName</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    Venter på svar...
+                                </MudText>
+                            </div>
+                            <MudIconButton Icon="@Icons.Material.Rounded.Cancel"
+                                          Color="Color.Default"
+                                          Size="Size.Small"
+                                          OnClick="@(() => CancelRequest(request))" />
+                        </div>
+                    </MudPaper>
+                }
+            </div>
+        }
+
+        @if (!_pendingReceived.Any() && !_pendingSent.Any())
+        {
+            <div class="empty-state mt-4">
+                <MudIcon Icon="@Icons.Material.Rounded.MarkEmailRead" Size="Size.Large" Color="Color.Default" />
+                <MudText Typo="Typo.h6" Class="mt-2">Ingen ventende forespørsler</MudText>
+            </div>
+        }
+    </MudTabPanel>
+
+    <MudTabPanel Text="Søk" Icon="@Icons.Material.Rounded.Search">
+        <div class="mt-4">
+            <MudTextField @bind-Value="_searchQuery"
+                         Label="Søk etter brukere"
+                         Variant="Variant.Outlined"
+                         Adornment="Adornment.End"
+                         AdornmentIcon="@Icons.Material.Rounded.Search"
+                         OnAdornmentClick="SearchUsers"
+                         OnKeyDown="@(async (e) => { if (e.Key == "Enter") await SearchUsers(); })"
+                         Immediate="true"
+                         Class="mb-4" />
+
+            @if (_isSearching)
+            {
+                <div class="d-flex flex-column gap-2">
+                    @for (int i = 0; i < 3; i++)
+                    {
+                        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="60px" />
+                    }
+                </div>
+            }
+            else if (_searchResults.Any())
+            {
+                <div class="d-flex flex-column gap-2">
+                    @foreach (var user in _searchResults)
+                    {
+                        <MudPaper Class="pa-3" Elevation="1">
+                            <div class="d-flex align-center gap-3">
+                                <MudAvatar Color="Color.Info" Size="Size.Medium">
+                                    @(user.DisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                                </MudAvatar>
+                                <div class="flex-grow-1">
+                                    <MudText Typo="Typo.body1">@user.DisplayName</MudText>
+                                    @if (user.MutualFriendCount > 0)
+                                    {
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                            @user.MutualFriendCount felles venner
+                                        </MudText>
+                                    }
+                                </div>
+                                @if (user.IsFriend)
+                                {
+                                    <MudChip T="string" Color="Color.Success" Size="Size.Small">Venn</MudChip>
+                                }
+                                else if (user.HasPendingRequest)
+                                {
+                                    <MudChip T="string" Color="Color.Warning" Size="Size.Small">Venter</MudChip>
+                                }
+                                else
+                                {
+                                    <MudButton Variant="Variant.Outlined"
+                                              Color="Color.Primary"
+                                              Size="Size.Small"
+                                              StartIcon="@Icons.Material.Rounded.PersonAdd"
+                                              OnClick="@(() => SendFriendRequest(user))">
+                                        Legg til
+                                    </MudButton>
+                                }
+                            </div>
+                        </MudPaper>
+                    }
+                </div>
+            }
+            else if (!string.IsNullOrEmpty(_searchQuery) && _hasSearched)
+            {
+                <div class="empty-state">
+                    <MudIcon Icon="@Icons.Material.Rounded.SearchOff" Size="Size.Large" Color="Color.Default" />
+                    <MudText Typo="Typo.body1" Class="mt-2">Ingen brukere funnet</MudText>
+                </div>
+            }
+        </div>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private List<FriendProfileDto> _friends = new();
+    private List<UserFriendshipDto> _pendingReceived = new();
+    private List<UserFriendshipDto> _pendingSent = new();
+    private List<UserSearchResultDto> _searchResults = new();
+    private string _searchQuery = "";
+    private bool _isLoading = true;
+    private bool _isSearching = false;
+    private bool _hasSearched = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFriendships();
+    }
+
+    private async Task LoadFriendships()
+    {
+        _isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var friendships = await FriendshipService.GetFriendshipsAsync();
+            _friends = friendships.Friends ?? new();
+            _pendingReceived = friendships.PendingReceived ?? new();
+            _pendingSent = friendships.PendingSent ?? new();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Kunne ikke laste venner: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SearchUsers()
+    {
+        if (string.IsNullOrWhiteSpace(_searchQuery)) return;
+
+        _isSearching = true;
+        _hasSearched = true;
+        StateHasChanged();
+
+        try
+        {
+            _searchResults = await FriendshipService.SearchUsersAsync(_searchQuery);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Søk feilet: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSearching = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SendFriendRequest(UserSearchResultDto user)
+    {
+        try
+        {
+            await FriendshipService.SendFriendRequestAsync(user.UserId);
+            user.HasPendingRequest = true;
+            Snackbar.Add($"Venneforespørsel sendt til {user.DisplayName}", Severity.Success);
+            await LoadFriendships();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Kunne ikke sende forespørsel: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task AcceptRequest(UserFriendshipDto request)
+    {
+        try
+        {
+            await FriendshipService.AcceptFriendRequestAsync(request.Id);
+            Snackbar.Add($"Du er nå venn med {request.OtherUserName}!", Severity.Success);
+            await LoadFriendships();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Kunne ikke godta forespørsel: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task RejectRequest(UserFriendshipDto request)
+    {
+        try
+        {
+            await FriendshipService.RejectFriendRequestAsync(request.Id);
+            Snackbar.Add("Forespørsel avslått", Severity.Info);
+            await LoadFriendships();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Kunne ikke avslå forespørsel: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task CancelRequest(UserFriendshipDto request)
+    {
+        try
+        {
+            await FriendshipService.RemoveFriendAsync(request.Id);
+            Snackbar.Add("Forespørsel kansellert", Severity.Info);
+            await LoadFriendships();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Kunne ikke kansellere forespørsel: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task RemoveFriend(FriendProfileDto friend)
+    {
+        try
+        {
+            await FriendshipService.RemoveFriendAsync(friend.FriendshipId);
+            Snackbar.Add($"{friend.DisplayName} fjernet fra venner", Severity.Info);
+            await LoadFriendships();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Kunne ikke fjerne venn: {ex.Message}", Severity.Error);
+        }
+    }
+}
