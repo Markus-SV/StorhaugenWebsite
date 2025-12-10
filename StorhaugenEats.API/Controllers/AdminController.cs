@@ -14,11 +14,16 @@ namespace StorhaugenEats.API.Controllers;
 public class AdminController : ControllerBase
 {
     private readonly IDataMigrationService _migrationService;
+    private readonly IMigrationVerificationService _verificationService;
     private readonly ILogger<AdminController> _logger;
 
-    public AdminController(IDataMigrationService migrationService, ILogger<AdminController> logger)
+    public AdminController(
+        IDataMigrationService migrationService,
+        IMigrationVerificationService verificationService,
+        ILogger<AdminController> logger)
     {
         _migrationService = migrationService;
+        _verificationService = verificationService;
         _logger = logger;
     }
 
@@ -153,6 +158,101 @@ public class AdminController : ControllerBase
         {
             _logger.LogError(ex, "Friendships migration failed");
             return StatusCode(500, new { error = "Friendships migration failed", message = ex.Message });
+        }
+    }
+
+    // ==================== Verification Endpoints ====================
+
+    /// <summary>
+    /// Runs all verification checks on the migrated data.
+    /// </summary>
+    [HttpGet("migration/verify")]
+    public async Task<ActionResult<VerificationReport>> RunVerification()
+    {
+        try
+        {
+            _logger.LogInformation("Running full migration verification");
+
+            var report = await _verificationService.RunAllVerificationsAsync();
+
+            return Ok(report);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Migration verification failed");
+            return StatusCode(500, new { error = "Verification failed", message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Verifies that all household recipes have been migrated to user recipes.
+    /// </summary>
+    [HttpGet("migration/verify/recipes")]
+    public async Task<ActionResult<VerificationResult>> VerifyRecipes()
+    {
+        try
+        {
+            var result = await _verificationService.VerifyRecipeMigrationAsync();
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Recipe verification failed");
+            return StatusCode(500, new { error = "Recipe verification failed", message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Verifies that all ratings have been properly migrated.
+    /// </summary>
+    [HttpGet("migration/verify/ratings")]
+    public async Task<ActionResult<VerificationResult>> VerifyRatings()
+    {
+        try
+        {
+            var result = await _verificationService.VerifyRatingMigrationAsync();
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Rating verification failed");
+            return StatusCode(500, new { error = "Rating verification failed", message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Verifies data integrity between household and user recipes.
+    /// </summary>
+    [HttpGet("migration/verify/integrity")]
+    public async Task<ActionResult<VerificationResult>> VerifyIntegrity()
+    {
+        try
+        {
+            var result = await _verificationService.VerifyDataIntegrityAsync();
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Data integrity verification failed");
+            return StatusCode(500, new { error = "Integrity verification failed", message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Checks for orphaned records that reference non-existent entities.
+    /// </summary>
+    [HttpGet("migration/verify/orphans")]
+    public async Task<ActionResult<VerificationResult>> CheckOrphanedRecords()
+    {
+        try
+        {
+            var result = await _verificationService.CheckOrphanedRecordsAsync();
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Orphaned records check failed");
+            return StatusCode(500, new { error = "Orphaned records check failed", message = ex.Message });
         }
     }
 }
