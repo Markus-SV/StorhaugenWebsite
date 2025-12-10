@@ -1,4 +1,8 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="context_for_ai.txt" />
+    <File Path="gen.ps1" />
+  </Folder>
   <Project Path="StorhaugenEats.API/StorhaugenEats.API.csproj" />
   <Project Path="StorhaugenWebsite.Shared/StorhaugenWebsite.Shared.csproj" />
   <Project Path="StorhaugenWebsite/StorhaugenWebsite.csproj" />
