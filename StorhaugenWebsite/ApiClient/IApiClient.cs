@@ -49,5 +49,37 @@ public interface IApiClient
     // Storage
     Task<UploadImageResultDto> UploadImageAsync(byte[] imageData, string fileName);
     Task DeleteImageAsync(string fileName);
+
+    // User Recipes (user-centric recipe management)
+    Task<UserRecipePagedResult> GetMyUserRecipesAsync(GetUserRecipesQuery query);
+    Task<UserRecipeDto?> GetUserRecipeAsync(Guid id);
+    Task<UserRecipeDto> CreateUserRecipeAsync(CreateUserRecipeDto dto);
+    Task<UserRecipeDto> UpdateUserRecipeAsync(Guid id, UpdateUserRecipeDto dto);
+    Task DeleteUserRecipeAsync(Guid id);
+    Task<PublishRecipeResultDto> PublishUserRecipeAsync(Guid id);
+    Task<UserRecipeDto> DetachUserRecipeAsync(Guid id);
+    Task<UserRecipeDto> RateUserRecipeAsync(Guid id, int rating, string? comment = null);
+    Task RemoveUserRecipeRatingAsync(Guid id);
+    Task<UserRecipeDto> ArchiveUserRecipeAsync(Guid id);
+    Task<UserRecipeDto> RestoreUserRecipeAsync(Guid id);
+
+    // User Friendships
+    Task<FriendshipListDto> GetFriendshipsAsync();
+    Task<List<FriendProfileDto>> GetFriendsAsync();
+    Task<UserFriendshipDto?> GetFriendshipAsync(Guid id);
+    Task<UserFriendshipDto> SendFriendRequestAsync(SendUserFriendRequestDto dto);
+    Task<UserFriendshipDto> RespondToFriendRequestAsync(Guid id, FriendRequestAction action);
+    Task RemoveFriendshipAsync(Guid id);
+    Task<List<UserSearchResultDto>> SearchUsersAsync(string query, int limit = 20);
+    Task<FriendProfileDto?> GetUserProfileAsync(Guid userId);
+
+    // Activity Feed
+    Task<ActivityFeedPagedResult> GetFeedAsync(ActivityFeedQuery query);
+    Task<ActivityFeedPagedResult> GetMyActivityAsync(int page = 1, int pageSize = 20);
+    Task<ActivitySummaryDto> GetActivitySummaryAsync();
+
+    // Household Recipe Aggregation
+    Task<AggregatedRecipePagedResult> GetHouseholdCombinedRecipesAsync(Guid householdId, AggregatedRecipeQuery query);
+    Task<List<CommonFavoriteDto>> GetHouseholdCommonFavoritesAsync(Guid householdId, int minimumMembers = 2, int limit = 10);
 }
 
