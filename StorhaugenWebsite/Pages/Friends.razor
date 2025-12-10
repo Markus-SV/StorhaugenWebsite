@@ -253,9 +253,9 @@
                                     <MudText Typo="Typo.subtitle1" Class="font-weight-medium">@recipe.Name</MudText>
                                     <div class="d-flex align-center gap-2 mt-1">
                                         <MudAvatar Color="Color.Primary" Size="Size.Small" Style="width: 20px; height: 20px; font-size: 0.65rem;">
-                                            @(recipe.OwnerDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                                            @(recipe.UserDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
                                         </MudAvatar>
-                                        <MudText Typo="Typo.caption" Color="Color.Secondary">@recipe.OwnerDisplayName</MudText>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">@recipe.UserDisplayName</MudText>
                                     </div>
                                     @if (recipe.MyRating.HasValue)
                                     {
