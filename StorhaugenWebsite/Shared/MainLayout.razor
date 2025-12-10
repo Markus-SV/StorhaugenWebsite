@@ -45,9 +45,9 @@
                     <span>Hjem</span>
                 </button>
 
-                <button class="nav-item @(IsActive("browse") ? "active" : "")" @onclick="@(() => Navigate("browse"))">
-                    <MudIcon Icon="@(IsActive("browse") ? Icons.Material.Rounded.Explore : Icons.Material.Outlined.Explore)" Size="Size.Small" />
-                    <span>Utforsk</span>
+                <button class="nav-item @(IsActive("cookbook") ? "active" : "")" @onclick="@(() => Navigate("cookbook"))">
+                    <MudIcon Icon="@(IsActive("cookbook") ? Icons.Material.Rounded.MenuBook : Icons.Material.Outlined.MenuBook)" Size="Size.Small" />
+                    <span>Kokebok</span>
                 </button>
 
                 <button class="nav-item nav-item-add @(IsActive("add") ? "active" : "")" @onclick="@(() => Navigate("add"))">

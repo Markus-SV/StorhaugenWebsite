@@ -1,0 +1,238 @@
+@page "/cookbook"
+@using Microsoft.AspNetCore.Authorization
+@using StorhaugenWebsite.ApiClient
+@using StorhaugenWebsite.Shared.DTOs
+@using StorhaugenWebsite.Services
+@using StorhaugenWebsite.Models
+@inject IUserRecipeService RecipeService
+@inject IHouseholdStateService HouseholdState
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject IDeviceStateService DeviceState
+@inject IApiClient ApiClient
+@attribute [Authorize]
+
+<div class="cookbook-header d-flex flex-column gap-3 mb-4">
+    <div class="d-flex justify-space-between align-center">
+        <MudText Typo="Typo.h4" Style="font-family: 'Fraunces', serif;">Kokebok</MudText>
+
+        @* View Toggle *@
+        <div class="view-toggle">
+            <button class="view-toggle-btn @(_viewMode == "card" ? "active" : "")" @onclick="@(() => SetViewMode("card"))">
+                <MudIcon Icon="@Icons.Material.Rounded.GridView" Size="Size.Small" />
+            </button>
+            <button class="view-toggle-btn @(_viewMode == "list" ? "active" : "")" @onclick="@(() => SetViewMode("list"))">
+                <MudIcon Icon="@Icons.Material.Rounded.ViewList" Size="Size.Small" />
+            </button>
+        </div>
+    </div>
+
+    @* Search Bar *@
+    <MudTextField @bind-Value="_searchQuery"
+                  Placeholder="Søk i oppskrifter..."
+                  Variant="Variant.Outlined"
+                  Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Rounded.Search"
+                  Immediate="true"
+                  DebounceInterval="300"
+                  OnDebounceIntervalElapsed="OnSearchChanged"
+                  Class="search-field"
+                  Margin="Margin.Dense" />
+
+    @* Filters *@
+    <div class="d-flex gap-2 overflow-x-auto py-1">
+        <MudChip T="string" Variant="@(_filterMode == "all" ? Variant.Filled : Variant.Outlined)"
+                 Color="Color.Primary" OnClick="@(() => SetFilter("all"))">Alle</MudChip>
+        <MudChip T="string" Variant="@(_filterMode == "mine" ? Variant.Filled : Variant.Outlined)"
+                 Color="Color.Primary" OnClick="@(() => SetFilter("mine"))">Mine</MudChip>
+        <MudChip T="string" Variant="@(_filterMode == "favorites" ? Variant.Filled : Variant.Outlined)"
+                 Color="Color.Primary" OnClick="@(() => SetFilter("favorites"))" Icon="@Icons.Material.Rounded.Star">Favoritter</MudChip>
+    </div>
+</div>
+
+@if (_isLoading)
+{
+    <div class="d-flex flex-column gap-3">
+        @for (int i = 0; i < 4; i++)
+        {
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="100px" Class="rounded-lg" />
+        }
+    </div>
+}
+else if (!_recipes.Any())
+{
+    <div class="empty-state pa-8 text-center">
+        <MudIcon Icon="@Icons.Material.Rounded.MenuBook" Size="Size.Large" Color="Color.Default" />
+        <MudText Typo="Typo.h6" Class="mt-3">Ingen oppskrifter funnet</MudText>
+        <MudButton Variant="Variant.Text" Color="Color.Primary" Href="add">Legg til ny oppskrift</MudButton>
+    </div>
+}
+else
+{
+    <div class="@(_viewMode == "card" ? "d-flex flex-column gap-4" : "d-flex flex-column gap-2")">
+        @foreach (var recipe in _recipes)
+        {
+            <div class="@(_viewMode == "card" ? "food-card" : "food-list-item") animate-in"
+                 @onclick="() => OpenRecipe(recipe.UserRecipeId)">
+
+                @* Image Section *@
+                @if (recipe.ImageUrls.Any())
+                {
+                    <img src="@recipe.ImageUrls.First()" class="@(_viewMode == "card" ? "food-card-image" : "food-list-image")" />
+                }
+                else
+                {
+                    <div class="@(_viewMode == "card" ? "food-card-placeholder" : "food-list-placeholder")">
+                        <MudIcon Icon="@Icons.Material.Rounded.Restaurant" />
+                    </div>
+                }
+
+                @* Content Section *@
+                <div class="@(_viewMode == "card" ? "food-card-content" : "food-list-content")">
+                    <div class="d-flex justify-space-between align-start">
+                        <div>
+                            <h3 class="@(_viewMode == "card" ? "food-card-title" : "food-list-title")">@recipe.Name</h3>
+
+                            @* Owner / Added By Info *@
+                            <div class="d-flex align-center gap-1 mt-1">
+                                <MudIcon Icon="@Icons.Material.Rounded.Person" Size="Size.Small" Style="font-size: 12px; opacity: 0.7;" />
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @(recipe.OwnerDisplayName == AuthService.CurrentUserName ? "Deg" : recipe.OwnerDisplayName)
+                                </MudText>
+                            </div>
+                        </div>
+
+                        @* Rating Badge *@
+                        @if (recipe.HouseholdAverageRating > 0)
+                        {
+                            <span class="rating-badge @GetRatingClass(recipe.HouseholdAverageRating)">
+                                <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" Style="font-size: 12px;" />
+                                @recipe.HouseholdAverageRating.ToString("0.0")
+                            </span>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    // We use AggregatedRecipeDto to support the merged view [cite: 3423]
+    private List<AggregatedRecipeDto> _recipes = new();
+    private bool _isLoading = true;
+
+    // State
+    private string _searchQuery = "";
+    private string _filterMode = "all"; // all, mine, favorites
+    private string _viewMode = "card";
+    private Guid? _currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await HouseholdState.InitializeAsync();
+
+        // Get user ID from claims or state for filtering "Mine"
+        // Note: In a real app, parse the JWT or get from profile service.
+        // For filtering logic below, we rely on the API query parameters.
+
+        // Load view preference
+        _viewMode = DeviceState.Settings.ViewMode ?? "card";
+
+        await LoadRecipes();
+    }
+
+    private async Task LoadRecipes()
+    {
+        _isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            // If user has a household, fetch the merged list
+            if (HouseholdState.HasHousehold && HouseholdState.CurrentHousehold != null)
+            {
+                var query = new GetCombinedRecipesQuery
+                {
+                    Search = _searchQuery,
+                    PageSize = 50,
+                    SortDescending = true
+                };
+
+                // Apply Filters
+                if (_filterMode == "mine")
+                {
+                    // FilterByMembers expects a List<Guid>.
+                    // We need the current user's ID. Assuming AuthService or UserProfile has it.
+                    // If not readily available in frontend memory, we might need to fetch profile first.
+                    var user = await ApiClient.GetMyProfileAsync();
+                    if (user != null) query.FilterByMembers = new List<Guid> { user.Id };
+                }
+                else if (_filterMode == "favorites")
+                {
+                    query.MinRating = 8.0; // Show high rated items
+                }
+
+                var result = await RecipeService.GetHouseholdCombinedRecipesAsync(HouseholdState.CurrentHousehold.Id, query);
+                _recipes = result.Recipes;
+            }
+            else
+            {
+                // Fallback for users without household: Get generic "My Recipes" [cite: 1189]
+                var query = new GetUserRecipesQuery { PageSize = 50 };
+                var result = await RecipeService.GetMyRecipesAsync(query);
+
+                // Map UserRecipeDto to AggregatedRecipeDto for consistent UI
+                _recipes = result.Recipes.Select(r => new AggregatedRecipeDto
+                {
+                    UserRecipeId = r.Id,
+                    Name = r.Name,
+                    ImageUrls = r.ImageUrls,
+                    HouseholdAverageRating = r.AverageRating,
+                    OwnerDisplayName = "Deg"
+                }).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SetFilter(string mode)
+    {
+        _filterMode = mode;
+        await LoadRecipes();
+    }
+
+    private async Task SetViewMode(string mode)
+    {
+        _viewMode = mode;
+        await DeviceState.SetViewModeAsync(mode);
+    }
+
+    private async Task OnSearchChanged(string value)
+    {
+        await LoadRecipes();
+    }
+
+    private void OpenRecipe(Guid id)
+    {
+        Navigation.NavigateTo($"food/{id}");
+    }
+
+    private string GetRatingClass(double rating)
+    {
+        return rating switch
+        {
+            >= 8 => "rating-high",
+            >= 5 => "rating-medium",
+            _ => "rating-low"
+        };
+    }
+}

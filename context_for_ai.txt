@@ -1,11 +1,10 @@
 ================================================================================
 PROJECT CONTEXT FILE
-Generated on: 12/10/2025 20:30:15
+Generated on: 12/10/2025 21:12:03
 ================================================================================
 PROJECT STRUCTURE:
 ==================
 \database\schema.sql
-\StorhaugenEats.API\Controllers\AdminController.cs
 \StorhaugenEats.API\Controllers\FeedController.cs
 \StorhaugenEats.API\Controllers\FriendshipsController.cs
 \StorhaugenEats.API\Controllers\GlobalRecipesController.cs
@@ -33,25 +32,21 @@ PROJECT STRUCTURE:
 \StorhaugenEats.API\Models\UserRecipe.cs
 \StorhaugenEats.API\Services\ActivityFeedService.cs
 \StorhaugenEats.API\Services\CurrentUserService.cs
-\StorhaugenEats.API\Services\DataMigrationService.cs
 \StorhaugenEats.API\Services\GlobalRecipeService.cs
 \StorhaugenEats.API\Services\HelloFreshScraperService.cs
 \StorhaugenEats.API\Services\HouseholdRecipeService.cs
 \StorhaugenEats.API\Services\HouseholdService.cs
 \StorhaugenEats.API\Services\IActivityFeedService.cs
 \StorhaugenEats.API\Services\ICurrentUserService.cs
-\StorhaugenEats.API\Services\IDataMigrationService.cs
 \StorhaugenEats.API\Services\IGlobalRecipeService.cs
 \StorhaugenEats.API\Services\IHelloFreshScraperService.cs
 \StorhaugenEats.API\Services\IHouseholdRecipeService.cs
 \StorhaugenEats.API\Services\IHouseholdService.cs
-\StorhaugenEats.API\Services\IMigrationVerificationService.cs
 \StorhaugenEats.API\Services\IRatingService.cs
 \StorhaugenEats.API\Services\IStorageService.cs
 \StorhaugenEats.API\Services\IUserFriendshipService.cs
 \StorhaugenEats.API\Services\IUserRecipeService.cs
 \StorhaugenEats.API\Services\IUserService.cs
-\StorhaugenEats.API\Services\MigrationVerificationService.cs
 \StorhaugenEats.API\Services\RatingService.cs
 \StorhaugenEats.API\Services\SupabaseStorageService.cs
 \StorhaugenEats.API\Services\UserFriendshipService.cs
@@ -117,10 +112,10 @@ PROJECT STRUCTURE:
 \StorhaugenWebsite\wwwroot\appsettings.json
 \StorhaugenWebsite\wwwroot\index.html
 \StorhaugenWebsite\wwwroot\manifest.json
-\StorhaugenWebsite\_Imports.razor
 \StorhaugenWebsite\App.razor
 \StorhaugenWebsite\Program.cs
 \StorhaugenWebsite\StorhaugenWebsite.csproj
+\StorhaugenWebsite\_Imports.razor
 \StorhaugenWebsite.Shared\DTOs\ActivityFeedDTOs.cs
 \StorhaugenWebsite.Shared\DTOs\FriendshipDTOs.cs
 \StorhaugenWebsite.Shared\DTOs\GlobalRecipeDTOs.cs
@@ -555,274 +550,6 @@ COMMENT ON COLUMN household_recipes.personal_notes IS 'Always displayed, even fo
 
 ================================================================================
 FILE END: \database\schema.sql
-================================================================================
-
-
-================================================================================
-FILE START: \StorhaugenEats.API\Controllers\AdminController.cs
-================================================================================
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using StorhaugenEats.API.Services;
-
-namespace StorhaugenEats.API.Controllers;
-
-/// <summary>
-/// Admin endpoints for system management tasks like data migration.
-/// These endpoints should be protected and only accessible by administrators.
-/// </summary>
-[ApiController]
-[Route("api/[controller]")]
-[Authorize]
-public class AdminController : ControllerBase
-{
-    private readonly IDataMigrationService _migrationService;
-    private readonly IMigrationVerificationService _verificationService;
-    private readonly ILogger<AdminController> _logger;
-
-    public AdminController(
-        IDataMigrationService migrationService,
-        IMigrationVerificationService verificationService,
-        ILogger<AdminController> logger)
-    {
-        _migrationService = migrationService;
-        _verificationService = verificationService;
-        _logger = logger;
-    }
-
-    /// <summary>
-    /// Gets the current migration statistics.
-    /// </summary>
-    [HttpGet("migration/stats")]
-    public async Task<ActionResult<MigrationStats>> GetMigrationStats()
-    {
-        try
-        {
-            var stats = await _migrationService.GetMigrationStatsAsync();
-            return Ok(stats);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get migration stats");
-            return StatusCode(500, new { error = "Failed to get migration statistics" });
-        }
-    }
-
-    /// <summary>
-    /// Runs the complete migration from household-centric to user-centric model.
-    /// </summary>
-    /// <param name="dryRun">If true (default), only simulates the migration without making changes.</param>
-    [HttpPost("migration/run")]
-    public async Task<ActionResult<CompleteMigrationResult>> RunMigration([FromQuery] bool dryRun = true)
-    {
-        try
-        {
-            _logger.LogInformation("Migration requested by user. DryRun: {DryRun}", dryRun);
-
-            var result = await _migrationService.RunCompleteMigrationAsync(dryRun);
-
-            if (result.Success)
-            {
-                return Ok(result);
-            }
-            else
-            {
-                return StatusCode(500, result);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Migration failed");
-            return StatusCode(500, new { error = "Migration failed", message = ex.Message });
-        }
-    }
-
-    /// <summary>
-    /// Migrates only household recipes to user recipes.
-    /// </summary>
-    /// <param name="dryRun">If true (default), only simulates the migration without making changes.</param>
-    [HttpPost("migration/recipes")]
-    public async Task<ActionResult<MigrationResult>> MigrateRecipes([FromQuery] bool dryRun = true)
-    {
-        try
-        {
-            _logger.LogInformation("Recipe migration requested. DryRun: {DryRun}", dryRun);
-
-            var result = await _migrationService.MigrateHouseholdRecipesToUserRecipesAsync(dryRun);
-
-            if (result.Success)
-            {
-                return Ok(result);
-            }
-            else
-            {
-                return StatusCode(500, result);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Recipe migration failed");
-            return StatusCode(500, new { error = "Recipe migration failed", message = ex.Message });
-        }
-    }
-
-    /// <summary>
-    /// Migrates ratings to reference user recipes.
-    /// </summary>
-    /// <param name="dryRun">If true (default), only simulates the migration without making changes.</param>
-    [HttpPost("migration/ratings")]
-    public async Task<ActionResult<MigrationResult>> MigrateRatings([FromQuery] bool dryRun = true)
-    {
-        try
-        {
-            _logger.LogInformation("Ratings migration requested. DryRun: {DryRun}", dryRun);
-
-            var result = await _migrationService.MigrateRatingsAsync(dryRun);
-
-            if (result.Success)
-            {
-                return Ok(result);
-            }
-            else
-            {
-                return StatusCode(500, result);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Ratings migration failed");
-            return StatusCode(500, new { error = "Ratings migration failed", message = ex.Message });
-        }
-    }
-
-    /// <summary>
-    /// Migrates household friendships to user friendships.
-    /// </summary>
-    /// <param name="dryRun">If true (default), only simulates the migration without making changes.</param>
-    [HttpPost("migration/friendships")]
-    public async Task<ActionResult<MigrationResult>> MigrateFriendships([FromQuery] bool dryRun = true)
-    {
-        try
-        {
-            _logger.LogInformation("Friendships migration requested. DryRun: {DryRun}", dryRun);
-
-            var result = await _migrationService.MigrateHouseholdFriendshipsAsync(dryRun);
-
-            if (result.Success)
-            {
-                return Ok(result);
-            }
-            else
-            {
-                return StatusCode(500, result);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Friendships migration failed");
-            return StatusCode(500, new { error = "Friendships migration failed", message = ex.Message });
-        }
-    }
-
-    // ==================== Verification Endpoints ====================
-
-    /// <summary>
-    /// Runs all verification checks on the migrated data.
-    /// </summary>
-    [HttpGet("migration/verify")]
-    public async Task<ActionResult<VerificationReport>> RunVerification()
-    {
-        try
-        {
-            _logger.LogInformation("Running full migration verification");
-
-            var report = await _verificationService.RunAllVerificationsAsync();
-
-            return Ok(report);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Migration verification failed");
-            return StatusCode(500, new { error = "Verification failed", message = ex.Message });
-        }
-    }
-
-    /// <summary>
-    /// Verifies that all household recipes have been migrated to user recipes.
-    /// </summary>
-    [HttpGet("migration/verify/recipes")]
-    public async Task<ActionResult<VerificationResult>> VerifyRecipes()
-    {
-        try
-        {
-            var result = await _verificationService.VerifyRecipeMigrationAsync();
-            return Ok(result);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Recipe verification failed");
-            return StatusCode(500, new { error = "Recipe verification failed", message = ex.Message });
-        }
-    }
-
-    /// <summary>
-    /// Verifies that all ratings have been properly migrated.
-    /// </summary>
-    [HttpGet("migration/verify/ratings")]
-    public async Task<ActionResult<VerificationResult>> VerifyRatings()
-    {
-        try
-        {
-            var result = await _verificationService.VerifyRatingMigrationAsync();
-            return Ok(result);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Rating verification failed");
-            return StatusCode(500, new { error = "Rating verification failed", message = ex.Message });
-        }
-    }
-
-    /// <summary>
-    /// Verifies data integrity between household and user recipes.
-    /// </summary>
-    [HttpGet("migration/verify/integrity")]
-    public async Task<ActionResult<VerificationResult>> VerifyIntegrity()
-    {
-        try
-        {
-            var result = await _verificationService.VerifyDataIntegrityAsync();
-            return Ok(result);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Data integrity verification failed");
-            return StatusCode(500, new { error = "Integrity verification failed", message = ex.Message });
-        }
-    }
-
-    /// <summary>
-    /// Checks for orphaned records that reference non-existent entities.
-    /// </summary>
-    [HttpGet("migration/verify/orphans")]
-    public async Task<ActionResult<VerificationResult>> CheckOrphanedRecords()
-    {
-        try
-        {
-            var result = await _verificationService.CheckOrphanedRecordsAsync();
-            return Ok(result);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Orphaned records check failed");
-            return StatusCode(500, new { error = "Orphaned records check failed", message = ex.Message });
-        }
-    }
-}
-
-
-================================================================================
-FILE END: \StorhaugenEats.API\Controllers\AdminController.cs
 ================================================================================
 
 
@@ -5427,380 +5154,6 @@ FILE END: \StorhaugenEats.API\Services\CurrentUserService.cs
 
 
 ================================================================================
-FILE START: \StorhaugenEats.API\Services\DataMigrationService.cs
-================================================================================
-using System.Diagnostics;
-using Microsoft.EntityFrameworkCore;
-using StorhaugenEats.API.Data;
-using StorhaugenEats.API.Models;
-
-namespace StorhaugenEats.API.Services;
-
-public class DataMigrationService : IDataMigrationService
-{
-    private readonly AppDbContext _context;
-    private readonly ILogger<DataMigrationService> _logger;
-
-    public DataMigrationService(AppDbContext context, ILogger<DataMigrationService> logger)
-    {
-        _context = context;
-        _logger = logger;
-    }
-
-    public async Task<MigrationResult> MigrateHouseholdRecipesToUserRecipesAsync(bool dryRun = true)
-    {
-        var stopwatch = Stopwatch.StartNew();
-        var result = new MigrationResult { WasDryRun = dryRun };
-
-        try
-        {
-            _logger.LogInformation("Starting household recipe migration (DryRun: {DryRun})", dryRun);
-
-            // Get all household recipes that haven't been migrated yet
-            var householdRecipes = await _context.HouseholdRecipes
-                .Include(hr => hr.Household)
-                .Where(hr => hr.AddedByUserId != null)
-                .ToListAsync();
-
-            result.ItemsProcessed = householdRecipes.Count;
-
-            // Get existing user recipe IDs to check for duplicates
-            var existingUserRecipeIds = _context.UserRecipes
-                .Select(ur => ur.Id)
-                .ToHashSet();
-
-            foreach (var hr in householdRecipes)
-            {
-                try
-                {
-                    // Skip if already migrated (same ID exists in user_recipes)
-                    if (existingUserRecipeIds.Contains(hr.Id))
-                    {
-                        result.ItemsSkipped++;
-                        result.Warnings.Add($"Recipe {hr.Id} already exists in user_recipes, skipping");
-                        continue;
-                    }
-
-                    // Map visibility
-                    var visibility = hr.IsPublic ? "public" : "household";
-
-                    var userRecipe = new UserRecipe
-                    {
-                        Id = hr.Id, // Preserve the same ID for rating references
-                        UserId = hr.AddedByUserId!.Value,
-                        GlobalRecipeId = hr.GlobalRecipeId,
-                        LocalTitle = hr.LocalTitle,
-                        LocalDescription = hr.LocalDescription,
-                        LocalIngredients = hr.LocalIngredients,
-                        LocalImageUrl = hr.LocalImageUrl,
-                        LocalImageUrls = hr.LocalImageUrl != null ? $"[\"{hr.LocalImageUrl}\"]" : "[]",
-                        PersonalNotes = hr.PersonalNotes,
-                        Visibility = visibility,
-                        IsArchived = hr.IsArchived,
-                        ArchivedDate = hr.ArchivedDate,
-                        CreatedAt = hr.CreatedAt,
-                        UpdatedAt = hr.UpdatedAt
-                    };
-
-                    if (!dryRun)
-                    {
-                        _context.UserRecipes.Add(userRecipe);
-                    }
-
-                    result.ItemsMigrated++;
-                }
-                catch (Exception ex)
-                {
-                    result.ItemsFailed++;
-                    result.Errors.Add($"Failed to migrate recipe {hr.Id}: {ex.Message}");
-                    _logger.LogError(ex, "Failed to migrate household recipe {RecipeId}", hr.Id);
-                }
-            }
-
-            if (!dryRun && result.ItemsMigrated > 0)
-            {
-                await _context.SaveChangesAsync();
-            }
-
-            result.Success = result.ItemsFailed == 0;
-            stopwatch.Stop();
-            result.Duration = stopwatch.Elapsed;
-
-            _logger.LogInformation(
-                "Household recipe migration completed. Processed: {Processed}, Migrated: {Migrated}, Skipped: {Skipped}, Failed: {Failed}",
-                result.ItemsProcessed, result.ItemsMigrated, result.ItemsSkipped, result.ItemsFailed);
-        }
-        catch (Exception ex)
-        {
-            result.Success = false;
-            result.Errors.Add($"Migration failed: {ex.Message}");
-            _logger.LogError(ex, "Household recipe migration failed");
-        }
-
-        return result;
-    }
-
-    public async Task<MigrationResult> MigrateRatingsAsync(bool dryRun = true)
-    {
-        var stopwatch = Stopwatch.StartNew();
-        var result = new MigrationResult { WasDryRun = dryRun };
-
-        try
-        {
-            _logger.LogInformation("Starting ratings migration (DryRun: {DryRun})", dryRun);
-
-            // Get all ratings that have household_recipe_id but not user_recipe_id
-            var ratingsToMigrate = await _context.Ratings
-                .Where(r => r.HouseholdRecipeId != null && r.UserRecipeId == null)
-                .ToListAsync();
-
-            result.ItemsProcessed = ratingsToMigrate.Count;
-
-            // Get valid user recipe IDs
-            var userRecipeIds = _context.UserRecipes
-                .Select(ur => ur.Id)
-                .ToHashSet();
-
-            foreach (var rating in ratingsToMigrate)
-            {
-                try
-                {
-                    // Check if a user recipe exists with the same ID
-                    if (userRecipeIds.Contains(rating.HouseholdRecipeId!.Value))
-                    {
-                        if (!dryRun)
-                        {
-                            rating.UserRecipeId = rating.HouseholdRecipeId;
-                        }
-                        result.ItemsMigrated++;
-                    }
-                    else
-                    {
-                        result.ItemsSkipped++;
-                        result.Warnings.Add($"Rating {rating.Id}: No matching user recipe for household recipe {rating.HouseholdRecipeId}");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    result.ItemsFailed++;
-                    result.Errors.Add($"Failed to migrate rating {rating.Id}: {ex.Message}");
-                    _logger.LogError(ex, "Failed to migrate rating {RatingId}", rating.Id);
-                }
-            }
-
-            if (!dryRun && result.ItemsMigrated > 0)
-            {
-                await _context.SaveChangesAsync();
-            }
-
-            result.Success = result.ItemsFailed == 0;
-            stopwatch.Stop();
-            result.Duration = stopwatch.Elapsed;
-
-            _logger.LogInformation(
-                "Ratings migration completed. Processed: {Processed}, Migrated: {Migrated}, Skipped: {Skipped}, Failed: {Failed}",
-                result.ItemsProcessed, result.ItemsMigrated, result.ItemsSkipped, result.ItemsFailed);
-        }
-        catch (Exception ex)
-        {
-            result.Success = false;
-            result.Errors.Add($"Migration failed: {ex.Message}");
-            _logger.LogError(ex, "Ratings migration failed");
-        }
-
-        return result;
-    }
-
-    public async Task<MigrationResult> MigrateHouseholdFriendshipsAsync(bool dryRun = true)
-    {
-        var stopwatch = Stopwatch.StartNew();
-        var result = new MigrationResult { WasDryRun = dryRun };
-
-        try
-        {
-            _logger.LogInformation("Starting household friendships migration (DryRun: {DryRun})", dryRun);
-
-            // Get all household friendships
-            var householdFriendships = await _context.HouseholdFriendships
-                .Include(hf => hf.RequesterHousehold)
-                .Include(hf => hf.TargetHousehold)
-                .Where(hf => hf.Status == "accepted")
-                .ToListAsync();
-
-            result.ItemsProcessed = householdFriendships.Count;
-
-            // Get household leaders (created_by is the leader)
-            var householdLeaders = await _context.Households
-                .ToDictionaryAsync(h => h.Id, h => h.CreatedById);
-
-            // Get existing user friendships to avoid duplicates
-            var existingFriendships = await _context.UserFriendships
-                .Select(uf => new { uf.RequesterUserId, uf.TargetUserId })
-                .ToListAsync();
-
-            var existingPairs = existingFriendships
-                .Select(f => (Math.Min(f.RequesterUserId.GetHashCode(), f.TargetUserId.GetHashCode()),
-                              Math.Max(f.RequesterUserId.GetHashCode(), f.TargetUserId.GetHashCode())))
-                .ToHashSet();
-
-            foreach (var hf in householdFriendships)
-            {
-                try
-                {
-                    if (!householdLeaders.TryGetValue(hf.RequesterHouseholdId, out var requesterId) ||
-                        !householdLeaders.TryGetValue(hf.TargetHouseholdId, out var targetId))
-                    {
-                        result.ItemsSkipped++;
-                        result.Warnings.Add($"Friendship {hf.Id}: Could not find household leaders");
-                        continue;
-                    }
-
-                    // Skip self-friendships
-                    if (requesterId == targetId)
-                    {
-                        result.ItemsSkipped++;
-                        continue;
-                    }
-
-                    // Check for duplicates (in either direction)
-                    var pairHash = (Math.Min(requesterId.GetHashCode(), targetId.GetHashCode()),
-                                   Math.Max(requesterId.GetHashCode(), targetId.GetHashCode()));
-
-                    if (existingPairs.Contains(pairHash))
-                    {
-                        result.ItemsSkipped++;
-                        result.Warnings.Add($"Friendship between users {requesterId} and {targetId} already exists");
-                        continue;
-                    }
-
-                    var userFriendship = new UserFriendship
-                    {
-                        Id = Guid.NewGuid(),
-                        RequesterUserId = (Guid)requesterId,
-                        TargetUserId = (Guid)targetId,
-                        Status = hf.Status,
-                        Message = hf.Message,
-                        CreatedAt = hf.CreatedAt,
-                        RespondedAt = hf.RespondedAt
-                    };
-
-                    if (!dryRun)
-                    {
-                        _context.UserFriendships.Add(userFriendship);
-                    }
-
-                    existingPairs.Add(pairHash);
-                    result.ItemsMigrated++;
-                }
-                catch (Exception ex)
-                {
-                    result.ItemsFailed++;
-                    result.Errors.Add($"Failed to migrate friendship {hf.Id}: {ex.Message}");
-                    _logger.LogError(ex, "Failed to migrate household friendship {FriendshipId}", hf.Id);
-                }
-            }
-
-            if (!dryRun && result.ItemsMigrated > 0)
-            {
-                await _context.SaveChangesAsync();
-            }
-
-            result.Success = result.ItemsFailed == 0;
-            stopwatch.Stop();
-            result.Duration = stopwatch.Elapsed;
-
-            _logger.LogInformation(
-                "Household friendships migration completed. Processed: {Processed}, Migrated: {Migrated}, Skipped: {Skipped}, Failed: {Failed}",
-                result.ItemsProcessed, result.ItemsMigrated, result.ItemsSkipped, result.ItemsFailed);
-        }
-        catch (Exception ex)
-        {
-            result.Success = false;
-            result.Errors.Add($"Migration failed: {ex.Message}");
-            _logger.LogError(ex, "Household friendships migration failed");
-        }
-
-        return result;
-    }
-
-    public async Task<CompleteMigrationResult> RunCompleteMigrationAsync(bool dryRun = true)
-    {
-        var stopwatch = Stopwatch.StartNew();
-        var result = new CompleteMigrationResult { WasDryRun = dryRun };
-
-        _logger.LogInformation("Starting complete migration (DryRun: {DryRun})", dryRun);
-
-        // Step 1: Migrate recipes
-        result.RecipesMigration = await MigrateHouseholdRecipesToUserRecipesAsync(dryRun);
-
-        // Step 2: Migrate ratings (depends on recipes)
-        result.RatingsMigration = await MigrateRatingsAsync(dryRun);
-
-        // Step 3: Migrate friendships
-        result.FriendshipsMigration = await MigrateHouseholdFriendshipsAsync(dryRun);
-
-        stopwatch.Stop();
-        result.TotalDuration = stopwatch.Elapsed;
-        result.Success = result.RecipesMigration.Success &&
-                        result.RatingsMigration.Success &&
-                        result.FriendshipsMigration.Success;
-
-        _logger.LogInformation(
-            "Complete migration finished. Success: {Success}, Duration: {Duration}",
-            result.Success, result.TotalDuration);
-
-        return result;
-    }
-
-    public async Task<MigrationStats> GetMigrationStatsAsync()
-    {
-        var stats = new MigrationStats();
-
-        // Count household recipes
-        stats.TotalHouseholdRecipes = await _context.HouseholdRecipes.CountAsync();
-
-        // Count user recipes
-        stats.TotalUserRecipes = await _context.UserRecipes.CountAsync();
-
-        // Count household recipes not yet migrated (no matching user recipe)
-        var userRecipeIds = await _context.UserRecipes.Select(ur => ur.Id).ToListAsync();
-        stats.HouseholdRecipesNotMigrated = await _context.HouseholdRecipes
-            .Where(hr => hr.AddedByUserId != null && !userRecipeIds.Contains(hr.Id))
-            .CountAsync();
-
-        // Count ratings by reference type
-        stats.RatingsWithHouseholdRecipeId = await _context.Ratings
-            .Where(r => r.HouseholdRecipeId != null)
-            .CountAsync();
-
-        stats.RatingsWithUserRecipeId = await _context.Ratings
-            .Where(r => r.UserRecipeId != null)
-            .CountAsync();
-
-        // Count friendships
-        stats.TotalHouseholdFriendships = await _context.HouseholdFriendships
-            .Where(hf => hf.Status == "accepted")
-            .CountAsync();
-
-        stats.TotalUserFriendships = await _context.UserFriendships
-            .Where(uf => uf.Status == "accepted")
-            .CountAsync();
-
-        // Check if migration is complete
-        stats.MigrationComplete = stats.HouseholdRecipesNotMigrated == 0 &&
-                                  stats.RatingsWithHouseholdRecipeId == stats.RatingsWithUserRecipeId;
-
-        return stats;
-    }
-}
-
-
-================================================================================
-FILE END: \StorhaugenEats.API\Services\DataMigrationService.cs
-================================================================================
-
-
-================================================================================
 FILE START: \StorhaugenEats.API\Services\GlobalRecipeService.cs
 ================================================================================
 using Microsoft.EntityFrameworkCore;
@@ -6784,92 +6137,6 @@ FILE END: \StorhaugenEats.API\Services\ICurrentUserService.cs
 
 
 ================================================================================
-FILE START: \StorhaugenEats.API\Services\IDataMigrationService.cs
-================================================================================
-namespace StorhaugenEats.API.Services;
-
-/// <summary>
-/// Service for migrating data from the old household-centric model to the new user-centric model.
-/// </summary>
-public interface IDataMigrationService
-{
-    /// <summary>
-    /// Migrates all household recipes to user recipes.
-    /// </summary>
-    /// <param name="dryRun">If true, only simulates the migration without making changes.</param>
-    /// <returns>Migration result with counts and any errors.</returns>
-    Task<MigrationResult> MigrateHouseholdRecipesToUserRecipesAsync(bool dryRun = true);
-
-    /// <summary>
-    /// Updates ratings to reference user recipes instead of household recipes.
-    /// </summary>
-    /// <param name="dryRun">If true, only simulates the migration without making changes.</param>
-    /// <returns>Migration result with counts and any errors.</returns>
-    Task<MigrationResult> MigrateRatingsAsync(bool dryRun = true);
-
-    /// <summary>
-    /// Migrates household friendships to user friendships (between household leaders).
-    /// </summary>
-    /// <param name="dryRun">If true, only simulates the migration without making changes.</param>
-    /// <returns>Migration result with counts and any errors.</returns>
-    Task<MigrationResult> MigrateHouseholdFriendshipsAsync(bool dryRun = true);
-
-    /// <summary>
-    /// Runs the complete migration in the correct order.
-    /// </summary>
-    /// <param name="dryRun">If true, only simulates the migration without making changes.</param>
-    /// <returns>Combined migration result.</returns>
-    Task<CompleteMigrationResult> RunCompleteMigrationAsync(bool dryRun = true);
-
-    /// <summary>
-    /// Gets statistics about the current migration state.
-    /// </summary>
-    Task<MigrationStats> GetMigrationStatsAsync();
-}
-
-public class MigrationResult
-{
-    public bool Success { get; set; }
-    public int ItemsProcessed { get; set; }
-    public int ItemsMigrated { get; set; }
-    public int ItemsSkipped { get; set; }
-    public int ItemsFailed { get; set; }
-    public List<string> Errors { get; set; } = new();
-    public List<string> Warnings { get; set; } = new();
-    public TimeSpan Duration { get; set; }
-    public bool WasDryRun { get; set; }
-}
-
-public class CompleteMigrationResult
-{
-    public bool Success { get; set; }
-    public MigrationResult RecipesMigration { get; set; } = new();
-    public MigrationResult RatingsMigration { get; set; } = new();
-    public MigrationResult FriendshipsMigration { get; set; } = new();
-    public TimeSpan TotalDuration { get; set; }
-    public bool WasDryRun { get; set; }
-}
-
-public class MigrationStats
-{
-    public int TotalHouseholdRecipes { get; set; }
-    public int TotalUserRecipes { get; set; }
-    public int HouseholdRecipesNotMigrated { get; set; }
-    public int RatingsWithHouseholdRecipeId { get; set; }
-    public int RatingsWithUserRecipeId { get; set; }
-    public int TotalHouseholdFriendships { get; set; }
-    public int TotalUserFriendships { get; set; }
-    public bool MigrationComplete { get; set; }
-    public DateTime? LastMigrationRun { get; set; }
-}
-
-
-================================================================================
-FILE END: \StorhaugenEats.API\Services\IDataMigrationService.cs
-================================================================================
-
-
-================================================================================
 FILE START: \StorhaugenEats.API\Services\IGlobalRecipeService.cs
 ================================================================================
 using StorhaugenEats.API.Models;
@@ -6970,86 +6237,6 @@ public interface IHouseholdService
 
 ================================================================================
 FILE END: \StorhaugenEats.API\Services\IHouseholdService.cs
-================================================================================
-
-
-================================================================================
-FILE START: \StorhaugenEats.API\Services\IMigrationVerificationService.cs
-================================================================================
-namespace StorhaugenEats.API.Services;
-
-/// <summary>
-/// Service for verifying data integrity after migration.
-/// </summary>
-public interface IMigrationVerificationService
-{
-    /// <summary>
-    /// Runs all verification checks and returns a comprehensive report.
-    /// </summary>
-    Task<VerificationReport> RunAllVerificationsAsync();
-
-    /// <summary>
-    /// Verifies that all household recipes have been migrated to user recipes.
-    /// </summary>
-    Task<VerificationResult> VerifyRecipeMigrationAsync();
-
-    /// <summary>
-    /// Verifies that all ratings reference the correct user recipes.
-    /// </summary>
-    Task<VerificationResult> VerifyRatingMigrationAsync();
-
-    /// <summary>
-    /// Verifies that recipe data matches between household and user recipes.
-    /// </summary>
-    Task<VerificationResult> VerifyDataIntegrityAsync();
-
-    /// <summary>
-    /// Checks for orphaned records (ratings without recipes, etc.).
-    /// </summary>
-    Task<VerificationResult> CheckOrphanedRecordsAsync();
-}
-
-public class VerificationReport
-{
-    public DateTime GeneratedAt { get; set; } = DateTime.UtcNow;
-    public bool AllPassed { get; set; }
-    public List<VerificationResult> Results { get; set; } = new();
-    public VerificationSummary Summary { get; set; } = new();
-}
-
-public class VerificationResult
-{
-    public string CheckName { get; set; } = string.Empty;
-    public bool Passed { get; set; }
-    public string Status { get; set; } = string.Empty;
-    public int ItemsChecked { get; set; }
-    public int IssuesFound { get; set; }
-    public List<VerificationIssue> Issues { get; set; } = new();
-    public TimeSpan Duration { get; set; }
-}
-
-public class VerificationIssue
-{
-    public string Severity { get; set; } = "warning"; // "error", "warning", "info"
-    public string Description { get; set; } = string.Empty;
-    public string? RecordId { get; set; }
-    public string? RecordType { get; set; }
-    public Dictionary<string, object> Details { get; set; } = new();
-}
-
-public class VerificationSummary
-{
-    public int TotalChecks { get; set; }
-    public int PassedChecks { get; set; }
-    public int FailedChecks { get; set; }
-    public int TotalIssues { get; set; }
-    public int ErrorCount { get; set; }
-    public int WarningCount { get; set; }
-}
-
-
-================================================================================
-FILE END: \StorhaugenEats.API\Services\IMigrationVerificationService.cs
 ================================================================================
 
 
@@ -7197,350 +6384,6 @@ public interface IUserService
 
 ================================================================================
 FILE END: \StorhaugenEats.API\Services\IUserService.cs
-================================================================================
-
-
-================================================================================
-FILE START: \StorhaugenEats.API\Services\MigrationVerificationService.cs
-================================================================================
-using System.Diagnostics;
-using Microsoft.EntityFrameworkCore;
-using StorhaugenEats.API.Data;
-
-namespace StorhaugenEats.API.Services;
-
-public class MigrationVerificationService : IMigrationVerificationService
-{
-    private readonly AppDbContext _context;
-    private readonly ILogger<MigrationVerificationService> _logger;
-
-    public MigrationVerificationService(AppDbContext context, ILogger<MigrationVerificationService> logger)
-    {
-        _context = context;
-        _logger = logger;
-    }
-
-    public async Task<VerificationReport> RunAllVerificationsAsync()
-    {
-        _logger.LogInformation("Starting comprehensive migration verification");
-
-        var report = new VerificationReport();
-        var results = new List<VerificationResult>();
-
-        // Run all verification checks
-        results.Add(await VerifyRecipeMigrationAsync());
-        results.Add(await VerifyRatingMigrationAsync());
-        results.Add(await VerifyDataIntegrityAsync());
-        results.Add(await CheckOrphanedRecordsAsync());
-
-        report.Results = results;
-        report.AllPassed = results.All(r => r.Passed);
-
-        // Generate summary
-        report.Summary = new VerificationSummary
-        {
-            TotalChecks = results.Count,
-            PassedChecks = results.Count(r => r.Passed),
-            FailedChecks = results.Count(r => !r.Passed),
-            TotalIssues = results.Sum(r => r.IssuesFound),
-            ErrorCount = results.SelectMany(r => r.Issues).Count(i => i.Severity == "error"),
-            WarningCount = results.SelectMany(r => r.Issues).Count(i => i.Severity == "warning")
-        };
-
-        _logger.LogInformation(
-            "Verification complete. Passed: {Passed}/{Total}, Issues: {Issues}",
-            report.Summary.PassedChecks, report.Summary.TotalChecks, report.Summary.TotalIssues);
-
-        return report;
-    }
-
-    public async Task<VerificationResult> VerifyRecipeMigrationAsync()
-    {
-        var stopwatch = Stopwatch.StartNew();
-        var result = new VerificationResult { CheckName = "Recipe Migration Verification" };
-
-        try
-        {
-            // Get all household recipes with AddedByUserId
-            var householdRecipes = await _context.HouseholdRecipes
-                .Where(hr => hr.AddedByUserId != null)
-                .Select(hr => new { hr.Id, hr.LocalTitle, hr.AddedByUserId })
-                .ToListAsync();
-
-            result.ItemsChecked = householdRecipes.Count;
-
-            // Get all user recipe IDs
-            var userRecipeIds = _context.UserRecipes
-                .Select(ur => ur.Id)
-                .ToHashSet();
-
-            // Check each household recipe has a corresponding user recipe
-            foreach (var hr in householdRecipes)
-            {
-                if (!userRecipeIds.Contains(hr.Id))
-                {
-                    result.Issues.Add(new VerificationIssue
-                    {
-                        Severity = "error",
-                        Description = $"Household recipe '{hr.LocalTitle ?? "Unnamed"}' has no corresponding user recipe",
-                        RecordId = hr.Id.ToString(),
-                        RecordType = "HouseholdRecipe",
-                        Details = { ["AddedByUserId"] = hr.AddedByUserId! }
-                    });
-                }
-            }
-
-            result.IssuesFound = result.Issues.Count;
-            result.Passed = result.Issues.Count(i => i.Severity == "error") == 0;
-            result.Status = result.Passed ? "All recipes migrated successfully" : $"{result.IssuesFound} recipes not migrated";
-        }
-        catch (Exception ex)
-        {
-            result.Passed = false;
-            result.Status = $"Check failed: {ex.Message}";
-            _logger.LogError(ex, "Recipe migration verification failed");
-        }
-
-        stopwatch.Stop();
-        result.Duration = stopwatch.Elapsed;
-        return result;
-    }
-
-    public async Task<VerificationResult> VerifyRatingMigrationAsync()
-    {
-        var stopwatch = Stopwatch.StartNew();
-        var result = new VerificationResult { CheckName = "Rating Migration Verification" };
-
-        try
-        {
-            // Get ratings that have household_recipe_id but no user_recipe_id
-            var unmigrated = await _context.Ratings
-                .Where(r => r.HouseholdRecipeId != null && r.UserRecipeId == null)
-                .Select(r => new { r.Id, r.HouseholdRecipeId, r.UserId })
-                .ToListAsync();
-
-            // Get ratings with user_recipe_id
-            var migratedCount = await _context.Ratings
-                .Where(r => r.UserRecipeId != null)
-                .CountAsync();
-
-            result.ItemsChecked = unmigrated.Count + migratedCount;
-
-            foreach (var rating in unmigrated)
-            {
-                // Check if the corresponding user recipe exists
-                var userRecipeExists = await _context.UserRecipes
-                    .AnyAsync(ur => ur.Id == rating.HouseholdRecipeId);
-
-                result.Issues.Add(new VerificationIssue
-                {
-                    Severity = userRecipeExists ? "warning" : "error",
-                    Description = userRecipeExists
-                        ? "Rating has household_recipe_id but user_recipe_id not set (can be migrated)"
-                        : "Rating references non-existent user recipe",
-                    RecordId = rating.Id.ToString(),
-                    RecordType = "Rating",
-                    Details = {
-                        ["HouseholdRecipeId"] = rating.HouseholdRecipeId!,
-                        ["UserRecipeExists"] = userRecipeExists
-                    }
-                });
-            }
-
-            result.IssuesFound = result.Issues.Count;
-            result.Passed = result.Issues.Count(i => i.Severity == "error") == 0;
-            result.Status = result.Passed
-                ? $"All ratings verified ({migratedCount} migrated)"
-                : $"{result.Issues.Count(i => i.Severity == "error")} critical issues found";
-        }
-        catch (Exception ex)
-        {
-            result.Passed = false;
-            result.Status = $"Check failed: {ex.Message}";
-            _logger.LogError(ex, "Rating migration verification failed");
-        }
-
-        stopwatch.Stop();
-        result.Duration = stopwatch.Elapsed;
-        return result;
-    }
-
-    public async Task<VerificationResult> VerifyDataIntegrityAsync()
-    {
-        var stopwatch = Stopwatch.StartNew();
-        var result = new VerificationResult { CheckName = "Data Integrity Verification" };
-
-        try
-        {
-            // Get matched pairs of household and user recipes
-            var pairs = await (
-                from hr in _context.HouseholdRecipes
-                join ur in _context.UserRecipes on hr.Id equals ur.Id
-                select new
-                {
-                    RecipeId = hr.Id,
-                    HR_Title = hr.LocalTitle,
-                    UR_Title = ur.LocalTitle,
-                    HR_Description = hr.LocalDescription,
-                    UR_Description = ur.LocalDescription,
-                    HR_GlobalRecipeId = hr.GlobalRecipeId,
-                    UR_GlobalRecipeId = ur.GlobalRecipeId,
-                    HR_AddedByUserId = hr.AddedByUserId,
-                    UR_UserId = ur.UserId
-                }
-            ).ToListAsync();
-
-            result.ItemsChecked = pairs.Count;
-
-            foreach (var pair in pairs)
-            {
-                // Check title matches
-                if (pair.HR_Title != pair.UR_Title)
-                {
-                    result.Issues.Add(new VerificationIssue
-                    {
-                        Severity = "warning",
-                        Description = "Title mismatch between household and user recipe",
-                        RecordId = pair.RecipeId.ToString(),
-                        RecordType = "Recipe",
-                        Details = {
-                            ["HouseholdTitle"] = pair.HR_Title ?? "(null)",
-                            ["UserTitle"] = pair.UR_Title ?? "(null)"
-                        }
-                    });
-                }
-
-                // Check GlobalRecipeId matches
-                if (pair.HR_GlobalRecipeId != pair.UR_GlobalRecipeId)
-                {
-                    result.Issues.Add(new VerificationIssue
-                    {
-                        Severity = "error",
-                        Description = "GlobalRecipeId mismatch",
-                        RecordId = pair.RecipeId.ToString(),
-                        RecordType = "Recipe",
-                        Details = {
-                            ["HouseholdGlobalRecipeId"] = pair.HR_GlobalRecipeId?.ToString() ?? "(null)",
-                            ["UserGlobalRecipeId"] = pair.UR_GlobalRecipeId?.ToString() ?? "(null)"
-                        }
-                    });
-                }
-
-                // Check user ID matches
-                if (pair.HR_AddedByUserId != pair.UR_UserId)
-                {
-                    result.Issues.Add(new VerificationIssue
-                    {
-                        Severity = "error",
-                        Description = "User ID mismatch",
-                        RecordId = pair.RecipeId.ToString(),
-                        RecordType = "Recipe",
-                        Details = {
-                            ["HouseholdAddedByUserId"] = pair.HR_AddedByUserId?.ToString() ?? "(null)",
-                            ["UserRecipeUserId"] = pair.UR_UserId.ToString()
-                        }
-                    });
-                }
-            }
-
-            result.IssuesFound = result.Issues.Count;
-            result.Passed = result.Issues.Count(i => i.Severity == "error") == 0;
-            result.Status = result.Passed
-                ? $"Data integrity verified for {pairs.Count} recipes"
-                : $"{result.Issues.Count(i => i.Severity == "error")} integrity errors found";
-        }
-        catch (Exception ex)
-        {
-            result.Passed = false;
-            result.Status = $"Check failed: {ex.Message}";
-            _logger.LogError(ex, "Data integrity verification failed");
-        }
-
-        stopwatch.Stop();
-        result.Duration = stopwatch.Elapsed;
-        return result;
-    }
-
-    public async Task<VerificationResult> CheckOrphanedRecordsAsync()
-    {
-        var stopwatch = Stopwatch.StartNew();
-        var result = new VerificationResult { CheckName = "Orphaned Records Check" };
-
-        try
-        {
-            // Check for ratings without valid recipe references
-            var orphanedRatings = await _context.Ratings
-                .Where(r =>
-                    (r.HouseholdRecipeId != null && !_context.HouseholdRecipes.Any(hr => hr.Id == r.HouseholdRecipeId)) ||
-                    (r.UserRecipeId != null && !_context.UserRecipes.Any(ur => ur.Id == r.UserRecipeId)) ||
-                    (r.GlobalRecipeId != null && !_context.GlobalRecipes.Any(gr => gr.Id == r.GlobalRecipeId))
-                )
-                .Select(r => new { r.Id, r.HouseholdRecipeId, r.UserRecipeId, r.GlobalRecipeId })
-                .Take(100) // Limit for performance
-                .ToListAsync();
-
-            result.ItemsChecked = orphanedRatings.Count;
-
-            foreach (var rating in orphanedRatings)
-            {
-                result.Issues.Add(new VerificationIssue
-                {
-                    Severity = "warning",
-                    Description = "Rating references non-existent recipe",
-                    RecordId = rating.Id.ToString(),
-                    RecordType = "Rating",
-                    Details = {
-                        ["HouseholdRecipeId"] = rating.HouseholdRecipeId?.ToString() ?? "(null)",
-                        ["UserRecipeId"] = rating.UserRecipeId?.ToString() ?? "(null)",
-                        ["GlobalRecipeId"] = rating.GlobalRecipeId?.ToString() ?? "(null)"
-                    }
-                });
-            }
-
-            // Check for user recipes without valid users
-            var orphanedUserRecipes = await _context.UserRecipes
-                .Where(ur => !_context.Users.Any(u => u.Id == ur.UserId))
-                .Select(ur => new { ur.Id, ur.UserId, ur.LocalTitle })
-                .Take(100)
-                .ToListAsync();
-
-            foreach (var recipe in orphanedUserRecipes)
-            {
-                result.Issues.Add(new VerificationIssue
-                {
-                    Severity = "error",
-                    Description = "User recipe belongs to non-existent user",
-                    RecordId = recipe.Id.ToString(),
-                    RecordType = "UserRecipe",
-                    Details = {
-                        ["UserId"] = recipe.UserId.ToString(),
-                        ["Title"] = recipe.LocalTitle ?? "(null)"
-                    }
-                });
-            }
-
-            result.IssuesFound = result.Issues.Count;
-            result.Passed = result.Issues.Count(i => i.Severity == "error") == 0;
-            result.Status = result.Passed
-                ? "No orphaned records found"
-                : $"{result.IssuesFound} orphaned records found";
-        }
-        catch (Exception ex)
-        {
-            result.Passed = false;
-            result.Status = $"Check failed: {ex.Message}";
-            _logger.LogError(ex, "Orphaned records check failed");
-        }
-
-        stopwatch.Stop();
-        result.Duration = stopwatch.Elapsed;
-        return result;
-    }
-}
-
-
-================================================================================
-FILE END: \StorhaugenEats.API\Services\MigrationVerificationService.cs
 ================================================================================
 
 
@@ -8972,10 +7815,6 @@ builder.Services.AddHttpClient<IHelloFreshScraperService, HelloFreshScraperServi
 builder.Services.AddScoped<IUserFriendshipService, UserFriendshipService>();
 builder.Services.AddScoped<IActivityFeedService, ActivityFeedService>();
 builder.Services.AddScoped<IUserRecipeService, UserRecipeService>();
-
-// Admin/Migration Services
-builder.Services.AddScoped<IDataMigrationService, DataMigrationService>();
-builder.Services.AddScoped<IMigrationVerificationService, MigrationVerificationService>();
 
 // JWT Authentication (Supabase JWT)
 var jwtSecret = builder.Configuration["Supabase:JwtSecret"] ?? throw new InvalidOperationException("JWT Secret not configured");
@@ -12297,7 +11136,7 @@ FILE START: \StorhaugenWebsite\Pages\Archived.razor
     <h1 class="page-title" style="margin-bottom: 0; font-size: 1.5rem;">Arkiv</h1>
     @if (_archivedItems.Any())
     {
-        <p class="page-subtitle" style="margin: 0;">@_archivedItems.Count arkiverte mÃ¥ltider</p>
+        <p class="page-subtitle" style="margin: 0;">@_archivedItems.Count arkiverte måltider</p>
     }
 </div>
 
@@ -12308,9 +11147,9 @@ FILE START: \StorhaugenWebsite\Pages\Archived.razor
             <MudIcon Icon="@Icons.Material.Rounded.Home" Size="Size.Large" />
         </div>
         <h2 class="empty-state-title">Ingen husstand valgt</h2>
-        <p class="empty-state-text">Du mÃ¥ vÃ¦re medlem av en husstand for Ã¥ se arkiverte mÃ¥ltider.</p>
+        <p class="empty-state-text">Du må være medlem av en husstand for å se arkiverte måltider.</p>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="settings" StartIcon="@Icons.Material.Rounded.Settings">
-            GÃ¥ til innstillinger
+            Gå til innstillinger
         </MudButton>
     </div>
 }
@@ -12337,8 +11176,8 @@ else if (!_archivedItems.Any())
         <div class="empty-state-icon">
             <MudIcon Icon="@Icons.Material.Rounded.Inventory2" Size="Size.Large" />
         </div>
-        <h2 class="empty-state-title">Ingen arkiverte mÃ¥ltider</h2>
-        <p class="empty-state-text">Arkiverte mÃ¥ltider vil vises her</p>
+        <h2 class="empty-state-title">Ingen arkiverte måltider</h2>
+        <p class="empty-state-text">Arkiverte måltider vil vises her</p>
     </div>
 }
 else
@@ -13483,8 +12322,8 @@ else if (_food == null)
         <div class="empty-state-icon">
             <MudIcon Icon="@Icons.Material.Rounded.SearchOff" Size="Size.Large" />
         </div>
-        <h2 class="empty-state-title">MÃ¥ltid ikke funnet</h2>
-        <p class="empty-state-text">Dette mÃ¥ltidet finnes ikke eller har blitt slettet</p>
+        <h2 class="empty-state-title">Måltid ikke funnet</h2>
+        <p class="empty-state-text">Dette måltidet finnes ikke eller har blitt slettet</p>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/">
             Tilbake til hjemskjerm
         </MudButton>
@@ -13530,7 +12369,7 @@ else
             <div>
                 <h1 class="detail-title">@_food.Name</h1>
                 <p class="detail-meta">
-                    Lagt til av @_food.AddedBy â€¢ @_food.DateAdded.ToString("dd. MMMM yyyy")
+                    Lagt til av @_food.AddedBy • @_food.DateAdded.ToString("dd. MMMM yyyy")
                 </p>
             </div>
             <span class="rating-badge @GetRatingClass(_food.AverageRating)" style="font-size: 1rem; padding: 8px 14px;">
@@ -13643,7 +12482,7 @@ else
         @if (_food.IsArchived)
         {
             <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3" Style="border-radius: 10px;">
-                Dette mÃ¥ltidet er arkivert
+                Dette måltidet er arkivert
             </MudAlert>
         }
     </div>
@@ -13764,8 +12603,8 @@ else
                     </MudText>
                     <MudText Typo="Typo.caption" Color="Color.Secondary">
                         @(_food.IsPublic
-                                            ? "Alle kan finne dette mÃ¥ltidet under 'Utforsk' og legge det til i sin liste"
-                                            : "Kun din husstand kan se dette mÃ¥ltidet")
+                                            ? "Alle kan finne dette måltidet under 'Utforsk' og legge det til i sin liste"
+                                            : "Kun din husstand kan se dette måltidet")
                         </MudText>
                     </div>
                     <MudSwitch T="bool"
@@ -13817,7 +12656,7 @@ else
                        StartIcon="@Icons.Material.Rounded.Archive"
                        OnClick="ArchiveFood"
                        Style="border-radius: 14px; padding: 12px;">
-                Arkiver mÃ¥ltid
+                Arkiver måltid
             </MudButton>
         }
         else
@@ -13828,7 +12667,7 @@ else
                        StartIcon="@Icons.Material.Rounded.Restore"
                        OnClick="RestoreFood"
                        Style="border-radius: 14px; padding: 12px;">
-                Gjenopprett mÃ¥ltid
+                Gjenopprett måltid
             </MudButton>
         }
     </div>
@@ -13939,8 +12778,8 @@ else
         if (_food == null) return;
 
         var result = await DialogService.ShowMessageBox(
-            "Arkiver mÃ¥ltid",
-            "Er du sikker pÃ¥ at du vil arkivere dette mÃ¥ltidet? Det kan gjenopprettes senere.",
+            "Arkiver måltid",
+            "Er du sikker på at du vil arkivere dette måltidet? Det kan gjenopprettes senere.",
             yesText: "Arkiver",
             cancelText: "Avbryt");
 
@@ -13949,7 +12788,7 @@ else
             try
             {
                 await FoodService.ArchiveFoodAsync(_food.Id, AuthService.CurrentUserName ?? "Unknown");
-                Snackbar.Add("MÃ¥ltid arkivert", Severity.Info);
+                Snackbar.Add("Måltid arkivert", Severity.Info);
                 Navigation.NavigateTo("");
             }
             catch (Exception ex)
@@ -13967,7 +12806,7 @@ else
         {
             await FoodService.RestoreFoodAsync(_food.Id);
             _food.IsArchived = false;
-            Snackbar.Add("MÃ¥ltid gjenopprettet!", Severity.Success);
+            Snackbar.Add("Måltid gjenopprettet!", Severity.Success);
         }
         catch (Exception ex)
         {
@@ -13981,7 +12820,7 @@ else
 
         var result = await DialogService.ShowMessageBox(
              "Kopier oppskrift",
-             "Dette vil lage en redigerbar kopi av oppskriften. Kopien vil ikke lenger oppdateres nÃ¥r hovedoppskriften endres. Fortsett?",
+             "Dette vil lage en redigerbar kopi av oppskriften. Kopien vil ikke lenger oppdateres når hovedoppskriften endres. Fortsett?",
              yesText: "Kopier",
              cancelText: "Avbryt");
 
@@ -13995,7 +12834,7 @@ else
                 // Update local state
                 _food.IsForked = true;
 
-                Snackbar.Add("Oppskrift kopiert! Du kan nÃ¥ redigere denne kopien.", Severity.Success);
+                Snackbar.Add("Oppskrift kopiert! Du kan nå redigere denne kopien.", Severity.Success);
 
                 // Reload to get updated data from server
                 await LoadFood();
@@ -14054,7 +12893,7 @@ else
         {
             await FoodService.SetPublicStatusAsync(_food.Id, isPublic);
             _food.IsPublic = isPublic;
-            Snackbar.Add(isPublic ? "MÃ¥ltidet er nÃ¥ offentlig!" : "MÃ¥ltidet er nÃ¥ privat", Severity.Success);
+            Snackbar.Add(isPublic ? "Måltidet er nå offentlig!" : "Måltidet er nå privat", Severity.Success);
         }
         catch (Exception ex)
         {
@@ -14712,8 +13551,8 @@ FILE START: \StorhaugenWebsite\Pages\Home.razor
                 <div class="empty-state-icon">
                     <MudIcon Icon="@Icons.Material.Rounded.MenuBook" Size="Size.Large" />
                 </div>
-                <h3 class="mt-4">Ingen oppskrifter ennÃ¥</h3>
-                <p class="mud-text-secondary mb-4">Start din personlige samling nÃ¥.</p>
+                <h3 class="mt-4">Ingen oppskrifter ennå</h3>
+                <p class="mud-text-secondary mb-4">Start din personlige samling nå.</p>
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="add" StartIcon="@Icons.Material.Rounded.Add">
                     Ny Oppskrift
                 </MudButton>
@@ -15088,7 +13927,7 @@ FILE START: \StorhaugenWebsite\Pages\Household.razor
             <MudIcon Icon="@Icons.Material.Rounded.Home" Size="Size.Large" />
         </div>
         <h2 class="empty-state-title">Ingen husstand valgt</h2>
-        <p class="empty-state-text">Du mÃ¥ opprette eller bli med i en husstand for Ã¥ fÃ¥ venner!</p>
+        <p class="empty-state-text">Du må opprette eller bli med i en husstand for å få venner!</p>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateHousehold">
             Opprett husstand
         </MudButton>
@@ -15127,7 +13966,7 @@ else
                                 </div>
                             }
                             <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                @HouseholdState.CurrentHousehold?.Members.Count medlemmer â€¢ 
+                                @HouseholdState.CurrentHousehold?.Members.Count medlemmer • 
                                 @(HouseholdState.CurrentHousehold?.IsPrivate == true ? "Privat" : "Offentlig")
                             </MudText>
                         </div>
@@ -15160,7 +13999,7 @@ else
                     <div class="d-flex justify-space-between align-center">
                         <div>
                             <MudText Typo="Typo.body2" Style="font-weight: 500;">Offentlig profil</MudText>
-                            <MudText Typo="Typo.caption" Color="Color.Secondary">GjÃ¸r det mulig for andre Ã¥ sÃ¸ke opp husstanden</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Gjør det mulig for andre å søke opp husstanden</MudText>
                         </div>
                         <MudSwitch T="bool" 
                                    Value="@(!HouseholdState.CurrentHousehold!.IsPrivate)" 
@@ -15176,7 +14015,7 @@ else
             @* --- PENDING REQUESTS --- *@
             @if (_pendingRequests.Any())
             {
-                <MudText Typo="Typo.subtitle2" Class="mb-2 mt-2" Color="Color.Secondary">ForespÃ¸rsler</MudText>
+                <MudText Typo="Typo.subtitle2" Class="mb-2 mt-2" Color="Color.Secondary">Forespørsler</MudText>
                 <div class="d-flex flex-column gap-2 mb-4">
                     @foreach (var req in _pendingRequests)
                     {
@@ -15189,14 +14028,14 @@ else
                                          Color="@(isIncoming ? Color.Info : Color.Default)" />
                                 <div>
                                     <MudText Typo="Typo.body2" Style="font-weight: 600;">@otherName</MudText>
-                                    <MudText Typo="Typo.caption">@(isIncoming ? "Vil koble til dere" : "Venter pÃ¥ svar")</MudText>
+                                    <MudText Typo="Typo.caption">@(isIncoming ? "Vil koble til dere" : "Venter på svar")</MudText>
                                 </div>
                             </div>
                             @if (isIncoming)
                             {
                                 <div class="d-flex gap-2 mt-2">
                                     <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" OnClick="@(() => RespondToRequest(req.Id, "accept"))">Godta</MudButton>
-                                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" OnClick="@(() => RespondToRequest(req.Id, "reject"))">AvslÃ¥</MudButton>
+                                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" OnClick="@(() => RespondToRequest(req.Id, "reject"))">Avslå</MudButton>
                                 </div>
                             }
                         </div>
@@ -15210,7 +14049,7 @@ else
             @if (!_friends.Any())
             {
                 <div class="empty-list-simple">
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">Dere har ingen venner ennÃ¥.</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Dere har ingen venner ennå.</MudText>
                 </div>
             }
             else
@@ -15235,11 +14074,11 @@ else
             @* --- SEARCH NEW FRIENDS --- *@
             <div class="search-section">
                 <MudText Typo="Typo.h6" Class="mb-2">Finn nye husstander</MudText>
-                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-4 d-block">SÃ¸k etter navn eller delings-ID for Ã¥ legge til venner.</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-4 d-block">Søk etter navn eller delings-ID for å legge til venner.</MudText>
 
                 <MudTextField T="string"
                               @bind-Value="_searchQuery"
-                              Label="SÃ¸k etter husstander"
+                              Label="Søk etter husstander"
                               Placeholder="F.eks. 'Hansen' eller ID..."
                               Variant="Variant.Outlined"
                               Adornment="Adornment.Start"
@@ -15444,7 +14283,7 @@ else
             await ApiClient.UpdateHouseholdNameAsync(HouseholdState.CurrentHousehold.Id, new UpdateHouseholdDto { Name = _editHouseholdName });
             await HouseholdState.RefreshHouseholdsAsync();
             _isEditingName = false;
-            Snackbar.Add("Husstand omdÃ¸pt", Severity.Success);
+            Snackbar.Add("Husstand omdøpt", Severity.Success);
         }
         catch
         {
@@ -15459,7 +14298,7 @@ else
         {
             await ApiClient.UpdateHouseholdSettingsAsync(HouseholdState.CurrentHousehold.Id, new UpdateHouseholdSettingsDto { IsPrivate = !isPublic });
             HouseholdState.CurrentHousehold.IsPrivate = !isPublic; // Optimistic update
-            Snackbar.Add(isPublic ? "Husstand er nÃ¥ offentlig" : "Husstand er nÃ¥ privat", Severity.Success);
+            Snackbar.Add(isPublic ? "Husstand er nå offentlig" : "Husstand er nå privat", Severity.Success);
         }
         catch
         {
@@ -15503,7 +14342,7 @@ else
         {
             await ApiClient.RespondHouseholdFriendRequestAsync(requestId, new RespondFriendRequestDto { Action = action });
             await LoadFriendships(); // Refresh list
-            Snackbar.Add(action == "accept" ? "VenneforespÃ¸rsel godkjent!" : "ForespÃ¸rsel avslÃ¥tt", Severity.Success);
+            Snackbar.Add(action == "accept" ? "Venneforespørsel godkjent!" : "Forespørsel avslått", Severity.Success);
         }
         catch
         {
@@ -15532,12 +14371,12 @@ else
         try 
         {
             await ApiClient.SendHouseholdFriendRequestAsync(new SendHouseholdFriendRequestDto { HouseholdId = target.Id });
-            Snackbar.Add($"ForespÃ¸rsel sendt til {target.Name}", Severity.Success);
+            Snackbar.Add($"Forespørsel sendt til {target.Name}", Severity.Success);
             await LoadFriendships(); // Refresh to see update
         }
         catch
         {
-            Snackbar.Add("Klarte ikke sende forespÃ¸rsel (Sjekk om dere allerede er venner eller om forespÃ¸rsel finnes)", Severity.Warning);
+            Snackbar.Add("Klarte ikke sende forespørsel (Sjekk om dere allerede er venner eller om forespørsel finnes)", Severity.Warning);
         }
     }
 }
@@ -15641,207 +14480,6 @@ FILE START: \StorhaugenWebsite\Pages\NotFound.razor
 <h3>Not Found</h3>
 <p>Sorry, the content you are looking for does not exist.</p>
 
-@* Yes, absolutely! That is the cleanest and most robust architectural solution.
-
-Transforming a recipe into a GlobalRecipe upon "publishing" solves the referencing problem entirely. It unifies your data structure so that "Browsing" only ever looks at one table (global_recipes), and "Adding" always works the same way (linking to a global ID).
-
-Why this is the best approach
-Solves the "Conundrum": Since the recipe now lives in the global_recipes table, other households can link to it using the existing global_recipe_id column.
-
-Unified "Browse" Logic: You no longer need separate API calls for "HelloFresh" vs. "Community". You just query global_recipes and filter by is_hellofresh.
-
-Shared Ratings: If 10 families add your lasagna, they are all rating the same GlobalRecipe row. The average rating becomes real and valuable.
-
-"Master" Version: As the creator, if you update the Global Recipe, everyone who linked to it (added as reference) sees the improvement. (THIS IS WRONG):
-EDIT: i dont want the user to be able to edit the global recipe after publishing, so the user needs to get a warning about that before publishing.
-Additionally, publishing a recipe should not convert the household recipe into a global recipe, but rather create a new global recipe and link the household recipe to it. 
-This way, the household recipe remains editable locally, but any changes won't affect the global version. here is a prompt for further details:
-
-
-START PROMPT-------
-This is a solid foundation. You have a clean Clean Architecture setup with Blazor WASM and a PostgreSQL backend. The separation of concerns (API, Client, Shared DTOs) is professional.
-
-However, you have hit a classic architectural wall: The "Multi-Tenant vs. Social Network" conflict.
-
-Currently, your app treats a Household like a corporate tenant (isolated). You want it to act like Instagram (social), while keeping the utility of a family meal planner.
-
-Here is my breakdown of how to solve the "Forking/Rating" problem and how to pivot the UX to be more social.
-
-1. Solving the "Forking vs. Reference" Rating Problem
-You are worried that if a user changes a recipe locally, their rating shouldn't count toward the Global average.
-
-The Solution: The "Soft Link" Model Don't try to programmatically calculate "how much changed." It is too complex. Instead, rely on intent.
-
-The Default State (Reference): When a user adds a Global Recipe to their household, it is a Reference.
-
-Your household_recipes table has a global_recipe_id.
-
-Logic: Any rating the user gives here automatically counts towards the global_recipes average.
-
-Why? If I add extra garlic to a "HelloFresh Pasta" and rate it 5 stars, I am still effectively rating the HelloFresh Pasta.
-
-The "Detach" Action (Hard Fork):
-
-Add a button in the UI: "Save as my own recipe" (or "Detach").
-
-If clicked, you clear the global_recipe_id in the database and treat it as a brand new household_recipe.
-
-Logic: Ratings here do not count toward the original Global recipe. They count toward this new unique recipe.
-
-Visual Indication:
-
-In the UI, if a recipe is linked, show a small link icon or "Based on [Original Title]".
-
-If the user edits the Title or Main Ingredients drastically, prompt them: "You've changed this a lot. Do you want to save this as a new custom recipe?"
-END PROMPT-------
-
-Additionally i want the user to be able to create their own list without joining a household first. This would also include a big refactor of how the app and backend/sql tables work. Here is a prompt for that:
-
-START PROMPT 2
-2. Pivoting from "Household Utility" to "Social App"
-Your concern is valid: The app feels like a utility because the User is hidden behind the Household. In social apps, the User is the star; the Group (Household) is just a context.
-
-Architectural Pivot: "User First, Household Context"
-
-Currently, your Index.razor blocks everything if !HouseholdState.HasHousehold. This is the friction point.
-
-Suggested Changes:
-
-The "Personal Cookbook" (No Household Required):
-
-Allow users to function without a household.
-
-Create a "Personal" context. When they add a recipe, it goes to their personal list.
-
-When they join a household later, they can "Move" or "Copy" their personal recipes to the household.
-
-The "Feed" Concept (Social Layer):
-
-Change the Home Page (/) from a list of My Dinner to a Dashboard.
-
-Tab 1: Kitchen (Utility): This is your current view. "What's for dinner?" (Household specific).
-
-Tab 2: Feed (Social): "What are my friends eating?"
-
-Show cards: "User X rated 'Spicy Tacos' 9.5" or "The Hansen Household just planned 'Pizza'".
-
-This encourages discovery.
-
-Global vs. Local Comments:
-
-Currently, comments are in the ratings table.
-
-UI Change: When viewing a Global Recipe, show two tabs for reviews:
-
-"From your Household" (Private chatter: "Kids didn't like this").
-
-"Community" (Public ratings).
-END PROMPT 2
-
-I need some way to show in the list of recipes what recipes are local, and which are published(global). Maybe a small icon or label next to the recipe title indicating its status.
-
-How to Implement "Publishing"
-You need to create a specific endpoint that "promotes" a local household recipe to the global table.
-
-1. Backend Controller (HouseholdRecipesController.cs)
-Add a new PublishRecipe endpoint. This logic takes your local data, creates a global entry, and then links your local copy to it.
-
-C#
-
-[HttpPost("{id}/publish")]
-public async Task<ActionResult<HouseholdRecipeDto>> PublishRecipe(Guid id)
-{
-    var userId = await _currentUserService.GetOrCreateUserIdAsync();
-    var user = await _context.Users.FindAsync(userId);
-
-    if (user?.CurrentHouseholdId == null)
-        return BadRequest(new { message = "You must select a household first" });
-
-    // 1. Fetch the local recipe
-    var localRecipe = await _context.HouseholdRecipes
-        .FirstOrDefaultAsync(hr => hr.Id == id && hr.HouseholdId == user.CurrentHouseholdId);
-
-    if (localRecipe == null) return NotFound();
-    if (localRecipe.GlobalRecipeId != null) 
-        return BadRequest(new { message = "This recipe is already linked to a global recipe." });
-
-    // 2. Create the Global Recipe
-    var globalRecipe = new GlobalRecipe
-    {
-        Id = Guid.NewGuid(),
-        Title = localRecipe.LocalTitle ?? "Untitled",
-        Description = localRecipe.LocalDescription,
-        ImageUrl = localRecipe.LocalImageUrl, // Assume single image or primary
-        ImageUrls = localRecipe.LocalImageUrl ?? "[]", // Simplified mapping
-        CreatedByUserId = userId,
-        IsPublic = true,
-        IsHellofresh = false, // Crucial distinction
-        CreatedAt = DateTime.UtcNow,
-        UpdatedAt = DateTime.UtcNow,
-        TotalTimesAdded = 1, // You are the first one adding it
-        Ingredients = localRecipe.LocalIngredients ?? "[]", // Map your ingredients
-        Tags = "[]"
-    };
-
-    _context.GlobalRecipes.Add(globalRecipe);
-
-    // 3. Link the Local Recipe to the new Global one
-    // We clear local overrides so it "syncs" with the published version
-    localRecipe.GlobalRecipeId = globalRecipe.Id;
-    localRecipe.IsPublic = true; // Flag for UI
-    localRecipe.LocalTitle = null; 
-    localRecipe.LocalDescription = null;
-    localRecipe.LocalImageUrl = null; 
-
-    await _context.SaveChangesAsync();
-
-    return Ok(MapToDto(localRecipe));
-}
-2. Refactoring the "Browse" Logic
-Now that community recipes are GlobalRecipes, you can simplify your Browse page significantly. You no longer need to search household_recipes.
-
-Updated GlobalRecipesController.cs logic:
-
-Your existing BrowseGlobalRecipes endpoint works almost as-is! You just need to tweak how you interpret the filters.
-
-HelloFresh Tab: Filter IsHelloFresh == true.
-
-Community Tab: Filter IsHelloFresh == false.
-
-C#
-
-// Inside GlobalRecipesController.BrowseRecipes
-
-if (query.HellofreshOnly)
-{
-    queryable = queryable.Where(gr => gr.IsHellofresh);
-}
-else if (query.CommunityOnly) // Add this flag to your query DTO
-{
-    // Community recipes are just global recipes made by users
-    queryable = queryable.Where(gr => !gr.IsHellofresh);
-}
-3. Frontend Changes (BrowseDetail.razor)
-With this change, the "Add Reference" button now works for everyone, because everything in the Browse tab has a GlobalRecipeId.
-
-Browse.razor: You can delete BrowsePublicRecipesQuery and PublicRecipeDto. Just use BrowseGlobalRecipesQuery for everything, toggling a boolean for the tabs.
-
-BrowseDetail.razor: The "Add as Reference" button now works for Community recipes because they are global recipes.
-
-The New User Flow
-User A creates "Spicy Tacos" in their household (Local only).
-
-User A clicks "Make Public" (new button in food/{id}).
-
-System creates a GlobalRecipe for "Spicy Tacos" and links User A's copy to it.
-
-User B goes to "Browse" -> "Community". They see "Spicy Tacos".
-
-User B clicks "Add as Reference". They get a link to User A's "Spicy Tacos".
-
-User B rates it 5 stars. The global rating updates. User A sees their recipe has 5 stars.
-
-This aligns your app with standard "Social Recipe App" architecture and solves your data isolation issues. *@
 
 ================================================================================
 FILE END: \StorhaugenWebsite\Pages\NotFound.razor
@@ -15893,7 +14531,7 @@ FILE START: \StorhaugenWebsite\Pages\Settings.razor
                       Adornment="Adornment.End"
                       AdornmentIcon="@Icons.Material.Filled.Save"
                       OnAdornmentClick="UpdateDisplayName"
-                      HelperText="Trykk pÃ¥ lagre-ikonet for Ã¥ oppdatere navnet ditt" />
+                      HelperText="Trykk på lagre-ikonet for å oppdatere navnet ditt" />
     </div>
 
     @if (!string.IsNullOrEmpty(_userProfile?.UniqueShareId))
@@ -15914,7 +14552,7 @@ FILE START: \StorhaugenWebsite\Pages\Settings.razor
             </div>
         </div>
         <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-top: -8px;">
-            Brukes for Ã¥ bli invitert direkte til andres husstander
+            Brukes for å bli invitert direkte til andres husstander
         </MudText>
     }
 </div>
@@ -16106,7 +14744,7 @@ FILE START: \StorhaugenWebsite\Pages\Settings.razor
         }
         catch
         {
-            Snackbar.Add("Klarte ikke Ã¥ oppdatere navn", Severity.Error);
+            Snackbar.Add("Klarte ikke å oppdatere navn", Severity.Error);
         }
     }
 
@@ -17995,13 +16633,13 @@ FILE START: \StorhaugenWebsite\Shared\Authorization.razor
         <h2 class="empty-state-title">Vennligst logg inn</h2>
         <p class="empty-state-text">@Text</p>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="login" Size="Size.Large">
-            GÃ¥ til innlogging
+            Gå til innlogging
         </MudButton>
     </div>
 </div>
 
 @code {
-    [Parameter] public string Text { get; set; } = "Du mÃ¥ vÃ¦re logget inn for Ã¥ se denne siden";
+    [Parameter] public string Text { get; set; } = "Du må være logget inn for å se denne siden";
 }
 
 ================================================================================
@@ -18132,7 +16770,7 @@ FILE START: \StorhaugenWebsite\Shared\MainLayout.razor
             }
             else
             {
-                <Authorization Text="Du mÃ¥ vÃ¦re medlem av en husstand for Ã¥ se denne siden." />
+                <Authorization Text="Du må være medlem av en husstand for å se denne siden." />
             }
         </MudContainer>
     </MudMainContent>
@@ -19742,7 +18380,7 @@ window.ocrInterop = {
             }
 
             // 3. If result still looks bad, try Inverse Landscape (270 deg)
-            // This is CRITICAL for the "SprÃ¸ katsu" image you provided
+            // This is CRITICAL for the "Sprø katsu" image you provided
             if (isTextGarbage(bestText)) {
                 console.log("Text garbage. Trying 270deg (bottom-to-top text)...");
                 const text270 = await tryRecognize(worker, img, 270);
@@ -19772,7 +18410,7 @@ async function tryRecognize(worker, imgElement, rotation) {
 function countLetters(text) {
     if (!text) return 0;
     // Fix: Count Letters AND Numbers as valid content
-    return text.replace(/[^a-zA-ZÃ¦Ã¸Ã¥Ã†Ã˜Ã…0-9]/g, '').length;
+    return text.replace(/[^a-zA-ZæøåÆØÅ0-9]/g, '').length;
 }
 
 function isTextGarbage(text) {
@@ -20088,28 +18726,6 @@ FILE END: \StorhaugenWebsite\wwwroot\manifest.json
 
 
 ================================================================================
-FILE START: \StorhaugenWebsite\_Imports.razor
-================================================================================
-@using System.Net.Http
-@using System.Net.Http.Json
-@using Microsoft.AspNetCore.Components.Forms
-@using Microsoft.AspNetCore.Components.Routing
-@using Microsoft.AspNetCore.Components.Web
-@using Microsoft.AspNetCore.Components.Web.Virtualization
-@using Microsoft.AspNetCore.Components.WebAssembly.Http
-@using Microsoft.JSInterop
-@using MudBlazor
-@using StorhaugenWebsite
-@using StorhaugenWebsite.Models
-@using StorhaugenWebsite.Services
-
-
-================================================================================
-FILE END: \StorhaugenWebsite\_Imports.razor
-================================================================================
-
-
-================================================================================
 FILE START: \StorhaugenWebsite\App.razor
 ================================================================================
 @using Microsoft.AspNetCore.Components.Authorization
@@ -20146,7 +18762,7 @@ else
                                  <div class="empty-state">
                                      <MudIcon Icon="@Icons.Material.Rounded.Lock" Size="Size.Large" />
                                      <h3>Vennligst logg inn</h3>
-                                     <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="login">GÃ¥ til innlogging</MudButton>
+                                     <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="login">Gå til innlogging</MudButton>
                                  </div>
                              </div>
                         </LayoutView>
@@ -20352,6 +18968,28 @@ FILE START: \StorhaugenWebsite\StorhaugenWebsite.csproj
 
 ================================================================================
 FILE END: \StorhaugenWebsite\StorhaugenWebsite.csproj
+================================================================================
+
+
+================================================================================
+FILE START: \StorhaugenWebsite\_Imports.razor
+================================================================================
+@using System.Net.Http
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+@using Microsoft.AspNetCore.Components.WebAssembly.Http
+@using Microsoft.JSInterop
+@using MudBlazor
+@using StorhaugenWebsite
+@using StorhaugenWebsite.Models
+@using StorhaugenWebsite.Services
+
+
+================================================================================
+FILE END: \StorhaugenWebsite\_Imports.razor
 ================================================================================
 
 
