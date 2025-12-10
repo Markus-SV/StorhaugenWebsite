@@ -48,6 +48,11 @@ builder.Services.AddScoped<IOcrService, TesseractOcrService>();
 // Food Service - Uses ApiClient now for backward compatibility with existing pages
 builder.Services.AddScoped<IFoodService, FoodService>();
 
+// User-centric services (new architecture)
+builder.Services.AddScoped<IUserRecipeService, UserRecipeService>();
+builder.Services.AddScoped<IUserFriendshipService, UserFriendshipService>();
+builder.Services.AddScoped<IActivityFeedService, ActivityFeedService>();
+
 var host = builder.Build();
 var authService = host.Services.GetRequiredService<IAuthService>();
 await authService.InitializeAsync();
