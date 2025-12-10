@@ -1,0 +1,89 @@
+@using MudBlazor
+
+<MudPaper Class="pa-3" Elevation="0" Style="background: var(--mud-palette-background-grey);">
+    <MudText Typo="Typo.subtitle2" Class="mb-2">Synlighet</MudText>
+
+    <MudRadioGroup @bind-Value="Visibility" T="string">
+        <div class="d-flex flex-column gap-2">
+            <MudPaper Class="pa-2 @(Visibility == "private" ? "mud-border-primary" : "")"
+                     Elevation="0"
+                     Style="@GetItemStyle("private")"
+                     @onclick="@(() => SetVisibility("private"))">
+                <div class="d-flex align-center gap-2">
+                    <MudRadio Value="@("private")" Color="Color.Primary" Dense="true" />
+                    <MudIcon Icon="@Icons.Material.Rounded.Lock" Size="Size.Small" />
+                    <div>
+                        <MudText Typo="Typo.body2">Privat</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Bare du kan se denne oppskriften</MudText>
+                    </div>
+                </div>
+            </MudPaper>
+
+            <MudPaper Class="pa-2 @(Visibility == "household" ? "mud-border-primary" : "")"
+                     Elevation="0"
+                     Style="@GetItemStyle("household")"
+                     @onclick="@(() => SetVisibility("household"))">
+                <div class="d-flex align-center gap-2">
+                    <MudRadio Value="@("household")" Color="Color.Primary" Dense="true" />
+                    <MudIcon Icon="@Icons.Material.Rounded.Home" Size="Size.Small" />
+                    <div>
+                        <MudText Typo="Typo.body2">Husstand</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Synlig for husstandsmedlemmer</MudText>
+                    </div>
+                </div>
+            </MudPaper>
+
+            <MudPaper Class="pa-2 @(Visibility == "friends" ? "mud-border-primary" : "")"
+                     Elevation="0"
+                     Style="@GetItemStyle("friends")"
+                     @onclick="@(() => SetVisibility("friends"))">
+                <div class="d-flex align-center gap-2">
+                    <MudRadio Value="@("friends")" Color="Color.Primary" Dense="true" />
+                    <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Small" />
+                    <div>
+                        <MudText Typo="Typo.body2">Venner</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Synlig for vennene dine</MudText>
+                    </div>
+                </div>
+            </MudPaper>
+
+            <MudPaper Class="pa-2 @(Visibility == "public" ? "mud-border-primary" : "")"
+                     Elevation="0"
+                     Style="@GetItemStyle("public")"
+                     @onclick="@(() => SetVisibility("public"))">
+                <div class="d-flex align-center gap-2">
+                    <MudRadio Value="@("public")" Color="Color.Primary" Dense="true" />
+                    <MudIcon Icon="@Icons.Material.Rounded.Public" Size="Size.Small" />
+                    <div>
+                        <MudText Typo="Typo.body2">Offentlig</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Alle kan se denne oppskriften</MudText>
+                    </div>
+                </div>
+            </MudPaper>
+        </div>
+    </MudRadioGroup>
+</MudPaper>
+
+@code {
+    [Parameter]
+    public string Visibility { get; set; } = "private";
+
+    [Parameter]
+    public EventCallback<string> VisibilityChanged { get; set; }
+
+    private async Task SetVisibility(string value)
+    {
+        Visibility = value;
+        await VisibilityChanged.InvokeAsync(value);
+    }
+
+    private string GetItemStyle(string value)
+    {
+        var baseStyle = "cursor: pointer; border: 1px solid transparent; border-radius: 8px;";
+        if (Visibility == value)
+        {
+            return baseStyle + " border-color: var(--mud-palette-primary);";
+        }
+        return baseStyle;
+    }
+}
