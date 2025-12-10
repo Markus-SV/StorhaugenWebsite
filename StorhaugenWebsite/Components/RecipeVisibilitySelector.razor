@@ -5,7 +5,7 @@
 
     <MudRadioGroup @bind-Value="Visibility" T="string">
         <div class="d-flex flex-column gap-2">
-            <MudPaper Class="pa-2 @(Visibility == "private" ? "mud-border-primary" : "")"
+            <MudPaper Class="@(Visibility == "private" ? "mud-border-primary pa-2" : "pa-2")"
                      Elevation="0"
                      Style="@GetItemStyle("private")"
                      @onclick="@(() => SetVisibility("private"))">
@@ -19,7 +19,7 @@
                 </div>
             </MudPaper>
 
-            <MudPaper Class="pa-2 @(Visibility == "household" ? "mud-border-primary" : "")"
+            <MudPaper Class="@(Visibility == "household" ? "mud-border-primary pa-2" : "pa-2")"
                      Elevation="0"
                      Style="@GetItemStyle("household")"
                      @onclick="@(() => SetVisibility("household"))">
@@ -33,7 +33,7 @@
                 </div>
             </MudPaper>
 
-            <MudPaper Class="pa-2 @(Visibility == "friends" ? "mud-border-primary" : "")"
+            <MudPaper Class="@(Visibility == "friends" ? "mud-border-primary pa-2" : "pa-2")"
                      Elevation="0"
                      Style="@GetItemStyle("friends")"
                      @onclick="@(() => SetVisibility("friends"))">
@@ -47,7 +47,7 @@
                 </div>
             </MudPaper>
 
-            <MudPaper Class="pa-2 @(Visibility == "public" ? "mud-border-primary" : "")"
+            <MudPaper Class="@(Visibility == "public" ? "mud-border-primary pa-2" : "pa-2")"
                      Elevation="0"
                      Style="@GetItemStyle("public")"
                      @onclick="@(() => SetVisibility("public"))">

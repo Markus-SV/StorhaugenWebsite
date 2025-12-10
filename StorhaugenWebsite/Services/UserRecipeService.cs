@@ -53,7 +53,7 @@ namespace StorhaugenWebsite.Services
         {
             ValidateAuthorization();
 
-            if (string.IsNullOrWhiteSpace(dto.LocalTitle) && !dto.GlobalRecipeId.HasValue)
+            if (string.IsNullOrWhiteSpace(dto.Name) && !dto.GlobalRecipeId.HasValue)
                 throw new ArgumentException("Recipe must have either a title or be linked to a global recipe.");
 
             var result = await _apiClient.CreateUserRecipeAsync(dto);

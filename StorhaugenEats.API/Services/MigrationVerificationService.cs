@@ -65,9 +65,9 @@ public class MigrationVerificationService : IMigrationVerificationService
             result.ItemsChecked = householdRecipes.Count;
 
             // Get all user recipe IDs
-            var userRecipeIds = await _context.UserRecipes
+            var userRecipeIds = _context.UserRecipes
                 .Select(ur => ur.Id)
-                .ToHashSetAsync();
+                .ToHashSet();
 
             // Check each household recipe has a corresponding user recipe
             foreach (var hr in householdRecipes)

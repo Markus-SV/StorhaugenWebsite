@@ -34,9 +34,9 @@ public class DataMigrationService : IDataMigrationService
             result.ItemsProcessed = householdRecipes.Count;
 
             // Get existing user recipe IDs to check for duplicates
-            var existingUserRecipeIds = await _context.UserRecipes
+            var existingUserRecipeIds = _context.UserRecipes
                 .Select(ur => ur.Id)
-                .ToHashSetAsync();
+                .ToHashSet();
 
             foreach (var hr in householdRecipes)
             {
@@ -126,9 +126,9 @@ public class DataMigrationService : IDataMigrationService
             result.ItemsProcessed = ratingsToMigrate.Count;
 
             // Get valid user recipe IDs
-            var userRecipeIds = await _context.UserRecipes
+            var userRecipeIds = _context.UserRecipes
                 .Select(ur => ur.Id)
-                .ToHashSetAsync();
+                .ToHashSet();
 
             foreach (var rating in ratingsToMigrate)
             {
@@ -245,8 +245,8 @@ public class DataMigrationService : IDataMigrationService
                     var userFriendship = new UserFriendship
                     {
                         Id = Guid.NewGuid(),
-                        RequesterUserId = requesterId,
-                        TargetUserId = targetId,
+                        RequesterUserId = (Guid)requesterId,
+                        TargetUserId = (Guid)targetId,
                         Status = hf.Status,
                         Message = hf.Message,
                         CreatedAt = hf.CreatedAt,

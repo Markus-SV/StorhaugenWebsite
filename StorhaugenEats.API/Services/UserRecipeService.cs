@@ -545,11 +545,10 @@ public class UserRecipeService : IUserRecipeService
         {
             return new UserRecipePagedResult
             {
-                Items = new List<UserRecipeDto>(),
+                Recipes = new List<UserRecipeDto>(),
                 TotalCount = 0,
                 Page = query.Page,
                 PageSize = query.PageSize,
-                TotalPages = 0
             };
         }
 
@@ -564,14 +563,6 @@ public class UserRecipeService : IUserRecipeService
             .Where(r => r.Visibility == "friends" || r.Visibility == "public")
             .Where(r => !r.IsArchived);
 
-        // Search
-        if (!string.IsNullOrEmpty(query.Search))
-        {
-            queryable = queryable.Where(r =>
-                (r.LocalTitle != null && r.LocalTitle.Contains(query.Search)) ||
-                (r.GlobalRecipe != null && r.GlobalRecipe.Title.Contains(query.Search)));
-        }
-
         // Sort by date by default
         queryable = queryable.OrderByDescending(r => r.CreatedAt);
 
@@ -583,11 +574,10 @@ public class UserRecipeService : IUserRecipeService
 
         return new UserRecipePagedResult
         {
-            Items = recipes.Select(r => MapToDto(r, userId)).ToList(),
+            Recipes = recipes.Select(r => MapToDto(r, userId)).ToList(),
             TotalCount = totalCount,
             Page = query.Page,
             PageSize = query.PageSize,
-            TotalPages = (int)Math.Ceiling(totalCount / (double)query.PageSize)
         };
     }
 

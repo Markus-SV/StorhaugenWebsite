@@ -14,14 +14,14 @@ public class HouseholdFriendshipDto
     public DateTime? RespondedAt { get; set; }
 }
 
-public class SendFriendRequestDto
+public class SendHouseholdFriendRequestDto
 {
     public string? HouseholdShareId { get; set; }
     public Guid? HouseholdId { get; set; }
     public string? Message { get; set; }
 }
 
-public class RespondFriendRequestDto
+public class RespondHouseholdFriendRequestDto
 {
     public required string Action { get; set; } // accept or reject
 }
