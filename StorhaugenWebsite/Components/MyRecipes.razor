@@ -1,0 +1,319 @@
+@using MudBlazor
+@using StorhaugenWebsite.DTOs
+@using StorhaugenWebsite.Services
+@inject IUserRecipeService RecipeService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<div class="my-recipes">
+    @* --- FILTER/SORT CONTROLS --- *@
+    <div class="d-flex justify-space-between align-center mb-4">
+        <MudMenu AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
+            <ActivatorContent>
+                <div class="sort-dropdown" style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px 12px; background: var(--mud-palette-background-grey); border-radius: 8px;">
+                    <MudIcon Icon="@Icons.Material.Rounded.FilterList" Size="Size.Small" />
+                    <span>@GetVisibilityLabel()</span>
+                </div>
+            </ActivatorContent>
+            <ChildContent>
+                <MudMenuItem OnClick="@(() => SetVisibilityFilter(null))">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Rounded.AllInclusive" Size="Size.Small" />
+                        <span>Alle</span>
+                        @if (_visibilityFilter == null) { <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Color="Color.Primary" /> }
+                    </div>
+                </MudMenuItem>
+                <MudMenuItem OnClick="@(() => SetVisibilityFilter("private"))">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Rounded.Lock" Size="Size.Small" />
+                        <span>Private</span>
+                        @if (_visibilityFilter == "private") { <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Color="Color.Primary" /> }
+                    </div>
+                </MudMenuItem>
+                <MudMenuItem OnClick="@(() => SetVisibilityFilter("household"))">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Rounded.Home" Size="Size.Small" />
+                        <span>Husstand</span>
+                        @if (_visibilityFilter == "household") { <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Color="Color.Primary" /> }
+                    </div>
+                </MudMenuItem>
+                <MudMenuItem OnClick="@(() => SetVisibilityFilter("friends"))">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Small" />
+                        <span>Venner</span>
+                        @if (_visibilityFilter == "friends") { <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Color="Color.Primary" /> }
+                    </div>
+                </MudMenuItem>
+                <MudMenuItem OnClick="@(() => SetVisibilityFilter("public"))">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Rounded.Public" Size="Size.Small" />
+                        <span>Offentlige</span>
+                        @if (_visibilityFilter == "public") { <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Color="Color.Primary" /> }
+                    </div>
+                </MudMenuItem>
+            </ChildContent>
+        </MudMenu>
+
+        <MudTextField @bind-Value="_searchQuery"
+                     Placeholder="Søk..."
+                     Variant="Variant.Outlined"
+                     Adornment="Adornment.Start"
+                     AdornmentIcon="@Icons.Material.Rounded.Search"
+                     Immediate="true"
+                     DebounceInterval="300"
+                     OnDebounceIntervalElapsed="OnSearchChanged"
+                     Style="max-width: 200px; --mud-default-borderradius: 8px;"
+                     Margin="Margin.Dense" />
+    </div>
+
+    @* --- RECIPES LIST --- *@
+    @if (_isLoading)
+    {
+        <div class="d-flex flex-column gap-3">
+            @for (int i = 0; i < 5; i++)
+            {
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="100px" />
+            }
+        </div>
+    }
+    else if (!_recipes.Any())
+    {
+        <div class="empty-state text-center pa-6">
+            <MudIcon Icon="@Icons.Material.Rounded.MenuBook" Size="Size.Large" Color="Color.Default" />
+            <MudText Typo="Typo.h6" Class="mt-3">Ingen oppskrifter ennå</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+                Start din personlige kokebok ved å legge til oppskrifter!
+            </MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/add" StartIcon="@Icons.Material.Rounded.Add">
+                Legg til oppskrift
+            </MudButton>
+        </div>
+    }
+    else
+    {
+        <div class="d-flex flex-column gap-3">
+            @foreach (var recipe in _recipes)
+            {
+                <MudPaper Class="pa-3 recipe-card" Elevation="1" @onclick="() => NavigateToRecipe(recipe)">
+                    <div class="d-flex gap-3">
+                        @if (recipe.ImageUrls.Any())
+                        {
+                            <MudImage Src="@recipe.ImageUrls.First()"
+                                     Alt="@recipe.Name"
+                                     Width="80"
+                                     Height="80"
+                                     ObjectFit="ObjectFit.Cover"
+                                     Class="rounded" />
+                        }
+                        else
+                        {
+                            <div class="recipe-placeholder rounded" style="width: 80px; height: 80px; background: var(--mud-palette-background-grey); display: flex; align-items: center; justify-content: center;">
+                                <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Color="Color.Default" />
+                            </div>
+                        }
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-center gap-2">
+                                <MudText Typo="Typo.subtitle1" Class="font-weight-medium">@recipe.Name</MudText>
+                                @if (recipe.IsLinkedToGlobal)
+                                {
+                                    <MudIcon Icon="@Icons.Material.Rounded.Link" Size="Size.Small" Color="Color.Info" />
+                                }
+                            </div>
+                            <div class="d-flex align-center gap-2 mt-1">
+                                <MudIcon Icon="@GetVisibilityIcon(recipe.Visibility)" Size="Size.Small" Color="Color.Default" />
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @GetVisibilityText(recipe.Visibility)
+                                </MudText>
+                            </div>
+                            @if (recipe.MyRating.HasValue)
+                            {
+                                <div class="d-flex align-center gap-1 mt-1">
+                                    <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" Color="Color.Warning" />
+                                    <MudText Typo="Typo.caption">@recipe.MyRating.Value/10</MudText>
+                                </div>
+                            }
+                        </div>
+                        <div class="d-flex flex-column align-end justify-space-between">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                @recipe.CreatedAt.ToString("dd. MMM")
+                            </MudText>
+                            @if (!recipe.IsPublished && !recipe.IsLinkedToGlobal)
+                            {
+                                <MudIconButton Icon="@Icons.Material.Rounded.Publish"
+                                              Size="Size.Small"
+                                              Color="Color.Primary"
+                                              OnClick="@((e) => { e.StopPropagation(); PublishRecipe(recipe); })" />
+                            }
+                        </div>
+                    </div>
+                </MudPaper>
+            }
+        </div>
+
+        @if (_hasMorePages)
+        {
+            <div class="d-flex justify-center mt-4">
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="LoadMore" Disabled="_isLoadingMore">
+                    @if (_isLoadingMore)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    }
+                    Last inn mer
+                </MudButton>
+            </div>
+        }
+    }
+</div>
+
+<style>
+    .recipe-card {
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .recipe-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+    }
+</style>
+
+@code {
+    private List<UserRecipeDto> _recipes = new();
+    private bool _isLoading = true;
+    private bool _isLoadingMore = false;
+    private bool _hasMorePages = false;
+    private int _currentPage = 1;
+    private string? _visibilityFilter = null;
+    private string _searchQuery = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRecipes();
+    }
+
+    private async Task LoadRecipes()
+    {
+        _isLoading = true;
+        _currentPage = 1;
+        StateHasChanged();
+
+        try
+        {
+            var query = new GetUserRecipesQuery
+            {
+                Page = _currentPage,
+                PageSize = 20,
+                Visibility = _visibilityFilter,
+                Search = string.IsNullOrWhiteSpace(_searchQuery) ? null : _searchQuery
+            };
+            var result = await RecipeService.GetMyRecipesAsync(query);
+            _recipes = result.Items;
+            _hasMorePages = result.Page < result.TotalPages;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Kunne ikke laste oppskrifter: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadMore()
+    {
+        _isLoadingMore = true;
+        _currentPage++;
+        StateHasChanged();
+
+        try
+        {
+            var query = new GetUserRecipesQuery
+            {
+                Page = _currentPage,
+                PageSize = 20,
+                Visibility = _visibilityFilter,
+                Search = string.IsNullOrWhiteSpace(_searchQuery) ? null : _searchQuery
+            };
+            var result = await RecipeService.GetMyRecipesAsync(query);
+            _recipes.AddRange(result.Items);
+            _hasMorePages = result.Page < result.TotalPages;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Kunne ikke laste mer: {ex.Message}", Severity.Error);
+            _currentPage--;
+        }
+        finally
+        {
+            _isLoadingMore = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SetVisibilityFilter(string? visibility)
+    {
+        _visibilityFilter = visibility;
+        await LoadRecipes();
+    }
+
+    private async Task OnSearchChanged(string value)
+    {
+        _searchQuery = value;
+        await LoadRecipes();
+    }
+
+    private void NavigateToRecipe(UserRecipeDto recipe)
+    {
+        Navigation.NavigateTo($"/food/{recipe.Id}");
+    }
+
+    private async Task PublishRecipe(UserRecipeDto recipe)
+    {
+        var parameters = new DialogParameters<PublishRecipeDialog> { { x => x.Recipe, recipe } };
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<PublishRecipeDialog>("Publiser", parameters, options);
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            await LoadRecipes();
+        }
+    }
+
+    private string GetVisibilityLabel()
+    {
+        return _visibilityFilter switch
+        {
+            "private" => "Private",
+            "household" => "Husstand",
+            "friends" => "Venner",
+            "public" => "Offentlige",
+            _ => "Alle"
+        };
+    }
+
+    private string GetVisibilityIcon(string visibility)
+    {
+        return visibility switch
+        {
+            "private" => Icons.Material.Rounded.Lock,
+            "household" => Icons.Material.Rounded.Home,
+            "friends" => Icons.Material.Rounded.People,
+            "public" => Icons.Material.Rounded.Public,
+            _ => Icons.Material.Rounded.Lock
+        };
+    }
+
+    private string GetVisibilityText(string visibility)
+    {
+        return visibility switch
+        {
+            "private" => "Privat",
+            "household" => "Husstand",
+            "friends" => "Venner",
+            "public" => "Offentlig",
+            _ => "Privat"
+        };
+    }
+}

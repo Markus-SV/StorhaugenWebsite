@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using StorhaugenWebsite.Models
 @using StorhaugenWebsite.Services
+@using StorhaugenWebsite.Components
 @inject IAuthService AuthService
 @inject IFoodService FoodService
 @inject IHouseholdStateService HouseholdState
@@ -224,16 +225,7 @@
         @* --- VISIBILITY & SUBMIT --- *@
         <div class="form-section">
             <p class="form-section-title">Synlighet</p>
-            <div class="d-flex align-center gap-3 mb-4">
-                <MudIcon Icon="@(_newFood.IsPublic? Icons.Material.Rounded.Public : Icons.Material.Rounded.Lock)" Color="@(_newFood.IsPublic? Color.Primary: Color.Default)" />
-                <div style="flex: 1;">
-                    <MudText Typo="Typo.subtitle1"><b>@(_newFood.IsPublic ? "Offentlig" : "Privat")</b></MudText>
-                    <MudText Typo="Typo.caption" Color="Color.Secondary">
-                        @(_newFood.IsPublic ? "Synlig for alle" : "Kun din husstand")
-                    </MudText>
-                </div>
-                <MudSwitch T="bool" @bind-Value="_newFood.IsPublic" Color="Color.Primary" />
-            </div>
+            <RecipeVisibilitySelector @bind-Visibility="_visibility" />
 
             <MudButton Variant="Variant.Filled"
                        Color="@(_isHelloFresh ? Color.Success : Color.Primary)"
@@ -241,6 +233,7 @@
                        FullWidth="true"
                        OnClick="SubmitFood"
                        Disabled="_isSubmitting"
+                       Class="mt-4"
                        Style="border-radius: 14px; padding: 14px;">
                 @if (_isSubmitting)
                 {
@@ -272,6 +265,7 @@
     private int _ratingValue = 5;
     private string _currentUserName = "";
     private bool _isHelloFresh = true;
+    private string _visibility = "household"; // New visibility setting
     private ElementReference _videoElement;
     private bool _showCameraOverlay = false;
     private bool _isProcessingOcr = false;
@@ -582,7 +576,11 @@
         {
             var urls = new List<string>(_draftImageUrls);
             for (int i = 0; i < _imageData.Count; i++) urls.Add(await FoodService.UploadImageAsync(_imageData[i], _imageNames[i]));
-            _newFood.ImageUrls = urls; _newFood.DateAdded = DateTime.UtcNow; _newFood.AddedBy = _currentUserName; _newFood.IsHelloFresh = _isHelloFresh;
+            _newFood.ImageUrls = urls;
+            _newFood.DateAdded = DateTime.UtcNow;
+            _newFood.AddedBy = _currentUserName;
+            _newFood.IsHelloFresh = _isHelloFresh;
+            _newFood.IsPublic = _visibility == "public"; // Map visibility to IsPublic
             if (_ratingEnabled) _newFood.Ratings[_currentUserName] = _ratingValue;
             await FoodService.AddFoodAsync(_newFood);
             Navigation.NavigateTo("/");
