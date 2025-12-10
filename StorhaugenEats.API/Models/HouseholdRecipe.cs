@@ -3,6 +3,12 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace StorhaugenEats.API.Models;
 
+/// <summary>
+/// DEPRECATED: Recipes scoped to a household.
+/// Use UserRecipe for user-centric recipe ownership.
+/// This model is maintained for backward compatibility and migration purposes.
+/// </summary>
+[Obsolete("Use UserRecipe instead. This model will be removed after migration is complete.")]
 [Table("household_recipes")]
 public class HouseholdRecipe
 {

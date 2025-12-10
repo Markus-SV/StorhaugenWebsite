@@ -4,6 +4,11 @@ using StorhaugenWebsite.DTOs;
 
 namespace StorhaugenWebsite.Services
 {
+    /// <summary>
+    /// TRANSITIONING: This service currently uses household-recipes endpoints.
+    /// It should be migrated to use IUserRecipeService endpoints instead.
+    /// The FoodItem model will be replaced with UserRecipeDto.
+    /// </summary>
     public class FoodService : IFoodService
     {
         private readonly IApiClient _apiClient;

@@ -9,6 +9,12 @@ using StorhaugenEats.API.Helpers;
 
 namespace StorhaugenEats.API.Controllers;
 
+/// <summary>
+/// DEPRECATED: This controller manages recipes at the household level.
+/// Use UserRecipesController for user-centric recipe management instead.
+/// This controller is maintained for backward compatibility during migration.
+/// </summary>
+[Obsolete("Use UserRecipesController instead. This controller will be removed after migration is complete.")]
 [ApiController]
 [Route("api/household-recipes")]
 [Authorize]

@@ -9,6 +9,13 @@ using StorhaugenEats.API.Services;
 
 namespace StorhaugenEats.API.Controllers;
 
+/// <summary>
+/// LEGACY: This controller manages household entities.
+/// While households still exist for grouping users, the application is transitioning
+/// to a user-centric model. New features should use user-level APIs.
+/// Recipe management should use UserRecipesController.
+/// Friendships should use FriendshipsController.
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]

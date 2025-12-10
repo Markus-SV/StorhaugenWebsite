@@ -2,6 +2,11 @@ using StorhaugenEats.API.Models;
 
 namespace StorhaugenEats.API.Services;
 
+/// <summary>
+/// DEPRECATED: Use IUserRecipeService for user-centric recipe management.
+/// This interface is maintained for backward compatibility during migration.
+/// </summary>
+[Obsolete("Use IUserRecipeService instead. This interface will be removed after migration is complete.")]
 public interface IHouseholdRecipeService
 {
     Task<HouseholdRecipe?> GetByIdAsync(Guid id);

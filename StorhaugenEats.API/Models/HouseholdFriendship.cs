@@ -3,6 +3,12 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace StorhaugenEats.API.Models;
 
+/// <summary>
+/// DEPRECATED: Friendships between households.
+/// Use UserFriendship for user-to-user friendships.
+/// This model is maintained for backward compatibility and migration purposes.
+/// </summary>
+[Obsolete("Use UserFriendship instead. This model will be removed after migration is complete.")]
 [Table("household_friendships")]
 public class HouseholdFriendship
 {

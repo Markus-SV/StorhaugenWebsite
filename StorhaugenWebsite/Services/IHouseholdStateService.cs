@@ -2,6 +2,11 @@ using StorhaugenWebsite.DTOs;
 
 namespace StorhaugenWebsite.Services;
 
+/// <summary>
+/// LEGACY: Manages household state for the current user.
+/// While households still exist, the application is transitioning to a user-centric model.
+/// New features should use user-level state and services.
+/// </summary>
 public interface IHouseholdStateService
 {
     event Action? OnHouseholdChanged;

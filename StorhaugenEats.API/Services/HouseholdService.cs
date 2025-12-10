@@ -4,6 +4,11 @@ using StorhaugenEats.API.Models;
 
 namespace StorhaugenEats.API.Services;
 
+/// <summary>
+/// LEGACY: Manages household entities.
+/// While households still exist for grouping users, the application is transitioning
+/// to a user-centric model. New features should use user-level services.
+/// </summary>
 public class HouseholdService : IHouseholdService
 {
     private readonly AppDbContext _context;

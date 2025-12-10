@@ -4,6 +4,11 @@ using StorhaugenEats.API.Models;
 
 namespace StorhaugenEats.API.Services;
 
+/// <summary>
+/// DEPRECATED: Use UserRecipeService for user-centric recipe management.
+/// This service is maintained for backward compatibility during migration.
+/// </summary>
+[Obsolete("Use UserRecipeService instead. This service will be removed after migration is complete.")]
 public class HouseholdRecipeService : IHouseholdRecipeService
 {
     private readonly AppDbContext _context;

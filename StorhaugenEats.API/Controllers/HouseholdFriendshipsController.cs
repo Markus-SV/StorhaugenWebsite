@@ -8,6 +8,12 @@ using StorhaugenEats.API.Services;
 
 namespace StorhaugenEats.API.Controllers;
 
+/// <summary>
+/// DEPRECATED: This controller manages friendships between households.
+/// Use FriendshipsController for user-to-user friendship management instead.
+/// This controller is maintained for backward compatibility during migration.
+/// </summary>
+[Obsolete("Use FriendshipsController instead. This controller will be removed after migration is complete.")]
 [ApiController]
 [Route("api/household-friendships")]
 [Authorize]
