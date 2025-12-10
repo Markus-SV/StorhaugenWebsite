@@ -1,4 +1,4 @@
-using StorhaugenWebsite.DTOs;
+using StorhaugenWebsite.Shared.DTOs;
 
 namespace StorhaugenWebsite.Services
 {

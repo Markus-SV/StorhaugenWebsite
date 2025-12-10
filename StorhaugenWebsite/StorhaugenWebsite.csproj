@@ -38,4 +38,8 @@
     </Content>
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\StorhaugenWebsite.Shared\StorhaugenWebsite.Shared.csproj" />
+  </ItemGroup>
+
 </Project>

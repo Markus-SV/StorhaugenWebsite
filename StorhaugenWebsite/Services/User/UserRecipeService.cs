@@ -1,5 +1,5 @@
 using StorhaugenWebsite.ApiClient;
-using StorhaugenWebsite.DTOs;
+using StorhaugenWebsite.Shared.DTOs;
 
 namespace StorhaugenWebsite.Services
 {
@@ -35,7 +35,7 @@ namespace StorhaugenWebsite.Services
             // Update cache with first page results
             if (query.Page == 1 && !query.IncludeArchived)
             {
-                CachedRecipes = result.Items;
+                CachedRecipes = result.Recipes;
             }
 
             return result;
@@ -134,12 +134,12 @@ namespace StorhaugenWebsite.Services
             return result;
         }
 
-        public async Task<AggregatedRecipePagedResult> GetHouseholdCombinedRecipesAsync(Guid householdId, AggregatedRecipeQuery? query = null)
+        public async Task<AggregatedRecipePagedResult> GetHouseholdCombinedRecipesAsync(Guid householdId, GetCombinedRecipesQuery? query = null)
         {
             if (!_authService.IsAuthenticated)
                 throw new UnauthorizedAccessException();
 
-            query ??= new AggregatedRecipeQuery();
+            query ??= new GetCombinedRecipesQuery();
             return await _apiClient.GetHouseholdCombinedRecipesAsync(householdId, query);
         }
 

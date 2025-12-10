@@ -1,4 +1,4 @@
-namespace StorhaugenEats.API.DTOs;
+namespace StorhaugenWebsite.Shared.DTOs;
 
 // ==========================================
 // ACTIVITY FEED DTOs

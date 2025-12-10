@@ -7,7 +7,7 @@
 @page "/households"
 @using Microsoft.AspNetCore.Authorization
 @using StorhaugenWebsite.ApiClient
-@using StorhaugenWebsite.DTOs
+@using StorhaugenWebsite.Shared.DTOs
 @using StorhaugenWebsite.Models
 @using StorhaugenWebsite.Services
 @inject IApiClient ApiClient
@@ -472,7 +472,7 @@ else
     {
         try 
         {
-            await ApiClient.SendHouseholdFriendRequestAsync(new SendFriendRequestDto { HouseholdId = target.Id });
+            await ApiClient.SendHouseholdFriendRequestAsync(new SendHouseholdFriendRequestDto { HouseholdId = target.Id });
             Snackbar.Add($"Forespørsel sendt til {target.Name}", Severity.Success);
             await LoadFriendships(); // Refresh to see update
         }

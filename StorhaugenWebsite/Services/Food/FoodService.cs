@@ -1,6 +1,6 @@
 using StorhaugenWebsite.ApiClient;
 using StorhaugenWebsite.Models;
-using StorhaugenWebsite.DTOs;
+using StorhaugenWebsite.Shared.DTOs;
 
 namespace StorhaugenWebsite.Services
 {

@@ -4,68 +4,51 @@
 @using StorhaugenWebsite.Models
 @using StorhaugenWebsite.Services
 @using StorhaugenWebsite.Shared
+@using StorhaugenWebsite.Shared.DTOs
+@using StorhaugenWebsite.ApiClient
 @inject IAuthService AuthService
-@inject IFoodService FoodService
+@inject IUserRecipeService RecipeService
+@inject IActivityFeedService ActivityService
 @inject IHouseholdStateService HouseholdState
 @inject NavigationManager Navigation
 @inject IDeviceStateService DeviceState
 @attribute [Authorize]
 
-@if (HouseholdState.HasHousehold)
-{
-    <div class="d-flex justify-space-between align-center mb-4">
-        <MudMenu AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
+<div class="d-flex justify-space-between align-center mb-4">
+    <MudText Typo="Typo.h4" Color="Color.Primary" Class="mb-0"><b>Min Kokebok</b></MudText>
+
+    @* VIEW AND SORT CONTROLS *@
+    <div class="d-flex align-center gap-2">
+        <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
             <ActivatorContent>
-                <div class="sort-dropdown">
-                    <MudIcon Icon="@Icons.Material.Rounded.Sort" Size="Size.Small" />
-                    <span>@GetSortLabel()</span>
-                    <MudIcon Icon="@(_sortDescending? Icons.Material.Rounded.ArrowDownward : Icons.Material.Rounded.ArrowUpward)" Size="Size.Small" />
-                </div>
+                <MudChip T="string" Icon="@Icons.Material.Rounded.Sort" Variant="Variant.Outlined" Color="Color.Primary">
+                    @GetSortLabel()
+                </MudChip>
             </ActivatorContent>
             <ChildContent>
                 <MudMenuItem OnClick="@(() => SetSort("date"))">
                     <div class="d-flex align-center gap-2">
                         <MudIcon Icon="@Icons.Material.Rounded.CalendarMonth" Size="Size.Small" />
                         <span>Dato</span>
-                        @if (_currentSort == "date")
-                        {
-                            <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Color="Color.Primary" />
-                        }
                     </div>
                 </MudMenuItem>
-                <MudMenuItem OnClick="@(() => SetSort("average"))">
+                <MudMenuItem OnClick="@(() => SetSort("rating"))">
                     <div class="d-flex align-center gap-2">
                         <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
-                        <span>Snitt</span>
-                        @if (_currentSort == "average")
-                        {
-                            <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Color="Color.Primary" />
-                        }
+                        <span>Rating</span>
                     </div>
                 </MudMenuItem>
-                <MudDivider />
-                @if (HouseholdState.CurrentHousehold?.Members != null)
-                {
-                    @foreach (var member in HouseholdState.CurrentHousehold.Members)
-                    {
-                        var m = member.DisplayName;
-                        <MudMenuItem OnClick="@(() => SetSort(m.ToLower()))">
-                            <div class="d-flex align-center gap-2">
-                                <div class="member-rating-avatar" style="@($"background: {GetMemberColor(m)}; width: 20px; height: 20px; font-size: 0.65rem;")">@m[0]</div>
-                                <span>@m</span>
-                                @if (_currentSort == m.ToLower())
-                                {
-                                    <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Color="Color.Primary" />
-                                }
-                            </div>
-                        </MudMenuItem>
-                    }
-                }
+                <MudMenuItem OnClick="@(() => SetSort("name"))">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Rounded.SortByAlpha" Size="Size.Small" />
+                        <span>Navn</span>
+                    </div>
+                </MudMenuItem>
                 <MudDivider />
                 <MudMenuItem OnClick="ToggleSortDirection">
                     <div class="d-flex align-center gap-2">
-                        <MudIcon Icon="@(_sortDescending? Icons.Material.Rounded.ArrowUpward : Icons.Material.Rounded.ArrowDownward)" Size="Size.Small" />
-                        <span>@(_sortDescending ? "Stigende" : "Synkende")</span>
+                        <MudIcon Icon="@(_sortDescending? Icons.Material.Rounded.ArrowDownward : Icons.Material.Rounded.ArrowUpward)" Size="Size.Small" />
+                        <span>@(_sortDescending ? "Synkende" : "Stigende")</span>
                     </div>
                 </MudMenuItem>
             </ChildContent>
@@ -79,207 +62,208 @@
                 <MudIcon Icon="@Icons.Material.Rounded.ViewList" Size="Size.Small" />
             </button>
         </div>
-
     </div>
-}
-
-@if (!HouseholdState.HasHousehold)
-{
-<div class="empty-state">
-    <div class="empty-state-icon">
-        <MudIcon Icon="@Icons.Material.Rounded.Home" Size="Size.Large" />
-    </div>
-    <h2 class="empty-state-title">Ingen husstand valgt</h2>
-    <p class="empty-state-text">Opprett eller bli med i en husstand for å starte sporing av måltider!</p>
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="settings" StartIcon="@Icons.Material.Rounded.Settings">
-        Gå til innstillinger
-    </MudButton>
 </div>
-}
-else if (_isLoading)
-{
-    <div class="d-flex flex-column gap-3">
-        @for (int i = 0; i < 3; i++)
+
+<MudGrid>
+    @* --- LEFT COLUMN: USER RECIPES --- *@
+    <MudItem xs="12" md="8">
+        @if (_isLoadingRecipes)
         {
-            <div class="skeleton-card">
-                <div class="skeleton-image"></div>
-                <div class="skeleton-content">
-                    <div class="skeleton-text title"></div>
-                    <div class="skeleton-text subtitle"></div>
-                </div>
+            <div class="d-flex flex-column gap-3">
+                @for (int i = 0; i < 3; i++)
+                {
+                    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="100px" Class="rounded-lg" />
+                }
             </div>
         }
-    </div>
-}
-else if (!_foodItems.Any())
-{
-    <div class="empty-state">
-        <div class="empty-state-icon">
-            <MudIcon Icon="@Icons.Material.Rounded.DinnerDining" Size="Size.Large" />
-        </div>
-        <h2 class="empty-state-title">Ingen måltider ennå</h2>
-        <p class="empty-state-text">Start med å legge til deres første middag!</p>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="add" StartIcon="@Icons.Material.Rounded.Add">
-            Legg til første måltid
-        </MudButton>
-    </div>
-}
-else
-{
-    @if (_viewMode == "card")
-    {
-        <div class="d-flex flex-column gap-4">
-            @{
-                var index = 0;
-            }
-            @foreach (var food in GetSortedFoods())
-            {
-                var currentFood = food;
-                var delay = index++;
-                <div class="food-card animate-in animate-delay-@Math.Min(delay, 4)" @onclick="() => OpenFoodDetail(currentFood)">
-                    @if (currentFood.ImageUrls.Any())
-                    {
-                        <img src="@currentFood.ImageUrls.First()" alt="@currentFood.Name" class="food-card-image" />
-                    }
-                    else
-                    {
-                        <div class="food-card-placeholder">
-                            <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" />
-                        </div>
-                    }
-                    <div class="food-card-content">
-                        <div class="d-flex justify-space-between align-start gap-3">
-                            <h3 class="food-card-title">@currentFood.Name</h3>
-                            <span class="rating-badge @GetRatingClass(currentFood.AverageRating)">
-                                <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
-                                @currentFood.AverageRating.ToString("0.0")
-                            </span>
-                        </div>
-                        <div class="member-ratings">
-                            @foreach (var rating in currentFood.Ratings.Where(r => r.Value.HasValue))
-                            {
-                                var member = rating.Key;
-                                var r = rating.Value;
-                                <div class="member-rating">
-                                    <div class="member-rating-avatar" style="@($"background: {GetMemberColor(member)}")">@member[0]</div>
-                                    <span class="member-rating-value">@r</span>
-                                </div>
-                            }
-                        </div>
-                        <p class="food-card-meta">@currentFood.DateAdded.ToString("MMM dd, yyyy")</p>
-                    </div>
-                </div>
-            }
-        </div>
-    }
-    else
-    {
-        @if (_viewMode == "card")
+        else if (!_recipes.Any())
         {
-            <div class="d-flex flex-column gap-4">
-                @{
-                    var index = 0;
-                }
-                @foreach (var food in GetSortedFoods())
-                {
-                    var currentFood = food;
-                    var delay = index++;
-
-                    // 1. DYNAMIC ANIMATION LOGIC
-                    // Only add 'animate-in' if _shouldAnimate is true
-                    var animClass = _shouldAnimate ? $"animate-in animate-delay-{Math.Min(delay, 4)}" : "";
-
-                    // 2. APPLY THE VARIABLE
-                    <div @key="currentFood.Id" class="food-card @animClass" @onclick="() => OpenFoodDetail(currentFood)">
-                        @if (currentFood.ImageUrls.Any())
-                        {
-                            <img src="@currentFood.ImageUrls.First()" alt="@currentFood.Name" class="food-card-image" />
-                        }
-                        else
-                        {
-                            <div class="food-card-placeholder">
-                                <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" />
-                            </div>
-                        }
-                        <div class="food-card-content">
-                            <div class="d-flex justify-space-between align-start gap-3">
-                                <h3 class="food-card-title">@currentFood.Name</h3>
-                                <span class="rating-badge @GetRatingClass(currentFood.AverageRating)">
-                                    <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
-                                    @currentFood.AverageRating.ToString("0.0")
-                                </span>
-                            </div>
-                            <div class="member-ratings">
-                                @foreach (var rating in currentFood.Ratings.Where(r => r.Value.HasValue))
-                                {
-                                    var member = rating.Key;
-                                    <div class="member-rating">
-                                        <div class="member-rating-avatar" style="@($"background: {GetMemberColor(member)}")">@member[0]</div>
-                                        <span class="member-rating-value">@rating.Value</span>
-                                    </div>
-                                }
-                            </div>
-                            <p class="food-card-meta">@currentFood.DateAdded.ToString("MMM dd, yyyy")</p>
-                        </div>
-                    </div>
-                }
+            <div class="empty-state pa-8">
+                <div class="empty-state-icon">
+                    <MudIcon Icon="@Icons.Material.Rounded.MenuBook" Size="Size.Large" />
+                </div>
+                <h3 class="mt-4">Ingen oppskrifter ennå</h3>
+                <p class="mud-text-secondary mb-4">Start din personlige samling nå.</p>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="add" StartIcon="@Icons.Material.Rounded.Add">
+                    Ny Oppskrift
+                </MudButton>
             </div>
         }
         else
         {
-            <div class="d-flex flex-column gap-2">
-                @{
-                    var listIndex = 0;
-                }
-                @foreach (var food in GetSortedFoods())
-                {
-                    var currentFood = food;
-                    var delay = listIndex++;
+            @if (_viewMode == "card")
+            {
+                <div class="d-flex flex-column gap-4">
+                    @{
+                        var index = 0;
+                    }
+                    @foreach (var recipe in GetSortedRecipes())
+                    {
+                        var r = recipe;
+                        var delay = index++;
+                        var animClass = _shouldAnimate ? $"animate-in animate-delay-{Math.Min(delay, 4)}" : "";
 
-                    // DYNAMIC ANIMATION LOGIC (Already correct in your list view, kept for consistency)
-                    var animClass = _shouldAnimate ? $"animate-in animate-delay-{Math.Min(delay, 4)}" : "";
+                        <div @key="r.Id" class="food-card @animClass" @onclick="() => OpenRecipeDetail(r.Id)">
+                            @if (r.ImageUrls.Any())
+                            {
+                                <img src="@r.ImageUrls.First()" alt="@r.Name" class="food-card-image" />
+                            }
+                            else
+                            {
+                                <div class="food-card-placeholder">
+                                    <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" />
+                                </div>
+                            }
 
-                    <div @key="currentFood.Id" class="food-list-item @animClass" @onclick="() => OpenFoodDetail(currentFood)">
-                        @if (currentFood.ImageUrls.Any())
-                        {
-                            <img src="@currentFood.ImageUrls.First()" alt="@currentFood.Name" class="food-list-image" />
-                        }
-                        else
-                        {
-                            <div class="food-list-placeholder">
-                                <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small" />
+                            <div class="food-card-content">
+                                <div class="d-flex justify-space-between align-start gap-3">
+                                    <h3 class="food-card-title">@r.Name</h3>
+                                    @if (r.AverageRating > 0)
+                                    {
+                                        <span class="rating-badge @GetRatingClass(r.AverageRating)">
+                                            <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
+                                            @r.AverageRating.ToString("0.0")
+                                        </span>
+                                    }
+                                </div>
+
+                                <div class="d-flex gap-2 mt-2">
+                                    @if (r.IsLinkedToGlobal)
+                                    {
+                                        <MudTooltip Text="Linked to Global Recipe">
+                                            <MudIcon Icon="@Icons.Material.Rounded.Public" Size="Size.Small" Color="Color.Info" />
+                                        </MudTooltip>
+                                    }
+                                    @if (r.Visibility == "public")
+                                    {
+                                        <MudTooltip Text="Published to Community">
+                                            <MudIcon Icon="@Icons.Material.Rounded.Share" Size="Size.Small" Color="Color.Success" />
+                                        </MudTooltip>
+                                    }
+                                </div>
+
+                                <p class="food-card-meta mt-2">
+                                    Lagt til @r.CreatedAt.ToString("d. MMM yyyy")
+                                </p>
                             </div>
-                        }
-                        <div class="food-list-content">
-                            <h3 class="food-list-title">@currentFood.Name</h3>
-                            <div class="member-ratings">
-                                @foreach (var rating in currentFood.Ratings.Where(r => r.Value.HasValue))
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                // LIST VIEW
+                <div class="d-flex flex-column gap-2">
+                    @{
+                        var listIndex = 0;
+                    }
+                    @foreach (var recipe in GetSortedRecipes())
+                    {
+                        var r = recipe;
+                        var delay = listIndex++;
+                        var animClass = _shouldAnimate ? $"animate-in animate-delay-{Math.Min(delay, 4)}" : "";
+
+                        <div @key="r.Id" class="food-list-item @animClass" @onclick="() => OpenRecipeDetail(r.Id)">
+                            @if (r.ImageUrls.Any())
+                            {
+                                <img src="@r.ImageUrls.First()" alt="@r.Name" class="food-list-image" />
+                            }
+                            else
+                            {
+                                <div class="food-list-placeholder">
+                                    <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small" />
+                                </div>
+                            }
+                            <div class="food-list-content">
+                                <h3 class="food-list-title">@r.Name</h3>
+                                <p class="food-list-date">@r.CreatedAt.ToString("MMM dd")</p>
+                            </div>
+                            <div class="food-list-rating">
+                                @if (r.AverageRating > 0)
                                 {
-                                    var member = rating.Key;
-                                    <div class="member-rating">
-                                        <div class="member-rating-avatar" style="@($"background: {GetMemberColor(member)}")">@member[0]</div>
-                                        <span class="member-rating-value">@rating.Value</span>
-                                    </div>
+                                    <span class="rating-badge @GetRatingClass(r.AverageRating)">
+                                        @r.AverageRating.ToString("0.0")
+                                    </span>
                                 }
                             </div>
-                            <p class="food-list-date">@currentFood.DateAdded.ToString("MMM dd")</p>
                         </div>
-                        <div class="food-list-rating">
-                            <span class="rating-badge @GetRatingClass(currentFood.AverageRating)">
-                                @currentFood.AverageRating.ToString("0.0")
-                            </span>
-                        </div>
-                    </div>
-                }
-            </div>
+                    }
+                </div>
+            }
         }
-    }
-}
+    </MudItem>
 
+    @* --- RIGHT COLUMN: ACTIVITY FEED --- *@
+    <MudItem xs="12" md="4">
+        <MudPaper Class="pa-4 rounded-lg" Elevation="0" Outlined="true">
+            <div class="d-flex align-center gap-2 mb-4">
+                <MudIcon Icon="@Icons.Material.Rounded.ShowChart" Color="Color.Secondary" />
+                <MudText Typo="Typo.h6">Aktivitet</MudText>
+            </div>
+
+            @if (_isLoadingFeed)
+            {
+                <MudStack>
+                    <MudSkeleton SkeletonType="SkeletonType.Circle" Width="40px" Height="40px" />
+                    <MudSkeleton Width="100%" />
+                    <MudSkeleton Width="80%" />
+                </MudStack>
+            }
+            else if (!_activities.Any())
+            {
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">Ingen nylig aktivitet fra dine venner eller husstand.</MudText>
+            }
+            else
+            {
+                <div class="d-flex flex-column gap-3">
+                    @foreach (var activity in _activities)
+                    {
+                        <div class="d-flex gap-3 align-start">
+                            <MudAvatar Size="Size.Medium" Color="Color.Tertiary" Variant="Variant.Filled">
+                                @if (!string.IsNullOrEmpty(activity.UserAvatarUrl))
+                                {
+                                    <MudImage Src="@activity.UserAvatarUrl" />
+                                }
+                                else
+                                {
+                                    @activity.UserDisplayName.FirstOrDefault()
+                                }
+                            </MudAvatar>
+                            <div>
+                                <MudText Typo="Typo.body2">
+                                    <b>@activity.UserDisplayName</b>
+                                    <span class="mud-text-secondary">@GetActivityActionText(activity)</span>
+                                    <b>@activity.RecipeName</b>
+                                </MudText>
+                                @if (activity.RatingScore.HasValue)
+                                {
+                                    <div class="d-flex align-center mt-1">
+                                        <MudRating ReadOnly="true" SelectedValue="@activity.RatingScore.Value" Size="Size.Small" />
+                                    </div>
+                                }
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                    @GetTimeAgo(activity.CreatedAt)
+                                </MudText>
+                            </div>
+                        </div>
+                        <MudDivider Class="my-2" />
+                    }
+                    <MudButton Variant="Variant.Text" Size="Size.Small" FullWidth="true" Href="feed">Se mer</MudButton>
+                </div>
+            }
+        </MudPaper>
+    </MudItem>
+</MudGrid>
 
 @code {
-    private List<FoodItem> _foodItems = new();
-    private bool _isLoading = true;
+    private List<UserRecipeDto> _recipes = new();
+    private List<ActivityFeedItemDto> _activities = new();
+
+    private bool _isLoadingRecipes = true;
+    private bool _isLoadingFeed = true;
+
+    // UI State
     private string _currentSort = "date";
     private bool _sortDescending = true;
     private string _viewMode = "card";
@@ -289,146 +273,122 @@ else
     {
         AuthService.OnAuthStateChanged += async () => await InvokeAsync(StateHasChanged);
 
-        HouseholdState.OnHouseholdChanged += async () =>
-        {
-            if (HouseholdState.HasHousehold)
-            {
-                await LoadFoods();
-            }
-            await InvokeAsync(StateHasChanged);
-        };
-
-        // Load saved preferences
+        // Load View Settings
         _viewMode = DeviceState.Settings.ViewMode ?? "card";
         _currentSort = DeviceState.Settings.SortBy ?? "date";
         _sortDescending = DeviceState.Settings.SortDescending;
 
-        if (HouseholdState.HasHousehold)
-        {
-            await LoadFoods();
-        }
+        // Fetch Data Parallel
+        await Task.WhenAll(LoadRecipes(), LoadActivityFeed());
     }
 
-    private async Task LoadFoods()
+    private async Task LoadRecipes()
     {
-        // 1. INSTANT: Check if cache exists
-        if (FoodService.CachedFoods != null && FoodService.CachedFoods.Any())
+        try
         {
-            _foodItems = FoodService.CachedFoods;
-            _isLoading = false;
-
-            // DISABLE animation because we are showing cached data instantly
-            _shouldAnimate = false;
-
+            _isLoadingRecipes = true;
+            // Check cache first if implemented in service
+            if (RecipeService.CachedRecipes != null && RecipeService.CachedRecipes.Any())
+            {
+                _recipes = RecipeService.CachedRecipes;
+                _shouldAnimate = false;
+            }
+            else
+            {
+                // Fetch fresh
+                var result = await RecipeService.GetMyRecipesAsync(new GetUserRecipesQuery { PageSize = 100 });
+                _recipes = result.Recipes;
+                _shouldAnimate = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading recipes: {ex.Message}");
+        }
+        finally
+        {
+            _isLoadingRecipes = false;
             StateHasChanged();
         }
-        else
-        {
-            _isLoading = true;
-            // ENABLE animation because this is a fresh load from empty
-            _shouldAnimate = true;
-        }
-
-        // 2. BACKGROUND: Fetch fresh data
-        var freshFoods = await FoodService.GetAllFoodsAsync(false);
-
-        // 3. UPDATE: Swap in the fresh data
-        _foodItems = freshFoods;
-        _isLoading = false;
-
-        // Note: We leave _shouldAnimate as it was.
-        // If it was false (cached), it stays false so the update doesn't trigger a jump.
-
-        StateHasChanged();
     }
 
-    private async Task SetViewMode(string mode)
+    private async Task LoadActivityFeed()
     {
-        if (_viewMode == mode) return;
+        try
+        {
+            _isLoadingFeed = true;
+            var result = await ActivityService.GetFeedAsync(new ActivityFeedQuery { PageSize = 5 });
+            _activities = result.Items;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading feed: {ex.Message}");
+        }
+        finally
+        {
+            _isLoadingFeed = false;
+            StateHasChanged();
+        }
+    }
 
-        // 1. Enable animation because the user explicitly requested a layout change
-        _shouldAnimate = true;
-
-        _viewMode = mode;
-        await DeviceState.SetViewModeAsync(mode);
-        // StateHasChanged() is called automatically by Blazor for event handlers
+    // --- Sorting Logic ---
+    private IEnumerable<UserRecipeDto> GetSortedRecipes()
+    {
+        return _currentSort switch
+        {
+            "date" => _sortDescending ? _recipes.OrderByDescending(r => r.CreatedAt) : _recipes.OrderBy(r => r.CreatedAt),
+            "rating" => _sortDescending ? _recipes.OrderByDescending(r => r.AverageRating) : _recipes.OrderBy(r => r.AverageRating),
+            "name" => _sortDescending ? _recipes.OrderByDescending(r => r.Name) : _recipes.OrderBy(r => r.Name),
+            _ => _recipes // Default
+        };
     }
 
     private async Task SetSort(string sort)
     {
-        // 1. Enable animation so the items visually reorder
         _shouldAnimate = true;
-
-        if (_currentSort == sort)
-        {
-            _sortDescending = !_sortDescending;
-        }
+        if (_currentSort == sort) _sortDescending = !_sortDescending;
         else
         {
             _currentSort = sort;
             _sortDescending = true;
         }
-
         await DeviceState.SetSortAsync(_currentSort, _sortDescending);
     }
 
     private async Task ToggleSortDirection()
     {
-        // 1. Enable animation for direction flip
         _shouldAnimate = true;
-
         _sortDescending = !_sortDescending;
         await DeviceState.SetSortAsync(_currentSort, _sortDescending);
     }
 
     private string GetSortLabel()
     {
-        if (_currentSort == "date") return "Dato";
-        if (_currentSort == "average") return "Snitt";
-
-        // Check if it's a member name
-        var member = HouseholdState.CurrentHousehold?.Members
-            .FirstOrDefault(m => m.DisplayName.ToLower() == _currentSort);
-        if (member != null) return member.DisplayName;
-
-        return "Dato";
+        return _currentSort switch
+        {
+            "date" => "Dato",
+            "rating" => "Rating",
+            "name" => "Navn",
+            _ => "Sorter"
+        };
     }
 
-    private IEnumerable<FoodItem> GetSortedFoods()
+    // --- View Mode ---
+    private async Task SetViewMode(string mode)
     {
-        if (_currentSort == "date")
-        {
-            return _sortDescending
-                ? _foodItems.OrderByDescending(f => f.DateAdded)
-                : _foodItems.OrderBy(f => f.DateAdded);
-        }
-
-        if (_currentSort == "average")
-        {
-            return _sortDescending
-                ? _foodItems.OrderByDescending(f => f.AverageRating)
-                : _foodItems.OrderBy(f => f.AverageRating);
-        }
-
-        // Check if sorting by member name
-        var memberName = HouseholdState.CurrentHousehold?.Members
-            .FirstOrDefault(m => m.DisplayName.ToLower() == _currentSort)?.DisplayName;
-
-        if (memberName != null)
-        {
-            return _sortDescending
-                ? _foodItems.OrderByDescending(f => f.GetRatingForPerson(memberName))
-                : _foodItems.OrderBy(f => f.GetRatingForPerson(memberName));
-        }
-
-        return _foodItems.OrderByDescending(f => f.DateAdded);
+        if (_viewMode == mode) return;
+        _shouldAnimate = true;
+        _viewMode = mode;
+        await DeviceState.SetViewModeAsync(mode);
     }
 
-    private void OpenFoodDetail(FoodItem food)
+    // --- Navigation ---
+    private void OpenRecipeDetail(Guid id)
     {
-        Navigation.NavigateTo($"food/{food.Id}");
+        Navigation.NavigateTo($"food/{id}");
     }
 
+    // --- Helpers ---
     private string GetRatingClass(double rating)
     {
         return rating switch
@@ -439,11 +399,23 @@ else
         };
     }
 
-    private string GetMemberColor(string name)
+    private string GetActivityActionText(ActivityFeedItemDto item)
     {
-        // Generate a consistent color based on the name
-        var hash = name.GetHashCode();
-        var hue = Math.Abs(hash % 360);
-        return $"hsl({hue}, 45%, 45%)";
+        return item.ActivityType switch
+        {
+            "rated" => "ga karakter til",
+            "added" => "la til",
+            "published" => "delte",
+            "forked" => "kopierte",
+            _ => "handlet med"
+        };
+    }
+
+    private string GetTimeAgo(DateTime date)
+    {
+        var span = DateTime.UtcNow - date;
+        if (span.TotalMinutes < 60) return $"For {Math.Max(1, (int)span.TotalMinutes)}m siden";
+        if (span.TotalHours < 24) return $"For {(int)span.TotalHours}t siden";
+        return date.ToString("d. MMM");
     }
 }

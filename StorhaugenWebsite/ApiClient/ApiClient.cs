@@ -2,7 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
-using StorhaugenWebsite.DTOs;
+using StorhaugenWebsite.Shared.DTOs;
 using StorhaugenWebsite.Services;
 
 namespace StorhaugenWebsite.ApiClient;
@@ -149,7 +149,7 @@ public class ApiClient : IApiClient
         return results ?? new List<HouseholdFriendshipDto>();
     }
 
-    public async Task<HouseholdFriendshipDto> SendHouseholdFriendRequestAsync(SendFriendRequestDto dto)
+    public async Task<HouseholdFriendshipDto> SendHouseholdFriendRequestAsync(SendHouseholdFriendRequestDto dto)
     {
         await AddAuthHeaderAsync();
         var response = await _httpClient.PostAsJsonAsync("/api/household-friendships/request", dto, _jsonOptions);
@@ -333,17 +333,11 @@ public class ApiClient : IApiClient
         await AddAuthHeaderAsync();
         var queryParams = new List<string>();
 
-        if (!string.IsNullOrWhiteSpace(query.Search))
-            queryParams.Add($"search={Uri.EscapeDataString(query.Search)}");
-
         if (!string.IsNullOrWhiteSpace(query.Visibility))
             queryParams.Add($"visibility={Uri.EscapeDataString(query.Visibility)}");
 
         if (query.IncludeArchived)
             queryParams.Add("includeArchived=true");
-
-        if (query.LinkedOnly.HasValue)
-            queryParams.Add($"linkedOnly={query.LinkedOnly.Value}");
 
         queryParams.Add($"sortBy={Uri.EscapeDataString(query.SortBy)}");
         queryParams.Add($"page={query.Page}");
@@ -437,7 +431,6 @@ public class ApiClient : IApiClient
         var queryParams = new List<string>();
         if (query.Page > 0) queryParams.Add($"page={query.Page}");
         if (query.PageSize > 0) queryParams.Add($"pageSize={query.PageSize}");
-        if (!string.IsNullOrEmpty(query.Search)) queryParams.Add($"search={Uri.EscapeDataString(query.Search)}");
 
         var url = "/api/user-recipes/friends";
         if (queryParams.Any()) url += "?" + string.Join("&", queryParams);
@@ -468,7 +461,7 @@ public class ApiClient : IApiClient
         return await _httpClient.GetFromJsonAsync<UserFriendshipDto>($"/api/friendships/{id}", _jsonOptions);
     }
 
-    public async Task<UserFriendshipDto> SendFriendRequestAsync(SendUserFriendRequestDto dto)
+    public async Task<UserFriendshipDto> SendFriendRequestAsync(SendFriendRequestDto dto)
     {
         await AddAuthHeaderAsync();
         var response = await _httpClient.PostAsJsonAsync("/api/friendships/request", dto, _jsonOptions);
@@ -476,7 +469,7 @@ public class ApiClient : IApiClient
         return (await response.Content.ReadFromJsonAsync<UserFriendshipDto>(_jsonOptions))!;
     }
 
-    public async Task<UserFriendshipDto> RespondToFriendRequestAsync(Guid id, FriendRequestAction action)
+    public async Task<UserFriendshipDto> RespondToFriendRequestAsync(Guid id, RespondFriendRequestDto action)
     {
         await AddAuthHeaderAsync();
         var dto = new { Action = action.ToString().ToLower() };
@@ -512,15 +505,15 @@ public class ApiClient : IApiClient
         await AddAuthHeaderAsync();
         var queryParams = new List<string>();
 
-        if (query.ActivityTypes != null && query.ActivityTypes.Count > 0)
+        if (query.Types != null && query.Types.Count > 0)
         {
-            foreach (var type in query.ActivityTypes)
-                queryParams.Add($"activityTypes={Uri.EscapeDataString(type)}");
+            foreach (var type in query.Types)
+                queryParams.Add($"Types={Uri.EscapeDataString(type)}");
         }
 
-        if (query.FriendIds != null && query.FriendIds.Count > 0)
+        if (query.UserIds != null && query.UserIds.Count > 0)
         {
-            foreach (var friendId in query.FriendIds)
+            foreach (var friendId in query.UserIds)
                 queryParams.Add($"friendIds={friendId}");
         }
 
@@ -550,34 +543,40 @@ public class ApiClient : IApiClient
             ?? new ActivitySummaryDto();
     }
 
-    // Household Recipe Aggregation
-    public async Task<AggregatedRecipePagedResult> GetHouseholdCombinedRecipesAsync(Guid householdId, AggregatedRecipeQuery query)
-    {
-        await AddAuthHeaderAsync();
-        var queryParams = new List<string>();
+	// Household Recipe Aggregation
+	// In ApiClient.cs
 
-        if (!string.IsNullOrWhiteSpace(query.Search))
-            queryParams.Add($"search={Uri.EscapeDataString(query.Search)}");
+	public async Task<AggregatedRecipePagedResult> GetHouseholdCombinedRecipesAsync(Guid householdId, GetCombinedRecipesQuery query)
+	{
+		await AddAuthHeaderAsync();
+		var queryParams = new List<string>();
 
-        if (query.MemberIds != null && query.MemberIds.Count > 0)
-        {
-            foreach (var memberId in query.MemberIds)
-                queryParams.Add($"memberIds={memberId}");
-        }
+		if (!string.IsNullOrWhiteSpace(query.Search))
+			queryParams.Add($"search={Uri.EscapeDataString(query.Search)}");
 
-        if (query.MinimumRating.HasValue)
-            queryParams.Add($"minimumRating={query.MinimumRating.Value}");
+		// FIX: Changed from query.MemberIds to query.FilterByMembers
+		if (query.FilterByMembers != null && query.FilterByMembers.Count > 0)
+		{
+			foreach (var memberId in query.FilterByMembers)
+				queryParams.Add($"filterByMembers={memberId}");
+		}
 
-        queryParams.Add($"sortBy={Uri.EscapeDataString(query.SortBy)}");
-        queryParams.Add($"page={query.Page}");
-        queryParams.Add($"pageSize={query.PageSize}");
+		// FIX: Changed from query.MinimumRating to query.MinRating
+		if (query.MinRating.HasValue)
+			queryParams.Add($"minRating={query.MinRating.Value}");
 
-        var url = $"/api/households/{householdId}/combined-recipes?{string.Join("&", queryParams)}";
-        return (await _httpClient.GetFromJsonAsync<AggregatedRecipePagedResult>(url, _jsonOptions))
-            ?? new AggregatedRecipePagedResult();
-    }
+		queryParams.Add($"sortBy={Uri.EscapeDataString(query.SortBy)}");
+		queryParams.Add($"sortDescending={query.SortDescending}"); // Added this based on DTO
+		queryParams.Add($"page={query.Page}");
+		queryParams.Add($"pageSize={query.PageSize}");
 
-    public async Task<List<CommonFavoriteDto>> GetHouseholdCommonFavoritesAsync(Guid householdId, int minimumMembers = 2, int limit = 10)
+		var url = $"/api/households/{householdId}/combined-recipes?{string.Join("&", queryParams)}";
+
+		return (await _httpClient.GetFromJsonAsync<AggregatedRecipePagedResult>(url, _jsonOptions))
+			?? new AggregatedRecipePagedResult();
+	}
+
+	public async Task<List<CommonFavoriteDto>> GetHouseholdCommonFavoritesAsync(Guid householdId, int minimumMembers = 2, int limit = 10)
     {
         await AddAuthHeaderAsync();
         var url = $"/api/households/{householdId}/common-favorites?minimumMembers={minimumMembers}&limit={limit}";

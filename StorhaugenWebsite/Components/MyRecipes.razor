@@ -1,5 +1,5 @@
 @using MudBlazor
-@using StorhaugenWebsite.DTOs
+@using StorhaugenWebsite.Shared.DTOs
 @using StorhaugenWebsite.Services
 @inject IUserRecipeService RecipeService
 @inject NavigationManager Navigation
@@ -184,7 +184,8 @@
     private bool _hasMorePages = false;
     private int _currentPage = 1;
     private string? _visibilityFilter = null;
-    private string _searchQuery = "";
+    private string? _searchQuery = null;
+
 
     protected override async Task OnInitializedAsync()
     {
@@ -204,10 +205,9 @@
                 Page = _currentPage,
                 PageSize = 20,
                 Visibility = _visibilityFilter,
-                Search = string.IsNullOrWhiteSpace(_searchQuery) ? null : _searchQuery
             };
             var result = await RecipeService.GetMyRecipesAsync(query);
-            _recipes = result.Items;
+            _recipes = result.Recipes;
             _hasMorePages = result.Page < result.TotalPages;
         }
         catch (Exception ex)
@@ -234,10 +234,9 @@
                 Page = _currentPage,
                 PageSize = 20,
                 Visibility = _visibilityFilter,
-                Search = string.IsNullOrWhiteSpace(_searchQuery) ? null : _searchQuery
             };
             var result = await RecipeService.GetMyRecipesAsync(query);
-            _recipes.AddRange(result.Items);
+            _recipes.AddRange(result.Recipes);
             _hasMorePages = result.Page < result.TotalPages;
         }
         catch (Exception ex)
@@ -260,7 +259,6 @@
 
     private async Task OnSearchChanged(string value)
     {
-        _searchQuery = value;
         await LoadRecipes();
     }
 

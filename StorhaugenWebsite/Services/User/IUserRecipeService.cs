@@ -1,4 +1,4 @@
-using StorhaugenWebsite.DTOs;
+using StorhaugenWebsite.Shared.DTOs;
 
 namespace StorhaugenWebsite.Services
 {
@@ -24,7 +24,7 @@ namespace StorhaugenWebsite.Services
         Task<UserRecipeDto> RestoreRecipeAsync(Guid id);
 
         // Household Aggregation
-        Task<AggregatedRecipePagedResult> GetHouseholdCombinedRecipesAsync(Guid householdId, AggregatedRecipeQuery? query = null);
+        Task<AggregatedRecipePagedResult> GetHouseholdCombinedRecipesAsync(Guid householdId, GetCombinedRecipesQuery? query = null);
         Task<List<CommonFavoriteDto>> GetHouseholdCommonFavoritesAsync(Guid householdId, int minimumMembers = 2, int limit = 10);
 
         // Friends' Recipes

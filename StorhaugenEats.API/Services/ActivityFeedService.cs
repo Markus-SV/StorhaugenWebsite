@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using StorhaugenEats.API.Data;
-using StorhaugenEats.API.DTOs;
+using StorhaugenWebsite.Shared.DTOs;
 using StorhaugenEats.API.Models;
 using System.Text.Json;
 

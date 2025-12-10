@@ -1,4 +1,4 @@
-using StorhaugenWebsite.DTOs;
+using StorhaugenWebsite.Shared.DTOs;
 
 namespace StorhaugenWebsite.ApiClient;
 
@@ -23,7 +23,7 @@ public interface IApiClient
     Task LeaveHouseholdAsync(Guid householdId);
     Task<List<HouseholdSearchResultDto>> SearchHouseholdsAsync(string query);
     Task<List<HouseholdFriendshipDto>> GetHouseholdFriendshipsAsync();
-    Task<HouseholdFriendshipDto> SendHouseholdFriendRequestAsync(SendFriendRequestDto dto);
+    Task<HouseholdFriendshipDto> SendHouseholdFriendRequestAsync(SendHouseholdFriendRequestDto dto);
     Task<HouseholdFriendshipDto> RespondHouseholdFriendRequestAsync(Guid requestId, RespondFriendRequestDto dto);
     Task<PublicRecipeDto?> GetPublicRecipeAsync(Guid id);
 
@@ -68,8 +68,8 @@ public interface IApiClient
     Task<FriendshipListDto> GetFriendshipsAsync();
     Task<List<FriendProfileDto>> GetFriendsAsync();
     Task<UserFriendshipDto?> GetFriendshipAsync(Guid id);
-    Task<UserFriendshipDto> SendFriendRequestAsync(SendUserFriendRequestDto dto);
-    Task<UserFriendshipDto> RespondToFriendRequestAsync(Guid id, FriendRequestAction action);
+    Task<UserFriendshipDto> SendFriendRequestAsync(SendFriendRequestDto dto);
+    Task<UserFriendshipDto> RespondToFriendRequestAsync(Guid id, RespondFriendRequestDto action);
     Task RemoveFriendshipAsync(Guid id);
     Task<List<UserSearchResultDto>> SearchUsersAsync(string query, int limit = 20);
     Task<FriendProfileDto?> GetUserProfileAsync(Guid userId);
@@ -80,7 +80,7 @@ public interface IApiClient
     Task<ActivitySummaryDto> GetActivitySummaryAsync();
 
     // Household Recipe Aggregation
-    Task<AggregatedRecipePagedResult> GetHouseholdCombinedRecipesAsync(Guid householdId, AggregatedRecipeQuery query);
+    Task<AggregatedRecipePagedResult> GetHouseholdCombinedRecipesAsync(Guid householdId, GetCombinedRecipesQuery query);
     Task<List<CommonFavoriteDto>> GetHouseholdCommonFavoritesAsync(Guid householdId, int minimumMembers = 2, int limit = 10);
 }
 

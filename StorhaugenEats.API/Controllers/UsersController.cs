@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using StorhaugenEats.API.Data;
-using StorhaugenEats.API.DTOs;
+using StorhaugenWebsite.Shared.DTOs;
 using StorhaugenEats.API.Services;
 
 namespace StorhaugenEats.API.Controllers;

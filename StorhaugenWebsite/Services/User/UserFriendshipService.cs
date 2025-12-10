@@ -1,5 +1,5 @@
 using StorhaugenWebsite.ApiClient;
-using StorhaugenWebsite.DTOs;
+using StorhaugenWebsite.Shared.DTOs;
 
 namespace StorhaugenWebsite.Services
 {
@@ -49,48 +49,72 @@ namespace StorhaugenWebsite.Services
             return await _apiClient.GetFriendshipAsync(id);
         }
 
-        public async Task<UserFriendshipDto> SendFriendRequestAsync(Guid targetUserId)
-        {
-            ValidateAuthentication();
+		public async Task<UserFriendshipDto> SendFriendRequestAsync(Guid targetUserId)
+		{
+			ValidateAuthentication();
 
-            var dto = new SendUserFriendRequestDto { TargetUserId = targetUserId };
-            var result = await _apiClient.SendFriendRequestAsync(dto);
-            InvalidateCache();
-            return result;
-        }
+			// FIX 1: Corrected class name from 'SendUserFriendRequestDto' to 'SendFriendRequestDto'
+			var dto = new SendFriendRequestDto
+			{
+				TargetUserId = targetUserId
+			};
 
-        public async Task<UserFriendshipDto> SendFriendRequestByEmailAsync(string email)
-        {
-            ValidateAuthentication();
+			var result = await _apiClient.SendFriendRequestAsync(dto);
+			InvalidateCache();
+			return result;
+		}
 
-            if (string.IsNullOrWhiteSpace(email))
-                throw new ArgumentException("Email is required.");
+		public async Task<UserFriendshipDto> SendFriendRequestByEmailAsync(string email)
+		{
+			ValidateAuthentication();
 
-            var dto = new SendUserFriendRequestDto { TargetEmail = email };
-            var result = await _apiClient.SendFriendRequestAsync(dto);
-            InvalidateCache();
-            return result;
-        }
+			if (string.IsNullOrWhiteSpace(email))
+				throw new ArgumentException("Email is required.");
 
-        public async Task<UserFriendshipDto> AcceptFriendRequestAsync(Guid friendshipId)
-        {
-            ValidateAuthentication();
+			// WARNING: Your backend 'SendFriendRequestDto' does NOT have an Email property.
+			// You must add 'public string? TargetEmail { get; set; }' to the DTO in the Shared project
+			// and handle it in the Backend Controller for this to work.
 
-            var result = await _apiClient.RespondToFriendRequestAsync(friendshipId, FriendRequestAction.Accept);
-            InvalidateCache();
-            return result;
-        }
+			// Assuming you will add it, the code would look like this:
+			/*
+			var dto = new SendFriendRequestDto { TargetEmail = email };
+			var result = await _apiClient.SendFriendRequestAsync(dto);
+			InvalidateCache();
+			return result;
+			*/
 
-        public async Task<UserFriendshipDto> RejectFriendRequestAsync(Guid friendshipId)
-        {
-            ValidateAuthentication();
+			throw new NotImplementedException("The backend DTO is missing the 'TargetEmail' property.");
+		}
 
-            var result = await _apiClient.RespondToFriendRequestAsync(friendshipId, FriendRequestAction.Reject);
-            InvalidateCache();
-            return result;
-        }
+		public async Task<UserFriendshipDto> AcceptFriendRequestAsync(Guid friendshipId)
+		{
+			ValidateAuthentication();
 
-        public async Task RemoveFriendAsync(Guid friendshipId)
+			// FIX 2: Create the expected DTO with the string action "accept"
+			var dto = new RespondFriendRequestDto { Action = "accept" };
+
+			// Update ApiClient call to pass the object, not an enum
+			var result = await _apiClient.RespondToFriendRequestAsync(friendshipId, dto);
+
+			InvalidateCache();
+			return result;
+		}
+
+		public async Task<UserFriendshipDto> RejectFriendRequestAsync(Guid friendshipId)
+		{
+			ValidateAuthentication();
+
+			// FIX 2: Create the expected DTO with the string action "reject"
+			var dto = new RespondFriendRequestDto { Action = "reject" };
+
+			// Update ApiClient call to pass the object, not an enum
+			var result = await _apiClient.RespondToFriendRequestAsync(friendshipId, dto);
+
+			InvalidateCache();
+			return result;
+		}
+
+		public async Task RemoveFriendAsync(Guid friendshipId)
         {
             ValidateAuthentication();
 

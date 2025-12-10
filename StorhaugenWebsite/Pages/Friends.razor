@@ -1,7 +1,7 @@
 @page "/friends"
 @using Microsoft.AspNetCore.Authorization
 @using MudBlazor
-@using StorhaugenWebsite.DTOs
+@using StorhaugenWebsite.Shared.DTOs
 @using StorhaugenWebsite.Services
 @inject IUserFriendshipService FriendshipService
 @inject IUserRecipeService RecipeService
@@ -39,12 +39,12 @@
                     <MudPaper Class="pa-3" Elevation="1">
                         <div class="d-flex align-center gap-3">
                             <MudAvatar Color="Color.Primary" Size="Size.Medium">
-                                @(friend.DisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                                @(friend.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
                             </MudAvatar>
                             <div class="flex-grow-1">
-                                <MudText Typo="Typo.body1">@friend.DisplayName</MudText>
+                                <MudText Typo="Typo.body1">@friend.FriendDisplayName</MudText>
                                 <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                    @friend.RecipeCount oppskrifter · @friend.FriendCount venner
+                                    @friend.RecipeCount oppskrifter · @friend.RecipeCount venner
                                 </MudText>
                             </div>
                             <MudIconButton Icon="@Icons.Material.Rounded.PersonRemove"
@@ -68,10 +68,10 @@
                     <MudPaper Class="pa-3" Elevation="1">
                         <div class="d-flex align-center gap-3">
                             <MudAvatar Color="Color.Secondary" Size="Size.Medium">
-                                @(request.OtherUserName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                                @(request.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
                             </MudAvatar>
                             <div class="flex-grow-1">
-                                <MudText Typo="Typo.body1">@request.OtherUserName</MudText>
+                                <MudText Typo="Typo.body1">@request.FriendDisplayName</MudText>
                                 <MudText Typo="Typo.caption" Color="Color.Secondary">
                                     Sendt @request.CreatedAt.ToString("dd. MMM")
                                 </MudText>
@@ -99,10 +99,10 @@
                     <MudPaper Class="pa-3" Elevation="1">
                         <div class="d-flex align-center gap-3">
                             <MudAvatar Color="Color.Tertiary" Size="Size.Medium">
-                                @(request.OtherUserName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                                @(request.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
                             </MudAvatar>
                             <div class="flex-grow-1">
-                                <MudText Typo="Typo.body1">@request.OtherUserName</MudText>
+                                <MudText Typo="Typo.body1">@request.FriendDisplayName</MudText>
                                 <MudText Typo="Typo.caption" Color="Color.Secondary">
                                     Venter på svar...
                                 </MudText>
@@ -147,7 +147,7 @@
                     }
                 </div>
             }
-            else if (_searchResults.Any())
+            @if (_searchResults.Any())
             {
                 <div class="d-flex flex-column gap-2">
                     @foreach (var user in _searchResults)
@@ -159,28 +159,29 @@
                                 </MudAvatar>
                                 <div class="flex-grow-1">
                                     <MudText Typo="Typo.body1">@user.DisplayName</MudText>
-                                    @if (user.MutualFriendCount > 0)
-                                    {
-                                        <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                            @user.MutualFriendCount felles venner
-                                        </MudText>
-                                    }
+                                    @* Removed MutualFriendCount as it's not in the DTO *@
                                 </div>
-                                @if (user.IsFriend)
+
+                                @* FIX: Use FriendshipStatus string check instead of boolean properties *@
+                                @if (user.FriendshipStatus == "friends")
                                 {
                                     <MudChip T="string" Color="Color.Success" Size="Size.Small">Venn</MudChip>
                                 }
-                                else if (user.HasPendingRequest)
+                                else if (user.FriendshipStatus == "pending_sent")
                                 {
                                     <MudChip T="string" Color="Color.Warning" Size="Size.Small">Venter</MudChip>
+                                }
+                                else if (user.FriendshipStatus == "pending_received")
+                                {
+                                    <MudChip T="string" Color="Color.Info" Size="Size.Small">Har sendt deg</MudChip>
                                 }
                                 else
                                 {
                                     <MudButton Variant="Variant.Outlined"
-                                              Color="Color.Primary"
-                                              Size="Size.Small"
-                                              StartIcon="@Icons.Material.Rounded.PersonAdd"
-                                              OnClick="@(() => SendFriendRequest(user))">
+                                               Color="Color.Primary"
+                                               Size="Size.Small"
+                                               StartIcon="@Icons.Material.Rounded.PersonAdd"
+                                               OnClick="@(() => SendFriendRequest(user))">
                                         Legg til
                                     </MudButton>
                                 }
@@ -291,7 +292,8 @@
 </MudTabs>
 
 @code {
-    private List<FriendProfileDto> _friends = new();
+    // FIX 1: Change type to UserFriendshipDto to match what the API returns
+    private List<UserFriendshipDto> _friends = new();
     private List<UserFriendshipDto> _pendingReceived = new();
     private List<UserFriendshipDto> _pendingSent = new();
     private List<UserSearchResultDto> _searchResults = new();
@@ -322,6 +324,7 @@
         try
         {
             var friendships = await FriendshipService.GetFriendshipsAsync();
+            // This assignment now works because types match
             _friends = friendships.Friends ?? new();
             _pendingReceived = friendships.PendingReceived ?? new();
             _pendingSent = friendships.PendingSent ?? new();
@@ -364,8 +367,12 @@
     {
         try
         {
-            await FriendshipService.SendFriendRequestAsync(user.UserId);
-            user.HasPendingRequest = true;
+            // FIX 2: Use user.Id instead of user.UserId
+            await FriendshipService.SendFriendRequestAsync(user.Id);
+
+            // FIX 3: Update the string status instead of missing bool property
+            user.FriendshipStatus = "pending_sent";
+
             Snackbar.Add($"Venneforespørsel sendt til {user.DisplayName}", Severity.Success);
             await LoadFriendships();
         }
@@ -380,7 +387,10 @@
         try
         {
             await FriendshipService.AcceptFriendRequestAsync(request.Id);
-            Snackbar.Add($"Du er nå venn med {request.OtherUserName}!", Severity.Success);
+
+            // FIX 4: Use FriendDisplayName instead of OtherUserName
+            Snackbar.Add($"Du er nå venn med {request.FriendDisplayName}!", Severity.Success);
+
             await LoadFriendships();
         }
         catch (Exception ex)
@@ -417,12 +427,17 @@
         }
     }
 
-    private async Task RemoveFriend(FriendProfileDto friend)
+    // FIX 5: Update signature to accept UserFriendshipDto
+    private async Task RemoveFriend(UserFriendshipDto friend)
     {
         try
         {
-            await FriendshipService.RemoveFriendAsync(friend.FriendshipId);
-            Snackbar.Add($"{friend.DisplayName} fjernet fra venner", Severity.Info);
+            // Use friend.Id (the friendship ID) instead of friend.FriendshipId
+            await FriendshipService.RemoveFriendAsync(friend.Id);
+
+            // Use friend.FriendDisplayName
+            Snackbar.Add($"{friend.FriendDisplayName} fjernet fra venner", Severity.Info);
+
             await LoadFriendships();
         }
         catch (Exception ex)
@@ -431,7 +446,6 @@
         }
     }
 
-    // Friends' recipes methods
     private async Task LoadFriendsRecipes()
     {
         if (_recipesLoaded) return;
@@ -444,7 +458,7 @@
         {
             var query = new GetUserRecipesQuery { Page = _recipesPage, PageSize = _recipesPageSize };
             var result = await RecipeService.GetFriendsRecipesAsync(query);
-            _friendsRecipes = result.Items;
+            _friendsRecipes = result.Recipes;
             _hasMoreRecipes = result.TotalPages > _recipesPage;
             _recipesLoaded = true;
         }
@@ -469,7 +483,7 @@
         {
             var query = new GetUserRecipesQuery { Page = _recipesPage, PageSize = _recipesPageSize };
             var result = await RecipeService.GetFriendsRecipesAsync(query);
-            _friendsRecipes.AddRange(result.Items);
+            _friendsRecipes.AddRange(result.Recipes);
             _hasMoreRecipes = result.TotalPages > _recipesPage;
         }
         catch (Exception ex)

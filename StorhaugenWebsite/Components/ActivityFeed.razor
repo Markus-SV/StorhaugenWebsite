@@ -1,5 +1,5 @@
 @using MudBlazor
-@using StorhaugenWebsite.DTOs
+@using StorhaugenWebsite.Shared.DTOs
 @using StorhaugenWebsite.Services
 @inject IActivityFeedService FeedService
 @inject NavigationManager Navigation
@@ -36,12 +36,12 @@
                 <MudPaper Class="pa-3 activity-card" Elevation="1" @onclick="() => NavigateToRecipe(item)">
                     <div class="d-flex gap-3">
                         <MudAvatar Color="@GetActivityColor(item.ActivityType)" Size="Size.Medium">
-                            @(item.ActorName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                            @(item.UserDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
                         </MudAvatar>
                         <div class="flex-grow-1">
                             <div class="d-flex align-center gap-2">
                                 <MudText Typo="Typo.body1" Class="font-weight-medium">
-                                    @item.ActorName
+                                    @item.UserDisplayName
                                 </MudText>
                                 <MudText Typo="Typo.caption" Color="Color.Secondary">
                                     @GetTimeAgo(item.CreatedAt)
@@ -50,15 +50,15 @@
                             <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">
                                 @GetActivityDescription(item)
                             </MudText>
-                            @if (!string.IsNullOrEmpty(item.RecipeTitle))
+                            @if (!string.IsNullOrEmpty(item.RecipeName))
                             {
                                 <div class="d-flex align-center gap-2 mt-2">
                                     <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small" Color="Color.Default" />
-                                    <MudText Typo="Typo.body2" Class="font-weight-medium">@item.RecipeTitle</MudText>
-                                    @if (item.Rating.HasValue)
+                                    <MudText Typo="Typo.body2" Class="font-weight-medium">@item.RecipeName</MudText>
+                                    @if (item.RatingScore.HasValue)
                                     {
-                                        <MudChip T="string" Size="Size.Small" Color="@GetRatingColor(item.Rating.Value)">
-                                            @item.Rating.Value/10
+                                        <MudChip T="string" Size="Size.Small" Color="@GetRatingColor(item.RatingScore.Value)">
+                                            @item.RatingScore.Value/10
                                         </MudChip>
                                     }
                                 </div>
@@ -67,7 +67,7 @@
                         @if (!string.IsNullOrEmpty(item.RecipeImageUrl))
                         {
                             <MudImage Src="@item.RecipeImageUrl"
-                                     Alt="@item.RecipeTitle"
+                                     Alt="@item.RecipeName"
                                      Width="60"
                                      Height="60"
                                      ObjectFit="ObjectFit.Cover"
@@ -147,7 +147,7 @@
             }
 
             _feedItems = result.Items;
-            _hasMorePages = result.HasNextPage;
+            _hasMorePages = result.HasMore;
         }
         catch (Exception ex)
         {
@@ -183,7 +183,7 @@
             }
 
             _feedItems.AddRange(result.Items);
-            _hasMorePages = result.HasNextPage;
+            _hasMorePages = result.HasMore;
         }
         catch (Exception ex)
         {
@@ -197,12 +197,12 @@
         }
     }
 
+    //TODO FIX
     private void NavigateToRecipe(ActivityFeedItemDto item)
     {
-        if (item.RecipeId.HasValue)
-        {
-            Navigation.NavigateTo($"/food/{item.RecipeId}");
-        }
+        
+        Navigation.NavigateTo($"food/{item.TargetId}");
+        
     }
 
     private Color GetActivityColor(string activityType)
@@ -234,7 +234,7 @@
             "recipe_rated" => $"ga en vurdering",
             "recipe_added" => "la til en ny oppskrift",
             "recipe_published" => "publiserte en oppskrift",
-            "friend_added" => $"ble venn med {item.TargetUserName}",
+            "friend_added" => $"ble venn med {item.UserDisplayName}",
             "recipe_forked" => "kopierte en oppskrift",
             _ => item.ActivityType
         };

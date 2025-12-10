@@ -1,7 +1,7 @@
 @page "/browse"
 @using Microsoft.AspNetCore.Authorization
 @using StorhaugenWebsite.ApiClient
-@using StorhaugenWebsite.DTOs
+@using StorhaugenWebsite.Shared.DTOs
 @inject IAuthService AuthService
 @inject IApiClient ApiClient
 @inject IHouseholdStateService HouseholdState
@@ -98,9 +98,9 @@ else
                 @foreach (var recipe in _publicRecipes)
                 {
                     <div class="food-card animate-in" @onclick="() => OpenPublicRecipeDetail(recipe)">
-                        @if (!string.IsNullOrEmpty(recipe.ImageUrl))
+                        @if (!string.IsNullOrEmpty(recipe.ImageUrls.FirstOrDefault()))
                         {
-                            <img src="@recipe.ImageUrl" alt="@recipe.Name" class="food-card-image" />
+                            <img src="@recipe.ImageUrls.FirstOrDefault()" alt="@recipe.Name" class="food-card-image" />
                         }
                         else
                         {
@@ -143,9 +143,9 @@ else
                 @foreach (var recipe in _publicRecipes)
                 {
                     <div class="food-list-item animate-in" @onclick="() => OpenPublicRecipeDetail(recipe)">
-                        @if (!string.IsNullOrEmpty(recipe.ImageUrl))
+                        @if (!string.IsNullOrEmpty(recipe.ImageUrls.FirstOrDefault()))
                         {
-                            <img src="@recipe.ImageUrl" alt="@recipe.Name" class="food-list-image" />
+                            <img src="@recipe.ImageUrls.FirstOrDefault()" alt="@recipe.Name" class="food-list-image" />
                         }
                         else
                         {
@@ -697,7 +697,7 @@ else
                 Cuisine = fork ? recipe.Cuisine : null,
                 Tags = fork ? recipe.Tags : null,
                 Ingredients = fork ? recipe.Ingredients : null,
-                Instructions = fork ? recipe.Instructions : null,
+                Instructions = fork ? recipe.Ingredients : null,
                 ImageUrl = fork ? recipe.ImageUrl : null,
                 Description = fork ? recipe.Description : null
             };

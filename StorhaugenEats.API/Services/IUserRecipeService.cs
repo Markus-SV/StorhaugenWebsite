@@ -1,4 +1,4 @@
-using StorhaugenEats.API.DTOs;
+using StorhaugenWebsite.Shared.DTOs;
 
 namespace StorhaugenEats.API.Services;
 
