@@ -151,6 +151,15 @@ namespace StorhaugenWebsite.Services
             return await _apiClient.GetHouseholdCommonFavoritesAsync(householdId, minimumMembers, limit);
         }
 
+        public async Task<UserRecipePagedResult> GetFriendsRecipesAsync(GetUserRecipesQuery? query = null)
+        {
+            if (!_authService.IsAuthenticated)
+                throw new UnauthorizedAccessException();
+
+            query ??= new GetUserRecipesQuery();
+            return await _apiClient.GetFriendsRecipesAsync(query);
+        }
+
         public void InvalidateCache()
         {
             CachedRecipes = new List<UserRecipeDto>();

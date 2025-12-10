@@ -536,6 +536,61 @@ public class UserRecipeService : IUserRecipeService
 
     // Private helpers
 
+    public async Task<UserRecipePagedResult> GetFriendsRecipesAsync(Guid userId, GetUserRecipesQuery query)
+    {
+        // Get all friend user IDs
+        var friendIds = await _friendshipService.GetFriendIdsAsync(userId);
+
+        if (!friendIds.Any())
+        {
+            return new UserRecipePagedResult
+            {
+                Items = new List<UserRecipeDto>(),
+                TotalCount = 0,
+                Page = query.Page,
+                PageSize = query.PageSize,
+                TotalPages = 0
+            };
+        }
+
+        // Get recipes from friends that are visible to the requesting user
+        // Friends can see: public, friends visibility recipes
+        var queryable = _context.UserRecipes
+            .Include(r => r.User)
+            .Include(r => r.GlobalRecipe)
+            .Include(r => r.Ratings)
+                .ThenInclude(rt => rt.User)
+            .Where(r => friendIds.Contains(r.UserId))
+            .Where(r => r.Visibility == "friends" || r.Visibility == "public")
+            .Where(r => !r.IsArchived);
+
+        // Search
+        if (!string.IsNullOrEmpty(query.Search))
+        {
+            queryable = queryable.Where(r =>
+                (r.LocalTitle != null && r.LocalTitle.Contains(query.Search)) ||
+                (r.GlobalRecipe != null && r.GlobalRecipe.Title.Contains(query.Search)));
+        }
+
+        // Sort by date by default
+        queryable = queryable.OrderByDescending(r => r.CreatedAt);
+
+        var totalCount = await queryable.CountAsync();
+        var recipes = await queryable
+            .Skip((query.Page - 1) * query.PageSize)
+            .Take(query.PageSize)
+            .ToListAsync();
+
+        return new UserRecipePagedResult
+        {
+            Items = recipes.Select(r => MapToDto(r, userId)).ToList(),
+            TotalCount = totalCount,
+            Page = query.Page,
+            PageSize = query.PageSize,
+            TotalPages = (int)Math.Ceiling(totalCount / (double)query.PageSize)
+        };
+    }
+
     private async Task<bool> AreInSameHouseholdAsync(Guid userId1, Guid userId2)
     {
         var user1Households = await _context.HouseholdMembers

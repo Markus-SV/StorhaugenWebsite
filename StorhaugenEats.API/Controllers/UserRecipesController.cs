@@ -33,6 +33,17 @@ public class UserRecipesController : ControllerBase
     }
 
     /// <summary>
+    /// Get recipes from friends that are visible to the current user.
+    /// </summary>
+    [HttpGet("friends")]
+    public async Task<ActionResult<UserRecipePagedResult>> GetFriendsRecipes([FromQuery] GetUserRecipesQuery query)
+    {
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
+        var result = await _userRecipeService.GetFriendsRecipesAsync(userId, query);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Get a specific recipe by ID.
     /// </summary>
     [HttpGet("{id}")]

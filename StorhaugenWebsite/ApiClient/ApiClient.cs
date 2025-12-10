@@ -431,6 +431,22 @@ public class ApiClient : IApiClient
         return (await response.Content.ReadFromJsonAsync<UserRecipeDto>(_jsonOptions))!;
     }
 
+    public async Task<UserRecipePagedResult> GetFriendsRecipesAsync(GetUserRecipesQuery query)
+    {
+        await AddAuthHeaderAsync();
+        var queryParams = new List<string>();
+        if (query.Page > 0) queryParams.Add($"page={query.Page}");
+        if (query.PageSize > 0) queryParams.Add($"pageSize={query.PageSize}");
+        if (!string.IsNullOrEmpty(query.Search)) queryParams.Add($"search={Uri.EscapeDataString(query.Search)}");
+
+        var url = "/api/user-recipes/friends";
+        if (queryParams.Any()) url += "?" + string.Join("&", queryParams);
+
+        var response = await _httpClient.GetAsync(url);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<UserRecipePagedResult>(_jsonOptions))!;
+    }
+
     // User Friendships
     public async Task<FriendshipListDto> GetFriendshipsAsync()
     {

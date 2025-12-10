@@ -32,4 +32,7 @@ public interface IUserRecipeService
     // Household aggregation
     Task<AggregatedRecipePagedResult> GetHouseholdRecipesAsync(Guid householdId, Guid requestingUserId, GetCombinedRecipesQuery query);
     Task<List<CommonFavoriteDto>> GetCommonFavoritesAsync(Guid householdId, Guid requestingUserId, GetCommonFavoritesQuery query);
+
+    // Friends' recipes
+    Task<UserRecipePagedResult> GetFriendsRecipesAsync(Guid userId, GetUserRecipesQuery query);
 }

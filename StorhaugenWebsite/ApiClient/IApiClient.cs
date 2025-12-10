@@ -62,6 +62,7 @@ public interface IApiClient
     Task RemoveUserRecipeRatingAsync(Guid id);
     Task<UserRecipeDto> ArchiveUserRecipeAsync(Guid id);
     Task<UserRecipeDto> RestoreUserRecipeAsync(Guid id);
+    Task<UserRecipePagedResult> GetFriendsRecipesAsync(GetUserRecipesQuery query);
 
     // User Friendships
     Task<FriendshipListDto> GetFriendshipsAsync();

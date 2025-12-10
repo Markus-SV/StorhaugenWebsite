@@ -27,6 +27,9 @@ namespace StorhaugenWebsite.Services
         Task<AggregatedRecipePagedResult> GetHouseholdCombinedRecipesAsync(Guid householdId, AggregatedRecipeQuery? query = null);
         Task<List<CommonFavoriteDto>> GetHouseholdCommonFavoritesAsync(Guid householdId, int minimumMembers = 2, int limit = 10);
 
+        // Friends' Recipes
+        Task<UserRecipePagedResult> GetFriendsRecipesAsync(GetUserRecipesQuery? query = null);
+
         // Cache
         List<UserRecipeDto> CachedRecipes { get; }
         void InvalidateCache();

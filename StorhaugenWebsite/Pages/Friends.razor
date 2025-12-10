@@ -4,6 +4,7 @@
 @using StorhaugenWebsite.DTOs
 @using StorhaugenWebsite.Services
 @inject IUserFriendshipService FriendshipService
+@inject IUserRecipeService RecipeService
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
@@ -197,6 +198,96 @@
             }
         </div>
     </MudTabPanel>
+
+    <MudTabPanel Text="Oppskrifter" Icon="@Icons.Material.Rounded.MenuBook" OnClick="LoadFriendsRecipes">
+        <div class="mt-4">
+            @if (_isLoadingRecipes)
+            {
+                <div class="d-flex flex-column gap-3">
+                    @for (int i = 0; i < 3; i++)
+                    {
+                        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="80px" />
+                    }
+                </div>
+            }
+            else if (!_friendsRecipes.Any())
+            {
+                <div class="empty-state">
+                    <MudIcon Icon="@Icons.Material.Rounded.MenuBook" Size="Size.Large" Color="Color.Default" />
+                    <MudText Typo="Typo.h6" Class="mt-2">Ingen oppskrifter fra venner</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        @if (!_friends.Any())
+                        {
+                            <span>Legg til venner for å se deres oppskrifter</span>
+                        }
+                        else
+                        {
+                            <span>Vennene dine har ikke delt noen oppskrifter ennå</span>
+                        }
+                    </MudText>
+                </div>
+            }
+            else
+            {
+                <div class="d-flex flex-column gap-3">
+                    @foreach (var recipe in _friendsRecipes)
+                    {
+                        <MudPaper Class="pa-3 recipe-card" Elevation="1" Style="cursor: pointer;" @onclick="() => NavigateToRecipe(recipe)">
+                            <div class="d-flex gap-3">
+                                @if (recipe.ImageUrls.Any())
+                                {
+                                    <MudImage Src="@recipe.ImageUrls.First()"
+                                             Alt="@recipe.Name"
+                                             Width="80"
+                                             Height="80"
+                                             ObjectFit="ObjectFit.Cover"
+                                             Class="rounded" />
+                                }
+                                else
+                                {
+                                    <div class="recipe-placeholder rounded" style="width: 80px; height: 80px; background: var(--mud-palette-background-grey); display: flex; align-items: center; justify-content: center;">
+                                        <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Color="Color.Default" />
+                                    </div>
+                                }
+                                <div class="flex-grow-1">
+                                    <MudText Typo="Typo.subtitle1" Class="font-weight-medium">@recipe.Name</MudText>
+                                    <div class="d-flex align-center gap-2 mt-1">
+                                        <MudAvatar Color="Color.Primary" Size="Size.Small" Style="width: 20px; height: 20px; font-size: 0.65rem;">
+                                            @(recipe.OwnerDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                                        </MudAvatar>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">@recipe.OwnerDisplayName</MudText>
+                                    </div>
+                                    @if (recipe.MyRating.HasValue)
+                                    {
+                                        <div class="d-flex align-center gap-1 mt-1">
+                                            <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" Color="Color.Warning" />
+                                            <MudText Typo="Typo.caption">@recipe.MyRating.Value/10</MudText>
+                                        </div>
+                                    }
+                                </div>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @recipe.CreatedAt.ToString("dd. MMM")
+                                </MudText>
+                            </div>
+                        </MudPaper>
+                    }
+                </div>
+
+                @if (_hasMoreRecipes)
+                {
+                    <div class="d-flex justify-center mt-4">
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="LoadMoreRecipes" Disabled="_isLoadingMoreRecipes">
+                            @if (_isLoadingMoreRecipes)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                            }
+                            Last inn mer
+                        </MudButton>
+                    </div>
+                }
+            }
+        </div>
+    </MudTabPanel>
 </MudTabs>
 
 @code {
@@ -208,6 +299,15 @@
     private bool _isLoading = true;
     private bool _isSearching = false;
     private bool _hasSearched = false;
+
+    // Friends' recipes state
+    private List<UserRecipeDto> _friendsRecipes = new();
+    private bool _isLoadingRecipes = false;
+    private bool _isLoadingMoreRecipes = false;
+    private bool _hasMoreRecipes = false;
+    private bool _recipesLoaded = false;
+    private int _recipesPage = 1;
+    private const int _recipesPageSize = 10;
 
     protected override async Task OnInitializedAsync()
     {
@@ -329,5 +429,63 @@
         {
             Snackbar.Add($"Kunne ikke fjerne venn: {ex.Message}", Severity.Error);
         }
+    }
+
+    // Friends' recipes methods
+    private async Task LoadFriendsRecipes()
+    {
+        if (_recipesLoaded) return;
+
+        _isLoadingRecipes = true;
+        _recipesPage = 1;
+        StateHasChanged();
+
+        try
+        {
+            var query = new GetUserRecipesQuery { Page = _recipesPage, PageSize = _recipesPageSize };
+            var result = await RecipeService.GetFriendsRecipesAsync(query);
+            _friendsRecipes = result.Items;
+            _hasMoreRecipes = result.TotalPages > _recipesPage;
+            _recipesLoaded = true;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Kunne ikke laste oppskrifter: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoadingRecipes = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadMoreRecipes()
+    {
+        _isLoadingMoreRecipes = true;
+        _recipesPage++;
+        StateHasChanged();
+
+        try
+        {
+            var query = new GetUserRecipesQuery { Page = _recipesPage, PageSize = _recipesPageSize };
+            var result = await RecipeService.GetFriendsRecipesAsync(query);
+            _friendsRecipes.AddRange(result.Items);
+            _hasMoreRecipes = result.TotalPages > _recipesPage;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Kunne ikke laste flere oppskrifter: {ex.Message}", Severity.Error);
+            _recipesPage--;
+        }
+        finally
+        {
+            _isLoadingMoreRecipes = false;
+            StateHasChanged();
+        }
+    }
+
+    private void NavigateToRecipe(UserRecipeDto recipe)
+    {
+        Navigation.NavigateTo($"/food/{recipe.Id}");
     }
 }
