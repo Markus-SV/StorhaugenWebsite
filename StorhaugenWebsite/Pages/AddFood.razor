@@ -3,9 +3,11 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using StorhaugenWebsite.Models
 @using StorhaugenWebsite.Services
+@using StorhaugenWebsite.DTOs
 @using StorhaugenWebsite.Components
 @inject IAuthService AuthService
 @inject IFoodService FoodService
+@inject IUserRecipeService RecipeService
 @inject IHouseholdStateService HouseholdState
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
@@ -265,7 +267,7 @@
     private int _ratingValue = 5;
     private string _currentUserName = "";
     private bool _isHelloFresh = true;
-    private string _visibility = "household"; // New visibility setting
+    private string _visibility = "private"; // Default to private (matches RecipeVisibilitySelector)
     private ElementReference _videoElement;
     private bool _showCameraOverlay = false;
     private bool _isProcessingOcr = false;
@@ -574,15 +576,30 @@
         _isSubmitting = true;
         try
         {
+            // Upload images (still use FoodService for this)
             var urls = new List<string>(_draftImageUrls);
             for (int i = 0; i < _imageData.Count; i++) urls.Add(await FoodService.UploadImageAsync(_imageData[i], _imageNames[i]));
-            _newFood.ImageUrls = urls;
-            _newFood.DateAdded = DateTime.UtcNow;
-            _newFood.AddedBy = _currentUserName;
-            _newFood.IsHelloFresh = _isHelloFresh;
-            _newFood.IsPublic = _visibility == "public"; // Map visibility to IsPublic
-            if (_ratingEnabled) _newFood.Ratings[_currentUserName] = _ratingValue;
-            await FoodService.AddFoodAsync(_newFood);
+
+            // Create recipe using user-centric service with proper visibility
+            var createDto = new CreateUserRecipeDto
+            {
+                Name = _newFood.Name,
+                Description = _newFood.Description,
+                ImageUrls = urls,
+                PersonalNotes = _newFood.PersonalNotes,
+                GlobalRecipeId = _newFood.GlobalRecipeId,
+                Visibility = _visibility // Use the actual visibility value (private/household/friends/public)
+            };
+
+            var createdRecipe = await RecipeService.CreateRecipeAsync(createDto);
+
+            // Add initial rating if enabled
+            if (_ratingEnabled && createdRecipe != null)
+            {
+                await RecipeService.RateRecipeAsync(createdRecipe.Id, _ratingValue);
+            }
+
+            RecipeService.InvalidateCache();
             Navigation.NavigateTo("/");
         }
         catch (Exception ex) { _errorMessage = ex.Message; }
