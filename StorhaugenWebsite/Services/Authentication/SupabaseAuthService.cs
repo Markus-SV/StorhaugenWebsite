@@ -116,6 +116,66 @@ public class SupabaseAuthService : IAuthService, IAsyncDisposable
         }
     }
 
+    public async Task<(bool success, string? errorMessage)> SignInWithEmailAsync(string email, string password)
+    {
+        try
+        {
+            var session = await _supabaseClient.Auth.SignIn(email, password);
+
+            if (session != null && session.User != null)
+            {
+                _session = session;
+                OnAuthStateChanged?.Invoke();
+                return (true, null);
+            }
+            return (false, "Invalid credentials");
+        }
+        catch (Exception ex)
+        {
+            // Supabase throws specific exceptions for invalid login
+            return (false, ex.Message);
+        }
+    }
+
+    public async Task<(bool success, string? errorMessage)> SignUpWithEmailAsync(string email, string password, string displayName)
+    {
+        try
+        {
+            var options = new SignUpOptions
+            {
+                Data = new Dictionary<string, object>
+                {
+                    { "name", displayName }, // Pass display name to Supabase metadata
+                    { "full_name", displayName } // Some providers look for full_name
+                }
+            };
+
+            var session = await _supabaseClient.Auth.SignUp(email, password, options);
+
+            // If Supabase is set to "Auto Confirm Emails", you get a session immediately.
+            // If "Confirm Email" is on, session might be null, but User is not.
+            if (session?.User != null)
+            {
+                if (session.AccessToken != null)
+                {
+                    _session = session;
+                    OnAuthStateChanged?.Invoke();
+                    return (true, null);
+                }
+                else
+                {
+                    return (true, "Registration successful! Please check your email to confirm your account.");
+                }
+            }
+
+            return (false, "Registration failed.");
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message);
+        }
+    }
+
     public async Task LogoutAsync()
     {
         try

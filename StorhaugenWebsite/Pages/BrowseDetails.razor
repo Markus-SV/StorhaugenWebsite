@@ -1,4 +1,4 @@
-@page "/browse/{Id}"
+@page "/browse/{Id:guid}"
 @using Microsoft.AspNetCore.Authorization
 @using StorhaugenWebsite.ApiClient
 @using StorhaugenWebsite.Shared.DTOs
@@ -31,9 +31,10 @@ else if (_recipe == null)
 }
 else
 {
-    @if (!string.IsNullOrEmpty(_recipe.ImageUrl))
+    @* --- Header Image --- *@
+    @if (!string.IsNullOrEmpty(GetImageUrl()))
     {
-        <img src="@_recipe.ImageUrl" class="detail-hero-image" />
+        <img src="@GetImageUrl()" class="detail-hero-image" />
     }
     else
     {
@@ -54,18 +55,28 @@ else
             }
         </div>
 
-        @if (!string.IsNullOrEmpty(_householdName))
-        {
-            <MudChip Size="Size.Small" T=string Icon="@Icons.Material.Rounded.People" Color="Color.Tertiary" Class="mt-2">
-                Delt av @_householdName
-            </MudChip>
-        }
-        else if (_isHelloFresh)
-        {
-            <MudChip Size="Size.Small" T=string Icon="@Icons.Material.Rounded.LocalDining" Color="Color.Primary" Class="mt-2">
-                HelloFresh
-            </MudChip>
-        }
+        @* --- Source Badge --- *@
+        <div class="d-flex gap-2 mt-2">
+            @if (_recipe.IsHellofresh)
+            {
+                <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Rounded.LocalDining" Color="Color.Primary">
+                    HelloFresh
+                </MudChip>
+            }
+            else
+            {
+                <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Rounded.People" Color="Color.Tertiary">
+                    Delt av @(_recipe.CreatedByUserName ?? "Fellesskapet")
+                </MudChip>
+            }
+
+            @if (_recipe.PrepTimeMinutes.HasValue)
+            {
+                <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Rounded.AccessTime" Variant="Variant.Text">
+                    @_recipe.PrepTimeMinutes min
+                </MudChip>
+            }
+        </div>
 
         @if (!string.IsNullOrEmpty(_recipe.Description))
         {
@@ -73,32 +84,33 @@ else
         }
 
         <div class="action-buttons mt-6">
-            @if (_isHelloFresh)
-            {
-                <div class="action-card">
-                    <div class="d-flex gap-3">
-                        <MudIcon Icon="@Icons.Material.Rounded.Link" Color="Color.Primary" Size="Size.Medium" />
-                        <div>
-                            <h3 class="action-title">Lagre som referanse</h3>
-                            <p class="action-desc">
-                                Lenker direkte til denne oppskriften. Flere familier kan rangere samme rett, og ratingen blir delt.
-                            </p>
-                            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="mt-2"
-                                       OnClick="AddToMyListAsLink" Disabled="_isProcessing">
-                                Legg til i min liste
-                            </MudButton>
-                        </div>
+            @* --- Option A: Link (Reference) --- *@
+            <div class="action-card">
+                <div class="d-flex gap-3">
+                    <MudIcon Icon="@Icons.Material.Rounded.Link" Color="Color.Primary" Size="Size.Medium" />
+                    <div>
+                        <h3 class="action-title">Lagre som referanse</h3>
+                        <p class="action-desc">
+                            Lenker direkte til denne oppskriften.
+                            Flere familier kan rangere samme rett, og ratingen blir delt.
+                        </p>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="mt-2"
+                                   OnClick="AddToMyListAsLink" Disabled="_isProcessing">
+                            Legg til i min liste
+                        </MudButton>
                     </div>
                 </div>
-            }
+            </div>
 
+            @* --- Option B: Copy (Fork) --- *@
             <div class="action-card mt-3">
                 <div class="d-flex gap-3">
                     <MudIcon Icon="@Icons.Material.Rounded.ContentCopy" Color="Color.Secondary" Size="Size.Medium" />
                     <div>
                         <h3 class="action-title">Kopier og tilpass</h3>
                         <p class="action-desc">
-                            Lager en kopi som du kan redigere. Du kan endre ingredienser og navn før du lagrer.
+                            Lager en kopi som du kan redigere.
+                            Du kan endre ingredienser og navn før du lagrer.
                         </p>
                         <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true" Class="mt-2"
                                    OnClick="CustomizeAndAdd">
@@ -112,31 +124,66 @@ else
 }
 
 <style>
-    .detail-hero-image { width: 100%; height: 250px; object-fit: cover; border-radius: 0 0 24px 24px; }
-    .detail-hero-placeholder { width: 100%; height: 250px; background: var(--mud-palette-background-grey); display: flex; align-items: center; justify-content: center; border-radius: 0 0 24px 24px; color: var(--mud-palette-text-disabled); }
-    .detail-content { padding: 24px; }
-    .detail-title { font-size: 1.75rem; font-weight: 700; line-height: 1.2; margin: 0; }
-    .detail-description { color: var(--mud-palette-text-secondary); line-height: 1.6; }
-    
+    .detail-hero-image {
+        width: 100%;
+        height: 250px;
+        object-fit: cover;
+        border-radius: 0 0 24px 24px;
+    }
+
+    .detail-hero-placeholder {
+        width: 100%;
+        height: 250px;
+        background: var(--mud-palette-background-grey);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0 0 24px 24px;
+        color: var(--mud-palette-text-disabled);
+    }
+
+    .detail-content {
+        padding: 24px;
+    }
+
+    .detail-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        line-height: 1.2;
+        margin: 0;
+    }
+
+    .detail-description {
+        color: var(--mud-palette-text-secondary);
+        line-height: 1.6;
+    }
+
     .action-card {
         background: var(--mud-palette-surface);
         border: 1px solid var(--mud-palette-lines-default);
         border-radius: 16px;
         padding: 16px;
     }
-    .action-title { font-weight: 600; font-size: 1rem; margin-bottom: 4px; }
-    .action-desc { font-size: 0.85rem; color: var(--mud-palette-text-secondary); margin-bottom: 0; }
+
+    .action-title {
+        font-weight: 600;
+        font-size: 1rem;
+        margin-bottom: 4px;
+    }
+
+    .action-desc {
+        font-size: 0.85rem;
+        color: var(--mud-palette-text-secondary);
+        margin-bottom: 0;
+    }
 </style>
 
 @code {
-    [Parameter] public string Id { get; set; } = "";
-    [SupplyParameterFromQuery] public string Type { get; set; } = ""; // "global" or "public"
+    [Parameter] public Guid Id { get; set; }
 
-    private dynamic? _recipe; // Using dynamic to handle both DTO types simply for display
+    private GlobalRecipeDto? _recipe;
     private bool _isLoading = true;
     private bool _isProcessing = false;
-    private bool _isHelloFresh = false;
-    private string? _householdName;
 
     protected override async Task OnInitializedAsync()
     {
@@ -148,30 +195,8 @@ else
         _isLoading = true;
         try
         {
-            if (Guid.TryParse(Id, out var guid))
-            {
-                if (Type == "global")
-                {
-                    var globalRecipe = await ApiClient.GetGlobalRecipeAsync(guid);
-                    if (globalRecipe != null)
-                    {
-                        // Map to a common structure or use dynamic if structure is similar
-                        _recipe = globalRecipe;
-                        _isHelloFresh = true;
-                    }
-                }
-                else // type == "public"
-                {
-                    // FIX: Call the new API endpoint
-                    var publicRecipe = await ApiClient.GetPublicRecipeAsync(guid);
-                    if (publicRecipe != null)
-                    {
-                        _recipe = publicRecipe;
-                        _householdName = publicRecipe.HouseholdName;
-                        _isHelloFresh = false;
-                    }
-                }
-            }
+            // Now we ALWAYS use the Global endpoint, which handles both HelloFresh and Community recipes
+            _recipe = await ApiClient.GetGlobalRecipeAsync(Id);
         }
         catch (Exception ex)
         {
@@ -184,14 +209,26 @@ else
         }
     }
 
+    private string? GetImageUrl()
+    {
+        if (_recipe == null) return null;
+        if (!string.IsNullOrEmpty(_recipe.ImageUrl)) return _recipe.ImageUrl;
+        return _recipe.ImageUrls?.FirstOrDefault();
+    }
+
     // Logic for "Option A: Reference"
     private async Task AddToMyListAsLink()
     {
-        if (!HouseholdState.HasHousehold) return;
+        if (!HouseholdState.HasHousehold)
+        {
+            Snackbar.Add("Du må være medlem av en husstand", Severity.Warning);
+            return;
+        }
+
         _isProcessing = true;
         try
         {
-            var dto = new CreateHouseholdRecipeDto { GlobalRecipeId = Guid.Parse(Id), Fork = false };
+            var dto = new CreateHouseholdRecipeDto { GlobalRecipeId = Id, Fork = false };
             await ApiClient.CreateRecipeAsync(dto);
             Snackbar.Add("Oppskrift lagret!", Severity.Success);
             Navigation.NavigateTo("");
@@ -209,15 +246,15 @@ else
         if (_recipe == null) return;
 
         // Populate the draft in the service
-        FoodService.DraftRecipe = new FoodItem
+        FoodService.DraftRecipe = new StorhaugenWebsite.Models.FoodItem
         {
             Name = _recipe.Name,
             Description = _recipe.Description,
             ImageUrls = _recipe.ImageUrls ?? new List<string>(),
-            // Map other fields as necessary
+            GlobalRecipeId = _recipe.Id
         };
-        
-        // Navigate to Add page (user must ensure AddFood.razor checks FoodService.DraftRecipe on init)
+
+        // Navigate to Add page
         Navigation.NavigateTo("add");
     }
 }

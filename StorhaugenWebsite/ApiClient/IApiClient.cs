@@ -42,6 +42,7 @@ public interface IApiClient
     Task<GlobalRecipePagedResult> BrowseGlobalRecipesAsync(BrowseGlobalRecipesQuery query);
     Task<GlobalRecipeDto?> GetGlobalRecipeAsync(Guid id);
     Task<List<GlobalRecipeDto>> SearchGlobalRecipesAsync(string query, int limit = 20);
+    Task DeleteGlobalRecipeAsync(Guid id);
 
     // Public Household Recipes (community recipes)
     Task<PublicRecipePagedResult> BrowsePublicRecipesAsync(BrowsePublicRecipesQuery query);

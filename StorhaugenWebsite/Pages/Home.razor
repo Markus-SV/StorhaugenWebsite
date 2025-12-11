@@ -12,24 +12,32 @@
             Hei, @(AuthService.CurrentUserName ?? "Kokk")! 👋
         </MudText>
         <MudText Typo="Typo.body2" Color="Color.Secondary">
-            Klar for dagens middag?
+            Hva frister til middag i dag?
         </MudText>
     </div>
 
-    @* --- QUICK ACTIONS CARD --- *@
-    <MudPaper Class="pa-4 mb-6 quick-action-card" Elevation="0">
-        <div class="d-flex justify-space-between align-center">
-            <div>
-                <MudText Typo="Typo.h6" Style="font-weight: 600;">Hva spiste dere?</MudText>
-                <MudText Typo="Typo.caption" Color="Color.Secondary">Logg dagens middag raskt</MudText>
+    @* --- ACTION GRID --- *@
+    <div class="action-grid mb-6">
+        <div class="action-card quick-add" @onclick="@(() => Navigation.NavigateTo("add"))">
+            <div class="action-icon">
+                <MudIcon Icon="@Icons.Material.Rounded.Add" />
             </div>
-            <MudFab Color="Color.Primary"
-                    StartIcon="@Icons.Material.Rounded.Add"
-                    Size="Size.Medium"
-                    OnClick="@(() => Navigation.NavigateTo("add"))"
-                    Elevation="0" />
+            <div class="action-text">
+                <MudText Typo="Typo.subtitle2">Logg middag</MudText>
+                <MudText Typo="Typo.caption">Hva spiste dere?</MudText>
+            </div>
         </div>
-    </MudPaper>
+
+        <div class="action-card browse-global" @onclick="@(() => Navigation.NavigateTo("browse"))">
+            <div class="action-icon">
+                <MudIcon Icon="@Icons.Material.Rounded.Public" />
+            </div>
+            <div class="action-text">
+                <MudText Typo="Typo.subtitle2">Utforsk</MudText>
+                <MudText Typo="Typo.caption">Finn nye oppskrifter</MudText>
+            </div>
+        </div>
+    </div>
 
     @* --- ACTIVITY FEED --- *@
     <div class="feed-section">
@@ -40,23 +48,66 @@
             </MudText>
         </div>
 
-        @* Reusing your existing component *@
         <ActivityFeed PageSize="10" />
     </div>
 </div>
 
 <style>
-    .quick-action-card {
-        background: linear-gradient(135deg, var(--mud-palette-surface) 0%, rgba(var(--mud-palette-primary-rgb), 0.05) 100%);
+    .action-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+
+    .action-card {
+        background: var(--mud-palette-surface);
         border: 1px solid var(--mud-palette-divider);
         border-radius: 16px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        position: relative;
+        overflow: hidden;
+    }
+
+        .action-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border-color: var(--mud-palette-primary);
+        }
+
+    /* Style for Quick Add */
+    .quick-add .action-icon {
+        background: rgba(var(--mud-palette-primary-rgb), 0.1);
+        color: var(--mud-palette-primary);
+    }
+
+    /* Style for Browse */
+    .browse-global .action-icon {
+        background: rgba(var(--mud-palette-info-rgb), 0.1);
+        color: var(--mud-palette-info);
+    }
+
+    .action-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .action-text MudText {
+        line-height: 1.2;
     }
 </style>
 
 @code {
     protected override async Task OnInitializedAsync()
     {
-        // Simple auth check to ensure state is ready
         if (!AuthService.IsAuthenticated) return;
     }
 }

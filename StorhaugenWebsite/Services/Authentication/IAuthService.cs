@@ -8,12 +8,14 @@ namespace StorhaugenWebsite.Services
         string? CurrentUserEmail { get; }
         string? CurrentUserName { get; }
 
-        Task<(bool success, string? errorMessage)> LoginAsync();
+        Task<(bool success, string? errorMessage)> LoginAsync(); // Keep for Google
+        // --- ADD THESE ---
+        Task<(bool success, string? errorMessage)> SignInWithEmailAsync(string email, string password);
+        Task<(bool success, string? errorMessage)> SignUpWithEmailAsync(string email, string password, string displayName);
+        // -----------------
         Task LogoutAsync();
         Task InitializeAsync();
         Task<string?> GetAccessTokenAsync();
-
-        // Add this missing line:
         void UpdateCachedDisplayName(string? displayName);
     }
 }

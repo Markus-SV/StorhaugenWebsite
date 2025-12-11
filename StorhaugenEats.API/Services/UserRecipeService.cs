@@ -89,6 +89,7 @@ public class UserRecipeService : IUserRecipeService
 
     public async Task<UserRecipeDto> CreateRecipeAsync(Guid userId, CreateUserRecipeDto dto)
     {
+        // 1. Existing creation logic
         var user = await _context.Users.FindAsync(userId)
             ?? throw new InvalidOperationException("User not found");
 
@@ -107,31 +108,84 @@ public class UserRecipeService : IUserRecipeService
             UpdatedAt = DateTime.UtcNow
         };
 
-        // If linking to a global recipe, increment its TotalTimesAdded
+        // Increment global usage count if linked
         if (dto.GlobalRecipeId.HasValue)
         {
             var globalRecipe = await _context.GlobalRecipes.FindAsync(dto.GlobalRecipeId.Value);
-            if (globalRecipe != null)
-            {
-                globalRecipe.TotalTimesAdded++;
-            }
+            if (globalRecipe != null) globalRecipe.TotalTimesAdded++;
         }
 
         _context.UserRecipes.Add(recipe);
+
+        // Save the recipe first so we have an ID for the ratings
         await _context.SaveChangesAsync();
 
-        // Record activity
-        var imageUrls = dto.ImageUrls?.FirstOrDefault();
-        await _activityFeedService.RecordAddedRecipeActivityAsync(
-            userId,
-            recipe.Id,
-            recipe.DisplayTitle,
-            imageUrls);
+        // 2.NEW: Handle Proxy Ratings
+        if (dto.MemberRatings != null && dto.MemberRatings.Any())
+        {
+            // Security Check: Get valid member IDs for this user's household
+            // This prevents rating for random users outside the family
+            var householdId = user.CurrentHouseholdId;
+            var validMemberIds = new List<Guid>();
 
-        // Reload with includes
+            if (householdId.HasValue)
+            {
+                validMemberIds = await _context.HouseholdMembers
+                    .Where(hm => hm.HouseholdId == householdId.Value)
+                    .Select(hm => hm.UserId)
+                    .ToListAsync();
+            }
+            else
+            {
+                // If no household, can only rate self
+                validMemberIds.Add(userId);
+            }
+
+            var ratingsToAdd = new List<Rating>();
+
+            foreach (var kvp in dto.MemberRatings)
+            {
+                var targetUserId = kvp.Key;
+                var score = kvp.Value;
+
+                // Only allow rating if target user is in the household (or is self)
+                if (validMemberIds.Contains(targetUserId))
+                {
+                    ratingsToAdd.Add(new Rating
+                    {
+                        Id = Guid.NewGuid(),
+                        UserRecipeId = recipe.Id,
+                        GlobalRecipeId = recipe.GlobalRecipeId, // Link to global if applicable
+                        UserId = targetUserId,
+                        Score = Math.Clamp(score, 1, 10), // Ensure score is 1-10
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    });
+                }
+            }
+
+            if (ratingsToAdd.Any())
+            {
+                _context.Ratings.AddRange(ratingsToAdd);
+                await _context.SaveChangesAsync();
+
+                // If global link exists, update the global average stats
+                if (recipe.GlobalRecipeId.HasValue)
+                {
+                    await UpdateGlobalRecipeRatingAsync(recipe.GlobalRecipeId.Value);
+                }
+            }
+        }
+
+        // 3. Existing activity log
+        var imageUrls = dto.ImageUrls?.FirstOrDefault();
+        await _activityFeedService.RecordAddedRecipeActivityAsync(userId, recipe.Id, recipe.DisplayTitle, imageUrls);
+
+        // 4. Return result
         var createdRecipe = await _context.UserRecipes
             .Include(r => r.User)
             .Include(r => r.GlobalRecipe)
+            .Include(r => r.Ratings).ThenInclude(rt => rt.User) // Include ratings so they show up immediately
             .FirstAsync(r => r.Id == recipe.Id);
 
         return MapToDto(createdRecipe, userId);

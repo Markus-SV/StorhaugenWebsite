@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.JSInterop;
-using Newtonsoft.Json; // Needed for Supabase JSON serialization
+using Newtonsoft.Json;
 using Supabase.Gotrue;
 using System.Security.Claims;
 using static Supabase.Gotrue.Constants;
@@ -11,8 +11,6 @@ public class SupabaseAuthStateProvider : AuthenticationStateProvider
 {
     private readonly Supabase.Client _client;
     private readonly IJSRuntime _jsRuntime;
-
-    // dedicated key just for auth
     private const string AuthCacheKey = "supa_auth_session";
 
     public SupabaseAuthStateProvider(Supabase.Client client, IJSRuntime jsRuntime)
@@ -26,25 +24,22 @@ public class SupabaseAuthStateProvider : AuthenticationStateProvider
     {
         try
         {
-            // 1. Check if Supabase already has the session in memory (from Program.cs)
+            // 1. Check if Supabase already has the session in memory
             var session = _client.Auth.CurrentSession;
 
             if (session != null)
             {
-                // CRITICAL FIX: If we found a session in RAM, ensure it's saved to LocalStorage immediately.
-                // This covers the case where Program.cs initialized the session from the URL 
-                // before this provider started listening to events.
+                // Ensure persistence if session exists in memory
                 var json = JsonConvert.SerializeObject(session);
                 await _jsRuntime.InvokeVoidAsync("localStorage.setItem", AuthCacheKey, json);
             }
             else
             {
-                // 2. If memory is empty, try to load from Browser LocalStorage
+                // 2. Try to load from LocalStorage
                 var cachedJson = await _jsRuntime.InvokeAsync<string>("localStorage.getItem", AuthCacheKey);
 
                 if (!string.IsNullOrEmpty(cachedJson))
                 {
-                    // Restore session logic...
                     session = JsonConvert.DeserializeObject<Session>(cachedJson);
                     if (session?.AccessToken != null)
                     {
@@ -54,15 +49,33 @@ public class SupabaseAuthStateProvider : AuthenticationStateProvider
                 }
             }
 
-            // 2. Create Claims
+            // 3. Create Claims
             if (session?.User != null)
             {
+                // --- FIX STARTS HERE ---
+                // Try to get display name from metadata ("name" or "full_name"), fallback to email
+                string? displayName = session.User.Email;
+
+                if (session.User.UserMetadata != null)
+                {
+                    if (session.User.UserMetadata.TryGetValue("name", out var nameObj) && nameObj != null)
+                    {
+                        displayName = nameObj.ToString();
+                    }
+                    else if (session.User.UserMetadata.TryGetValue("full_name", out var fullNameObj) && fullNameObj != null)
+                    {
+                        displayName = fullNameObj.ToString();
+                    }
+                }
+
                 var claims = new List<Claim>
                 {
-                    new Claim(ClaimTypes.Name, session.User.Email ?? ""),
+                    // Use the resolved displayName here instead of just email
+                    new Claim(ClaimTypes.Name, displayName ?? ""),
                     new Claim(ClaimTypes.Email, session.User.Email ?? ""),
                     new Claim(ClaimTypes.NameIdentifier, session.User.Id ?? "")
                 };
+                // --- FIX ENDS HERE ---
 
                 var identity = new ClaimsIdentity(claims, "Supabase");
                 return new AuthenticationState(new ClaimsPrincipal(identity));
@@ -70,19 +83,17 @@ public class SupabaseAuthStateProvider : AuthenticationStateProvider
         }
         catch
         {
-            // If session restoration fails (e.g. invalid JSON), clear storage
             await _jsRuntime.InvokeVoidAsync("localStorage.removeItem", AuthCacheKey);
         }
 
-        // 3. Not Authenticated
         return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()));
     }
 
+    // ... rest of the file (OnAuthStateChanged, Dispose) remains the same
     private async void OnAuthStateChanged(object sender, AuthState state)
     {
         var session = _client.Auth.CurrentSession;
 
-        // Handle Persistence
         if (state == AuthState.SignedIn || state == AuthState.TokenRefreshed)
         {
             if (session != null)

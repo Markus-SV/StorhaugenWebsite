@@ -52,6 +52,9 @@ public class CreateUserRecipeDto
     public string? PersonalNotes { get; set; }
     public Guid? GlobalRecipeId { get; set; }
     public string Visibility { get; set; } = "private";
+
+    // --- NEW: Dictionary of UserID -> Score (1-10) ---
+    public Dictionary<Guid, int>? MemberRatings { get; set; }
 }
 
 /// <summary>

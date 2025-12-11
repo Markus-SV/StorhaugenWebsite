@@ -2,12 +2,10 @@
 @using Microsoft.AspNetCore.Authorization
 @using StorhaugenWebsite.ApiClient
 @using StorhaugenWebsite.Shared.DTOs
-@inject IAuthService AuthService
 @inject IApiClient ApiClient
 @inject IHouseholdStateService HouseholdState
 @inject NavigationManager Navigation
 @inject IDeviceStateService DeviceState
-@inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @attribute [Authorize]
 
@@ -15,6 +13,7 @@
     <h1 class="page-title" style="margin-bottom: 0; font-size: 1.5rem;">Utforsk</h1>
 </div>
 
+@* --- Search & Filters --- *@
 <div class="d-flex flex-column gap-3 mb-4">
     <MudTextField @bind-Value="_searchQuery"
                   Label="Søk etter oppskrifter"
@@ -28,15 +27,15 @@
 
     <div class="d-flex justify-space-between align-center">
         <div class="d-flex gap-2">
-            <MudChip Color="@(_sourceMode == "community" ? Color.Primary : Color.Default)"
+            <MudChip T="string"
+                     Color="@(_sourceMode == "community" ? Color.Primary : Color.Default)"
                      OnClick="@(() => SetSourceMode("community"))"
-                     T="string"
                      Icon="@Icons.Material.Rounded.People">
                 Fellesskapet
             </MudChip>
-            <MudChip Color="@(_sourceMode == "hellofresh" ? Color.Primary : Color.Default)"
+            <MudChip T="string"
+                     Color="@(_sourceMode == "hellofresh" ? Color.Primary : Color.Default)"
                      OnClick="@(() => SetSourceMode("hellofresh"))"
-                     T="string"
                      Icon="@Icons.Material.Rounded.LocalDining">
                 HelloFresh
             </MudChip>
@@ -53,6 +52,7 @@
     </div>
 </div>
 
+@* --- Content --- *@
 @if (_isLoading)
 {
     <div class="d-flex flex-column gap-3">
@@ -68,153 +68,56 @@
         }
     </div>
 }
-else if (_sourceMode == "community" && !_publicRecipes.Any())
+else if (!_recipes.Any())
 {
     <div class="empty-state">
         <div class="empty-state-icon">
-            <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Large" />
-        </div>
-        <h2 class="empty-state-title">Ingen oppskrifter ennå</h2>
-        <p class="empty-state-text">Bli den første til å dele en oppskrift med fellesskapet!</p>
-    </div>
-}
-else if (_sourceMode == "hellofresh" && !_recipes.Any())
-{
-    <div class="empty-state">
-        <div class="empty-state-icon">
-            <MudIcon Icon="@Icons.Material.Rounded.SearchOff" Size="Size.Large" />
+            <MudIcon Icon="@(_sourceMode == "community" ? Icons.Material.Rounded.People : Icons.Material.Rounded.SearchOff)" Size="Size.Large" />
         </div>
         <h2 class="empty-state-title">Ingen oppskrifter funnet</h2>
-        <p class="empty-state-text">Prøv å endre søket ditt</p>
+        <p class="empty-state-text">
+            @(_sourceMode == "community" ? "Bli den første til å dele en oppskrift!" : "Prøv et annet søk.")
+        </p>
     </div>
 }
 else
 {
-    @if (_sourceMode == "community")
-    {
-        @if (_viewMode == "card")
+    <div class="@(_viewMode == "card" ? "d-flex flex-column gap-4" : "d-flex flex-column gap-2")">
+        @foreach (var recipe in _recipes)
         {
-            <div class="d-flex flex-column gap-4">
-                @foreach (var recipe in _publicRecipes)
+            <div class="@(_viewMode == "card" ? "food-card" : "food-list-item") animate-in"
+                 @onclick="() => OpenRecipeDetail(recipe)">
+
+                @* --- Image --- *@
+                @if (GetImageUrl(recipe) != null)
                 {
-                    <div class="food-card animate-in" @onclick="() => OpenPublicRecipeDetail(recipe)">
-                        @if (!string.IsNullOrEmpty(recipe.ImageUrls.FirstOrDefault()))
-                        {
-                            <img src="@recipe.ImageUrls.FirstOrDefault()" alt="@recipe.Name" class="food-card-image" />
-                        }
-                        else
-                        {
-                            <div class="food-card-placeholder">
-                                <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" />
-                            </div>
-                        }
-                        <div class="food-card-content">
-                            <div class="d-flex justify-space-between align-start gap-3">
-                                <div>
-                                    <h3 class="food-card-title">@recipe.Name</h3>
-                                    <MudText Typo="Typo.caption" Color="Color.Secondary">@recipe.HouseholdName</MudText>
-                                </div>
-                                @if (recipe.AverageRating > 0)
-                                {
-                                    <span class="rating-badge rating-high">
-                                        <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
-                                        @recipe.AverageRating.ToString("0.0")
-                                    </span>
-                                }
-                            </div>
-
-                            <p class="food-card-meta mt-2">Delt av @recipe.AddedByName • @recipe.DateAdded.ToString("d MMM")</p>
-
-                            <div class="mt-3">
-                                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
-                                           StartIcon="@Icons.Material.Rounded.Add"
-                                           OnClick="@(() => AddPublicRecipe(recipe))">
-                                    Legg til
-                                </MudButton>
-                            </div>
-                        </div>
+                    <img src="@GetImageUrl(recipe)" alt="@recipe.Name" class="@(_viewMode == "card" ? "food-card-image" : "food-list-image")" />
+                }
+                else
+                {
+                    <div class="@(_viewMode == "card" ? "food-card-placeholder" : "food-list-placeholder")">
+                        <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="@(_viewMode == "card" ? Size.Large : Size.Small)" />
                     </div>
                 }
-            </div>
-        }
-        else // List View
-        {
-            <div class="d-flex flex-column gap-2">
-                @foreach (var recipe in _publicRecipes)
-                {
-                    <div class="food-list-item animate-in" @onclick="() => OpenPublicRecipeDetail(recipe)">
-                        @if (!string.IsNullOrEmpty(recipe.ImageUrls.FirstOrDefault()))
-                        {
-                            <img src="@recipe.ImageUrls.FirstOrDefault()" alt="@recipe.Name" class="food-list-image" />
-                        }
-                        else
-                        {
-                            <div class="food-list-placeholder">
-                                <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small" />
-                            </div>
-                        }
-                        <div class="food-list-content">
-                            <h3 class="food-list-title">@recipe.Name</h3>
-                            <p class="food-list-date">@recipe.HouseholdName • @recipe.AddedByName</p>
-                        </div>
-                        <div class="d-flex align-center gap-2">
+
+                @* --- Text Content --- *@
+                <div class="@(_viewMode == "card" ? "food-card-content" : "food-list-content")">
+                    @if (_viewMode == "card")
+                    {
+                        <div class="d-flex justify-space-between align-start gap-3">
+                            <h3 class="food-card-title">@recipe.Name</h3>
                             @if (recipe.AverageRating > 0)
                             {
-                                <div class="food-list-rating">
-                                    <span class="rating-badge rating-high">
-                                        @recipe.AverageRating.ToString("0.0")
-                                    </span>
-                                </div>
+                                <span class="rating-badge rating-high">
+                                    <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
+                                    @recipe.AverageRating.ToString("0.0")
+                                </span>
                             }
-                            <MudIconButton Icon="@Icons.Material.Rounded.Add" Size="Size.Small" Color="Color.Primary" 
-                                         OnClick="@(() => AddPublicRecipe(recipe))" />
                         </div>
-                    </div>
-                }
-            </div>
-        }
 
-        @if (_publicTotalPages > 1)
-        {
-            <div class="d-flex justify-center align-center gap-2 mt-4">
-                <MudIconButton Icon="@Icons.Material.Rounded.ChevronLeft" OnClick="PreviousPage" Disabled="@(_currentPage <= 1)" Size="Size.Small" />
-                <MudText Typo="Typo.body2">Side @_currentPage av @_publicTotalPages</MudText>
-                <MudIconButton Icon="@Icons.Material.Rounded.ChevronRight" OnClick="NextPage" Disabled="@(_currentPage >= _publicTotalPages)" Size="Size.Small" />
-            </div>
-        }
-    }
-
-    @if (_sourceMode == "hellofresh")
-    {
-        @if (_viewMode == "card")
-        {
-            <div class="d-flex flex-column gap-4">
-                @foreach (var recipe in _recipes)
-                {
-                    <div class="food-card animate-in" @onclick="() => OpenRecipeDetail(recipe)">
-                        @if (!string.IsNullOrEmpty(recipe.ImageUrl))
-                        {
-                            <img src="@recipe.ImageUrl" alt="@recipe.Name" class="food-card-image" />
-                        }
-                        else
-                        {
-                            <div class="food-card-placeholder">
-                                <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" />
-                            </div>
-                        }
-                        <div class="food-card-content">
-                            <div class="d-flex justify-space-between align-start gap-3">
-                                <h3 class="food-card-title">@recipe.Name</h3>
-                                @if (recipe.AverageRating > 0)
-                                {
-                                    <span class="rating-badge rating-high">
-                                        <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
-                                        @recipe.AverageRating.ToString("0.0")
-                                    </span>
-                                }
-                            </div>
-
-                            <div class="d-flex gap-3 mt-2 food-card-meta">
+                        <div class="food-card-meta mt-2 d-flex gap-2 align-center flex-wrap">
+                            @if (recipe.IsHellofresh)
+                            {
                                 @if (recipe.PrepTimeMinutes.HasValue)
                                 {
                                     <span>@recipe.PrepTimeMinutes min</span>
@@ -223,72 +126,70 @@ else
                                 {
                                     <span>• @recipe.Difficulty</span>
                                 }
-                            </div>
-
-                            <div class="d-flex gap-2 mt-3">
-                                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
-                                           StartIcon="@Icons.Material.Rounded.ContentCopy"
-                                           OnClick="@(() => AddRecipe(recipe, true))">
-                                    Kopier
-                                </MudButton>
-                                <MudIconButton Icon="@Icons.Material.Rounded.Link" Size="Size.Small" 
-                                             OnClick="@(() => AddRecipe(recipe, false))" />
-                            </div>
-                        </div>
-                    </div>
-                }
-            </div>
-        }
-        else // List View
-        {
-            <div class="d-flex flex-column gap-2">
-                @foreach (var recipe in _recipes)
-                {
-                    <div class="food-list-item animate-in" @onclick="() => OpenRecipeDetail(recipe)">
-                        @if (!string.IsNullOrEmpty(recipe.ImageUrl))
-                        {
-                            <img src="@recipe.ImageUrl" alt="@recipe.Name" class="food-list-image" />
-                        }
-                        else
-                        {
-                            <div class="food-list-placeholder">
-                                <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small" />
-                            </div>
-                        }
-                        <div class="food-list-content">
-                            <h3 class="food-list-title">@recipe.Name</h3>
-                            <p class="food-list-date">
-                                @(recipe.PrepTimeMinutes.HasValue ? $"{recipe.PrepTimeMinutes} min" : "")
-                                @(!string.IsNullOrEmpty(recipe.Cuisine) ? $"• {recipe.Cuisine}" : "")
-                            </p>
-                        </div>
-                        <div class="d-flex align-center gap-2">
-                            @if (recipe.AverageRating > 0)
-                            {
-                                <div class="food-list-rating">
-                                    <span class="rating-badge rating-high">
-                                        @recipe.AverageRating.ToString("0.0")
-                                    </span>
-                                </div>
                             }
-                            <MudMenu Icon="@Icons.Material.Rounded.MoreVert" Size="Size.Small" @onclick:stopPropagation="true">
-                                <MudMenuItem Icon="@Icons.Material.Rounded.ContentCopy" OnClick="@(() => AddRecipe(recipe, true))">Kopier til liste</MudMenuItem>
-                                <MudMenuItem Icon="@Icons.Material.Rounded.Link" OnClick="@(() => AddRecipe(recipe, false))">Legg til som lenke</MudMenuItem>
-                            </MudMenu>
+                            else
+                            {
+                                <span>Delt av @recipe.CreatedByUserName</span>
+                                <span>• @recipe.CreatedAt.ToString("d MMM")</span>
+                            }
                         </div>
+
+                        <div class="mt-3 d-flex gap-2">
+                            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                                       StartIcon="@Icons.Material.Rounded.Add"
+                                       OnClick="@(() => AddRecipe(recipe, true))">
+                                Kopier
+                            </MudButton>
+
+                            <MudIconButton Icon="@Icons.Material.Rounded.Link" Size="Size.Small"
+                                           OnClick="@(() => AddRecipe(recipe, false))" Title="Lagre som referanse" />
+                        </div>
+                    }
+                    else // List View
+                    {
+                        <h3 class="food-list-title">@recipe.Name</h3>
+                        <p class="food-list-date">
+                            @if (recipe.IsHellofresh)
+                            {
+                                @(recipe.PrepTimeMinutes.HasValue ? $"{recipe.PrepTimeMinutes} min" : "")
+                                @(!string.IsNullOrEmpty(recipe.Cuisine) ? $" • {recipe.Cuisine}" : "")
+                            }
+                            else
+                            {
+                                <text>@recipe.CreatedByUserName • @recipe.CreatedAt.ToString("d MMM")</text>
+                            }
+                        </p>
+                    }
+                </div>
+
+                @* List View Actions *@
+                @if (_viewMode == "list")
+                {
+                    <div class="d-flex align-center gap-2">
+                        @if (recipe.AverageRating > 0)
+                        {
+                            <div class="food-list-rating">
+                                <span class="rating-badge rating-high">@recipe.AverageRating.ToString("0.0")</span>
+                            </div>
+                        }
+                        <MudMenu Icon="@Icons.Material.Rounded.MoreVert" Size="Size.Small" @onclick:stopPropagation="true">
+                            <MudMenuItem Icon="@Icons.Material.Rounded.ContentCopy" OnClick="@(() => AddRecipe(recipe, true))">Kopier til liste</MudMenuItem>
+                            <MudMenuItem Icon="@Icons.Material.Rounded.Link" OnClick="@(() => AddRecipe(recipe, false))">Lagre som lenke</MudMenuItem>
+                        </MudMenu>
                     </div>
                 }
             </div>
         }
+    </div>
 
-        @if (_totalPages > 1)
-        {
-            <div class="d-flex justify-center align-center gap-2 mt-4">
-                <MudIconButton Icon="@Icons.Material.Rounded.ChevronLeft" OnClick="PreviousPage" Disabled="@(_currentPage <= 1)" Size="Size.Small" />
-                <MudText Typo="Typo.body2">Side @_currentPage av @_totalPages</MudText>
-                <MudIconButton Icon="@Icons.Material.Rounded.ChevronRight" OnClick="NextPage" Disabled="@(_currentPage >= _totalPages)" Size="Size.Small" />
-            </div>
-        }
+    @* --- Pagination --- *@
+    @if (_totalPages > 1)
+    {
+        <div class="d-flex justify-center align-center gap-2 mt-4">
+            <MudIconButton Icon="@Icons.Material.Rounded.ChevronLeft" OnClick="PreviousPage" Disabled="@(_currentPage <= 1)" Size="Size.Small" />
+            <MudText Typo="Typo.body2">Side @_currentPage av @_totalPages</MudText>
+            <MudIconButton Icon="@Icons.Material.Rounded.ChevronRight" OnClick="NextPage" Disabled="@(_currentPage >= _totalPages)" Size="Size.Small" />
+        </div>
     }
 }
 
@@ -296,8 +197,7 @@ else
     .search-field {
         max-width: 100%;
     }
-
-    /* --- View Toggle Styles --- */
+    /* View Toggle */
     .view-toggle {
         display: flex;
         background: var(--mud-palette-surface);
@@ -329,8 +229,7 @@ else
             background: var(--mud-palette-primary-hover);
             color: var(--mud-palette-primary-text);
         }
-
-    /* --- Food Card Styles (Grid) --- */
+    /* Cards */
     .food-card {
         background: var(--mud-palette-surface);
         border-radius: 16px;
@@ -374,13 +273,7 @@ else
         color: var(--mud-palette-text-primary);
         line-height: 1.3;
     }
-
-    .food-card-meta {
-        font-size: 0.85rem;
-        color: var(--mud-palette-text-secondary);
-    }
-
-    /* --- Food List Styles (List) --- */
+    /* List Items */
     .food-list-item {
         display: flex;
         align-items: center;
@@ -393,12 +286,10 @@ else
         cursor: pointer;
     }
 
-        /* FIX: Changed hover style to match grid view (lift + border) instead of darkening background */
         .food-list-item:hover {
             box-shadow: 0 4px 12px rgba(0,0,0,0.08);
             border-color: var(--mud-palette-lines-default);
             transform: translateY(-2px);
-            /* Removed: background: var(--mud-palette-background-grey); */
         }
 
     .food-list-image {
@@ -436,12 +327,6 @@ else
         text-overflow: ellipsis;
     }
 
-    .food-list-date {
-        font-size: 0.85rem;
-        color: var(--mud-palette-text-secondary);
-    }
-
-    /* --- Shared & Utils --- */
     .rating-badge {
         display: inline-flex;
         align-items: center;
@@ -469,19 +354,6 @@ else
         margin-bottom: 16px;
     }
 
-    .empty-state-title {
-        font-size: 1.5rem;
-        font-weight: 600;
-        margin: 0 0 8px 0;
-        color: var(--mud-palette-text-primary);
-    }
-
-    .empty-state-text {
-        color: var(--mud-palette-text-secondary);
-        margin: 0 0 24px 0;
-    }
-
-    /* Animation Keyframes */
     .animate-in {
         animation: fadeIn 0.4s ease-out forwards;
         opacity: 0;
@@ -519,12 +391,12 @@ else
         background-size: 200% 100%;
         animation: shimmer 1.5s infinite;
         border-radius: 4px;
+        margin-bottom: 10px;
     }
 
         .skeleton-text.title {
             height: 24px;
             width: 60%;
-            margin-bottom: 12px;
         }
 
         .skeleton-text.subtitle {
@@ -545,31 +417,20 @@ else
 
 @code {
     private List<GlobalRecipeDto> _recipes = new();
-    private List<PublicRecipeDto> _publicRecipes = new();
     private bool _isLoading = true;
     private string _searchQuery = "";
-
-    // Default to "community" as requested
     private string _sourceMode = "community";
-
-    // View mode (Card vs List), default to card
     private string _viewMode = "card";
-
-    // Pagination variables
     private int _currentPage = 1;
     private int _pageSize = 20;
-    private int _totalRecipes = 0;
     private int _totalPages = 0;
-    private int _publicTotalPages = 0;
 
     protected override async Task OnInitializedAsync()
     {
-        // Try to load persisted view mode settings
         if (!string.IsNullOrEmpty(DeviceState.Settings.ViewMode))
         {
             _viewMode = DeviceState.Settings.ViewMode;
         }
-
         await LoadRecipes();
     }
 
@@ -584,7 +445,6 @@ else
     private async Task SetViewMode(string mode)
     {
         _viewMode = mode;
-        // Optionally save this preference to DeviceState if you want persistence across pages
         await DeviceState.SetViewModeAsync(mode);
     }
 
@@ -593,36 +453,29 @@ else
         _isLoading = true;
         try
         {
-            if (_sourceMode == "hellofresh")
+            var query = new BrowseGlobalRecipesQuery
             {
-                var query = new BrowseGlobalRecipesQuery
-                {
-                    Search = string.IsNullOrWhiteSpace(_searchQuery) ? null : _searchQuery,
-                    HellofreshOnly = true, // Enforce HelloFresh only
-                    SortBy = "popular",
-                    Page = _currentPage,
-                    PageSize = _pageSize
-                };
+                Search = string.IsNullOrWhiteSpace(_searchQuery) ? null : _searchQuery,
+                SortBy = _sourceMode == "hellofresh" ? "popular" : "newest",
+                Page = _currentPage,
+                PageSize = _pageSize,
+                // Community mode now uses the Global Recipe endpoint too
+                HellofreshOnly = _sourceMode == "hellofresh"
+            };
 
-                var result = await ApiClient.BrowseGlobalRecipesAsync(query);
+            var result = await ApiClient.BrowseGlobalRecipesAsync(query);
+
+            if (_sourceMode == "community")
+            {
+                // Filter client-side just in case the API returns mixed results for HellofreshOnly=false
+                _recipes = result.Recipes.Where(r => !r.IsHellofresh).ToList();
+            }
+            else
+            {
                 _recipes = result.Recipes;
-                _totalRecipes = result.TotalCount;
-                _totalPages = result.TotalPages;
             }
-            else // community
-            {
-                var query = new BrowsePublicRecipesQuery
-                {
-                    Search = string.IsNullOrWhiteSpace(_searchQuery) ? null : _searchQuery,
-                    SortBy = "newest",
-                    Page = _currentPage,
-                    PageSize = _pageSize
-                };
 
-                var result = await ApiClient.BrowsePublicRecipesAsync(query);
-                _publicRecipes = result.Recipes;
-                _publicTotalPages = result.TotalPages;
-            }
+            _totalPages = result.TotalPages;
         }
         catch (Exception ex)
         {
@@ -655,27 +508,25 @@ else
 
     private async Task NextPage()
     {
-        int maxPages = _sourceMode == "community" ? _publicTotalPages : _totalPages;
-        if (_currentPage < maxPages)
+        if (_currentPage < _totalPages)
         {
             _currentPage++;
             await LoadRecipes();
         }
     }
 
-    // Navigates to the details page for a Global (HelloFresh) recipe
     private void OpenRecipeDetail(GlobalRecipeDto recipe)
     {
-        Navigation.NavigateTo($"browse/{recipe.Id}?type=global");
+        // Simply navigate to browse/{id} - it will handle both types
+        Navigation.NavigateTo($"browse/{recipe.Id}");
     }
 
-    // Navigates to the details page for a Public (Community) recipe
-    private void OpenPublicRecipeDetail(PublicRecipeDto recipe)
+    private string? GetImageUrl(GlobalRecipeDto recipe)
     {
-        Navigation.NavigateTo($"browse/{recipe.Id}?type=public");
+        if (!string.IsNullOrEmpty(recipe.ImageUrl)) return recipe.ImageUrl;
+        return recipe.ImageUrls?.FirstOrDefault();
     }
 
-    // Logic to Add HelloFresh Recipe (Global) - Kept for "Quick Add" buttons
     private async Task AddRecipe(GlobalRecipeDto recipe, bool fork)
     {
         if (!HouseholdState.HasHousehold)
@@ -697,9 +548,9 @@ else
                 Cuisine = fork ? recipe.Cuisine : null,
                 Tags = fork ? recipe.Tags : null,
                 Ingredients = fork ? recipe.Ingredients : null,
-                Instructions = fork ? recipe.Ingredients : null,
-                ImageUrl = fork ? recipe.ImageUrl : null,
-                Description = fork ? recipe.Description : null
+                ImageUrl = fork ? GetImageUrl(recipe) : null,
+                Description = fork ? recipe.Description : null,
+                ImageUrls = fork && recipe.ImageUrls != null ? new List<string>(recipe.ImageUrls) : null
             };
 
             await ApiClient.CreateRecipeAsync(dto);
@@ -708,34 +559,6 @@ else
                 Snackbar.Add($"'{recipe.Name}' kopiert til din husstand", Severity.Success);
             else
                 Snackbar.Add($"'{recipe.Name}' lenket til din husstand", Severity.Success);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error adding recipe: {ex.Message}");
-            Snackbar.Add("Klarte ikke å legge til oppskrift", Severity.Error);
-        }
-    }
-
-    // Logic to Add Community Recipe (Public) - Kept for "Quick Add" buttons
-    private async Task AddPublicRecipe(PublicRecipeDto recipe)
-    {
-        if (!HouseholdState.HasHousehold)
-        {
-            Snackbar.Add("Vennligst opprett en husstand først", Severity.Warning);
-            return;
-        }
-
-        try
-        {
-            var dto = new CreateHouseholdRecipeDto
-            {
-                Name = recipe.Name,
-                Description = recipe.Description,
-                ImageUrls = recipe.ImageUrls
-            };
-
-            await ApiClient.CreateRecipeAsync(dto);
-            Snackbar.Add($"'{recipe.Name}' lagt til i din liste!", Severity.Success);
         }
         catch (Exception ex)
         {

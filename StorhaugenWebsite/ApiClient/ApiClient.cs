@@ -284,6 +284,13 @@ public class ApiClient : IApiClient
         return (await _httpClient.GetFromJsonAsync<List<GlobalRecipeDto>>(url, _jsonOptions)) ?? new();
     }
 
+    public async Task DeleteGlobalRecipeAsync(Guid id)
+    {
+        await AddAuthHeaderAsync();
+        var response = await _httpClient.DeleteAsync($"/api/global-recipes/{id}");
+        response.EnsureSuccessStatusCode();
+    }
+
     // Public Household Recipes (community recipes)
     public async Task<PublicRecipePagedResult> BrowsePublicRecipesAsync(BrowsePublicRecipesQuery query)
     {
@@ -469,11 +476,14 @@ public class ApiClient : IApiClient
         return (await response.Content.ReadFromJsonAsync<UserFriendshipDto>(_jsonOptions))!;
     }
 
-    public async Task<UserFriendshipDto> RespondToFriendRequestAsync(Guid id, RespondFriendRequestDto action)
+    // In StorhaugenWebsite\ApiClient\ApiClient.cs
+
+    public async Task<UserFriendshipDto> RespondToFriendRequestAsync(Guid id, RespondFriendRequestDto dto)
     {
         await AddAuthHeaderAsync();
-        var dto = new { Action = action.ToString().ToLower() };
+
         var response = await _httpClient.PostAsJsonAsync($"/api/friendships/{id}/respond", dto, _jsonOptions);
+
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<UserFriendshipDto>(_jsonOptions))!;
     }
