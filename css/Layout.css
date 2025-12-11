@@ -42,42 +42,40 @@
     }
 }
 
-/* Bottom Navigation */
+/* Bottom Navigation - Docked Style */
 .bottom-nav {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
     z-index: 1100;
-    /* Removed top/bottom padding here to let the inner container control height */
-    padding: 0 12px;
-    padding-bottom: max(12px, env(safe-area-inset-bottom));
-    background: transparent;
-    pointer-events: none;
-    display: flex;
-    justify-content: center;
+    /* Remove padding to make it flush with edges */
+    padding: 0;
+    /* Background moves here to cover the whole bottom area */
+    background: var(--mud-palette-surface);
+    /* Add a subtle top border for separation */
+    border-top: 1px solid var(--mud-palette-divider);
+    /* Handle iPhone/Android Gesture bar area */
+    padding-bottom: env(safe-area-inset-bottom);
+    /* Ensure the bar blocks clicks behind it */
+    pointer-events: auto;
 }
 
 .bottom-nav-inner {
     width: 100%;
-    max-width: 360px; /* Reduced width for a cleaner look */
-    background: var(--mud-palette-surface);
-    border-radius: 24px;
-    /* Much tighter padding (Top/Bottom: 6px, Left/Right: 20px) */
-    padding: 6px 20px;
+    /* Max width prevents it from stretching too far on desktop */
+    max-width: 600px;
+    margin: 0 auto; /* Center on desktop */
+    /* Remove pill styling */
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    /* Adjust padding for the docked look */
+    padding: 8px 16px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    /* refined shadow */
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 0 0 1px var(--mud-palette-divider);
-    pointer-events: auto;
     height: var(--bottom-nav-height);
-    backdrop-filter: blur(12px);
-}
-
-/* Dark mode specific shadow */
-::deep .mud-theme-dark .bottom-nav-inner {
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 .nav-item {
@@ -85,21 +83,20 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    width: 100px;
-    gap: 2px; /* Tighter gap */
+    flex: 1; /* Distribute space evenly */
+    gap: 4px;
     border: none;
     background: transparent;
     color: var(--mud-palette-text-secondary);
     cursor: pointer;
-    transition: var(--transition-fast);
-    border-radius: 12px;
-    height: 100%; /* Fill the container height */
+    transition: color 0.2s ease;
+    height: 100%;
 }
 
     .nav-item span {
-        font-size: 10px; /* Smaller font */
-        font-weight: 600;
-        letter-spacing: 0.02em;
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.01em;
     }
 
     .nav-item:hover {
@@ -110,39 +107,34 @@
         color: var(--mud-palette-primary);
     }
 
-/* The Add Button Container */
+/* The Add Button Container - Pops out slightly */
 .nav-item-add {
     position: relative;
-    padding: 0 8px;
+    top: -10px; /* Changed from -20px. Sits lower in the bar. */
+    height: auto;
+    overflow: visible;
 }
 
 /* The Orange Button Itself */
 .add-button {
-    width: 42px; /* Reduced from 48px */
-    height: 42px; /* Reduced from 48px */
-    border-radius: 14px;
+    width: 48px; /* Changed from 56px. Smaller footprint. */
+    height: 48px; /* Changed from 56px. */
+    border-radius: 50%;
     background: linear-gradient(135deg, var(--mud-palette-primary), var(--mud-palette-primary-darken));
     display: flex;
     align-items: center;
     justify-content: center;
     color: white;
-    box-shadow: 0 4px 12px rgba(224, 122, 46, 0.35);
-    transition: var(--transition-smooth);
-    margin-bottom: 0; /* Remove margin */
-}
-
-/* Hide the text label ONLY for the Add button to save vertical space */
-.nav-item-add span {
-    display: none;
-}
-
-::deep .mud-theme-dark .add-button {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    /* Reduced border width slightly to match new size */
+    border: 3px solid var(--mud-palette-surface);
+    /* Reduced shadow opacity and spread for a softer look */
+    box-shadow: 0 2px 8px rgba(224, 122, 46, 0.25);
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .nav-item-add:hover .add-button {
-    transform: scale(1.05);
-    box-shadow: 0 6px 16px rgba(224, 122, 46, 0.5);
+    transform: scale(1.05); /* Slightly smaller hover effect */
+    box-shadow: 0 4px 12px rgba(224, 122, 46, 0.4);
 }
 
 .nav-item-add:active .add-button {
