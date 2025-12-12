@@ -80,6 +80,7 @@ public class UserRecipe
     public User User { get; set; } = null!;
     public GlobalRecipe? GlobalRecipe { get; set; }
     public ICollection<Rating> Ratings { get; set; } = new List<Rating>();
+    public ICollection<UserRecipeTag> UserRecipeTags { get; set; } = new List<UserRecipeTag>();
 
     // Helper properties
     [NotMapped]

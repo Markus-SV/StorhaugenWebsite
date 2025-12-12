@@ -38,6 +38,9 @@ public class UserRecipeDto
     public double AverageRating { get; set; }
     public int RatingCount { get; set; }
     public Dictionary<string, int?> HouseholdRatings { get; set; } = new();
+
+    // Tags (personal organization)
+    public List<TagReferenceDto> Tags { get; set; } = new();
 }
 
 /// <summary>
@@ -52,6 +55,9 @@ public class CreateUserRecipeDto
     public string? PersonalNotes { get; set; }
     public Guid? GlobalRecipeId { get; set; }
     public string Visibility { get; set; } = "private";
+
+    // Tags (personal organization)
+    public List<Guid>? TagIds { get; set; }
 
     // --- NEW: Dictionary of UserID -> Score (1-10) ---
     public Dictionary<Guid, int>? MemberRatings { get; set; }
@@ -68,6 +74,9 @@ public class UpdateUserRecipeDto
     public object? Ingredients { get; set; }
     public string? PersonalNotes { get; set; }
     public string? Visibility { get; set; }
+
+    // Tags (personal organization)
+    public List<Guid>? TagIds { get; set; }
 }
 
 /// <summary>
@@ -91,6 +100,10 @@ public class GetUserRecipesQuery
     public bool SortDescending { get; set; } = true;
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 50;
+
+    // Tag filtering
+    public List<Guid>? TagIds { get; set; }
+    public string? Search { get; set; }
 }
 
 /// <summary>

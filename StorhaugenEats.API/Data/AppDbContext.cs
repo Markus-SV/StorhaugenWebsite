@@ -24,6 +24,10 @@ public class AppDbContext : DbContext
     public DbSet<UserFriendship> UserFriendships { get; set; }
     public DbSet<ActivityFeedItem> ActivityFeedItems { get; set; }
 
+    // Tags for personal recipe organization
+    public DbSet<RecipeTag> RecipeTags { get; set; }
+    public DbSet<UserRecipeTag> UserRecipeTags { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -345,6 +349,54 @@ public class AppDbContext : DbContext
             entity.Property(e => e.IsProfilePublic).HasDefaultValue(true);
             entity.Property(e => e.Bio).HasMaxLength(500);
             entity.Property(e => e.FavoriteCuisines).HasColumnType("jsonb").HasDefaultValue("[]");
+        });
+
+        // ==========================================
+        // RECIPE TAGS FOR PERSONAL ORGANIZATION
+        // ==========================================
+
+        modelBuilder.Entity<RecipeTag>().ToTable("recipe_tags");
+        modelBuilder.Entity<UserRecipeTag>().ToTable("user_recipe_tags");
+
+        // RecipeTag configuration
+        modelBuilder.Entity<RecipeTag>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Color).HasMaxLength(7);
+            entity.Property(e => e.Icon).HasMaxLength(50);
+
+            // Unique tag names per user
+            entity.HasIndex(e => new { e.UserId, e.Name }).IsUnique();
+
+            // Index for user's tags
+            entity.HasIndex(e => e.UserId);
+
+            // Relationship
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // UserRecipeTag (join table) configuration
+        modelBuilder.Entity<UserRecipeTag>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            // Unique constraint: a recipe can only have each tag once
+            entity.HasIndex(e => new { e.UserRecipeId, e.TagId }).IsUnique();
+
+            // Relationships
+            entity.HasOne(e => e.UserRecipe)
+                .WithMany(r => r.UserRecipeTags)
+                .HasForeignKey(e => e.UserRecipeId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Tag)
+                .WithMany(t => t.UserRecipeTags)
+                .HasForeignKey(e => e.TagId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

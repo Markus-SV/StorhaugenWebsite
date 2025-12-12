@@ -87,5 +87,14 @@ public interface IApiClient
     // Multi-group Recipe Aggregation
     Task<AggregatedRecipePagedResult> GetGroupsCombinedRecipesAsync(GetMultiGroupRecipesQuery query);
     Task<List<CommonFavoriteDto>> GetGroupsCommonFavoritesAsync(GetMultiGroupFavoritesQuery query);
+
+    // Tags (personal recipe organization)
+    Task<List<TagDto>> GetMyTagsAsync();
+    Task<TagDto?> GetTagAsync(Guid id);
+    Task<TagDto> CreateTagAsync(CreateTagDto dto);
+    Task<TagDto> UpdateTagAsync(Guid id, UpdateTagDto dto);
+    Task DeleteTagAsync(Guid id);
+    Task<List<TagReferenceDto>> GetRecipeTagsAsync(Guid recipeId);
+    Task SetRecipeTagsAsync(Guid recipeId, List<Guid> tagIds);
 }
 

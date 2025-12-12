@@ -612,4 +612,66 @@ public class ApiClient : IApiClient
         return (await response.Content.ReadFromJsonAsync<List<CommonFavoriteDto>>(_jsonOptions))
             ?? new List<CommonFavoriteDto>();
     }
+
+    // ==========================================
+    // TAGS (Personal Recipe Organization)
+    // ==========================================
+
+    public async Task<List<TagDto>> GetMyTagsAsync()
+    {
+        await AddAuthHeaderAsync();
+        return (await _httpClient.GetFromJsonAsync<List<TagDto>>("/api/tags", _jsonOptions))
+            ?? new List<TagDto>();
+    }
+
+    public async Task<TagDto?> GetTagAsync(Guid id)
+    {
+        await AddAuthHeaderAsync();
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<TagDto>($"/api/tags/{id}", _jsonOptions);
+        }
+        catch (HttpRequestException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<TagDto> CreateTagAsync(CreateTagDto dto)
+    {
+        await AddAuthHeaderAsync();
+        var response = await _httpClient.PostAsJsonAsync("/api/tags", dto, _jsonOptions);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<TagDto>(_jsonOptions))!;
+    }
+
+    public async Task<TagDto> UpdateTagAsync(Guid id, UpdateTagDto dto)
+    {
+        await AddAuthHeaderAsync();
+        var response = await _httpClient.PutAsJsonAsync($"/api/tags/{id}", dto, _jsonOptions);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<TagDto>(_jsonOptions))!;
+    }
+
+    public async Task DeleteTagAsync(Guid id)
+    {
+        await AddAuthHeaderAsync();
+        var response = await _httpClient.DeleteAsync($"/api/tags/{id}");
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<List<TagReferenceDto>> GetRecipeTagsAsync(Guid recipeId)
+    {
+        await AddAuthHeaderAsync();
+        return (await _httpClient.GetFromJsonAsync<List<TagReferenceDto>>($"/api/tags/recipe/{recipeId}", _jsonOptions))
+            ?? new List<TagReferenceDto>();
+    }
+
+    public async Task SetRecipeTagsAsync(Guid recipeId, List<Guid> tagIds)
+    {
+        await AddAuthHeaderAsync();
+        var dto = new UpdateRecipeTagsDto { TagIds = tagIds };
+        var response = await _httpClient.PutAsJsonAsync($"/api/tags/recipe/{recipeId}", dto, _jsonOptions);
+        response.EnsureSuccessStatusCode();
+    }
 }

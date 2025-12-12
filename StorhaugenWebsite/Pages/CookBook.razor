@@ -69,6 +69,34 @@
         <MudChip T="string" Variant="@(_filterMode == "favorites" ? Variant.Filled : Variant.Outlined)"
                  Color="Color.Primary" OnClick="@(() => SetFilter("favorites"))" Icon="@Icons.Material.Rounded.Star">Favoritter</MudChip>
     </div>
+
+    @* Tag Filters (Kategorier) - Personal organization *@
+    @if (_tags.Any())
+    {
+        <div class="tag-filter-section">
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1">Kategorier:</MudText>
+            <div class="d-flex gap-2 overflow-x-auto py-1">
+                <MudChip T="string"
+                         Variant="@(!_activeTagIds.Any() ? Variant.Filled : Variant.Outlined)"
+                         Color="Color.Tertiary"
+                         OnClick="ClearTagFilter"
+                         Size="Size.Small">
+                    Alle
+                </MudChip>
+                @foreach (var tag in _tags)
+                {
+                    <MudChip T="string"
+                             Variant="@(_activeTagIds.Contains(tag.Id) ? Variant.Filled : Variant.Outlined)"
+                             Color="Color.Tertiary"
+                             OnClick="@(() => ToggleTagFilter(tag.Id))"
+                             Size="Size.Small"
+                             Style="@(tag.Color != null ? $"--mud-palette-tertiary: {tag.Color};" : "")">
+                        @tag.Name
+                    </MudChip>
+                }
+            </div>
+        </div>
+    }
 </div>
 
 @if (_isLoading)
@@ -149,6 +177,10 @@ else
     private string _viewMode = "card";
     private Guid? _currentUserId;
 
+    // Tags (personal organization / kategorier)
+    private List<TagDto> _tags = new();
+    private List<Guid> _activeTagIds = new();
+
     protected override async Task OnInitializedAsync()
     {
         // Subscribe to group filter changes
@@ -159,6 +191,40 @@ else
         // Load view preference
         _viewMode = DeviceState.Settings.ViewMode ?? "card";
 
+        // Load user's tags
+        await LoadTags();
+
+        await LoadRecipes();
+    }
+
+    private async Task LoadTags()
+    {
+        try
+        {
+            _tags = await ApiClient.GetMyTagsAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading tags: {ex.Message}");
+        }
+    }
+
+    private async Task ToggleTagFilter(Guid tagId)
+    {
+        if (_activeTagIds.Contains(tagId))
+        {
+            _activeTagIds.Remove(tagId);
+        }
+        else
+        {
+            _activeTagIds.Add(tagId);
+        }
+        await LoadRecipes();
+    }
+
+    private async Task ClearTagFilter()
+    {
+        _activeTagIds.Clear();
         await LoadRecipes();
     }
 
@@ -184,8 +250,32 @@ else
 
         try
         {
+            // If "mine" filter or tags are active, use personal recipe endpoint
+            // Tags are personal, so they only apply to your own recipes
+            if (_filterMode == "mine" || _activeTagIds.Any())
+            {
+                var query = new GetUserRecipesQuery
+                {
+                    Search = _searchQuery,
+                    PageSize = 50,
+                    SortDescending = true,
+                    TagIds = _activeTagIds.Any() ? _activeTagIds : null
+                };
+
+                var result = await RecipeService.GetMyRecipesAsync(query);
+
+                // Map UserRecipeDto to AggregatedRecipeDto for consistent UI
+                _recipes = result.Recipes.Select(r => new AggregatedRecipeDto
+                {
+                    UserRecipeId = r.Id,
+                    Name = r.Name,
+                    ImageUrls = r.ImageUrls,
+                    HouseholdAverageRating = r.AverageRating,
+                    OwnerDisplayName = "Deg"
+                }).ToList();
+            }
             // If user has groups with active filters, fetch from multiple groups
-            if (HouseholdState.HasHousehold && HouseholdState.ActiveGroupFilters.Any())
+            else if (HouseholdState.HasHousehold && HouseholdState.ActiveGroupFilters.Any())
             {
                 var query = new GetCombinedRecipesQuery
                 {
@@ -195,12 +285,7 @@ else
                 };
 
                 // Apply Filters
-                if (_filterMode == "mine")
-                {
-                    var user = await ApiClient.GetMyProfileAsync();
-                    if (user != null) query.FilterByMembers = new List<Guid> { user.Id };
-                }
-                else if (_filterMode == "favorites")
+                if (_filterMode == "favorites")
                 {
                     query.MinRating = 8.0; // Show high rated items
                 }
@@ -214,7 +299,12 @@ else
             else
             {
                 // Fallback for users without groups: Get personal recipes only
-                var query = new GetUserRecipesQuery { PageSize = 50 };
+                var query = new GetUserRecipesQuery
+                {
+                    Search = _searchQuery,
+                    PageSize = 50,
+                    SortDescending = true
+                };
                 var result = await RecipeService.GetMyRecipesAsync(query);
 
                 // Map UserRecipeDto to AggregatedRecipeDto for consistent UI
