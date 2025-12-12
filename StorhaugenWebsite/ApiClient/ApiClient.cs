@@ -593,4 +593,23 @@ public class ApiClient : IApiClient
         return (await _httpClient.GetFromJsonAsync<List<CommonFavoriteDto>>(url, _jsonOptions))
             ?? new List<CommonFavoriteDto>();
     }
+
+    // Multi-group Recipe Aggregation
+    public async Task<AggregatedRecipePagedResult> GetGroupsCombinedRecipesAsync(GetMultiGroupRecipesQuery query)
+    {
+        await AddAuthHeaderAsync();
+        var response = await _httpClient.PostAsJsonAsync("/api/user-recipes/groups/aggregate", query, _jsonOptions);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<AggregatedRecipePagedResult>(_jsonOptions))
+            ?? new AggregatedRecipePagedResult();
+    }
+
+    public async Task<List<CommonFavoriteDto>> GetGroupsCommonFavoritesAsync(GetMultiGroupFavoritesQuery query)
+    {
+        await AddAuthHeaderAsync();
+        var response = await _httpClient.PostAsJsonAsync("/api/user-recipes/groups/common-favorites", query, _jsonOptions);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<List<CommonFavoriteDto>>(_jsonOptions))
+            ?? new List<CommonFavoriteDto>();
+    }
 }

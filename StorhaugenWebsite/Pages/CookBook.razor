@@ -11,6 +11,7 @@
 @inject IDeviceStateService DeviceState
 @inject IApiClient ApiClient
 @attribute [Authorize]
+@implements IDisposable
 
 <div class="cookbook-header d-flex flex-column gap-3 mb-4">
     <div class="d-flex justify-space-between align-center">
@@ -27,6 +28,26 @@
         </div>
     </div>
 
+    @* Group Filter (Multi-select) - Only show if user has multiple groups *@
+    @if (HouseholdState.UserHouseholds.Count > 1)
+    {
+        <div class="group-filter-section">
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1">Vis fra grupper:</MudText>
+            <div class="d-flex gap-2 overflow-x-auto py-1">
+                @foreach (var group in HouseholdState.UserHouseholds)
+                {
+                    <MudChip T="string"
+                             Variant="@(HouseholdState.IsGroupActive(group.Id) ? Variant.Filled : Variant.Outlined)"
+                             Color="Color.Secondary"
+                             OnClick="@(() => ToggleGroup(group.Id))"
+                             Icon="@(HouseholdState.IsGroupActive(group.Id) ? Icons.Material.Rounded.CheckCircle : Icons.Material.Rounded.RadioButtonUnchecked)">
+                        @group.Name
+                    </MudChip>
+                }
+            </div>
+        </div>
+    }
+
     @* Search Bar *@
     <MudTextField @bind-Value="_searchQuery"
                   Placeholder="Søk i oppskrifter..."
@@ -39,7 +60,7 @@
                   Class="search-field"
                   Margin="Margin.Dense" />
 
-    @* Filters *@
+    @* Recipe Filters *@
     <div class="d-flex gap-2 overflow-x-auto py-1">
         <MudChip T="string" Variant="@(_filterMode == "all" ? Variant.Filled : Variant.Outlined)"
                  Color="Color.Primary" OnClick="@(() => SetFilter("all"))">Alle</MudChip>
@@ -118,7 +139,7 @@ else
 }
 
 @code {
-    // We use AggregatedRecipeDto to support the merged view [cite: 3423]
+    // We use AggregatedRecipeDto to support the merged view
     private List<AggregatedRecipeDto> _recipes = new();
     private bool _isLoading = true;
 
@@ -130,16 +151,30 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        await HouseholdState.InitializeAsync();
+        // Subscribe to group filter changes
+        HouseholdState.OnActiveGroupsChanged += OnGroupsChanged;
 
-        // Get user ID from claims or state for filtering "Mine"
-        // Note: In a real app, parse the JWT or get from profile service.
-        // For filtering logic below, we rely on the API query parameters.
+        await HouseholdState.InitializeAsync();
 
         // Load view preference
         _viewMode = DeviceState.Settings.ViewMode ?? "card";
 
         await LoadRecipes();
+    }
+
+    private async void OnGroupsChanged()
+    {
+        await InvokeAsync(async () =>
+        {
+            await LoadRecipes();
+            StateHasChanged();
+        });
+    }
+
+    private async Task ToggleGroup(Guid groupId)
+    {
+        HouseholdState.ToggleGroupFilter(groupId);
+        // LoadRecipes will be called via OnGroupsChanged event
     }
 
     private async Task LoadRecipes()
@@ -149,8 +184,8 @@ else
 
         try
         {
-            // If user has a household, fetch the merged list
-            if (HouseholdState.HasHousehold && HouseholdState.CurrentHousehold != null)
+            // If user has groups with active filters, fetch from multiple groups
+            if (HouseholdState.HasHousehold && HouseholdState.ActiveGroupFilters.Any())
             {
                 var query = new GetCombinedRecipesQuery
                 {
@@ -162,9 +197,6 @@ else
                 // Apply Filters
                 if (_filterMode == "mine")
                 {
-                    // FilterByMembers expects a List<Guid>.
-                    // We need the current user's ID. Assuming AuthService or UserProfile has it.
-                    // If not readily available in frontend memory, we might need to fetch profile first.
                     var user = await ApiClient.GetMyProfileAsync();
                     if (user != null) query.FilterByMembers = new List<Guid> { user.Id };
                 }
@@ -173,12 +205,15 @@ else
                     query.MinRating = 8.0; // Show high rated items
                 }
 
-                var result = await RecipeService.GetHouseholdCombinedRecipesAsync(HouseholdState.CurrentHousehold.Id, query);
+                // Use multi-group aggregation
+                var result = await RecipeService.GetGroupsCombinedRecipesAsync(
+                    HouseholdState.ActiveGroupFilters,
+                    query);
                 _recipes = result.Recipes;
             }
             else
             {
-                // Fallback for users without household: Get generic "My Recipes" [cite: 1189]
+                // Fallback for users without groups: Get personal recipes only
                 var query = new GetUserRecipesQuery { PageSize = 50 };
                 var result = await RecipeService.GetMyRecipesAsync(query);
 
@@ -195,7 +230,7 @@ else
         }
         catch (Exception ex)
         {
-            Console.WriteLine(ex);
+            Console.WriteLine($"Error loading recipes: {ex.Message}");
         }
         finally
         {
@@ -234,5 +269,10 @@ else
             >= 5 => "rating-medium",
             _ => "rating-low"
         };
+    }
+
+    public void Dispose()
+    {
+        HouseholdState.OnActiveGroupsChanged -= OnGroupsChanged;
     }
 }

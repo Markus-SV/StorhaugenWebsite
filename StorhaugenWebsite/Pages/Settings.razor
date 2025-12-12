@@ -97,20 +97,37 @@
     </MudSelect>
 </div>
 
-@if (HouseholdState.UserHouseholds.Count > 1)
+@if (HouseholdState.UserHouseholds.Any())
 {
     <div class="form-section">
-        <p class="form-section-title">Bytt Husstand</p>
-        <MudSelect T="Guid"
-                   Label="Velg aktiv husstand"
-                   Value="@(HouseholdState.CurrentHousehold?.Id ?? Guid.Empty)"
-                   ValueChanged="SwitchHousehold"
-                   Variant="Variant.Outlined">
-            @foreach (var household in HouseholdState.UserHouseholds)
+        <div class="d-flex justify-space-between align-center mb-2">
+            <p class="form-section-title" style="margin-bottom: 0;">Dine Grupper</p>
+            <MudButton Variant="Variant.Text"
+                       Color="Color.Primary"
+                       Size="Size.Small"
+                       StartIcon="@Icons.Material.Rounded.Settings"
+                       Href="/household">
+                Administrer
+            </MudButton>
+        </div>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+            Du er med i @HouseholdState.UserHouseholds.Count gruppe(r). Trykk på en gruppe for å velge/fravelge den i kokeboken.
+        </MudText>
+        <div class="d-flex flex-wrap gap-2">
+            @foreach (var group in HouseholdState.UserHouseholds)
             {
-                <MudSelectItem Value="@household.Id">@household.Name</MudSelectItem>
+                <MudChip T="string"
+                         Variant="@(HouseholdState.IsGroupActive(group.Id) ? Variant.Filled : Variant.Outlined)"
+                         Color="Color.Primary"
+                         OnClick="@(() => ToggleGroupFilter(group.Id))"
+                         Icon="@(HouseholdState.IsGroupActive(group.Id) ? Icons.Material.Rounded.CheckCircle : Icons.Material.Rounded.RadioButtonUnchecked)">
+                    @group.Name
+                    <MudText Typo="Typo.caption" Class="ml-1" Style="opacity: 0.7;">
+                        (@(group.Members?.Count ?? 0))
+                    </MudText>
+                </MudChip>
             }
-        </MudSelect>
+        </div>
     </div>
 }
 
@@ -271,18 +288,11 @@
         }
     }
 
-    private async Task SwitchHousehold(Guid householdId)
+    private void ToggleGroupFilter(Guid groupId)
     {
-        try
-        {
-            await HouseholdState.SetCurrentHouseholdAsync(householdId);
-            StateHasChanged();
-            Snackbar.Add("Husstand byttet", Severity.Success);
-        }
-        catch
-        {
-            Snackbar.Add("Feil ved bytte av husstand", Severity.Error);
-        }
+        HouseholdState.ToggleGroupFilter(groupId);
+        StateHasChanged();
+        Snackbar.Add("Gruppefilter oppdatert", Severity.Info);
     }
 
     private async Task OnThemeChanged(string themeName)

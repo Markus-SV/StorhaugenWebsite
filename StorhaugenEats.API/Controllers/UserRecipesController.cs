@@ -219,6 +219,49 @@ public class UserRecipesController : ControllerBase
             return BadRequest(new { message = ex.Message });
         }
     }
+
+    // ==========================================
+    // MULTI-GROUP AGGREGATION ENDPOINTS
+    // ==========================================
+
+    /// <summary>
+    /// Get combined recipes from multiple groups (households).
+    /// This endpoint aggregates recipes from all members of the selected groups.
+    /// </summary>
+    [HttpPost("groups/aggregate")]
+    public async Task<ActionResult<AggregatedRecipePagedResult>> GetGroupsCombinedRecipes(
+        [FromBody] GetMultiGroupRecipesQuery query)
+    {
+        try
+        {
+            var userId = await _currentUserService.GetOrCreateUserIdAsync();
+            var result = await _userRecipeService.GetGroupsCombinedRecipesAsync(userId, query);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Get common favorites from multiple groups - recipes that multiple members have rated highly.
+    /// </summary>
+    [HttpPost("groups/common-favorites")]
+    public async Task<ActionResult<List<CommonFavoriteDto>>> GetGroupsCommonFavorites(
+        [FromBody] GetMultiGroupFavoritesQuery query)
+    {
+        try
+        {
+            var userId = await _currentUserService.GetOrCreateUserIdAsync();
+            var result = await _userRecipeService.GetGroupsCommonFavoritesAsync(userId, query);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
 }
 
 /// <summary>

@@ -80,8 +80,12 @@ public interface IApiClient
     Task<ActivityFeedPagedResult> GetMyActivityAsync(int page = 1, int pageSize = 20);
     Task<ActivitySummaryDto> GetActivitySummaryAsync();
 
-    // Household Recipe Aggregation
+    // Household Recipe Aggregation (single group - backwards compatible)
     Task<AggregatedRecipePagedResult> GetHouseholdCombinedRecipesAsync(Guid householdId, GetCombinedRecipesQuery query);
     Task<List<CommonFavoriteDto>> GetHouseholdCommonFavoritesAsync(Guid householdId, int minimumMembers = 2, int limit = 10);
+
+    // Multi-group Recipe Aggregation
+    Task<AggregatedRecipePagedResult> GetGroupsCombinedRecipesAsync(GetMultiGroupRecipesQuery query);
+    Task<List<CommonFavoriteDto>> GetGroupsCommonFavoritesAsync(GetMultiGroupFavoritesQuery query);
 }
 

@@ -99,6 +99,61 @@ public class GetCombinedRecipesQuery
 }
 
 /// <summary>
+/// Query parameters for getting recipes from multiple groups (households).
+/// Used for the multi-group aggregation feature.
+/// </summary>
+public class GetMultiGroupRecipesQuery
+{
+    /// <summary>
+    /// List of group (household) IDs to aggregate recipes from.
+    /// </summary>
+    public List<Guid> GroupIds { get; set; } = new();
+
+    /// <summary>
+    /// Filter to only show recipes from specific members.
+    /// </summary>
+    public List<Guid>? FilterByMembers { get; set; }
+
+    /// <summary>
+    /// Minimum average rating (from group members).
+    /// </summary>
+    public double? MinRating { get; set; }
+
+    /// <summary>
+    /// Search term for recipe name.
+    /// </summary>
+    public string? Search { get; set; }
+
+    public string SortBy { get; set; } = "date";
+    public bool SortDescending { get; set; } = true;
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 50;
+}
+
+/// <summary>
+/// Query parameters for getting common favorites from multiple groups.
+/// </summary>
+public class GetMultiGroupFavoritesQuery
+{
+    /// <summary>
+    /// List of group (household) IDs to aggregate favorites from.
+    /// </summary>
+    public List<Guid> GroupIds { get; set; } = new();
+
+    /// <summary>
+    /// Minimum number of members who must have rated the recipe.
+    /// </summary>
+    public int MinMembers { get; set; } = 2;
+
+    /// <summary>
+    /// Minimum average rating from those members.
+    /// </summary>
+    public double MinAverageRating { get; set; } = 4.0;
+
+    public int Limit { get; set; } = 20;
+}
+
+/// <summary>
 /// Query parameters for getting common favorites.
 /// </summary>
 public class GetCommonFavoritesQuery
