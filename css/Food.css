@@ -742,8 +742,8 @@
 
     /* Active State */
     .group-chip.active {
-        background: rgba(45, 90, 69, 0.15);
-        color: #2D5A45;
+        background: rgba(45, 90, 69, 0.35);
+        color: #1c9f62;
         border-color: transparent;
         font-weight: 600;
     }
