@@ -29,41 +29,6 @@ body {
 }
 
 /* SHARED: Food Cards (Used in Home & Archive) */
-.food-card {
-    background: var(--mud-palette-surface);
-    border-radius: var(--card-radius);
-    overflow: hidden;
-    transition: var(--transition-smooth);
-    cursor: pointer;
-    border: 1px solid var(--mud-palette-divider);
-}
-
-    .food-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 12px 32px rgba(44, 36, 22, 0.12);
-        border-color: transparent;
-    }
-
-    .food-card:active {
-        transform: scale(0.98);
-    }
-
-.food-card-image {
-    width: 100%;
-    aspect-ratio: 16/10;
-    object-fit: cover;
-    background: var(--mud-palette-divider-light);
-}
-
-.food-card-placeholder {
-    width: 100%;
-    aspect-ratio: 16/10;
-    background: linear-gradient(135deg, var(--mud-palette-divider-light), var(--mud-palette-divider));
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--mud-palette-text-secondary);
-}
 
 .food-card-content {
     padding: 16px;
@@ -104,42 +69,12 @@ body {
         transform: scale(0.99);
     }
 
-.food-list-image {
-    width: 72px;
-    height: 72px;
-    border-radius: 12px;
-    object-fit: cover;
-    flex-shrink: 0;
-    background: var(--mud-palette-divider-light);
-}
-
-.food-list-placeholder {
-    width: 72px;
-    height: 72px;
-    border-radius: 12px;
-    background: linear-gradient(135deg, var(--mud-palette-divider-light), var(--mud-palette-divider));
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    color: var(--mud-palette-text-secondary);
-}
-
 .food-list-content {
     flex: 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
     justify-content: center;
-}
-
-.food-list-title {
-    font-weight: 600;
-    font-size: 0.95rem;
-    margin-bottom: 6px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 .food-list-date {

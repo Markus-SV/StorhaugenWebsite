@@ -99,5 +99,8 @@ public interface IApiClient
 
     // Ratings
     Task<List<UserRatingDto>> GetUserRatingsAsync(Guid userId, int skip = 0, int take = 50);
+
+    //hellofresh
+    Task<HelloFreshRawResponse?> GetHelloFreshTestRawAsync();
 }
 

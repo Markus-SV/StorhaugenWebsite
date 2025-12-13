@@ -1,0 +1,67 @@
+@page "/hello-test"
+@using StorhaugenWebsite.ApiClient
+@using StorhaugenWebsite.Shared.DTOs
+@inject IApiClient ApiClient
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-4">
+    <MudText Typo="Typo.h4" Class="mb-4">HelloFresh API Test</MudText>
+
+    <MudAlert Severity="Severity.Info" Class="mb-4">
+        This page tests fetching data from: <code>_next/data/7.98.24323/menus/2026-W01.json</code>
+    </MudAlert>
+
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Success"
+               OnClick="FetchData"
+               Disabled="_isLoading"
+               StartIcon="@Icons.Material.Filled.CloudDownload">
+        @(_isLoading ? "Fetching..." : "Get HelloFresh Data")
+    </MudButton>
+
+    @if (_data != null && _data.PageProps?.SsrPayload?.Courses != null)
+    {
+        <MudText Typo="Typo.h5" Class="mt-6 mb-2">
+            Found @_data.PageProps.SsrPayload.Courses.Count recipes
+        </MudText>
+
+        <div class="d-flex flex-wrap gap-4 mt-4">
+            @foreach (var item in _data.PageProps.SsrPayload.Courses)
+            {
+                var recipe = item.Recipe;
+                <MudCard Style="width: 300px;">
+                    <MudCardMedia Image="@recipe.ImageLink" Height="200" />
+                    <MudCardContent>
+                        <MudText Typo="Typo.h6">@recipe.Name</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">@recipe.Headline</MudText>
+                        <MudChip T="string" Size="Size.Small" Color="Color.Primary" Class="mt-2">@recipe.PrepTime</MudChip>
+                    </MudCardContent>
+                </MudCard>
+            }
+        </div>
+    }
+</MudContainer>
+
+@code {
+    private bool _isLoading = false;
+    private HelloFreshRawResponse? _data;
+
+    private async Task FetchData()
+    {
+        _isLoading = true;
+        try
+        {
+            _data = await ApiClient.GetHelloFreshTestRawAsync();
+            Snackbar.Add("Data fetched successfully!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            Console.WriteLine(ex);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

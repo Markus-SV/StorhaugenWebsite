@@ -565,36 +565,36 @@ public class ApiClient : IApiClient
     // In ApiClient.cs
 
     public async Task<AggregatedRecipePagedResult> GetHouseholdCombinedRecipesAsync(Guid householdId, GetCombinedRecipesQuery query)
-	{
-		await AddAuthHeaderAsync();
-		var queryParams = new List<string>();
+    {
+        await AddAuthHeaderAsync();
+        var queryParams = new List<string>();
 
-		if (!string.IsNullOrWhiteSpace(query.Search))
-			queryParams.Add($"search={Uri.EscapeDataString(query.Search)}");
+        if (!string.IsNullOrWhiteSpace(query.Search))
+            queryParams.Add($"search={Uri.EscapeDataString(query.Search)}");
 
-		// FIX: Changed from query.MemberIds to query.FilterByMembers
-		if (query.FilterByMembers != null && query.FilterByMembers.Count > 0)
-		{
-			foreach (var memberId in query.FilterByMembers)
-				queryParams.Add($"filterByMembers={memberId}");
-		}
+        // FIX: Changed from query.MemberIds to query.FilterByMembers
+        if (query.FilterByMembers != null && query.FilterByMembers.Count > 0)
+        {
+            foreach (var memberId in query.FilterByMembers)
+                queryParams.Add($"filterByMembers={memberId}");
+        }
 
-		// FIX: Changed from query.MinimumRating to query.MinRating
-		if (query.MinRating.HasValue)
-			queryParams.Add($"minRating={query.MinRating.Value}");
+        // FIX: Changed from query.MinimumRating to query.MinRating
+        if (query.MinRating.HasValue)
+            queryParams.Add($"minRating={query.MinRating.Value}");
 
-		queryParams.Add($"sortBy={Uri.EscapeDataString(query.SortBy)}");
-		queryParams.Add($"sortDescending={query.SortDescending}"); // Added this based on DTO
-		queryParams.Add($"page={query.Page}");
-		queryParams.Add($"pageSize={query.PageSize}");
+        queryParams.Add($"sortBy={Uri.EscapeDataString(query.SortBy)}");
+        queryParams.Add($"sortDescending={query.SortDescending}"); // Added this based on DTO
+        queryParams.Add($"page={query.Page}");
+        queryParams.Add($"pageSize={query.PageSize}");
 
-		var url = $"/api/households/{householdId}/combined-recipes?{string.Join("&", queryParams)}";
+        var url = $"/api/households/{householdId}/combined-recipes?{string.Join("&", queryParams)}";
 
-		return (await _httpClient.GetFromJsonAsync<AggregatedRecipePagedResult>(url, _jsonOptions))
-			?? new AggregatedRecipePagedResult();
-	}
+        return (await _httpClient.GetFromJsonAsync<AggregatedRecipePagedResult>(url, _jsonOptions))
+            ?? new AggregatedRecipePagedResult();
+    }
 
-	public async Task<List<CommonFavoriteDto>> GetHouseholdCommonFavoritesAsync(Guid householdId, int minimumMembers = 2, int limit = 10)
+    public async Task<List<CommonFavoriteDto>> GetHouseholdCommonFavoritesAsync(Guid householdId, int minimumMembers = 2, int limit = 10)
     {
         await AddAuthHeaderAsync();
         var url = $"/api/households/{householdId}/common-favorites?minimumMembers={minimumMembers}&limit={limit}";
@@ -681,5 +681,11 @@ public class ApiClient : IApiClient
         var dto = new UpdateRecipeTagsDto { TagIds = tagIds };
         var response = await _httpClient.PutAsJsonAsync($"/api/tags/recipe/{recipeId}", dto, _jsonOptions);
         response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<HelloFreshRawResponse?> GetHelloFreshTestRawAsync()
+    {
+        // Calls your own backend, which proxies to HelloFresh
+        return await _httpClient.GetFromJsonAsync<HelloFreshRawResponse>("/api/hellofresh/test-proxy", _jsonOptions);
     }
 }

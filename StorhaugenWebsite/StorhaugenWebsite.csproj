@@ -28,7 +28,6 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Brokers\" />
-    <Folder Include="Components\" />
     <Folder Include="wwwroot\images\" />
   </ItemGroup>
 

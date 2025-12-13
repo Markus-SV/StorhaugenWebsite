@@ -49,6 +49,30 @@ public class HelloFreshController : ControllerBase
         }
     }
 
+    [HttpGet("test-proxy")]
+    [AllowAnonymous]
+    public async Task<IActionResult> TestProxy()
+    {
+        // The specific URL you found (Note: The ID '7.98.24323' changes when HelloFresh updates their site)
+        var url = "https://www.hellofresh.no/_next/data/7.98.24323/menus/2026-W01.json?week=2026-W01";
+
+        using var client = new HttpClient();
+
+        // Mimic a real browser to avoid getting blocked
+        client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+
+        try
+        {
+            var json = await client.GetStringAsync(url);
+            // We return the raw JSON string to the frontend to let it handle deserialization
+            return Content(json, "application/json");
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = "Failed to fetch from HelloFresh", error = ex.Message });
+        }
+    }
+
     [HttpGet("sync-status")]
     [AllowAnonymous]
     public async Task<IActionResult> GetSyncStatus()
