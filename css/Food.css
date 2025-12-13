@@ -1,6 +1,5 @@
 /* ==========================================================================
    1. LANDSCAPE BLOCKER & DEVICE ORIENTATION
-   Unique logic to handle device rotation for camera features.
    ========================================================================== */
 
 #landscape-blocker {
@@ -34,20 +33,10 @@
 
 /* ==========================================================================
    2. GLOBAL PAGE STYLES & HEADERS
-   Merged: Prioritizing 'Fraunces' font and MudBlazor palette variables.
    ========================================================================== */
 
 .page-header {
     margin-bottom: 24px;
-}
-
-.page-title {
-    font-family: 'Fraunces', Georgia, serif; /* Kept fancy font from File 1 */
-    font-size: 1.75rem;
-    font-weight: 600;
-    color: var(--mud-palette-text-primary);
-    margin-bottom: 4px;
-    letter-spacing: -0.02em;
 }
 
 .page-subtitle {
@@ -87,16 +76,14 @@
 
 /* ==========================================================================
    3. FORM STYLES & INPUTS
-   Merged: Unified .form-section and image uploads.
    ========================================================================== */
 
 .form-section {
     background: var(--mud-palette-surface);
-    border-radius: var(--card-radius, 16px); /* Fallback to 16px if variable missing */
+    border-radius: var(--card-radius, 16px);
     padding: 20px;
     margin-bottom: 16px;
     border: 1px solid var(--mud-palette-divider);
-    /* box-shadow removed to keep consistent with flat border design of File 1 */
 }
 
 .form-section-title {
@@ -160,7 +147,6 @@
 
 /* ==========================================================================
    4. IMAGE UPLOAD & PREVIEWS
-   Merged: Used the interactive/hover styles from File 1.
    ========================================================================== */
 
 .image-upload-area {
@@ -220,7 +206,6 @@
 
 /* ==========================================================================
    5. CAMERA OVERLAY & SCANNING LOGIC
-   Taken entirely from File 2.
    ========================================================================== */
 
 .camera-overlay {
@@ -281,17 +266,16 @@
     max-height: 70vh;
 }
 
-/* Logo Hint Zone - MODIFIED: Removed CSS Lemon hack, optimized for SVG */
+/* Logo Hint Zone */
 .step-landscape .logo-hint-zone {
     position: absolute;
     top: 20px;
     right: 20px;
-    /* Removed fixed width/height to let SVG scale */
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    transform: rotate(90deg); /* Keep rotation for landscape card */
+    transform: rotate(90deg);
     opacity: 0.9;
 }
 
@@ -481,69 +465,216 @@
 }
 
 /* ==========================================================================
-   6. FOOD LIST & UTILITIES (VIEW TOGGLE, SORTING, SKELETONS)
+   6. FOOD LIST UTILITIES
    ========================================================================== */
 
-/* View Toggle */
-.view-toggle-container {
+/* Horizontal Scroll Container */
+.horizontal-scroll-container {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 20px;
-    gap: 12px;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    mask-image: linear-gradient(to right, black 95%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, black 95%, transparent 100%);
 }
 
-.view-toggle {
-    display: flex;
-    background: var(--mud-palette-surface);
-    border-radius: 12px;
-    padding: 4px;
-    border: 1px solid var(--mud-palette-divider);
-}
-
-.view-toggle-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 36px;
-    border: none;
-    background: transparent;
-    color: var(--mud-palette-text-secondary);
-    cursor: pointer;
-    border-radius: 8px;
-    transition: var(--transition-fast, 0.2s);
-}
-
-    .view-toggle-btn:hover {
-        background: var(--mud-palette-divider-light);
-    }
-
-    .view-toggle-btn.active {
-        background: var(--mud-palette-primary);
-        color: white;
+    .horizontal-scroll-container::-webkit-scrollbar {
+        display: none;
     }
 
 /* Sort Dropdown */
-.sort-dropdown {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    background: var(--mud-palette-surface);
-    border: 1px solid var(--mud-palette-divider);
-    border-radius: 12px;
-    cursor: pointer;
+.sort-select .mud-input-slot {
     font-size: 0.875rem;
-    color: var(--mud-palette-text-secondary);
-    transition: var(--transition-fast, 0.2s);
 }
 
-    .sort-dropdown:hover {
-        border-color: var(--mud-palette-primary);
+/* --- FOOD CARD STYLES --- */
+
+.food-card {
+    background: var(--mud-palette-surface);
+    border-radius: 16px;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    min-height: 100px;
+    border: 1px solid var(--mud-palette-divider);
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.2s;
+}
+
+    .food-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
     }
 
-/* Skeleton Loading */
+    .food-card:active {
+        transform: scale(0.98);
+    }
+
+/* Image & Placeholder Fade - MOVED TO RIGHT */
+.food-card-image,
+.food-card-placeholder {
+    width: 50%;
+    height: 100%;
+    position: absolute;
+    right: 0; /* Changed from left: 0 */
+    top: 0;
+    bottom: 0;
+    z-index: 0;
+    /* Flip mask to fade from Right to Left */
+    -webkit-mask-image: linear-gradient(to left, black 20%, transparent 100%);
+    mask-image: linear-gradient(to left, black 20%, transparent 100%);
+}
+
+.food-card-image {
+    width: 50%;
+    height: 100%;
+    position: absolute;
+    right: 0; /* Changed from left: 0 */
+    top: 0;
+    opacity: 0.5;
+    bottom: 0;
+    z-index: 0;
+    object-fit: cover;
+    /* Flip mask to fade from Right to Left */
+    -webkit-mask-image: linear-gradient(to left, black 0%, black 30%, transparent 100%);
+    mask-image: linear-gradient(to left, black 0%, black 30%, transparent 100%);
+}
+
+.food-card-placeholder {
+    background: var(--mud-palette-divider-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Content Section - MOVED TO LEFT */
+.food-card-content {
+    flex-grow: 1;
+    padding: 10px 12px;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    margin-left: 0; /* Reset left margin */
+    position: relative;
+}
+
+.food-card-title {
+    font-family: 'Fraunces', serif;
+    font-size: 1.1rem;
+    line-height: 1.2;
+    margin-bottom: 4px;
+    font-weight: 600;
+    text-shadow: 0 0 12px var(--mud-palette-surface);
+}
+
+/* --- RATING STYLES --- */
+
+/* Generalized Rating Chip (replaces .mini-rating-avatar) */
+.rating-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 8px;
+    height: 24px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    backdrop-filter: blur(4px);
+    transition: transform 0.1s;
+}
+
+.rating-pill {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.05); /* Very subtle background */
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 50px;
+    padding: 3px 10px 3px 3px;
+    margin-right: 6px;
+    transition: all 0.2s ease;
+}
+
+    .rating-pill:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.2);
+    }
+
+/* The Circle containing the Initial */
+.rating-circle {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 800;
+    color: #1a1a1a; /* Dark text for contrast inside colored circle */
+    text-transform: uppercase;
+    margin-right: 8px; /* Space between circle and number */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* The Number Score */
+.rating-score {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--mud-palette-text-primary);
+}
+
+/* Special styling for "My" rating (du) */
+.rating-pill.mine {
+    background: rgba(var(--mud-palette-primary-rgb), 0.1);
+    border-color: rgba(var(--mud-palette-primary-rgb), 0.3);
+}
+
+.rating-chip.mine {
+    z-index: 2;
+    font-weight: 800;
+}
+
+.rating-chip:hover {
+    transform: scale(1.05);
+}
+
+/* The individual small circles */
+.mini-rating-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+    .mini-rating-avatar.mine {
+        font-size: 11px;
+        box-shadow: 0 0 0 2px var(--mud-palette-surface), 0 0 0 3px currentColor;
+        z-index: 2;
+        margin-right: 4px;
+    }
+
+/* The Main Average Star Badge */
+.rating-badge {
+    font-weight: 700;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: rgba(0,0,0,0.2);
+    backdrop-filter: blur(4px);
+}
+
+/* --- SKELETONS --- */
 .skeleton-card {
     background: var(--mud-palette-surface);
     border-radius: var(--card-radius, 12px);
@@ -578,9 +709,49 @@
         width: 40%;
     }
 
+@keyframes shimmer {
+    0% {
+        background-position: 200% 0;
+    }
+
+    100% {
+        background-position: -200% 0;
+    }
+}
+
 /* ==========================================================================
    7. FOOD DETAILS PAGE
    ========================================================================== */
+
+/* Group Chips */
+.group-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    border-radius: 20px;
+    background: transparent;
+    border: 1px solid var(--mud-palette-lines-default);
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    user-select: none;
+}
+
+    /* Active State */
+    .group-chip.active {
+        background: rgba(45, 90, 69, 0.15);
+        color: #2D5A45;
+        border-color: transparent;
+        font-weight: 600;
+    }
+/* Dark mode override */
+:root[theme="dark"] .group-chip.active {
+    background: rgba(93, 190, 138, 0.2);
+    color: #5DBE8A;
+}
 
 .detail-header {
     margin-bottom: 20px;
