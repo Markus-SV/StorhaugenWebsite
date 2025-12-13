@@ -1,6 +1,6 @@
 ================================================================================
 PROJECT CONTEXT FILE
-Generated on: 12/13/2025 21:14:04
+Generated on: 12/13/2025 23:20:27
 ================================================================================
 PROJECT STRUCTURE:
 ==================
@@ -7825,7 +7825,6 @@ public class UserRecipeService : IUserRecipeService
             .Include(r => r.User)
             .Include(r => r.GlobalRecipe)
             .Include(r => r.Ratings)
-            .ThenInclude(rt => rt.User)
             .Where(r => r.UserId == userId);
 
         if (!query.IncludeArchived)
@@ -7887,7 +7886,6 @@ public class UserRecipeService : IUserRecipeService
 
     public async Task<UserRecipeDto> CreateRecipeAsync(Guid userId, CreateUserRecipeDto dto)
     {
-        // 1. Existing creation logic
         var user = await _context.Users.FindAsync(userId)
             ?? throw new InvalidOperationException("User not found");
 
@@ -7918,11 +7916,9 @@ public class UserRecipeService : IUserRecipeService
         // Save the recipe first so we have an ID for the ratings
         await _context.SaveChangesAsync();
 
-        // 2.NEW: Handle Proxy Ratings
+        // Handle Proxy Ratings (Family members rating at creation time)
         if (dto.MemberRatings != null && dto.MemberRatings.Any())
         {
-            // Security Check: Get valid member IDs for this user's household
-            // This prevents rating for random users outside the family
             var householdId = user.CurrentHouseholdId;
             var validMemberIds = new List<Guid>();
 
@@ -7935,7 +7931,6 @@ public class UserRecipeService : IUserRecipeService
             }
             else
             {
-                // If no household, can only rate self
                 validMemberIds.Add(userId);
             }
 
@@ -7946,16 +7941,15 @@ public class UserRecipeService : IUserRecipeService
                 var targetUserId = kvp.Key;
                 var score = kvp.Value;
 
-                // Only allow rating if target user is in the household (or is self)
                 if (validMemberIds.Contains(targetUserId))
                 {
                     ratingsToAdd.Add(new Rating
                     {
                         Id = Guid.NewGuid(),
                         UserRecipeId = recipe.Id,
-                        GlobalRecipeId = recipe.GlobalRecipeId, // Link to global if applicable
+                        GlobalRecipeId = recipe.GlobalRecipeId,
                         UserId = targetUserId,
-                        Score = Math.Clamp(score, 1, 10), // Ensure score is 1-10
+                        Score = Math.Clamp(score, 1, 10),
                         CreatedAt = DateTime.UtcNow,
                         UpdatedAt = DateTime.UtcNow
                     });
@@ -7967,7 +7961,6 @@ public class UserRecipeService : IUserRecipeService
                 _context.Ratings.AddRange(ratingsToAdd);
                 await _context.SaveChangesAsync();
 
-                // If global link exists, update the global average stats
                 if (recipe.GlobalRecipeId.HasValue)
                 {
                     await UpdateGlobalRecipeRatingAsync(recipe.GlobalRecipeId.Value);
@@ -7975,15 +7968,13 @@ public class UserRecipeService : IUserRecipeService
             }
         }
 
-        // 3. Existing activity log
         var imageUrls = dto.ImageUrls?.FirstOrDefault();
         await _activityFeedService.RecordAddedRecipeActivityAsync(userId, recipe.Id, recipe.DisplayTitle, imageUrls);
 
-        // 4. Return result
         var createdRecipe = await _context.UserRecipes
             .Include(r => r.User)
             .Include(r => r.GlobalRecipe)
-            .Include(r => r.Ratings).ThenInclude(rt => rt.User) // Include ratings so they show up immediately
+            .Include(r => r.Ratings).ThenInclude(rt => rt.User)
             .FirstAsync(r => r.Id == recipe.Id);
 
         return MapToDto(createdRecipe, userId);
@@ -8031,7 +8022,6 @@ public class UserRecipeService : IUserRecipeService
         if (recipe.GlobalRecipeId.HasValue)
             throw new InvalidOperationException("This recipe is already linked to a global recipe");
 
-        // Create global recipe from local data
         var globalRecipe = new GlobalRecipe
         {
             Id = Guid.NewGuid(),
@@ -8043,7 +8033,7 @@ public class UserRecipeService : IUserRecipeService
             CreatedByUserId = userId,
             IsPublic = true,
             IsHellofresh = false,
-            IsEditable = false, // Published recipes are not directly editable
+            IsEditable = false,
             PublishedFromUserRecipeId = recipe.Id,
             TotalTimesAdded = 1,
             CreatedAt = DateTime.UtcNow,
@@ -8052,14 +8042,12 @@ public class UserRecipeService : IUserRecipeService
 
         _context.GlobalRecipes.Add(globalRecipe);
 
-        // Link the user recipe to the new global recipe
         recipe.GlobalRecipeId = globalRecipe.Id;
         recipe.Visibility = "public";
         recipe.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
 
-        // Record activity
         await _activityFeedService.RecordPublishedActivityAsync(
             userId,
             globalRecipe.Id,
@@ -8084,7 +8072,6 @@ public class UserRecipeService : IUserRecipeService
         if (!recipe.GlobalRecipeId.HasValue)
             throw new InvalidOperationException("This recipe is not linked to a global recipe");
 
-        // Copy global recipe data to local fields before detaching
         if (recipe.GlobalRecipe != null)
         {
             recipe.LocalTitle ??= recipe.GlobalRecipe.Title;
@@ -8096,7 +8083,6 @@ public class UserRecipeService : IUserRecipeService
                 : recipe.LocalImageUrls;
         }
 
-        // Detach from global recipe
         recipe.GlobalRecipeId = null;
         recipe.UpdatedAt = DateTime.UtcNow;
 
@@ -8118,11 +8104,9 @@ public class UserRecipeService : IUserRecipeService
             .FirstOrDefaultAsync(r => r.Id == recipeId)
             ?? throw new InvalidOperationException("Recipe not found");
 
-        // Check if user can view this recipe
         if (!await CanUserViewRecipeAsync(recipeId, userId))
             throw new InvalidOperationException("You don't have permission to rate this recipe");
 
-        // Find existing rating or create new
         var existingRating = await _context.Ratings
             .FirstOrDefaultAsync(r => r.UserRecipeId == recipeId && r.UserId == userId);
 
@@ -8148,7 +8132,6 @@ public class UserRecipeService : IUserRecipeService
             _context.Ratings.Add(newRating);
         }
 
-        // Update global recipe average if linked
         if (recipe.GlobalRecipeId.HasValue)
         {
             await UpdateGlobalRecipeRatingAsync(recipe.GlobalRecipeId.Value);
@@ -8156,7 +8139,6 @@ public class UserRecipeService : IUserRecipeService
 
         await _context.SaveChangesAsync();
 
-        // Record activity
         await _activityFeedService.RecordRatingActivityAsync(
             userId,
             recipeId,
@@ -8164,7 +8146,6 @@ public class UserRecipeService : IUserRecipeService
             rating,
             recipe.LocalImageUrl);
 
-        // Reload with includes
         var updatedRecipe = await _context.UserRecipes
             .Include(r => r.User)
             .Include(r => r.GlobalRecipe)
@@ -8233,7 +8214,6 @@ public class UserRecipeService : IUserRecipeService
 
         if (recipe == null) return false;
 
-        // Owner can always view
         if (recipe.UserId == requestingUserId) return true;
 
         return recipe.Visibility switch
@@ -8241,7 +8221,7 @@ public class UserRecipeService : IUserRecipeService
             "public" => true,
             "friends" => await _friendshipService.AreFriendsAsync(recipe.UserId, requestingUserId),
             "household" => await AreInSameHouseholdAsync(recipe.UserId, requestingUserId),
-            _ => false // private
+            _ => false
         };
     }
 
@@ -8250,17 +8230,14 @@ public class UserRecipeService : IUserRecipeService
         Guid requestingUserId,
         GetCombinedRecipesQuery query)
     {
-        // Get all member IDs of the household
         var memberIds = await _context.HouseholdMembers
             .Where(hm => hm.HouseholdId == householdId)
             .Select(hm => hm.UserId)
             .ToListAsync();
 
-        // Check if requesting user is a member
         if (!memberIds.Contains(requestingUserId))
             throw new InvalidOperationException("You are not a member of this household");
 
-        // Get recipes from all members that are visible to household
         var queryable = _context.UserRecipes
             .Include(r => r.User)
             .Include(r => r.GlobalRecipe)
@@ -8270,13 +8247,11 @@ public class UserRecipeService : IUserRecipeService
             .Where(r => r.Visibility == "household" || r.Visibility == "public" || r.Visibility == "friends")
             .Where(r => !r.IsArchived);
 
-        // Filter by specific members
         if (query.FilterByMembers?.Any() == true)
         {
             queryable = queryable.Where(r => query.FilterByMembers.Contains(r.UserId));
         }
 
-        // Search
         if (!string.IsNullOrEmpty(query.Search))
         {
             queryable = queryable.Where(r =>
@@ -8284,23 +8259,14 @@ public class UserRecipeService : IUserRecipeService
                 (r.GlobalRecipe != null && r.GlobalRecipe.Title.Contains(query.Search)));
         }
 
-        // Sorting
         queryable = query.SortBy.ToLower() switch
         {
             "name" => query.SortDescending
                 ? queryable.OrderByDescending(r => r.LocalTitle ?? r.GlobalRecipe!.Title)
                 : queryable.OrderBy(r => r.LocalTitle ?? r.GlobalRecipe!.Title),
             "rating" => query.SortDescending
-                ? queryable.OrderByDescending(r =>
-                    r.Ratings
-                     .Where(rt => memberIds.Contains(rt.UserId))
-                     .Select(rt => (double?)rt.Score)
-                     .Average() ?? 0)
-                : queryable.OrderBy(r =>
-                    r.Ratings
-                     .Where(rt => memberIds.Contains(rt.UserId))
-                     .Select(rt => (double?)rt.Score)
-                     .Average() ?? 0),
+                ? queryable.OrderByDescending(r => r.Ratings.Any() ? r.Ratings.Average(rt => rt.Score) : 0)
+                : queryable.OrderBy(r => r.Ratings.Any() ? r.Ratings.Average(rt => rt.Score) : 0),
             "owner" => query.SortDescending
                 ? queryable.OrderByDescending(r => r.User.DisplayName)
                 : queryable.OrderBy(r => r.User.DisplayName),
@@ -8315,9 +8281,10 @@ public class UserRecipeService : IUserRecipeService
             .Take(query.PageSize)
             .ToListAsync();
 
+        // CHANGE: Pass requestingUserId to mapper
         return new AggregatedRecipePagedResult
         {
-            Recipes = recipes.Select(r => MapToAggregatedDto(r, memberIds)).ToList(),
+            Recipes = recipes.Select(r => MapToAggregatedDto(r, memberIds, requestingUserId)).ToList(),
             TotalCount = totalCount,
             Page = query.Page,
             PageSize = query.PageSize
@@ -8337,7 +8304,6 @@ public class UserRecipeService : IUserRecipeService
         if (!memberIds.Contains(requestingUserId))
             throw new InvalidOperationException("You are not a member of this household");
 
-        // Find global recipes that multiple household members have rated highly
         var commonFavorites = await _context.Ratings
             .Include(r => r.GlobalRecipe)
             .Include(r => r.User)
@@ -8363,7 +8329,6 @@ public class UserRecipeService : IUserRecipeService
             .Where(gr => globalRecipeIds.Contains(gr.Id))
             .ToDictionaryAsync(gr => gr.Id);
 
-        // Check which ones are in the requesting user's collection
         var userRecipeGlobalIds = await _context.UserRecipes
             .Where(ur => ur.UserId == requestingUserId && ur.GlobalRecipeId.HasValue)
             .Select(ur => ur.GlobalRecipeId!.Value)
@@ -8394,8 +8359,6 @@ public class UserRecipeService : IUserRecipeService
         }).ToList();
     }
 
-    // Private helpers
-
     public async Task<AggregatedRecipePagedResult> GetGroupsCombinedRecipesAsync(
         Guid requestingUserId,
         GetMultiGroupRecipesQuery query)
@@ -8411,7 +8374,6 @@ public class UserRecipeService : IUserRecipeService
             };
         }
 
-        // Verify user is a member of ALL requested groups
         var userMemberships = await _context.HouseholdMembers
             .Where(hm => hm.UserId == requestingUserId)
             .Select(hm => hm.HouseholdId)
@@ -8424,14 +8386,12 @@ public class UserRecipeService : IUserRecipeService
                 $"You are not a member of groups: {string.Join(", ", unauthorizedGroups)}");
         }
 
-        // Get all unique member IDs from ALL selected groups
         var allMemberIds = await _context.HouseholdMembers
             .Where(hm => query.GroupIds.Contains(hm.HouseholdId))
             .Select(hm => hm.UserId)
             .Distinct()
             .ToListAsync();
 
-        // Get recipes from all members that are visible to groups
         var queryable = _context.UserRecipes
             .Include(r => r.User)
             .Include(r => r.GlobalRecipe)
@@ -8441,20 +8401,17 @@ public class UserRecipeService : IUserRecipeService
             .Where(r => r.Visibility == "household" || r.Visibility == "public" || r.Visibility == "friends")
             .Where(r => !r.IsArchived);
 
-        // Filter by specific members
         if (query.FilterByMembers?.Any() == true)
         {
             queryable = queryable.Where(r => query.FilterByMembers.Contains(r.UserId));
         }
 
-        // Filter by minimum rating
         if (query.MinRating.HasValue)
         {
             queryable = queryable.Where(r =>
                 r.Ratings.Any() && r.Ratings.Average(rt => rt.Score) >= query.MinRating.Value);
         }
 
-        // Search
         if (!string.IsNullOrEmpty(query.Search))
         {
             queryable = queryable.Where(r =>
@@ -8462,7 +8419,6 @@ public class UserRecipeService : IUserRecipeService
                 (r.GlobalRecipe != null && r.GlobalRecipe.Title.Contains(query.Search)));
         }
 
-        // Sorting
         queryable = query.SortBy.ToLower() switch
         {
             "name" => query.SortDescending
@@ -8485,9 +8441,10 @@ public class UserRecipeService : IUserRecipeService
             .Take(query.PageSize)
             .ToListAsync();
 
+        // CHANGE: Pass requestingUserId to mapper
         return new AggregatedRecipePagedResult
         {
-            Recipes = recipes.Select(r => MapToAggregatedDto(r, allMemberIds)).ToList(),
+            Recipes = recipes.Select(r => MapToAggregatedDto(r, allMemberIds, requestingUserId)).ToList(),
             TotalCount = totalCount,
             Page = query.Page,
             PageSize = query.PageSize
@@ -8503,7 +8460,6 @@ public class UserRecipeService : IUserRecipeService
             return new List<CommonFavoriteDto>();
         }
 
-        // Verify user is a member of ALL requested groups
         var userMemberships = await _context.HouseholdMembers
             .Where(hm => hm.UserId == requestingUserId)
             .Select(hm => hm.HouseholdId)
@@ -8516,14 +8472,12 @@ public class UserRecipeService : IUserRecipeService
                 $"You are not a member of groups: {string.Join(", ", unauthorizedGroups)}");
         }
 
-        // Get all unique member IDs from ALL selected groups
         var allMemberIds = await _context.HouseholdMembers
             .Where(hm => query.GroupIds.Contains(hm.HouseholdId))
             .Select(hm => hm.UserId)
             .Distinct()
             .ToListAsync();
 
-        // Find global recipes that multiple members have rated highly
         var commonFavorites = await _context.Ratings
             .Include(r => r.GlobalRecipe)
             .Include(r => r.User)
@@ -8549,7 +8503,6 @@ public class UserRecipeService : IUserRecipeService
             .Where(gr => globalRecipeIds.Contains(gr.Id))
             .ToDictionaryAsync(gr => gr.Id);
 
-        // Check which ones are in the requesting user's collection
         var userRecipeGlobalIds = await _context.UserRecipes
             .Where(ur => ur.UserId == requestingUserId && ur.GlobalRecipeId.HasValue)
             .Select(ur => ur.GlobalRecipeId!.Value)
@@ -8582,7 +8535,6 @@ public class UserRecipeService : IUserRecipeService
 
     public async Task<UserRecipePagedResult> GetFriendsRecipesAsync(Guid userId, GetUserRecipesQuery query)
     {
-        // Get all friend user IDs
         var friendIds = await _friendshipService.GetFriendIdsAsync(userId);
 
         if (!friendIds.Any())
@@ -8596,8 +8548,6 @@ public class UserRecipeService : IUserRecipeService
             };
         }
 
-        // Get recipes from friends that are visible to the requesting user
-        // Friends can see: public, friends visibility recipes
         var queryable = _context.UserRecipes
             .Include(r => r.User)
             .Include(r => r.GlobalRecipe)
@@ -8607,7 +8557,6 @@ public class UserRecipeService : IUserRecipeService
             .Where(r => r.Visibility == "friends" || r.Visibility == "public")
             .Where(r => !r.IsArchived);
 
-        // Sort by date by default
         queryable = queryable.OrderByDescending(r => r.CreatedAt);
 
         var totalCount = await queryable.CountAsync();
@@ -8680,22 +8629,6 @@ public class UserRecipeService : IUserRecipeService
             .ToDictionary(r => r.User!.DisplayName, r => (int?)r.Score)
             ?? new Dictionary<string, int?>();
 
-        var memberRatings = recipe.Ratings?
-            .Where(r => r.User != null)
-            .GroupBy(r => r.UserId)
-            .Select(g => g.OrderByDescending(x => x.UpdatedAt).First())
-            .Select(r => new MemberRatingDto
-            {
-                UserId = r.UserId,
-                DisplayName = r.User!.DisplayName ?? "Unknown",
-                AvatarUrl = r.User!.AvatarUrl,
-                Rating = r.Score,
-                Comment = r.Comment,
-                RatedAt = r.UpdatedAt
-            })
-            .ToList() ?? new List<MemberRatingDto>();
-
-
         return new UserRecipeDto
         {
             Id = recipe.Id,
@@ -8718,15 +8651,15 @@ public class UserRecipeService : IUserRecipeService
             IsArchived = recipe.IsArchived,
             CreatedAt = recipe.CreatedAt,
             UpdatedAt = recipe.UpdatedAt,
-            AverageRating = memberRatings.Any() ? memberRatings.Average(m => m.Rating) : 0,
-            RatingCount = memberRatings.Count,
-            MyRating = memberRatings.FirstOrDefault(m => m.UserId == requestingUserId)?.Rating,
-            MemberRatings = memberRatings,
+            MyRating = myRating?.Score,
+            AverageRating = recipe.Ratings?.Any() == true ? recipe.Ratings.Average(r => r.Score) : 0,
+            RatingCount = recipe.Ratings?.Count ?? 0,
             HouseholdRatings = householdRatings
         };
     }
 
-    private AggregatedRecipeDto MapToAggregatedDto(UserRecipe recipe, List<Guid> householdMemberIds)
+    // CHANGE: Added requestingUserId parameter here to support finding "MyRating"
+    private AggregatedRecipeDto MapToAggregatedDto(UserRecipe recipe, List<Guid> householdMemberIds, Guid requestingUserId)
     {
         var imageUrls = new List<string>();
         try
@@ -8746,24 +8679,16 @@ public class UserRecipeService : IUserRecipeService
         }
         catch { }
 
-        // Only include ratings from household members (dedupe per userId just in case)
-        var memberRatings = recipe.Ratings?
-        .Where(r => householdMemberIds.Contains(r.UserId) && r.User != null)
-        .GroupBy(r => r.UserId)
-        .Select(g => g.OrderByDescending(x => x.UpdatedAt).First())
-        .Select(r => new MemberRatingDto
-        {
-            UserId = r.UserId,
-            DisplayName = r.User!.DisplayName ?? "Unknown",
-            AvatarUrl = r.User!.AvatarUrl,
-            Rating = r.Score,
-            Comment = r.Comment,
-            RatedAt = r.UpdatedAt
-        })
-        .ToList() ?? new List<MemberRatingDto>();
+        // Only include ratings from household members
+        var householdRatings = recipe.Ratings?
+            .Where(r => householdMemberIds.Contains(r.UserId) && r.User != null)
+            .ToDictionary(r => r.User!.DisplayName, r => (int?)r.Score)
+            ?? new Dictionary<string, int?>();
 
-            var scores = memberRatings.Select(m => m.Rating).ToList();
+        var householdRatingValues = householdRatings.Values.Where(v => v.HasValue).Select(v => v!.Value).ToList();
 
+        // CHANGE: Extract My Rating for the requesting user
+        var myRating = recipe.Ratings?.FirstOrDefault(r => r.UserId == requestingUserId)?.Score;
 
         return new AggregatedRecipeDto
         {
@@ -8775,17 +8700,14 @@ public class UserRecipeService : IUserRecipeService
             Description = recipe.LocalDescription ?? recipe.GlobalRecipe?.Description,
             ImageUrls = imageUrls,
             GlobalRecipeId = recipe.GlobalRecipeId,
-
-            MemberRatings = memberRatings,
-            HouseholdAverageRating = scores.Any() ? scores.Average() : 0,
-            HouseholdRatingCount = scores.Count,
-
+            HouseholdRatings = householdRatings,
+            HouseholdAverageRating = householdRatingValues.Any() ? householdRatingValues.Average() : 0,
+            HouseholdRatingCount = householdRatingValues.Count,
+            MyRating = myRating, // CHANGE: Mapped the new field
             CreatedAt = recipe.CreatedAt
         };
     }
-
 }
-
 
 ================================================================================
 FILE END: \StorhaugenEats.API\Services\UserRecipeService.cs
@@ -13582,135 +13504,86 @@ FILE START: \StorhaugenWebsite\Pages\CookBook.razor
 ================================================================================
 @page "/cookbook"
 @using Microsoft.AspNetCore.Authorization
-@using MudBlazor
 @using StorhaugenWebsite.ApiClient
 @using StorhaugenWebsite.Shared.DTOs
 @using StorhaugenWebsite.Services
+@using StorhaugenWebsite.Models
 @inject IUserRecipeService RecipeService
 @inject IHouseholdStateService HouseholdState
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
-@inject IDeviceStateService DeviceState
 @inject IApiClient ApiClient
 @attribute [Authorize]
 @implements IDisposable
 
-<div class="cookbook-top">
+<div class="cookbook-header d-flex flex-column gap-3 mb-4">
 
-    <!-- Row 1: Search + View toggle -->
-    <div class="cookbook-top-row">
+    @* Group Selection *@
+    @if (HouseholdState.UserHouseholds.Count > 1)
+    {
+        <div class="group-filter-section">
+            <div class="horizontal-scroll-container">
+                @foreach (var group in HouseholdState.UserHouseholds)
+                {
+                    var isActive = HouseholdState.IsGroupActive(group.Id);
+                    <div class="group-chip @(isActive ? "active" : "")" @onclick="@(() => ToggleGroup(group.Id))">
+                        @if (isActive)
+                        {
+                            <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Class="mr-1" />
+                        }
+                        <span>@group.Name</span>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    @* Search & Sort *@
+    <div class="d-flex gap-2">
         <MudTextField @bind-Value="_searchQuery"
-                      Placeholder="Søk i oppskrifter…"
+                      Placeholder="Søk..."
                       Variant="Variant.Outlined"
-                      Margin="Margin.Dense"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Rounded.Search"
                       Immediate="true"
                       DebounceInterval="300"
                       OnDebounceIntervalElapsed="OnSearchChanged"
-                      Adornment="Adornment.Start"
-                      AdornmentIcon="@Icons.Material.Rounded.Search"
-                      Class="cookbook-search" />
+                      Class="flex-grow-1 search-field"
+                      Margin="Margin.Dense" />
 
-        <div class="view-toggle">
-            <button class="view-toggle-btn @(_viewMode == "card" ? "active" : "")"
-                    @onclick="@(() => SetViewMode("card"))">
-                <MudIcon Icon="@Icons.Material.Rounded.GridView" Size="Size.Small" />
-            </button>
-            <button class="view-toggle-btn @(_viewMode == "list" ? "active" : "")"
-                    @onclick="@(() => SetViewMode("list"))">
-                <MudIcon Icon="@Icons.Material.Rounded.ViewList" Size="Size.Small" />
-            </button>
+        <MudSelect T="string"
+                   @bind-Value="_sortBy"
+                   AnchorOrigin="Origin.BottomRight"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense"
+                   Class="sort-select"
+                   Style="width: 140px;"
+                   AdornmentIcon="@Icons.Material.Rounded.Sort">
+            <MudSelectItem Value="@("date")">Nyeste</MudSelectItem>
+            <MudSelectItem Value="@("rating")">Høyest snitt</MudSelectItem>
+            <MudSelectItem Value="@("personal_rating")">Min vurdering</MudSelectItem>
+            <MudSelectItem Value="@("name")">Navn (A-Å)</MudSelectItem>
+        </MudSelect>
+    </div>
+
+    @* Tags *@
+    @if (_tags.Any())
+    {
+        <div class="tag-filter-section mt-1">
+            <div class="horizontal-scroll-container">
+                @foreach (var tag in _tags)
+                {
+                    <MudChip T="string"
+                             Variant="@(_activeTagIds.Contains(tag.Id) ? Variant.Filled : Variant.Outlined)"
+                             Color="Color.Tertiary"
+                             OnClick="@(() => ToggleTagFilter(tag.Id))"
+                             Size="Size.Small"
+                             Style="@(tag.Color != null ? $"--mud-palette-tertiary: {tag.Color};" : "")">
+                        @tag.Name
+                    </MudChip>
+                }
+            </div>
         </div>
-    </div>
-
-    <!-- Row 2: Filters (Groups / Source / Sort) -->
-    <div class="cookbook-filters">
-
-        <!-- Groups -->
-        <MudSelect T="Guid"
-                   Dense="true"
-                   Variant="Variant.Outlined"
-                   MultiSelection="true"
-                   Label="Grupper"
-                   Disabled="@(!_hasMultipleGroups || _sourceMode != CookbookSource.All)"
-                   SelectedValues="@_selectedGroupIds"
-                   SelectedValuesChanged="OnSelectedGroupsChanged"
-                   MultiSelectionTextFunc="GroupsMultiText"
-                   Class="cookbook-select">
-            @foreach (var g in HouseholdState.UserHouseholds)
-            {
-                <MudSelectItem Value="@g.Id">@g.Name</MudSelectItem>
-            }
-        </MudSelect>
-
-        <!-- Source -->
-        <MudSelect T="CookbookSource"
-                   Dense="true"
-                   Variant="Variant.Outlined"
-                   Label="Vis"
-                   Value="@_sourceMode"
-                   ValueChanged="OnSourceChanged"
-                   Class="cookbook-select">
-            <MudSelectItem Value="@CookbookSource.All">Alle</MudSelectItem>
-            <MudSelectItem Value="@CookbookSource.Mine">Mine</MudSelectItem>
-            <MudSelectItem Value="@CookbookSource.Friends">Venner</MudSelectItem>
-        </MudSelect>
-
-        <!-- Sort -->
-        <MudSelect T="CookbookSort"
-                   Dense="true"
-                   Variant="Variant.Outlined"
-                   Label="Sorter"
-                   Value="@_sortMode"
-                   ValueChanged="OnSortChanged"
-                   Class="cookbook-select">
-            <MudSelectItem Value="@CookbookSort.Date">Dato</MudSelectItem>
-            <MudSelectItem Value="@CookbookSort.Name">Navn</MudSelectItem>
-            <MudSelectItem Value="@CookbookSort.AvgRating">Snitt</MudSelectItem>
-            <MudSelectItem Value="@CookbookSort.MyRating">Min rating</MudSelectItem>
-            <MudSelectItem Value="@CookbookSort.MemberRating">Person</MudSelectItem>
-        </MudSelect>
-
-        <MudIconButton Icon="@(_sortDescending ? Icons.Material.Rounded.South : Icons.Material.Rounded.North)"
-                       Title="Bytt rekkefølge"
-                       Variant="Variant.Outlined"
-                       Size="Size.Small"
-                       OnClick="ToggleSortDirection"
-                       Class="cookbook-sortdir" />
-    </div>
-
-    <!-- Row 3: Member picker (only when sorting by member rating) -->
-    @if (_sortMode == CookbookSort.MemberRating)
-    {
-        <MudAutocomplete T="HouseholdMemberDto"
-                         Dense="true"
-                         Variant="Variant.Outlined"
-                         Label="Sorter etter person"
-                         Clearable="true"
-                         ResetValueOnEmptyText="true"
-                         Value="@_selectedMember"
-                         ValueChanged="OnSelectedMemberChanged"
-                         SearchFunc="SearchMembers"
-                         ToStringFunc="@(m => m?.DisplayName ?? "")"
-                         Class="cookbook-member-autocomplete" />
-    }
-
-    <!-- Tags (only relevant for Mine) -->
-    @if (_sourceMode == CookbookSource.Mine && _tags.Any())
-    {
-        <MudSelect T="Guid"
-                   Dense="true"
-                   Variant="Variant.Outlined"
-                   MultiSelection="true"
-                   Label="Kategorier"
-                   SelectedValues="@_activeTagIds"
-                   SelectedValuesChanged="OnSelectedTagsChanged"
-                   MultiSelectionTextFunc="TagsMultiText"
-                   Class="cookbook-tags">
-            @foreach (var t in _tags)
-            {
-                <MudSelectItem Value="@t.Id">@t.Name</MudSelectItem>
-            }
-        </MudSelect>
     }
 </div>
 
@@ -13719,7 +13592,15 @@ FILE START: \StorhaugenWebsite\Pages\CookBook.razor
     <div class="d-flex flex-column gap-3">
         @for (int i = 0; i < 4; i++)
         {
-            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="100px" Class="rounded-lg" />
+            <div class="skeleton-card">
+                <div class="skeleton-content d-flex align-center">
+                    <div style="width:100%">
+                        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="14px" Width="60%" Class="mb-2 rounded" />
+                        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="10px" Width="40%" Class="rounded" />
+                    </div>
+                    <MudSkeleton SkeletonType="SkeletonType.Circle" Width="40px" Height="40px" Class="ml-3" />
+                </div>
+            </div>
         }
     </div>
 }
@@ -13733,106 +13614,88 @@ else if (!_recipes.Any())
 }
 else
 {
-    <div class="@(_viewMode == "card" ? "d-flex flex-column gap-4" : "d-flex flex-column gap-2")">
-        @foreach (var recipe in _recipes)
+    <div class="d-flex flex-column gap-3">
+        @foreach (var recipe in _sortedRecipes)
         {
-            <div class="@(_viewMode == "card" ? "food-card" : "food-list-item") animate-in"
-                 @onclick="() => OpenRecipe(recipe.UserRecipeId)">
+            <div class="food-card animate-in" @onclick="() => OpenRecipe(recipe.UserRecipeId)">
 
-                @* Image *@
-                @if (recipe.ImageUrls?.Any() == true)
+                @* Image Section (Right Side) *@
+                @if (recipe.ImageUrls.Any())
                 {
-                    <img src="@recipe.ImageUrls.First()" class="@(_viewMode == "card" ? "food-card-image" : "food-list-image")" />
+                    <img src="@recipe.ImageUrls.First()" class="food-card-image" />
                 }
                 else
                 {
-                    <div class="@(_viewMode == "card" ? "food-card-placeholder" : "food-list-placeholder")">
-                        <MudIcon Icon="@Icons.Material.Rounded.Restaurant" />
+                    <div class="food-card-placeholder">
+                        <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" Style="opacity:0.3;" />
                     </div>
                 }
 
-                @* Content *@
-                <div class="@(_viewMode == "card" ? "food-card-content" : "food-list-content")">
+                @* Content Section (Left Side) *@
+                <div class="food-card-content">
 
+                    @* Top Row: Title, Owner & Average Badge *@
                     <div class="d-flex justify-space-between align-start">
-                        <div style="min-width:0;">
-                            <h3 class="@(_viewMode == "card" ? "food-card-title" : "food-list-title")">@recipe.Name</h3>
-
-                            <div class="d-flex align-center gap-1 mt-1">
-                                <MudIcon Icon="@Icons.Material.Rounded.Person" Size="Size.Small" Style="font-size: 12px; opacity: 0.7;" />
-                                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="text-truncate">
-                                    @(recipe.OwnerDisplayName == AuthService.CurrentUserName ? "Deg" : recipe.OwnerDisplayName)
+                        @* Left: Title & Owner *@
+                        <div style="min-width: 0; padding-right: 8px;">
+                            <h3 class="food-card-title text-truncate">@recipe.Name</h3>
+                            <div class="d-flex align-center gap-1">
+                                <MudIcon Icon="@Icons.Material.Rounded.Person" Size="Size.Small" Style="font-size: 12px; opacity: 0.6;" />
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="text-truncate" Style="font-size: 0.75rem;">
+                                    @(recipe.OwnerDisplayName == AuthService.CurrentUserName ? "Meg" : recipe.OwnerDisplayName)
                                 </MudText>
                             </div>
                         </div>
 
-                        @* Avg badge *@
-                        @{
-                            var avg = GetAverage(recipe);
-                        }
-                        @if (avg > 0)
+                        @* Right: Average Badge (Moved Here) *@
+                        @if (recipe.HouseholdAverageRating > 0)
                         {
-                            <span class="rating-badge @GetRatingClass(avg)">
-                                <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" Style="font-size: 12px;" />
-                                @avg.ToString("0.0")
+                            <span class="rating-badge" style="color: @GetScoreColor(recipe.HouseholdAverageRating); flex-shrink: 0;">
+                                <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" Style="font-size: 14px; margin-right:2px;" />
+                                @recipe.HouseholdAverageRating.ToString("0.0")
                             </span>
                         }
                     </div>
 
-                    @* Ratings strip *@
-                    <div class="rating-strip">
-                        @{
-                            var my = GetMyRating(recipe);
-                        }
+                    @* Ratings Section (Bottom) *@
+                    <div class="d-flex align-center flex-wrap mt-3 gap-2">
 
-                        @* My rating (MemberRatingDto.Rating is int, so null == "no entry") *@
-                        @if (my is not null)
+                        @* 1. My Rating (Primary Color) *@
+                        @if (recipe.MyRating.HasValue)
                         {
-                            <MudChip Size="Size.Small" T="string"
-                                     Variant="Variant.Outlined"
-                                     Icon="@Icons.Material.Rounded.Star"
-                                     Class="my-rating-chip">
-                                @my.Rating
-                            </MudChip>
-                        }
-                        else
-                        {
-                            <MudChip Size="Size.Small" T="string" Variant="Variant.Outlined" Class="my-rating-chip muted">
-                                Min: –
-                            </MudChip>
+                            <div class="rating-pill mine">
+                                <div class="rating-circle" style="background-color: var(--mud-palette-primary); color: var(--mud-palette-primary-text);">
+                                    D
+                                </div>
+                                <span class="rating-score">@recipe.MyRating</span>
+                            </div>
                         }
 
-                        @* Other member ratings (max 5) *@
+                        @* 2. Other Member Ratings (Deduped & Colored by Name) *@
                         @{
-                            var others = GetOtherRatings(recipe).ToList();
-                            var take = others.Take(5).ToList();
-                            var remaining = others.Count - take.Count;
+                            // Filter logic:
+                            // 1. Remove entries without values.
+                            // 2. Remove entries where the Key (Name) matches current user (case-insensitive).
+                            // 3. Distinct by Key to prevent double listing.
+                            var otherRatings = recipe.HouseholdRatings
+                            .Where(r => r.Value.HasValue && !string.Equals(r.Key, AuthService.CurrentUserName, StringComparison.OrdinalIgnoreCase))
+                            .DistinctBy(r => r.Key)
+                            .Take(4);
                         }
 
-                        <div class="other-ratings">
-                            @foreach (var r in take)
-                            {
-                                <MudTooltip Text="@($"{r.DisplayName}: {r.Rating}")" Placement="Placement.Top">
-                                    <MudBadge Content="@r.Rating.ToString()"
-                                              Overlap="true"
-                                              Origin="Origin.BottomRight"
-                                              Class="rating-avatar-badge">
-                                        <MudAvatar Size="Size.Small" Image="@r.AvatarUrl" Class="rating-avatar">
-                                            @GetInitials(r.DisplayName)
-                                        </MudAvatar>
-                                    </MudBadge>
-                                </MudTooltip>
-                            }
+                        @foreach (var rating in otherRatings)
+                        {
+                            var initial = !string.IsNullOrEmpty(rating.Key) ? rating.Key.Substring(0, 1).ToUpper() : "?";
+                            var color = GetUserColor(rating.Key);
 
-                            @if (remaining > 0)
-                            {
-                                <MudChip Size="Size.Small" T="string" Variant="Variant.Outlined" Class="more-chip">
-                                    +@remaining
-                                </MudChip>
-                            }
-                        </div>
+                            <div class="rating-pill">
+                                <div class="rating-circle" style="background-color: @color; color: white;">
+                                    @initial
+                                </div>
+                                <span class="rating-score">@rating.Value</span>
+                            </div>
+                        }
                     </div>
-
                 </div>
             </div>
         }
@@ -13841,477 +13704,105 @@ else
 
 @code {
     private List<AggregatedRecipeDto> _recipes = new();
+    private IEnumerable<AggregatedRecipeDto> _sortedRecipes => GetSortedRecipes();
     private bool _isLoading = true;
-
     private string _searchQuery = "";
-    private string _viewMode = "card";
-
-    private CookbookSource _sourceMode = CookbookSource.All;
-    private CookbookSort _sortMode = CookbookSort.Date;
-    private bool _sortDescending = true;
-
-    private HashSet<Guid> _selectedGroupIds = new();
-    private bool _suppressGroupSync;
-    private bool _hasMultipleGroups => HouseholdState.UserHouseholds?.Count > 1;
-
-    private Guid? _currentUserId;
-    private HouseholdMemberDto? _selectedMember;
-    private List<HouseholdMemberDto> _availableMembers = new();
-
+    private string _sortBy = "date";
     private List<TagDto> _tags = new();
-    private HashSet<Guid> _activeTagIds = new();
+    private List<Guid> _activeTagIds = new();
+
+    // Generates a stable color based on the username string
+    private string GetUserColor(string username)
+    {
+        if (string.IsNullOrEmpty(username)) return "#9E9E9E";
+        int hash = Math.Abs(username.GetHashCode());
+        // A curated list of distinct colors (excluding primary orange/reds to avoid confusion)
+        string[] palette = {
+            "#2E7D32", "#00695C", "#0277BD", "#1565C0", "#283593",
+            "#4527A0", "#6A1B9A", "#AD1457", "#C62828", "#D84315"
+        };
+        return palette[hash % palette.Length];
+    }
+
+    // Returns Green/Yellow/Red for the average score star
+    private string GetScoreColor(double score)
+    {
+        if (score >= 8) return "#4CAF50"; // Green
+        if (score >= 6) return "#FFC107"; // Yellow
+        return "#F44336"; // Red
+    }
 
     protected override async Task OnInitializedAsync()
     {
         HouseholdState.OnActiveGroupsChanged += OnGroupsChanged;
-
         await HouseholdState.InitializeAsync();
-        _viewMode = DeviceState.Settings.ViewMode ?? "card";
-
-        try
-        {
-            var me = await ApiClient.GetMyProfileAsync();
-            _currentUserId = me?.Id;
-        }
-        catch { }
-
         await LoadTags();
+        await LoadRecipes();
+    }
 
-        if (HouseholdState.UserHouseholds.Any())
+    private IEnumerable<AggregatedRecipeDto> GetSortedRecipes()
+    {
+        return _sortBy switch
         {
-            if (!HouseholdState.ActiveGroupFilters.Any())
-            {
-                _suppressGroupSync = true;
-                HouseholdState.SelectAllGroups();
-                _suppressGroupSync = false;
-            }
+            "name" => _recipes.OrderBy(r => r.Name),
+            "rating" => _recipes.OrderByDescending(r => r.HouseholdAverageRating),
+            "personal_rating" => _recipes.OrderByDescending(r => r.MyRating ?? 0),
+            _ => _recipes.OrderByDescending(r => r.CreatedAt)
+        };
+    }
 
-            _selectedGroupIds = HouseholdState.ActiveGroupFilters.ToHashSet();
-        }
+    private async Task LoadTags() { try { _tags = await ApiClient.GetMyTagsAsync(); } catch { } }
 
-        RefreshAvailableMembers();
+    private async Task ToggleTagFilter(Guid tagId)
+    {
+        if (_activeTagIds.Contains(tagId)) _activeTagIds.Remove(tagId);
+        else _activeTagIds.Add(tagId);
         await LoadRecipes();
     }
 
-    private async Task LoadTags()
-    {
-        try { _tags = await ApiClient.GetMyTagsAsync(); }
-        catch { _tags = new(); }
-    }
-
-    private async Task OnSelectedTagsChanged(IEnumerable<Guid> selected)
-    {
-        _activeTagIds = selected.ToHashSet();
-        await LoadRecipes();
-    }
-
-    private string TagsMultiText(List<string> selectedIds)
-        => selectedIds.Count == 0 ? "Alle" : $"{selectedIds.Count} valgt";
-
-    private async Task OnSelectedGroupsChanged(IEnumerable<Guid> selected)
-    {
-        _selectedGroupIds = selected.ToHashSet();
-
-        await SyncGroupsToHouseholdState();
-        RefreshAvailableMembers();
-
-        if (_selectedMember != null && !_availableMembers.Any(m => m.UserId == _selectedMember.UserId))
-            _selectedMember = null;
-
-        await LoadRecipes();
-    }
-
-    private async Task SyncGroupsToHouseholdState()
-    {
-        if (!_hasMultipleGroups)
-            return;
-
-        _suppressGroupSync = true;
-        try
-        {
-            var current = HouseholdState.ActiveGroupFilters.ToHashSet();
-
-            foreach (var id in current.Except(_selectedGroupIds))
-                HouseholdState.ToggleGroupFilter(id);
-
-            foreach (var id in _selectedGroupIds.Except(current))
-                HouseholdState.ToggleGroupFilter(id);
-        }
-        finally
-        {
-            _suppressGroupSync = false;
-        }
-
-        await Task.CompletedTask;
-    }
-
-    private string GroupsMultiText(List<string> selectedIds)
-    {
-        if (!_hasMultipleGroups) return "1 gruppe";
-        if (selectedIds.Count == 0) return "Ingen";
-        if (selectedIds.Count == HouseholdState.UserHouseholds.Count) return "Alle";
-        return $"{selectedIds.Count} valgt";
-    }
-
-    private async void OnGroupsChanged()
-    {
-        if (_suppressGroupSync) return;
-
-        await InvokeAsync(async () =>
-        {
-            _selectedGroupIds = HouseholdState.ActiveGroupFilters.ToHashSet();
-            RefreshAvailableMembers();
-
-            if (_selectedMember != null && !_availableMembers.Any(m => m.UserId == _selectedMember.UserId))
-                _selectedMember = null;
-
-            await LoadRecipes();
-            StateHasChanged();
-        });
-    }
-
-    private void RefreshAvailableMembers()
-    {
-        var groups = HouseholdState.UserHouseholds
-            .Where(h => _selectedGroupIds.Contains(h.Id))
-            .ToList();
-
-        _availableMembers = groups
-            .SelectMany(g => g.Members ?? new List<HouseholdMemberDto>())
-            .GroupBy(m => m.UserId)
-            .Select(g => g.First())
-            .OrderBy(m => m.DisplayName)
-            .ToList();
-    }
-
-    private Task<IEnumerable<HouseholdMemberDto>> SearchMembers(string value, CancellationToken token)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return Task.FromResult(_availableMembers.Take(25).AsEnumerable());
-
-        value = value.Trim();
-        return Task.FromResult(_availableMembers
-            .Where(m => (m.DisplayName ?? "").Contains(value, StringComparison.OrdinalIgnoreCase))
-            .Take(25)
-            .AsEnumerable());
-    }
-
-    private async Task OnSelectedMemberChanged(HouseholdMemberDto? member)
-    {
-        _selectedMember = member;
-        await LoadRecipes();
-    }
-
-    private async Task OnSourceChanged(CookbookSource source)
-    {
-        _sourceMode = source;
-
-        if (_sourceMode != CookbookSource.Mine && _activeTagIds.Any())
-            _activeTagIds.Clear();
-
-        await LoadRecipes();
-    }
-
-    private async Task OnSortChanged(CookbookSort sort)
-    {
-        _sortMode = sort;
-        await LoadRecipes();
-    }
-
-    private async Task ToggleSortDirection()
-    {
-        _sortDescending = !_sortDescending;
-        await LoadRecipes();
-    }
-
-    private async Task OnSearchChanged(string value)
-    {
-        await LoadRecipes();
-    }
+    private async void OnGroupsChanged() { await InvokeAsync(async () => { await LoadRecipes(); StateHasChanged(); }); }
+    private async Task ToggleGroup(Guid groupId) { HouseholdState.ToggleGroupFilter(groupId); }
 
     private async Task LoadRecipes()
     {
         _isLoading = true;
         StateHasChanged();
-
         try
         {
-            if (_sourceMode == CookbookSource.Mine || _activeTagIds.Any())
+            var query = new GetCombinedRecipesQuery { Search = _searchQuery, PageSize = 50 };
+
+            if (HouseholdState.HasHousehold && HouseholdState.ActiveGroupFilters.Any())
             {
-                var query = new GetUserRecipesQuery
-                {
-                    Search = _searchQuery,
-                    PageSize = 50,
-                    SortDescending = _sortDescending,
-                    SortBy = SortByForUserQuery(_sortMode),
-                    TagIds = _activeTagIds.Any() ? _activeTagIds.ToList() : null
-                };
-
-                var result = await RecipeService.GetMyRecipesAsync(query);
-
-                _recipes = result.Recipes.Select(r => new AggregatedRecipeDto
-                {
-                    UserRecipeId = r.Id,
-                    OwnerUserId = r.UserId,
-                    OwnerDisplayName = "Deg",
-                    OwnerAvatarUrl = r.UserAvatarUrl,
-                    Name = r.Name,
-                    ImageUrls = r.ImageUrls,
-                    HouseholdAverageRating = r.AverageRating,
-                    HouseholdRatingCount = r.RatingCount,
-                    CreatedAt = r.CreatedAt,
-                    MemberRatings = r.MemberRatings ?? new List<MemberRatingDto>()
-                }).ToList();
-            }
-            else if (_sourceMode == CookbookSource.Friends)
-            {
-                var query = new GetUserRecipesQuery
-                {
-                    Search = _searchQuery,
-                    PageSize = 50,
-                    SortDescending = _sortDescending,
-                    SortBy = SortByForUserQuery(_sortMode)
-                };
-
-                var result = await RecipeService.GetFriendsRecipesAsync(query);
-
-                _recipes = result.Recipes.Select(r => new AggregatedRecipeDto
-                {
-                    UserRecipeId = r.Id,
-                    OwnerUserId = r.UserId,
-                    OwnerDisplayName = r.UserDisplayName ?? "Ukjent",
-                    OwnerAvatarUrl = r.UserAvatarUrl,
-                    Name = r.Name,
-                    ImageUrls = r.ImageUrls,
-                    HouseholdAverageRating = r.AverageRating,
-                    HouseholdRatingCount = r.RatingCount,
-                    CreatedAt = r.CreatedAt,
-                    MemberRatings = r.MemberRatings ?? new List<MemberRatingDto>()
-                }).ToList();
-            }
-            else if (HouseholdState.HasHousehold && _selectedGroupIds.Any())
-            {
-                var query = new GetCombinedRecipesQuery
-                {
-                    Search = _searchQuery,
-                    PageSize = 50,
-                    SortDescending = _sortDescending,
-                    SortBy = SortByForCombinedQuery(_sortMode)
-                };
-
-                var result = await RecipeService.GetGroupsCombinedRecipesAsync(_selectedGroupIds.ToList(), query);
+                var result = await RecipeService.GetGroupsCombinedRecipesAsync(HouseholdState.ActiveGroupFilters, query);
                 _recipes = result.Recipes;
             }
             else
             {
-                var query = new GetUserRecipesQuery
-                {
-                    Search = _searchQuery,
-                    PageSize = 50,
-                    SortDescending = _sortDescending,
-                    SortBy = SortByForUserQuery(_sortMode)
-                };
-
-                var result = await RecipeService.GetMyRecipesAsync(query);
+                var userQuery = new GetUserRecipesQuery { Search = _searchQuery, PageSize = 50, TagIds = _activeTagIds.Any() ? _activeTagIds : null };
+                var result = await RecipeService.GetMyRecipesAsync(userQuery);
+                // Map local results to aggregated DTO
                 _recipes = result.Recipes.Select(r => new AggregatedRecipeDto
                 {
                     UserRecipeId = r.Id,
-                    OwnerUserId = r.UserId,
-                    OwnerDisplayName = "Deg",
-                    OwnerAvatarUrl = r.UserAvatarUrl,
                     Name = r.Name,
                     ImageUrls = r.ImageUrls,
                     HouseholdAverageRating = r.AverageRating,
-                    HouseholdRatingCount = r.RatingCount,
+                    OwnerDisplayName = "Deg",
+                    MyRating = r.MyRating,
                     CreatedAt = r.CreatedAt,
-                    MemberRatings = r.MemberRatings ?? new List<MemberRatingDto>()
+                    HouseholdRatings = r.HouseholdRatings
                 }).ToList();
             }
-
-            ApplyClientSortIfNeeded();
         }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error loading recipes: {ex.Message}");
-        }
-        finally
-        {
-            _isLoading = false;
-            StateHasChanged();
-        }
+        catch (Exception ex) { Console.WriteLine($"Error: {ex.Message}"); }
+        finally { _isLoading = false; StateHasChanged(); }
     }
 
-    private void ApplyClientSortIfNeeded()
-    {
-        Func<AggregatedRecipeDto, int?> my = r => GetMyRating(r)?.Rating;
-        Func<AggregatedRecipeDto, int?> member = r => GetMemberRating(r, _selectedMember?.UserId);
+    private async Task OnSearchChanged(string value) { await LoadRecipes(); }
+    private void OpenRecipe(Guid id) { Navigation.NavigateTo($"food/{id}"); }
 
-        IOrderedEnumerable<AggregatedRecipeDto> ordered = _sortMode switch
-        {
-            CookbookSort.Name => _sortDescending
-                ? _recipes.OrderByDescending(r => r.Name, StringComparer.OrdinalIgnoreCase)
-                : _recipes.OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase),
-
-            CookbookSort.AvgRating => _sortDescending
-                ? _recipes.OrderByDescending(r => GetAverage(r))
-                : _recipes.OrderBy(r => GetAverage(r)),
-
-            CookbookSort.MyRating => _sortDescending
-                ? _recipes.OrderByDescending(r => my(r) ?? -1)
-                : _recipes.OrderBy(r => my(r) ?? -1),
-
-            CookbookSort.MemberRating => _sortDescending
-                ? _recipes.OrderByDescending(r => member(r) ?? -1)
-                : _recipes.OrderBy(r => member(r) ?? -1),
-
-            _ => _sortDescending
-                ? _recipes.OrderByDescending(r => r.CreatedAt)
-                : _recipes.OrderBy(r => r.CreatedAt)
-        };
-
-        _recipes = ordered
-            .ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-    }
-
-    private static string SortByForUserQuery(CookbookSort sort)
-        => sort switch
-        {
-            CookbookSort.Name => "name",
-            CookbookSort.AvgRating => "rating",
-            _ => "date"
-        };
-
-    private static string SortByForCombinedQuery(CookbookSort sort)
-        => sort switch
-        {
-            CookbookSort.Name => "name",
-            CookbookSort.AvgRating => "rating",
-            _ => "date"
-        };
-
-    private void OpenRecipe(Guid id) => Navigation.NavigateTo($"food/{id}");
-
-    private double GetAverage(AggregatedRecipeDto r)
-    {
-        if (r.HouseholdAverageRating > 0) return r.HouseholdAverageRating;
-        if (r.MemberRatings is { Count: > 0 }) return r.MemberRatings.Average(x => x.Rating);
-        return 0;
-    }
-
-    private MemberRatingDto? GetMyRating(AggregatedRecipeDto r)
-    {
-        if (r.MemberRatings is not { Count: > 0 }) return null;
-
-        if (_currentUserId.HasValue)
-            return r.MemberRatings.FirstOrDefault(x => x.UserId == _currentUserId.Value);
-
-        var myName = AuthService.CurrentUserName;
-        if (!string.IsNullOrWhiteSpace(myName))
-            return r.MemberRatings.FirstOrDefault(x => string.Equals(x.DisplayName, myName, StringComparison.OrdinalIgnoreCase));
-
-        return null;
-    }
-
-    private int? GetMemberRating(AggregatedRecipeDto r, Guid? userId)
-    {
-        if (userId == null || r.MemberRatings == null) return null;
-        return r.MemberRatings.FirstOrDefault(x => x.UserId == userId.Value)?.Rating;
-    }
-
-    private IEnumerable<MemberRatingDto> GetOtherRatings(AggregatedRecipeDto r)
-    {
-        if (r.MemberRatings == null) yield break;
-
-        var myId = _currentUserId;
-
-        var items = r.MemberRatings
-            .Where(x => !myId.HasValue || x.UserId != myId.Value)
-            .ToList();
-
-        if (_sortMode == CookbookSort.MemberRating && _selectedMember != null)
-        {
-            var pinnedId = _selectedMember.UserId;
-            items = items
-                .OrderByDescending(x => x.UserId == pinnedId)
-                .ThenByDescending(x => x.Rating)
-                .ThenBy(x => x.DisplayName)
-                .ToList();
-        }
-        else
-        {
-            items = items
-                .OrderByDescending(x => x.Rating)
-                .ThenBy(x => x.DisplayName)
-                .ToList();
-        }
-
-        foreach (var x in items)
-            yield return x;
-    }
-
-    private string GetInitials(string? name)
-    {
-        if (string.IsNullOrWhiteSpace(name)) return "?";
-        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 1) return parts[0].Substring(0, 1).ToUpperInvariant();
-        return $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant();
-    }
-
-    private string GetRatingClass(double rating)
-        => rating switch
-        {
-            >= 8 => "rating-high",
-            >= 5 => "rating-medium",
-            _ => "rating-low"
-        };
-
-    private async Task SetViewMode(string mode)
-    {
-        _viewMode = mode;
-        await DeviceState.SetViewModeAsync(mode);
-    }
-
-    public void Dispose()
-    {
-        HouseholdState.OnActiveGroupsChanged -= OnGroupsChanged;
-    }
-
-    private enum CookbookSource { All, Mine, Friends }
-    private enum CookbookSort { Date, Name, AvgRating, MyRating, MemberRating }
+    public void Dispose() { HouseholdState.OnActiveGroupsChanged -= OnGroupsChanged; }
 }
-
-<style>
-    .cookbook-top { display:flex; flex-direction:column; gap:10px; margin-bottom:14px; }
-
-    .cookbook-top-row { display:flex; gap:10px; align-items:center; }
-    .cookbook-search { flex:1; min-width: 220px; }
-
-    .cookbook-filters { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-    .cookbook-select { min-width: 180px; }
-    .cookbook-sortdir { height: 40px; }
-
-    .cookbook-member-autocomplete { max-width: 420px; }
-    .cookbook-tags { max-width: 520px; }
-
-    .rating-strip {
-        margin-top: 10px;
-        display:flex;
-        align-items:center;
-        gap:10px;
-        flex-wrap:wrap;
-    }
-
-    .my-rating-chip { height: 26px; }
-    .my-rating-chip.muted { opacity: .7; }
-
-    .other-ratings { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-
-    .rating-avatar { width: 26px; height: 26px; font-size: 12px; }
-    .rating-avatar-badge .mud-badge { font-size: 10px; min-width: 16px; height: 16px; }
-    .more-chip { height: 26px; }
-</style>
-
 
 ================================================================================
 FILE END: \StorhaugenWebsite\Pages\CookBook.razor
@@ -19326,7 +18817,6 @@ FILE START: \StorhaugenWebsite\wwwroot\css\Food.css
 ================================================================================
 /* ==========================================================================
    1. LANDSCAPE BLOCKER & DEVICE ORIENTATION
-   Unique logic to handle device rotation for camera features.
    ========================================================================== */
 
 #landscape-blocker {
@@ -19360,20 +18850,10 @@ FILE START: \StorhaugenWebsite\wwwroot\css\Food.css
 
 /* ==========================================================================
    2. GLOBAL PAGE STYLES & HEADERS
-   Merged: Prioritizing 'Fraunces' font and MudBlazor palette variables.
    ========================================================================== */
 
 .page-header {
     margin-bottom: 24px;
-}
-
-.page-title {
-    font-family: 'Fraunces', Georgia, serif; /* Kept fancy font from File 1 */
-    font-size: 1.75rem;
-    font-weight: 600;
-    color: var(--mud-palette-text-primary);
-    margin-bottom: 4px;
-    letter-spacing: -0.02em;
 }
 
 .page-subtitle {
@@ -19413,16 +18893,14 @@ FILE START: \StorhaugenWebsite\wwwroot\css\Food.css
 
 /* ==========================================================================
    3. FORM STYLES & INPUTS
-   Merged: Unified .form-section and image uploads.
    ========================================================================== */
 
 .form-section {
     background: var(--mud-palette-surface);
-    border-radius: var(--card-radius, 16px); /* Fallback to 16px if variable missing */
+    border-radius: var(--card-radius, 16px);
     padding: 20px;
     margin-bottom: 16px;
     border: 1px solid var(--mud-palette-divider);
-    /* box-shadow removed to keep consistent with flat border design of File 1 */
 }
 
 .form-section-title {
@@ -19486,7 +18964,6 @@ FILE START: \StorhaugenWebsite\wwwroot\css\Food.css
 
 /* ==========================================================================
    4. IMAGE UPLOAD & PREVIEWS
-   Merged: Used the interactive/hover styles from File 1.
    ========================================================================== */
 
 .image-upload-area {
@@ -19546,7 +19023,6 @@ FILE START: \StorhaugenWebsite\wwwroot\css\Food.css
 
 /* ==========================================================================
    5. CAMERA OVERLAY & SCANNING LOGIC
-   Taken entirely from File 2.
    ========================================================================== */
 
 .camera-overlay {
@@ -19607,17 +19083,16 @@ FILE START: \StorhaugenWebsite\wwwroot\css\Food.css
     max-height: 70vh;
 }
 
-/* Logo Hint Zone - MODIFIED: Removed CSS Lemon hack, optimized for SVG */
+/* Logo Hint Zone */
 .step-landscape .logo-hint-zone {
     position: absolute;
     top: 20px;
     right: 20px;
-    /* Removed fixed width/height to let SVG scale */
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    transform: rotate(90deg); /* Keep rotation for landscape card */
+    transform: rotate(90deg);
     opacity: 0.9;
 }
 
@@ -19807,69 +19282,216 @@ FILE START: \StorhaugenWebsite\wwwroot\css\Food.css
 }
 
 /* ==========================================================================
-   6. FOOD LIST & UTILITIES (VIEW TOGGLE, SORTING, SKELETONS)
+   6. FOOD LIST UTILITIES
    ========================================================================== */
 
-/* View Toggle */
-.view-toggle-container {
+/* Horizontal Scroll Container */
+.horizontal-scroll-container {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 20px;
-    gap: 12px;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    mask-image: linear-gradient(to right, black 95%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, black 95%, transparent 100%);
 }
 
-.view-toggle {
-    display: flex;
-    background: var(--mud-palette-surface);
-    border-radius: 12px;
-    padding: 4px;
-    border: 1px solid var(--mud-palette-divider);
-}
-
-.view-toggle-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 36px;
-    border: none;
-    background: transparent;
-    color: var(--mud-palette-text-secondary);
-    cursor: pointer;
-    border-radius: 8px;
-    transition: var(--transition-fast, 0.2s);
-}
-
-    .view-toggle-btn:hover {
-        background: var(--mud-palette-divider-light);
-    }
-
-    .view-toggle-btn.active {
-        background: var(--mud-palette-primary);
-        color: white;
+    .horizontal-scroll-container::-webkit-scrollbar {
+        display: none;
     }
 
 /* Sort Dropdown */
-.sort-dropdown {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    background: var(--mud-palette-surface);
-    border: 1px solid var(--mud-palette-divider);
-    border-radius: 12px;
-    cursor: pointer;
+.sort-select .mud-input-slot {
     font-size: 0.875rem;
-    color: var(--mud-palette-text-secondary);
-    transition: var(--transition-fast, 0.2s);
 }
 
-    .sort-dropdown:hover {
-        border-color: var(--mud-palette-primary);
+/* --- FOOD CARD STYLES --- */
+
+.food-card {
+    background: var(--mud-palette-surface);
+    border-radius: 16px;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    min-height: 100px;
+    border: 1px solid var(--mud-palette-divider);
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.2s;
+}
+
+    .food-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
     }
 
-/* Skeleton Loading */
+    .food-card:active {
+        transform: scale(0.98);
+    }
+
+/* Image & Placeholder Fade - MOVED TO RIGHT */
+.food-card-image,
+.food-card-placeholder {
+    width: 50%;
+    height: 100%;
+    position: absolute;
+    right: 0; /* Changed from left: 0 */
+    top: 0;
+    bottom: 0;
+    z-index: 0;
+    /* Flip mask to fade from Right to Left */
+    -webkit-mask-image: linear-gradient(to left, black 20%, transparent 100%);
+    mask-image: linear-gradient(to left, black 20%, transparent 100%);
+}
+
+.food-card-image {
+    width: 50%;
+    height: 100%;
+    position: absolute;
+    right: 0; /* Changed from left: 0 */
+    top: 0;
+    opacity: 0.5;
+    bottom: 0;
+    z-index: 0;
+    object-fit: cover;
+    /* Flip mask to fade from Right to Left */
+    -webkit-mask-image: linear-gradient(to left, black 0%, black 30%, transparent 100%);
+    mask-image: linear-gradient(to left, black 0%, black 30%, transparent 100%);
+}
+
+.food-card-placeholder {
+    background: var(--mud-palette-divider-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Content Section - MOVED TO LEFT */
+.food-card-content {
+    flex-grow: 1;
+    padding: 10px 12px;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    margin-left: 0; /* Reset left margin */
+    position: relative;
+}
+
+.food-card-title {
+    font-family: 'Fraunces', serif;
+    font-size: 1.1rem;
+    line-height: 1.2;
+    margin-bottom: 4px;
+    font-weight: 600;
+    text-shadow: 0 0 12px var(--mud-palette-surface);
+}
+
+/* --- RATING STYLES --- */
+
+/* Generalized Rating Chip (replaces .mini-rating-avatar) */
+.rating-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 8px;
+    height: 24px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    backdrop-filter: blur(4px);
+    transition: transform 0.1s;
+}
+
+.rating-pill {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.05); /* Very subtle background */
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 50px;
+    padding: 3px 10px 3px 3px;
+    margin-right: 6px;
+    transition: all 0.2s ease;
+}
+
+    .rating-pill:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.2);
+    }
+
+/* The Circle containing the Initial */
+.rating-circle {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 800;
+    color: #1a1a1a; /* Dark text for contrast inside colored circle */
+    text-transform: uppercase;
+    margin-right: 8px; /* Space between circle and number */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* The Number Score */
+.rating-score {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--mud-palette-text-primary);
+}
+
+/* Special styling for "My" rating (du) */
+.rating-pill.mine {
+    background: rgba(var(--mud-palette-primary-rgb), 0.1);
+    border-color: rgba(var(--mud-palette-primary-rgb), 0.3);
+}
+
+.rating-chip.mine {
+    z-index: 2;
+    font-weight: 800;
+}
+
+.rating-chip:hover {
+    transform: scale(1.05);
+}
+
+/* The individual small circles */
+.mini-rating-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+    .mini-rating-avatar.mine {
+        font-size: 11px;
+        box-shadow: 0 0 0 2px var(--mud-palette-surface), 0 0 0 3px currentColor;
+        z-index: 2;
+        margin-right: 4px;
+    }
+
+/* The Main Average Star Badge */
+.rating-badge {
+    font-weight: 700;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: rgba(0,0,0,0.2);
+    backdrop-filter: blur(4px);
+}
+
+/* --- SKELETONS --- */
 .skeleton-card {
     background: var(--mud-palette-surface);
     border-radius: var(--card-radius, 12px);
@@ -19904,9 +19526,49 @@ FILE START: \StorhaugenWebsite\wwwroot\css\Food.css
         width: 40%;
     }
 
+@keyframes shimmer {
+    0% {
+        background-position: 200% 0;
+    }
+
+    100% {
+        background-position: -200% 0;
+    }
+}
+
 /* ==========================================================================
    7. FOOD DETAILS PAGE
    ========================================================================== */
+
+/* Group Chips */
+.group-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    border-radius: 20px;
+    background: transparent;
+    border: 1px solid var(--mud-palette-lines-default);
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    user-select: none;
+}
+
+    /* Active State */
+    .group-chip.active {
+        background: rgba(45, 90, 69, 0.15);
+        color: #2D5A45;
+        border-color: transparent;
+        font-weight: 600;
+    }
+/* Dark mode override */
+:root[theme="dark"] .group-chip.active {
+    background: rgba(93, 190, 138, 0.2);
+    color: #5DBE8A;
+}
 
 .detail-header {
     margin-bottom: 20px;
@@ -21379,13 +21041,13 @@ public class AggregatedRecipeDto
     public Guid? GlobalRecipeId { get; set; }
     public bool IsLinkedToGlobal => GlobalRecipeId.HasValue;
 
-    [Obsolete("Use MemberRatings instead.")]
-    public Dictionary<string, int?> HouseholdRatings { get; set; } = new();
-
     // Ratings from household members
-    public List<MemberRatingDto> MemberRatings { get; set; } = new();
+    public Dictionary<string, int?> HouseholdRatings { get; set; } = new();
     public double HouseholdAverageRating { get; set; }
     public int HouseholdRatingCount { get; set; }
+
+    // --- NEW: Explicit field for the requesting user's rating ---
+    public int? MyRating { get; set; }
 
     public DateTime CreatedAt { get; set; }
 }
@@ -21967,8 +21629,6 @@ public class UserRecipeDto
     public double AverageRating { get; set; }
     public int RatingCount { get; set; }
     public Dictionary<string, int?> HouseholdRatings { get; set; } = new();
-    public List<MemberRatingDto> MemberRatings { get; set; } = new();
-
 
     // Tags (personal organization)
     public List<TagReferenceDto> Tags { get; set; } = new();

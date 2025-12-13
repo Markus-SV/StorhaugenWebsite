@@ -31,6 +31,9 @@ public class AggregatedRecipeDto
     public double HouseholdAverageRating { get; set; }
     public int HouseholdRatingCount { get; set; }
 
+    // --- NEW: Explicit field for the requesting user's rating ---
+    public int? MyRating { get; set; }
+
     public DateTime CreatedAt { get; set; }
 }
 
