@@ -263,6 +263,9 @@ public class ApiClient : IApiClient
         if (query.HellofreshOnly)
             queryParams.Add("hellofreshOnly=true");
 
+        if (!string.IsNullOrWhiteSpace(query.HellofreshWeek))
+            queryParams.Add($"hellofreshWeek={Uri.EscapeDataString(query.HellofreshWeek)}");
+
         queryParams.Add($"sortBy={Uri.EscapeDataString(query.SortBy)}");
         queryParams.Add($"page={query.Page}");
         queryParams.Add($"pageSize={query.PageSize}");
@@ -687,5 +690,26 @@ public class ApiClient : IApiClient
     {
         // Calls your own backend, which proxies to HelloFresh
         return await _httpClient.GetFromJsonAsync<HelloFreshRawResponse>("/api/hellofresh/test-proxy", _jsonOptions);
+    }
+
+    // HelloFresh sync methods
+    public async Task<HelloFreshSyncResult> TriggerHelloFreshSyncAsync(bool force = false)
+    {
+        var url = force ? "/api/hellofresh/sync?force=true" : "/api/hellofresh/sync";
+        var response = await _httpClient.PostAsync(url, null);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<HelloFreshSyncResult>(_jsonOptions))
+            ?? new HelloFreshSyncResult { Message = "Unknown result" };
+    }
+
+    public async Task<HelloFreshSyncStatus?> GetHelloFreshSyncStatusAsync()
+    {
+        return await _httpClient.GetFromJsonAsync<HelloFreshSyncStatus>("/api/hellofresh/sync-status", _jsonOptions);
+    }
+
+    public async Task<List<string>> GetAvailableHelloFreshWeeksAsync()
+    {
+        return (await _httpClient.GetFromJsonAsync<List<string>>("/api/hellofresh/weeks", _jsonOptions))
+            ?? new List<string>();
     }
 }

@@ -53,6 +53,9 @@ builder.Services.AddScoped<IUserRecipeService, UserRecipeService>();
 builder.Services.AddScoped<IUserFriendshipService, UserFriendshipService>();
 builder.Services.AddScoped<IActivityFeedService, ActivityFeedService>();
 
+// HelloFresh sync service (triggers background sync on login)
+builder.Services.AddScoped<IHelloFreshSyncService, HelloFreshSyncService>();
+
 var host = builder.Build();
 var authService = host.Services.GetRequiredService<IAuthService>();
 await authService.InitializeAsync();

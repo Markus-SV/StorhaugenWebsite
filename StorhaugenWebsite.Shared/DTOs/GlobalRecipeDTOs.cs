@@ -21,6 +21,7 @@ public class GlobalRecipeDto
     public bool IsHellofresh { get; set; }
     public string? HellofreshUuid { get; set; }
     public string? HellofreshSlug { get; set; }
+    public string? HellofreshWeek { get; set; }
 
     // User-created
     public Guid? CreatedByUserId { get; set; }
@@ -58,6 +59,7 @@ public class BrowseGlobalRecipesQuery
     public int? MaxPrepTime { get; set; }
     public List<string>? Tags { get; set; }
     public bool HellofreshOnly { get; set; } = false;
+    public string? HellofreshWeek { get; set; } // e.g., "2026-W02" for filtering by week
     public string SortBy { get; set; } = "popular"; // popular, newest, rating, name
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 20;

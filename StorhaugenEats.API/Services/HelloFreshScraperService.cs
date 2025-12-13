@@ -162,8 +162,8 @@ public class HelloFreshScraperService : IHelloFreshScraperService
         {
             try
             {
-                // Extract recipe data
-                var recipe = await ParseHelloFreshRecipeAsync(course);
+                // Extract recipe data with week info
+                var recipe = await ParseHelloFreshRecipeAsync(course, week);
 
                 if (recipe != null)
                 {
@@ -179,7 +179,7 @@ public class HelloFreshScraperService : IHelloFreshScraperService
         return recipes;
     }
 
-    private async Task<GlobalRecipe?> ParseHelloFreshRecipeAsync(JsonElement course)
+    private async Task<GlobalRecipe?> ParseHelloFreshRecipeAsync(JsonElement course, string week)
     {
         try
         {
@@ -346,6 +346,64 @@ public class HelloFreshScraperService : IHelloFreshScraperService
                 };
             }
 
+            // Extract slug
+            string? slug = null;
+            if (recipeElement.TryGetProperty("slug", out var slugElement))
+            {
+                slug = slugElement.GetString();
+            }
+
+            // Extract tags from HelloFresh
+            var tags = new List<string>();
+            if (recipeElement.TryGetProperty("tags", out var tagsElement) && tagsElement.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var tagItem in tagsElement.EnumerateArray())
+                {
+                    if (tagItem.TryGetProperty("name", out var tagName))
+                    {
+                        var tagStr = tagName.GetString();
+                        if (!string.IsNullOrEmpty(tagStr))
+                            tags.Add(tagStr);
+                    }
+                }
+            }
+
+            // Extract cuisine
+            string? cuisine = null;
+            if (recipeElement.TryGetProperty("cuisines", out var cuisinesElement) && cuisinesElement.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var cuisineItem in cuisinesElement.EnumerateArray())
+                {
+                    if (cuisineItem.TryGetProperty("name", out var cuisineName))
+                    {
+                        cuisine = cuisineName.GetString();
+                        break; // Take first cuisine
+                    }
+                }
+            }
+
+            // Extract total time
+            int? totalTime = null;
+            if (recipeElement.TryGetProperty("totalTime", out var totalTimeElement))
+            {
+                if (totalTimeElement.ValueKind == JsonValueKind.Number)
+                {
+                    totalTime = totalTimeElement.GetInt32();
+                }
+                else if (totalTimeElement.ValueKind == JsonValueKind.String)
+                {
+                    var timeStr = totalTimeElement.GetString();
+                    if (!string.IsNullOrEmpty(timeStr))
+                    {
+                        var match = Regex.Match(timeStr, @"\d+");
+                        if (match.Success && int.TryParse(match.Value, out var parsedTime))
+                        {
+                            totalTime = parsedTime;
+                        }
+                    }
+                }
+            }
+
             return new GlobalRecipe
             {
                 Id = Guid.NewGuid(),
@@ -355,9 +413,15 @@ public class HelloFreshScraperService : IHelloFreshScraperService
                 Ingredients = JsonSerializer.Serialize(ingredients),
                 NutritionData = nutritionData != null ? JsonSerializer.Serialize(nutritionData) : null,
                 CookTimeMinutes = cookTime,
+                PrepTimeMinutes = cookTime, // prepTime maps to both for HelloFresh
+                TotalTimeMinutes = totalTime,
                 Difficulty = difficulty,
                 IsHellofresh = true,
                 HellofreshUuid = uuid,
+                HellofreshSlug = slug,
+                HellofreshWeek = week,
+                Tags = JsonSerializer.Serialize(tags),
+                Cuisine = cuisine,
                 IsPublic = false,
                 CreatedByUserId = null
             };

@@ -112,4 +112,19 @@ public class HelloFreshController : ControllerBase
             return StatusCode(500, new { message = "Failed to get build ID", error = ex.Message });
         }
     }
+
+    [HttpGet("weeks")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetAvailableWeeks()
+    {
+        // Get distinct weeks from HelloFresh recipes, ordered descending (newest first)
+        var weeks = await _context.GlobalRecipes
+            .Where(gr => gr.IsHellofresh && gr.HellofreshWeek != null)
+            .Select(gr => gr.HellofreshWeek!)
+            .Distinct()
+            .OrderByDescending(w => w)
+            .ToListAsync();
+
+        return Ok(weeks);
+    }
 }

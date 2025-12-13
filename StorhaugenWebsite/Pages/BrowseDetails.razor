@@ -2,6 +2,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using StorhaugenWebsite.ApiClient
 @using StorhaugenWebsite.Shared.DTOs
+@using StorhaugenWebsite.Components
 @inject IApiClient ApiClient
 @inject IFoodService FoodService
 @inject NavigationManager Navigation
@@ -81,6 +82,14 @@ else
         @if (!string.IsNullOrEmpty(_recipe.Description))
         {
             <p class="detail-description mt-4">@_recipe.Description</p>
+        }
+
+        @* --- HelloFresh Recipe Details --- *@
+        @if (_recipe.IsHellofresh)
+        {
+            <div class="mt-6">
+                <HelloFreshRecipeDetails Recipe="_recipe" />
+            </div>
         }
 
         <div class="action-buttons mt-6">

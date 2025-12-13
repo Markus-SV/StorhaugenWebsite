@@ -1,0 +1,463 @@
+@using StorhaugenWebsite.Shared.DTOs
+@using System.Text.Json
+
+<div class="hf-recipe-details">
+    @* --- Quick Info Cards --- *@
+    <div class="hf-quick-info">
+        @if (Recipe.PrepTimeMinutes.HasValue)
+        {
+            <div class="hf-info-card">
+                <MudIcon Icon="@Icons.Material.Rounded.AccessTime" Size="Size.Small" Color="Color.Primary" />
+                <div class="hf-info-content">
+                    <span class="hf-info-label">Tilberedningstid</span>
+                    <span class="hf-info-value">@Recipe.PrepTimeMinutes min</span>
+                </div>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(Recipe.Difficulty))
+        {
+            <div class="hf-info-card">
+                <MudIcon Icon="@GetDifficultyIcon(Recipe.Difficulty)" Size="Size.Small" Color="Color.Secondary" />
+                <div class="hf-info-content">
+                    <span class="hf-info-label">Vanskelighetsgrad</span>
+                    <span class="hf-info-value">@GetDifficultyLabel(Recipe.Difficulty)</span>
+                </div>
+            </div>
+        }
+
+        @if (Recipe.Servings.HasValue)
+        {
+            <div class="hf-info-card">
+                <MudIcon Icon="@Icons.Material.Rounded.Group" Size="Size.Small" Color="Color.Tertiary" />
+                <div class="hf-info-content">
+                    <span class="hf-info-label">Porsjoner</span>
+                    <span class="hf-info-value">@Recipe.Servings</span>
+                </div>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(Recipe.Cuisine))
+        {
+            <div class="hf-info-card">
+                <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small" Color="Color.Info" />
+                <div class="hf-info-content">
+                    <span class="hf-info-label">Kjokken</span>
+                    <span class="hf-info-value">@Recipe.Cuisine</span>
+                </div>
+            </div>
+        }
+    </div>
+
+    @* --- Tags --- *@
+    @if (Recipe.Tags != null && Recipe.Tags.Any())
+    {
+        <div class="hf-section">
+            <h3 class="hf-section-title">
+                <MudIcon Icon="@Icons.Material.Rounded.LocalOffer" Size="Size.Small" />
+                Merkelapper
+            </h3>
+            <div class="d-flex flex-wrap gap-2">
+                @foreach (var tag in Recipe.Tags)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="GetTagColor(tag)" Variant="Variant.Outlined">
+                        @tag
+                    </MudChip>
+                }
+            </div>
+        </div>
+    }
+
+    @* --- Nutrition Info --- *@
+    @if (NutritionItems.Any())
+    {
+        <div class="hf-section">
+            <h3 class="hf-section-title">
+                <MudIcon Icon="@Icons.Material.Rounded.LocalFireDepartment" Size="Size.Small" />
+                Naeringsinformasjon
+            </h3>
+            <div class="hf-nutrition-grid">
+                @foreach (var item in NutritionItems)
+                {
+                    <div class="hf-nutrition-item">
+                        <span class="hf-nutrition-value">@item.Amount</span>
+                        <span class="hf-nutrition-label">@item.Name</span>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    @* --- Ingredients --- *@
+    @if (Ingredients.Any())
+    {
+        <div class="hf-section">
+            <h3 class="hf-section-title">
+                <MudIcon Icon="@Icons.Material.Rounded.ShoppingCart" Size="Size.Small" />
+                Ingredienser
+            </h3>
+            <div class="hf-ingredients-list">
+                @foreach (var ingredient in Ingredients)
+                {
+                    <div class="hf-ingredient-item">
+                        @if (!string.IsNullOrEmpty(ingredient.Image))
+                        {
+                            <img src="@GetIngredientImageUrl(ingredient.Image)" alt="@ingredient.Name" class="hf-ingredient-image" />
+                        }
+                        else
+                        {
+                            <div class="hf-ingredient-placeholder">
+                                <MudIcon Icon="@Icons.Material.Rounded.Egg" Size="Size.Small" />
+                            </div>
+                        }
+                        <div class="hf-ingredient-info">
+                            <span class="hf-ingredient-name">@ingredient.Name</span>
+                            @if (!string.IsNullOrEmpty(ingredient.Amount) || !string.IsNullOrEmpty(ingredient.Unit))
+                            {
+                                <span class="hf-ingredient-amount">@ingredient.Amount @ingredient.Unit</span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    @* --- HelloFresh Attribution --- *@
+    <div class="hf-attribution">
+        <MudIcon Icon="@Icons.Material.Rounded.LocalDining" Size="Size.Small" />
+        <span>Oppskrift fra HelloFresh</span>
+        @if (!string.IsNullOrEmpty(Recipe.HellofreshWeek))
+        {
+            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">
+                @GetWeekDisplayText(Recipe.HellofreshWeek)
+            </MudChip>
+        }
+    </div>
+</div>
+
+<style>
+    .hf-recipe-details {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .hf-quick-info {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+
+    .hf-info-card {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        background: var(--mud-palette-surface);
+        border-radius: 12px;
+        border: 1px solid var(--mud-palette-lines-default);
+    }
+
+    .hf-info-content {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .hf-info-label {
+        font-size: 0.75rem;
+        color: var(--mud-palette-text-secondary);
+    }
+
+    .hf-info-value {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--mud-palette-text-primary);
+    }
+
+    .hf-section {
+        background: var(--mud-palette-surface);
+        border-radius: 16px;
+        padding: 16px;
+        border: 1px solid var(--mud-palette-lines-default);
+    }
+
+    .hf-section-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 1rem;
+        font-weight: 600;
+        margin-bottom: 12px;
+        color: var(--mud-palette-text-primary);
+    }
+
+    .hf-nutrition-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+    }
+
+    .hf-nutrition-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 8px;
+        background: var(--mud-palette-background-grey);
+        border-radius: 8px;
+        text-align: center;
+    }
+
+    .hf-nutrition-value {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: var(--mud-palette-primary);
+    }
+
+    .hf-nutrition-label {
+        font-size: 0.65rem;
+        color: var(--mud-palette-text-secondary);
+        text-transform: uppercase;
+        margin-top: 2px;
+    }
+
+    .hf-ingredients-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .hf-ingredient-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px;
+        background: var(--mud-palette-background-grey);
+        border-radius: 8px;
+    }
+
+    .hf-ingredient-image {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        object-fit: cover;
+        background: white;
+    }
+
+    .hf-ingredient-placeholder {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        background: var(--mud-palette-divider);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--mud-palette-text-disabled);
+    }
+
+    .hf-ingredient-info {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .hf-ingredient-name {
+        font-weight: 500;
+        color: var(--mud-palette-text-primary);
+    }
+
+    .hf-ingredient-amount {
+        font-size: 0.8rem;
+        color: var(--mud-palette-text-secondary);
+    }
+
+    .hf-attribution {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px;
+        background: rgba(var(--mud-palette-primary-rgb), 0.05);
+        border-radius: 12px;
+        color: var(--mud-palette-primary);
+        font-size: 0.9rem;
+    }
+
+    @@media (max-width: 600px) {
+        .hf-quick-info {
+            grid-template-columns: 1fr;
+        }
+
+        .hf-nutrition-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>
+
+@code {
+    [Parameter, EditorRequired]
+    public GlobalRecipeDto Recipe { get; set; } = default!;
+
+    private record IngredientInfo(string Name, string? Amount, string? Unit, string? Image);
+    private record NutritionInfo(string Name, string Amount);
+
+    private List<IngredientInfo> Ingredients { get; set; } = new();
+    private List<NutritionInfo> NutritionItems { get; set; } = new();
+
+    protected override void OnParametersSet()
+    {
+        ParseIngredients();
+        ParseNutrition();
+    }
+
+    private void ParseIngredients()
+    {
+        Ingredients.Clear();
+
+        if (Recipe.Ingredients == null) return;
+
+        try
+        {
+            if (Recipe.Ingredients is JsonElement jsonElement)
+            {
+                if (jsonElement.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in jsonElement.EnumerateArray())
+                    {
+                        var name = item.TryGetProperty("name", out var n) ? n.GetString() : "";
+                        var amount = item.TryGetProperty("amount", out var a) ? a.ToString() : null;
+                        var unit = item.TryGetProperty("unit", out var u) ? u.GetString() : null;
+                        var image = item.TryGetProperty("image", out var i) ? i.GetString() : null;
+
+                        if (!string.IsNullOrEmpty(name))
+                        {
+                            Ingredients.Add(new IngredientInfo(name!, amount, unit, image));
+                        }
+                    }
+                }
+            }
+            else if (Recipe.Ingredients is IEnumerable<object> list)
+            {
+                foreach (var item in list)
+                {
+                    var json = JsonSerializer.Serialize(item);
+                    var element = JsonDocument.Parse(json).RootElement;
+
+                    var name = element.TryGetProperty("name", out var n) ? n.GetString() : "";
+                    var amount = element.TryGetProperty("amount", out var a) ? a.ToString() : null;
+                    var unit = element.TryGetProperty("unit", out var u) ? u.GetString() : null;
+                    var image = element.TryGetProperty("image", out var i) ? i.GetString() : null;
+
+                    if (!string.IsNullOrEmpty(name))
+                    {
+                        Ingredients.Add(new IngredientInfo(name!, amount, unit, image));
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error parsing ingredients: {ex.Message}");
+        }
+    }
+
+    private void ParseNutrition()
+    {
+        NutritionItems.Clear();
+
+        if (Recipe.NutritionData == null) return;
+
+        try
+        {
+            if (Recipe.NutritionData is JsonElement jsonElement)
+            {
+                if (jsonElement.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var prop in jsonElement.EnumerateObject())
+                    {
+                        var amount = prop.Value.ToString();
+                        var name = GetNutritionDisplayName(prop.Name);
+                        NutritionItems.Add(new NutritionInfo(name, amount));
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error parsing nutrition: {ex.Message}");
+        }
+    }
+
+    private string GetNutritionDisplayName(string key)
+    {
+        return key.ToLower() switch
+        {
+            "kalorier" => "kcal",
+            "energi (kj)" => "kJ",
+            "fett" => "Fett",
+            "mettet fett" => "M. fett",
+            "karbohydrater" => "Karb.",
+            "sukker" => "Sukker",
+            "protein" => "Protein",
+            "natrium" => "Natrium",
+            _ => key.Length > 8 ? key.Substring(0, 6) + ".." : key
+        };
+    }
+
+    private string GetIngredientImageUrl(string imagePath)
+    {
+        if (string.IsNullOrEmpty(imagePath)) return "";
+        if (imagePath.StartsWith("http")) return imagePath;
+        return $"https://d3hvwccx09j84u.cloudfront.net/0,0{imagePath}";
+    }
+
+    private string GetDifficultyIcon(string difficulty)
+    {
+        return difficulty?.ToLower() switch
+        {
+            "easy" or "lett" => Icons.Material.Rounded.SentimentSatisfied,
+            "medium" or "middels" => Icons.Material.Rounded.Psychology,
+            "hard" or "vanskelig" => Icons.Material.Rounded.LocalFireDepartment,
+            _ => Icons.Material.Rounded.HelpOutline
+        };
+    }
+
+    private string GetDifficultyLabel(string difficulty)
+    {
+        return difficulty?.ToLower() switch
+        {
+            "easy" => "Lett",
+            "medium" => "Middels",
+            "hard" => "Vanskelig",
+            _ => difficulty ?? ""
+        };
+    }
+
+    private Color GetTagColor(string tag)
+    {
+        var tagLower = tag.ToLower();
+        if (tagLower.Contains("rask") || tagLower.Contains("quick")) return Color.Success;
+        if (tagLower.Contains("barnevennlig") || tagLower.Contains("family") || tagLower.Contains("child")) return Color.Info;
+        if (tagLower.Contains("vegetar")) return Color.Tertiary;
+        if (tagLower.Contains("comfort")) return Color.Warning;
+        return Color.Default;
+    }
+
+    private string GetWeekDisplayText(string week)
+    {
+        // Convert "2026-W02" to "Uke 2, 2026"
+        if (string.IsNullOrEmpty(week)) return "";
+
+        try
+        {
+            var parts = week.Split("-W");
+            if (parts.Length == 2)
+            {
+                var year = parts[0];
+                var weekNum = int.Parse(parts[1]);
+                return $"Uke {weekNum}, {year}";
+            }
+        }
+        catch { }
+
+        return week;
+    }
+}

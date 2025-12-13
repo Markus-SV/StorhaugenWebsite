@@ -37,6 +37,12 @@ public class GlobalRecipesController : ControllerBase
             queryable = queryable.Where(gr => gr.IsHellofresh);
         }
 
+        // Filter: HelloFresh week
+        if (!string.IsNullOrWhiteSpace(query.HellofreshWeek))
+        {
+            queryable = queryable.Where(gr => gr.HellofreshWeek == query.HellofreshWeek);
+        }
+
         // Filter: Search by name or description
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
@@ -383,6 +389,7 @@ public class GlobalRecipesController : ControllerBase
             IsHellofresh = recipe.IsHellofresh,
             HellofreshUuid = recipe.HellofreshUuid,
             HellofreshSlug = recipe.HellofreshSlug,
+            HellofreshWeek = recipe.HellofreshWeek,
             CreatedByUserId = recipe.CreatedByUserId,
             CreatedByUserName = recipe.CreatedByUser?.DisplayName,
             AverageRating = (double)recipe.AverageRating,

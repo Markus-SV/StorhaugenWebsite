@@ -77,6 +77,13 @@ public class GlobalRecipe
     [MaxLength(255)]
     public string? HellofreshSlug { get; set; }
 
+    /// <summary>
+    /// The week this HelloFresh recipe was available (e.g., "2026-W02")
+    /// </summary>
+    [Column("hellofresh_week")]
+    [MaxLength(20)]
+    public string? HellofreshWeek { get; set; }
+
     [Column("total_ratings")]
     public int TotalRatings { get; set; } = 0;
 

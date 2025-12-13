@@ -100,7 +100,10 @@ public interface IApiClient
     // Ratings
     Task<List<UserRatingDto>> GetUserRatingsAsync(Guid userId, int skip = 0, int take = 50);
 
-    //hellofresh
+    // HelloFresh
     Task<HelloFreshRawResponse?> GetHelloFreshTestRawAsync();
+    Task<HelloFreshSyncResult> TriggerHelloFreshSyncAsync(bool force = false);
+    Task<HelloFreshSyncStatus?> GetHelloFreshSyncStatusAsync();
+    Task<List<string>> GetAvailableHelloFreshWeeksAsync();
 }
 

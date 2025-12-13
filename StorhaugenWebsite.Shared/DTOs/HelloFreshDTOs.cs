@@ -35,3 +35,22 @@ public class HfIngredient
     public string Name { get; set; }
     public string ImagePath { get; set; }
 }
+
+public class HelloFreshSyncResult
+{
+    public string Message { get; set; } = string.Empty;
+    public int RecipesAdded { get; set; }
+    public int RecipesUpdated { get; set; }
+}
+
+public class HelloFreshSyncStatus
+{
+    public DateTime? LastSync { get; set; }
+    public string? Status { get; set; }
+    public int RecipesAdded { get; set; }
+    public int RecipesUpdated { get; set; }
+    public string? BuildId { get; set; }
+    public string? WeeksSynced { get; set; }
+    public string? ErrorMessage { get; set; }
+    public string? Message { get; set; }
+}

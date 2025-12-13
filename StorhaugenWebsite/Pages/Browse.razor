@@ -50,6 +50,46 @@
             </button>
         </div>
     </div>
+
+    @* --- Week Selector for HelloFresh --- *@
+    @if (_sourceMode == "hellofresh")
+    {
+        <div class="week-selector mt-3">
+            <div class="d-flex align-center gap-2 flex-wrap">
+                <MudIconButton Icon="@Icons.Material.Rounded.ChevronLeft"
+                               Size="Size.Small"
+                               OnClick="PreviousWeek"
+                               Disabled="_weekOffset <= -4" />
+
+                @foreach (var weekOption in GetWeekOptions())
+                {
+                    <MudChip T="string"
+                             Size="Size.Small"
+                             Color="@(GetSelectedWeek() == weekOption.Week ? Color.Secondary : Color.Default)"
+                             Variant="@(GetSelectedWeek() == weekOption.Week ? Variant.Filled : Variant.Outlined)"
+                             OnClick="@(() => SelectWeek(weekOption.Week))">
+                        @weekOption.Label
+                    </MudChip>
+                }
+
+                <MudIconButton Icon="@Icons.Material.Rounded.ChevronRight"
+                               Size="Size.Small"
+                               OnClick="NextWeek"
+                               Disabled="_weekOffset >= 4" />
+
+                @if (!string.IsNullOrEmpty(_selectedWeek))
+                {
+                    <MudChip T="string"
+                             Size="Size.Small"
+                             Color="Color.Default"
+                             OnClick="ClearWeekFilter"
+                             OnClose="ClearWeekFilter">
+                        Vis alle
+                    </MudChip>
+                }
+            </div>
+        </div>
+    }
 </div>
 
 @* --- Content --- *@
@@ -374,6 +414,14 @@ else
             background-position: -200% 0;
         }
     }
+
+    /* Week Selector */
+    .week-selector {
+        background: var(--mud-palette-surface);
+        padding: 12px;
+        border-radius: 12px;
+        border: 1px solid var(--mud-palette-lines-default);
+    }
 </style>
 
 @code {
@@ -385,6 +433,10 @@ else
     private int _currentPage = 1;
     private int _pageSize = 20;
     private int _totalPages = 0;
+
+    // HelloFresh week selection
+    private string? _selectedWeek;
+    private int _weekOffset = 0; // 0 = current week, -1 = last week, 1 = next week
 
     protected override async Task OnInitializedAsync()
     {
@@ -400,7 +452,93 @@ else
         if (_sourceMode == mode) return;
         _sourceMode = mode;
         _currentPage = 1;
+        _selectedWeek = null; // Reset week filter when switching modes
+        _weekOffset = 0;
         await LoadRecipes();
+    }
+
+    // Week selector methods
+    private record WeekOption(string Week, string Label);
+
+    private List<WeekOption> GetWeekOptions()
+    {
+        var options = new List<WeekOption>();
+        var baseDate = DateTime.UtcNow.AddDays(_weekOffset * 7);
+
+        // Show 3 weeks: previous, current relative to offset, next
+        for (int i = -1; i <= 1; i++)
+        {
+            var targetDate = baseDate.AddDays(i * 7);
+            var week = GetIsoWeekString(targetDate);
+            var label = GetWeekLabel(i + _weekOffset);
+            options.Add(new WeekOption(week, label));
+        }
+
+        return options;
+    }
+
+    private string GetWeekLabel(int offsetFromCurrent)
+    {
+        return offsetFromCurrent switch
+        {
+            -2 => "2 uker siden",
+            -1 => "Forrige uke",
+            0 => "Denne uken",
+            1 => "Neste uke",
+            2 => "Om 2 uker",
+            _ => offsetFromCurrent < 0 ? $"{Math.Abs(offsetFromCurrent)} uker siden" : $"Om {offsetFromCurrent} uker"
+        };
+    }
+
+    private string GetIsoWeekString(DateTime date)
+    {
+        var culture = System.Globalization.CultureInfo.CurrentCulture;
+        var calendar = culture.Calendar;
+        var weekNumber = calendar.GetWeekOfYear(
+            date,
+            System.Globalization.CalendarWeekRule.FirstFourDayWeek,
+            DayOfWeek.Monday
+        );
+        return $"{date.Year}-W{weekNumber:D2}";
+    }
+
+    private string? GetSelectedWeek() => _selectedWeek;
+
+    private async Task SelectWeek(string week)
+    {
+        if (_selectedWeek == week)
+        {
+            _selectedWeek = null; // Toggle off
+        }
+        else
+        {
+            _selectedWeek = week;
+        }
+        _currentPage = 1;
+        await LoadRecipes();
+    }
+
+    private async Task ClearWeekFilter()
+    {
+        _selectedWeek = null;
+        _currentPage = 1;
+        await LoadRecipes();
+    }
+
+    private void PreviousWeek()
+    {
+        if (_weekOffset > -4)
+        {
+            _weekOffset--;
+        }
+    }
+
+    private void NextWeek()
+    {
+        if (_weekOffset < 4)
+        {
+            _weekOffset++;
+        }
     }
 
     private async Task SetViewMode(string mode)
@@ -421,7 +559,9 @@ else
                 Page = _currentPage,
                 PageSize = _pageSize,
                 // Community mode now uses the Global Recipe endpoint too
-                HellofreshOnly = _sourceMode == "hellofresh"
+                HellofreshOnly = _sourceMode == "hellofresh",
+                // Add week filter for HelloFresh
+                HellofreshWeek = _sourceMode == "hellofresh" ? _selectedWeek : null
             };
 
             var result = await ApiClient.BrowseGlobalRecipesAsync(query);

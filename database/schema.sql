@@ -55,7 +55,16 @@ CREATE TABLE global_recipes (
     -- Source tracking
     is_hellofresh BOOLEAN DEFAULT FALSE,
     hellofresh_uuid VARCHAR(255) UNIQUE, -- Original HelloFresh ID
+    hellofresh_slug VARCHAR(255), -- URL slug from HelloFresh
+    hellofresh_week VARCHAR(20), -- Week the recipe was available (e.g., "2026-W02")
     created_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL, -- NULL if HelloFresh
+
+    -- Additional metadata
+    tags JSONB DEFAULT '[]', -- Tags like "Barnevennlig", "Rask", etc.
+    cuisine VARCHAR(100), -- e.g., "Fusion", "Asiatiske"
+    servings INTEGER,
+    prep_time_minutes INTEGER,
+    total_time_minutes INTEGER,
 
     -- Visibility
     is_public BOOLEAN DEFAULT FALSE, -- Only relevant for user-created items
@@ -73,6 +82,7 @@ CREATE INDEX idx_global_recipes_hellofresh ON global_recipes(is_hellofresh) WHER
 CREATE INDEX idx_global_recipes_public ON global_recipes(is_public) WHERE is_public = TRUE;
 CREATE INDEX idx_global_recipes_rating ON global_recipes(average_rating DESC);
 CREATE INDEX idx_global_recipes_hellofresh_uuid ON global_recipes(hellofresh_uuid);
+CREATE INDEX idx_global_recipes_hellofresh_week ON global_recipes(hellofresh_week) WHERE hellofresh_week IS NOT NULL;
 
 -- ============================================
 -- TABLE: household_recipes

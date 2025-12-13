@@ -1,5 +1,6 @@
 ﻿@inherits LayoutComponentBase
 @inject IAuthService AuthService
+@inject IHelloFreshSyncService HelloFreshSyncService
 @inject NavigationManager Navigation
 @using StorhaugenWebsite.Shared
 @using StorhaugenWebsite.Components
@@ -74,8 +75,37 @@
 @code {
     protected override void OnInitialized()
     {
-        AuthService.OnAuthStateChanged += StateHasChanged;
+        AuthService.OnAuthStateChanged += OnAuthStateChanged;
         Navigation.LocationChanged += OnLocationChanged;
+
+        // If already authenticated, trigger sync check
+        if (AuthService.IsAuthorized)
+        {
+            _ = TriggerHelloFreshSyncAsync();
+        }
+    }
+
+    private void OnAuthStateChanged()
+    {
+        StateHasChanged();
+
+        // Trigger HelloFresh sync when user becomes authenticated
+        if (AuthService.IsAuthorized)
+        {
+            _ = TriggerHelloFreshSyncAsync();
+        }
+    }
+
+    private async Task TriggerHelloFreshSyncAsync()
+    {
+        try
+        {
+            await HelloFreshSyncService.TryTriggerSyncAsync();
+        }
+        catch
+        {
+            // Silently ignore errors - this is a background operation
+        }
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
@@ -116,7 +146,7 @@
 
     public void Dispose()
     {
-        AuthService.OnAuthStateChanged -= StateHasChanged;
+        AuthService.OnAuthStateChanged -= OnAuthStateChanged;
         Navigation.LocationChanged -= OnLocationChanged;
     }
 }
