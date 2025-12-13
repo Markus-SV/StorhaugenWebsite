@@ -11,7 +11,7 @@
         <div class="d-flex flex-column gap-3">
             @for (int i = 0; i < 5; i++)
             {
-                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="80px" />
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="80px" Class="rounded-xl" />
             }
         </div>
     }
@@ -33,46 +33,53 @@
         <div class="d-flex flex-column gap-3">
             @foreach (var item in _feedItems)
             {
-                <MudPaper Class="pa-3 activity-card" Elevation="1" @onclick="() => NavigateToRecipe(item)">
-                    <div class="d-flex gap-3">
-                        <MudAvatar Color="@GetActivityColor(item.ActivityType)" Size="Size.Medium">
-                            @(item.UserDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
-                        </MudAvatar>
-                        <div class="flex-grow-1">
-                            <div class="d-flex align-center gap-2">
-                                <MudText Typo="Typo.body1" Class="font-weight-medium">
-                                    @item.UserDisplayName
-                                </MudText>
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                    @GetTimeAgo(item.CreatedAt)
-                                </MudText>
-                            </div>
-                            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">
-                                @GetActivityDescription(item)
-                            </MudText>
-                            @if (!string.IsNullOrEmpty(item.RecipeName))
-                            {
-                                <div class="d-flex align-center gap-2 mt-2">
-                                    <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small" Color="Color.Default" />
-                                    <MudText Typo="Typo.body2" Class="font-weight-medium">@item.RecipeName</MudText>
-                                    @if (item.RatingScore.HasValue)
-                                    {
-                                        <MudChip T="string" Size="Size.Small" Color="@GetRatingColor(item.RatingScore.Value)">
-                                            @item.RatingScore.Value/10
-                                        </MudChip>
-                                    }
-                                </div>
-                            }
+                <MudPaper Class="activity-card" Elevation="0" @onclick="() => NavigateToRecipe(item)">
+
+                    @* --- 1. Background Image Layer (Absolute) --- *@
+                    @if (!string.IsNullOrEmpty(item.RecipeImageUrl))
+                    {
+                        <div class="activity-image-layer">
+                            <img src="@item.RecipeImageUrl" alt="@item.RecipeName" loading="lazy" />
                         </div>
-                        @if (!string.IsNullOrEmpty(item.RecipeImageUrl))
-                        {
-                            <MudImage Src="@item.RecipeImageUrl"
-                                     Alt="@item.RecipeName"
-                                     Width="60"
-                                     Height="60"
-                                     ObjectFit="ObjectFit.Cover"
-                                     Class="rounded" />
-                        }
+                    }
+
+                    @* --- 2. Content Layer (Relative) --- *@
+                    <div class="activity-content-layer">
+                        <div class="d-flex gap-3 align-start">
+                            @* Avatar (Left) *@
+                            <MudAvatar Color="@GetActivityColor(item.ActivityType)" Size="Size.Medium" Variant="Variant.Filled" Class="flex-shrink-0">
+                                @(item.UserDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                            </MudAvatar>
+
+                            @* Text (Fills remaining space) *@
+                            <div class="activity-text-container">
+                                <div class="d-flex align-center gap-2 flex-wrap mb-0">
+                                    <MudText Typo="Typo.body2" Class="font-weight-bold user-name-text">
+                                        @item.UserDisplayName
+                                    </MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="time-text">
+                                        @GetTimeAgo(item.CreatedAt)
+                                    </MudText>
+                                </div>
+
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="action-text mb-1 d-block">
+                                    @GetActivityDescription(item)
+                                </MudText>
+
+                            </div>
+                        </div>
+                                @if (!string.IsNullOrEmpty(item.RecipeName))
+                                {
+                                    <div class="recipe-row">
+                                        <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small" Class="recipe-icon" />
+                                        <span class="recipe-name text-truncate">@item.RecipeName</span>
+                                        @if (item.RatingScore.HasValue)
+                                        {
+                                            <span class="rating-dot" style="background-color: @GetRatingColorHex(item.RatingScore.Value)"></span>
+                                            <span class="rating-val">@item.RatingScore.Value</span>
+                                        }
+                                    </div>
+                                }
                     </div>
                 </MudPaper>
             }
@@ -81,10 +88,7 @@
         @if (_hasMorePages)
         {
             <div class="d-flex justify-center mt-4">
-                <MudButton Variant="Variant.Outlined"
-                          Color="Color.Primary"
-                          OnClick="LoadMore"
-                          Disabled="_isLoadingMore">
+                <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="LoadMore" Disabled="_isLoadingMore">
                     @if (_isLoadingMore)
                     {
                         <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
@@ -98,12 +102,109 @@
 
 <style>
     .activity-card {
+        position: relative;
+        background: var(--mud-palette-surface);
+        border: 1px solid var(--mud-palette-divider);
+        border-radius: 20px;
+        overflow: hidden; /* Clips the image */
         cursor: pointer;
         transition: transform 0.2s, box-shadow 0.2s;
+        min-height: 84px;
     }
-    .activity-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+
+        .activity-card:active {
+            transform: scale(0.98);
+            background: var(--mud-palette-background-grey);
+        }
+
+    /* --- Image Layer ---
+           Positioned absolutely to the right, sitting behind content */
+    .activity-image-layer {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 55%; /* Covers ~half the card */
+        z-index: 1;
+        pointer-events: none;
+        /* The Mask: Fades from Opaque (Right) to Transparent (Left) */
+        -webkit-mask-image: linear-gradient(to left, rgba(0,0,0,1) 20%, rgba(0,0,0,0) 100%);
+        mask-image: linear-gradient(to left, rgba(0,0,0,1) 20%, rgba(0,0,0,0) 100%);
+    }
+
+        .activity-image-layer img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+    /* --- Content Layer ---
+           Sits on top of image, background transparent */
+    .activity-content-layer {
+        position: relative;
+        z-index: 2;
+        padding: 14px 16px;
+    }
+
+    .activity-text-container {
+        flex: 1;
+        min-width: 0; /* Enables text-truncate inside flex */
+        padding-right: 20px; /* Space so text doesn't hit right edge hard */
+        text-shadow: 0 1px 4px rgba(var(--mud-palette-surface-rgb), 0.8); /* Optional: makes text readable over image */
+    }
+
+    .user-name-text {
+        font-size: 0.95rem;
+        line-height: 1.2;
+    }
+
+    .time-text {
+        font-size: 0.75rem;
+        opacity: 0.8;
+    }
+
+    .action-text {
+        font-size: 0.8rem;
+        line-height: 1.2;
+    }
+
+    .recipe-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 8px;
+        color: var(--mud-palette-text-primary);
+    }
+
+    .recipe-icon {
+        font-size: 14px;
+        opacity: 0.7;
+        flex-shrink: 0;
+    }
+
+    .recipe-name {
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .text-truncate {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .rating-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        margin-left: 2px;
+        flex-shrink: 0;
+    }
+
+    .rating-val {
+        font-weight: 700;
+        font-size: 0.8rem;
+        flex-shrink: 0;
     }
 </style>
 
@@ -197,33 +298,30 @@
         }
     }
 
-    //TODO FIX
     private void NavigateToRecipe(ActivityFeedItemDto item)
     {
-        
         Navigation.NavigateTo($"food/{item.TargetId}");
-        
     }
 
     private Color GetActivityColor(string activityType)
     {
         return activityType switch
         {
-            "recipe_rated" => Color.Warning,
-            "recipe_added" => Color.Success,
-            "recipe_published" => Color.Info,
-            "friend_added" => Color.Primary,
+            "rated" => Color.Warning,
+            "added" => Color.Success,
+            "published" => Color.Info,
+            "joined_household" => Color.Primary,
             _ => Color.Default
         };
     }
 
-    private Color GetRatingColor(int rating)
+    private string GetRatingColorHex(int rating)
     {
         return rating switch
         {
-            >= 8 => Color.Success,
-            >= 5 => Color.Warning,
-            _ => Color.Error
+            >= 8 => "#2D5A45", // Green
+            >= 5 => "#D4A017", // Yellow
+            _ => "#C44536"     // Red
         };
     }
 
@@ -231,11 +329,11 @@
     {
         return item.ActivityType switch
         {
-            "recipe_rated" => $"ga en vurdering",
-            "recipe_added" => "la til en ny oppskrift",
-            "recipe_published" => "publiserte en oppskrift",
+            "rated" => "ga en vurdering",
+            "added" => "la til en ny oppskrift",
+            "published" => "publiserte en oppskrift",
+            "joined_household" => "ble med i en husstand",
             "friend_added" => $"ble venn med {item.UserDisplayName}",
-            "recipe_forked" => "kopierte en oppskrift",
             _ => item.ActivityType
         };
     }
@@ -244,17 +342,10 @@
     {
         var diff = DateTime.UtcNow - dateTime;
 
-        if (diff.TotalMinutes < 1)
-            return "akkurat nå";
-        if (diff.TotalMinutes < 60)
-            return $"{(int)diff.TotalMinutes} min siden";
-        if (diff.TotalHours < 24)
-            return $"{(int)diff.TotalHours} t siden";
-        if (diff.TotalDays < 7)
-            return $"{(int)diff.TotalDays} d siden";
-        if (diff.TotalDays < 30)
-            return $"{(int)(diff.TotalDays / 7)} u siden";
-
-        return dateTime.ToString("dd. MMM");
+        if (diff.TotalMinutes < 1) return "akkurat nå";
+        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes}m";
+        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}t";
+        if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}d";
+        return dateTime.ToString("dd.MM");
     }
 }

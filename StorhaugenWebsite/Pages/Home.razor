@@ -7,34 +7,35 @@
 @attribute [Authorize]
 
 <div class="home-container">
-    <div class="welcome-header mb-6">
-        <MudText Typo="Typo.h5" Style="font-family: 'Fraunces', serif; font-weight: 600;">
-            Hei, @(AuthService.CurrentUserName ?? "Kokk")! 👋
-        </MudText>
-        <MudText Typo="Typo.body2" Color="Color.Secondary">
-            Hva frister til middag i dag?
-        </MudText>
-    </div>
-
     @* --- ACTION GRID --- *@
-    <div class="action-grid mb-6">
-        <div class="action-card quick-add" @onclick="@(() => Navigation.NavigateTo("add"))">
-            <div class="action-icon">
-                <MudIcon Icon="@Icons.Material.Rounded.Add" />
+    <div class="action-grid mb-8">
+        <div class="action-card variant-primary" @onclick="@(() => Navigation.NavigateTo("add"))">
+            <div class="card-content">
+                <div class="action-icon-circle mb-3">
+                    <MudIcon Icon="@Icons.Material.Rounded.Add" />
+                </div>
+                <div class="action-text">
+                    <MudText Typo="Typo.h6" Class="font-weight-bold" Style="line-height: 1.2;">Logg middag</MudText>
+                    <MudText Typo="Typo.body2" Style="opacity: 0.9;">Hva spiste dere?</MudText>
+                </div>
             </div>
-            <div class="action-text">
-                <MudText Typo="Typo.subtitle2">Logg middag</MudText>
-                <MudText Typo="Typo.caption">Hva spiste dere?</MudText>
+            <div class="watermark-container">
+                <MudIcon Icon="@Icons.Material.Rounded.DinnerDining" Class="watermark-icon" />
             </div>
         </div>
 
-        <div class="action-card browse-global" @onclick="@(() => Navigation.NavigateTo("browse"))">
-            <div class="action-icon">
-                <MudIcon Icon="@Icons.Material.Rounded.Public" />
+        <div class="action-card variant-surface" @onclick="@(() => Navigation.NavigateTo("browse"))">
+            <div class="card-content">
+                <div class="action-icon-circle surface-icon mb-3">
+                    <MudIcon Icon="@Icons.Material.Rounded.Public" />
+                </div>
+                <div class="action-text">
+                    <MudText Typo="Typo.h6" Class="font-weight-bold" Style="line-height: 1.2;">Utforsk</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Finn nye oppskrifter</MudText>
+                </div>
             </div>
-            <div class="action-text">
-                <MudText Typo="Typo.subtitle2">Utforsk</MudText>
-                <MudText Typo="Typo.caption">Finn nye oppskrifter</MudText>
+            <div class="watermark-container surface-watermark-container">
+                <MudIcon Icon="@Icons.Material.Rounded.TravelExplore" Class="watermark-icon" />
             </div>
         </div>
     </div>
@@ -43,7 +44,7 @@
     <div class="feed-section">
         <div class="d-flex align-center gap-2 mb-3">
             <MudIcon Icon="@Icons.Material.Rounded.History" Color="Color.Secondary" Size="Size.Small" />
-            <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Style="text-transform: uppercase; letter-spacing: 1px;">
+            <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Style="text-transform: uppercase; letter-spacing: 1px; font-weight: 700;">
                 Siste Nytt
             </MudText>
         </div>
@@ -53,55 +54,122 @@
 </div>
 
 <style>
+    .home-container {
+        padding-bottom: 80px;
+    }
+
     .action-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 12px;
+        gap: 16px;
     }
 
+    /* --- Base Card Styles --- */
     .action-card {
-        background: var(--mud-palette-surface);
-        border: 1px solid var(--mud-palette-divider);
-        border-radius: 16px;
-        padding: 16px;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        cursor: pointer;
-        transition: transform 0.2s, box-shadow 0.2s;
         position: relative;
+        border-radius: 24px;
+        padding: 20px;
+        height: 160px;
+        display: flex;
+        cursor: pointer;
+        transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s;
         overflow: hidden;
+        border: 1px solid transparent;
     }
 
-        .action-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-            border-color: var(--mud-palette-primary);
+        .action-card:active {
+            transform: scale(0.96);
         }
 
-    /* Style for Quick Add */
-    .quick-add .action-icon {
-        background: rgba(var(--mud-palette-primary-rgb), 0.1);
-        color: var(--mud-palette-primary);
+    .card-content {
+        position: relative;
+        z-index: 2;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start; /* Align content to the top */
+        align-items: flex-start;
     }
 
-    /* Style for Browse */
-    .browse-global .action-icon {
-        background: rgba(var(--mud-palette-info-rgb), 0.1);
-        color: var(--mud-palette-info);
+    /* --- Variant: Primary (Orange Gradient) --- */
+    .action-card.variant-primary {
+        background: linear-gradient(135deg, #E07A2E 0%, #C56820 100%);
+        color: white;
+        box-shadow: 0 8px 20px rgba(224, 122, 46, 0.3);
     }
 
-    .action-icon {
-        width: 40px;
-        height: 40px;
-        border-radius: 12px;
+        .action-card.variant-primary .action-icon-circle {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .action-card.variant-primary .watermark-icon {
+            color: white;
+            opacity: 0.3;
+        }
+
+    /* --- Variant: Surface (Standard) --- */
+    .action-card.variant-surface {
+        background: var(--mud-palette-surface);
+        border-color: var(--mud-palette-divider);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+    }
+
+        .action-card.variant-surface .action-icon-circle {
+            background: rgba(var(--mud-palette-info-rgb), 0.1);
+            color: var(--mud-palette-info);
+        }
+
+        .action-card.variant-surface .watermark-icon {
+            color: var(--mud-palette-text-secondary);
+            opacity: 0.15;
+        }
+
+    /* --- Icon Styles --- */
+    .action-icon-circle {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
         display: flex;
         align-items: center;
         justify-content: center;
+        backdrop-filter: blur(4px);
     }
 
-    .action-text MudText {
-        line-height: 1.2;
+    /* --- Watermark & Gradient Flow --- */
+    .watermark-container {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 60%;
+        overflow: hidden;
+        z-index: 1;
+        /* Creates the transparent gradient mask effect */
+        -webkit-mask-image: linear-gradient(to left, rgba(0,0,0,1) 20%, rgba(0,0,0,0.1) 80%, rgba(0,0,0,0) 100%);
+        mask-image: linear-gradient(to left, rgba(0,0,0,1) 20%, rgba(0,0,0,0.1) 80%, rgba(0,0,0,0) 100%);
+        border-radius: 0 24px 24px 0;
+    }
+
+    .surface-watermark-container {
+        /* Slightly different mask for lighter background */
+        -webkit-mask-image: linear-gradient(to left, rgba(0,0,0,1) 10%, rgba(0,0,0,0.05) 70%, rgba(0,0,0,0) 100%);
+        mask-image: linear-gradient(to left, rgba(0,0,0,1) 10%, rgba(0,0,0,0.05) 70%, rgba(0,0,0,0) 100%);
+    }
+
+    .watermark-icon {
+        position: absolute;
+        top: 50%;
+        right: -20px;
+        transform: translateY(-50%) rotate(-10deg) scale(1.2);
+        font-size: 140px !important;
+        pointer-events: none;
+        transition: transform 0.3s ease-out, right 0.3s ease-out;
+    }
+
+    .action-card:hover .watermark-icon {
+        transform: translateY(-50%) rotate(0deg) scale(1.3);
+        right: -10px;
     }
 </style>
 
