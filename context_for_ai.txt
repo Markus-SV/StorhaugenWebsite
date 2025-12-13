@@ -1,6 +1,6 @@
 ================================================================================
 PROJECT CONTEXT FILE
-Generated on: 12/11/2025 22:28:02
+Generated on: 12/13/2025 00:50:56
 ================================================================================
 PROJECT STRUCTURE:
 ==================
@@ -14,6 +14,7 @@ PROJECT STRUCTURE:
 \StorhaugenEats.API\Controllers\HouseholdsController.cs
 \StorhaugenEats.API\Controllers\RatingsController.cs
 \StorhaugenEats.API\Controllers\StorageController.cs
+\StorhaugenEats.API\Controllers\TagsController.cs
 \StorhaugenEats.API\Controllers\UserRecipesController.cs
 \StorhaugenEats.API\Controllers\UsersController.cs
 \StorhaugenEats.API\Data\AppDbContext.cs
@@ -27,6 +28,7 @@ PROJECT STRUCTURE:
 \StorhaugenEats.API\Models\HouseholdMember.cs
 \StorhaugenEats.API\Models\HouseholdRecipe.cs
 \StorhaugenEats.API\Models\Rating.cs
+\StorhaugenEats.API\Models\RecipeTag.cs
 \StorhaugenEats.API\Models\User.cs
 \StorhaugenEats.API\Models\UserFriendship.cs
 \StorhaugenEats.API\Models\UserRecipe.cs
@@ -44,11 +46,13 @@ PROJECT STRUCTURE:
 \StorhaugenEats.API\Services\IHouseholdService.cs
 \StorhaugenEats.API\Services\IRatingService.cs
 \StorhaugenEats.API\Services\IStorageService.cs
+\StorhaugenEats.API\Services\ITagService.cs
 \StorhaugenEats.API\Services\IUserFriendshipService.cs
 \StorhaugenEats.API\Services\IUserRecipeService.cs
 \StorhaugenEats.API\Services\IUserService.cs
 \StorhaugenEats.API\Services\RatingService.cs
 \StorhaugenEats.API\Services\SupabaseStorageService.cs
+\StorhaugenEats.API\Services\TagService.cs
 \StorhaugenEats.API\Services\UserFriendshipService.cs
 \StorhaugenEats.API\Services\UserRecipeService.cs
 \StorhaugenEats.API\Services\UserService.cs
@@ -75,6 +79,7 @@ PROJECT STRUCTURE:
 \StorhaugenWebsite\Pages\BrowseDetails.razor
 \StorhaugenWebsite\Pages\CookBook.razor
 \StorhaugenWebsite\Pages\FoodDetails.razor
+\StorhaugenWebsite\Pages\FriendRatings.razor
 \StorhaugenWebsite\Pages\Friends.razor
 \StorhaugenWebsite\Pages\Home.razor
 \StorhaugenWebsite\Pages\Household.razor
@@ -125,7 +130,9 @@ PROJECT STRUCTURE:
 \StorhaugenWebsite.Shared\DTOs\HouseholdFriendshipDTOs.cs
 \StorhaugenWebsite.Shared\DTOs\HouseholdRecipeDTOs.cs
 \StorhaugenWebsite.Shared\DTOs\StorageDTOs.cs
+\StorhaugenWebsite.Shared\DTOs\TagDTOs.cs
 \StorhaugenWebsite.Shared\DTOs\UserDTOs.cs
+\StorhaugenWebsite.Shared\DTOs\UserRatingDTOs.cs
 \StorhaugenWebsite.Shared\DTOs\UserRecipeDTOs.cs
 \StorhaugenWebsite.Shared\StorhaugenWebsite.Shared.csproj
 
@@ -2715,7 +2722,10 @@ FILE START: \StorhaugenEats.API\Controllers\RatingsController.cs
 ================================================================================
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using StorhaugenEats.API.Data;
 using StorhaugenEats.API.Services;
+using StorhaugenWebsite.Shared.DTOs;
 using System.Security.Claims;
 
 namespace StorhaugenEats.API.Controllers;
@@ -2726,19 +2736,27 @@ namespace StorhaugenEats.API.Controllers;
 public class RatingsController : ControllerBase
 {
     private readonly IRatingService _ratingService;
+    private readonly IUserFriendshipService _friendshipService;
+    private readonly ICurrentUserService _currentUserService; // <--- 1. Add Service
+    private readonly AppDbContext _context;
 
-    public RatingsController(IRatingService ratingService)
+    public RatingsController(
+        IRatingService ratingService,
+        IUserFriendshipService friendshipService,
+        ICurrentUserService currentUserService, // <--- 2. Inject here
+        AppDbContext context)
     {
         _ratingService = ratingService;
+        _friendshipService = friendshipService;
+        _currentUserService = currentUserService; // <--- 3. Assign here
+        _context = context;
     }
 
-    private Guid GetCurrentUserId()
-    {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        return Guid.Parse(userIdClaim ?? throw new UnauthorizedAccessException());
-    }
+    // REMOVE THIS METHOD COMPLETELY
+    // private Guid GetCurrentUserId() { ... } 
 
-    [HttpGet("recipe/{globalRecipeId}")]
+    // Public: ratings for a recipe
+    [HttpGet("recipe/{globalRecipeId:guid}")]
     [AllowAnonymous]
     public async Task<IActionResult> GetRatingsForRecipe(Guid globalRecipeId)
     {
@@ -2746,25 +2764,29 @@ public class RatingsController : ControllerBase
         return Ok(ratings);
     }
 
-    [HttpGet("recipe/{globalRecipeId}/my-rating")]
+    // Private: my rating for a recipe
+    [HttpGet("recipe/{globalRecipeId:guid}/my-rating")]
     public async Task<IActionResult> GetMyRating(Guid globalRecipeId)
     {
-        var userId = GetCurrentUserId();
-        var rating = await _ratingService.GetUserRatingForRecipeAsync(userId, globalRecipeId);
+        // FIX: Use service
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
 
+        var rating = await _ratingService.GetUserRatingForRecipeAsync(userId, globalRecipeId);
         if (rating == null)
             return NotFound();
 
         return Ok(rating);
     }
 
+    // Private: upsert my rating
     [HttpPost]
     public async Task<IActionResult> UpsertRating([FromBody] UpsertRatingRequest request)
     {
         if (request.Score < 0 || request.Score > 10)
-            return BadRequest(new { message = "Score must be between 0 and 10" });
+            return BadRequest(new { message = "Score must be between 0 and 10." });
 
-        var userId = GetCurrentUserId();
+        // FIX: Use service
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
 
         var rating = await _ratingService.UpsertRatingAsync(
             userId,
@@ -2776,10 +2798,12 @@ public class RatingsController : ControllerBase
         return Ok(rating);
     }
 
-    [HttpDelete("recipe/{globalRecipeId}")]
+    // Private: delete my rating
+    [HttpDelete("recipe/{globalRecipeId:guid}")]
     public async Task<IActionResult> DeleteRating(Guid globalRecipeId)
     {
-        var userId = GetCurrentUserId();
+        // FIX: Use service
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
 
         var success = await _ratingService.DeleteRatingAsync(userId, globalRecipeId);
 
@@ -2788,6 +2812,81 @@ public class RatingsController : ControllerBase
 
         return NoContent();
     }
+
+
+    [HttpGet("user/{profileUserId:guid}")]
+    public async Task<ActionResult<List<UserRatingDto>>> GetUserRatings(
+    Guid profileUserId,
+    [FromQuery] int skip = 0,
+    [FromQuery] int take = 50)
+    {
+        var requestingUserId = await _currentUserService.GetOrCreateUserIdAsync();
+        bool areFriends = false;
+
+        if (requestingUserId != profileUserId)
+        {
+            areFriends = await _friendshipService.AreFriendsAsync(requestingUserId, profileUserId);
+            if (!areFriends) return Forbid();
+        }
+
+        if (skip < 0) skip = 0;
+        if (take < 1) take = 50;
+
+        // Fetch ratings with includes
+        var ratings = await _context.Ratings
+            .AsNoTracking()
+            .Include(r => r.GlobalRecipe)
+            .Include(r => r.UserRecipe)
+            .Where(r => r.UserId == profileUserId)
+            .OrderByDescending(r => r.UpdatedAt)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync();
+
+        var result = new List<UserRatingDto>();
+
+        foreach (var r in ratings)
+        {
+            // 1. Global Recipe Logic (Always visible)
+            if (r.GlobalRecipe != null)
+            {
+                result.Add(new UserRatingDto
+                {
+                    GlobalRecipeId = r.GlobalRecipeId,
+                    RecipeTitle = r.GlobalRecipe.Title,
+                    ImageUrl = r.GlobalRecipe.ImageUrl, // Or verify ImageUrls logic
+                    Score = r.Score,
+                    Comment = r.Comment,
+                    RatedAt = r.UpdatedAt
+                });
+            }
+            // 2. User Recipe Logic (Check Visibility)
+            else if (r.UserRecipe != null)
+            {
+                bool isVisible = r.UserRecipe.Visibility == "public" ||
+                                 (r.UserRecipe.Visibility == "friends" && areFriends) ||
+                                 requestingUserId == profileUserId; // Own profile
+
+                if (isVisible)
+                {
+                    result.Add(new UserRatingDto
+                    {
+                        UserRecipeId = r.UserRecipeId,
+                        RecipeTitle = r.UserRecipe.DisplayTitle, // Use display helper
+                        ImageUrl = r.UserRecipe.DisplayImageUrls != "[]"
+                            ? StorhaugenEats.API.Helpers.JsonHelper.JsonToList(r.UserRecipe.DisplayImageUrls).FirstOrDefault()
+                            : null,
+                        Score = r.Score,
+                        Comment = r.Comment,
+                        RatedAt = r.UpdatedAt
+                    });
+                }
+            }
+        }
+
+        return Ok(result);
+    }
+
 }
 
 public record UpsertRatingRequest(Guid GlobalRecipeId, int Score, string? Comment);
@@ -2932,6 +3031,197 @@ public record GetUploadUrlDto(string FileName);
 
 ================================================================================
 FILE END: \StorhaugenEats.API\Controllers\StorageController.cs
+================================================================================
+
+
+================================================================================
+FILE START: \StorhaugenEats.API\Controllers\TagsController.cs
+================================================================================
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using StorhaugenWebsite.Shared.DTOs;
+using StorhaugenEats.API.Services;
+
+namespace StorhaugenEats.API.Controllers;
+
+/// <summary>
+/// Controller for managing personal recipe tags/categories.
+/// Tags are used for personal organization and are private to each user.
+/// </summary>
+[ApiController]
+[Route("api/tags")]
+[Authorize]
+public class TagsController : ControllerBase
+{
+    private readonly ITagService _tagService;
+    private readonly ICurrentUserService _currentUserService;
+
+    public TagsController(ITagService tagService, ICurrentUserService currentUserService)
+    {
+        _tagService = tagService;
+        _currentUserService = currentUserService;
+    }
+
+    /// <summary>
+    /// Get all tags for the current user.
+    /// </summary>
+    [HttpGet]
+    public async Task<ActionResult<List<TagDto>>> GetMyTags()
+    {
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
+        var tags = await _tagService.GetUserTagsAsync(userId);
+        return Ok(tags);
+    }
+
+    /// <summary>
+    /// Get a specific tag by ID.
+    /// </summary>
+    [HttpGet("{id}")]
+    public async Task<ActionResult<TagDto>> GetTag(Guid id)
+    {
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
+        var tag = await _tagService.GetTagAsync(id, userId);
+
+        if (tag == null)
+            return NotFound(new { message = "Tag not found" });
+
+        return Ok(tag);
+    }
+
+    /// <summary>
+    /// Create a new tag.
+    /// </summary>
+    [HttpPost]
+    public async Task<ActionResult<TagDto>> CreateTag([FromBody] CreateTagDto dto)
+    {
+        try
+        {
+            var userId = await _currentUserService.GetOrCreateUserIdAsync();
+            var tag = await _tagService.CreateTagAsync(userId, dto);
+            return CreatedAtAction(nameof(GetTag), new { id = tag.Id }, tag);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Update a tag.
+    /// </summary>
+    [HttpPut("{id}")]
+    public async Task<ActionResult<TagDto>> UpdateTag(Guid id, [FromBody] UpdateTagDto dto)
+    {
+        try
+        {
+            var userId = await _currentUserService.GetOrCreateUserIdAsync();
+            var tag = await _tagService.UpdateTagAsync(id, userId, dto);
+            return Ok(tag);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Delete a tag.
+    /// </summary>
+    [HttpDelete("{id}")]
+    public async Task<ActionResult> DeleteTag(Guid id)
+    {
+        try
+        {
+            var userId = await _currentUserService.GetOrCreateUserIdAsync();
+            await _tagService.DeleteTagAsync(id, userId);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    // ==========================================
+    // RECIPE-TAG MANAGEMENT
+    // ==========================================
+
+    /// <summary>
+    /// Get tags for a specific recipe.
+    /// </summary>
+    [HttpGet("recipe/{recipeId}")]
+    public async Task<ActionResult<List<TagReferenceDto>>> GetRecipeTags(Guid recipeId)
+    {
+        try
+        {
+            var userId = await _currentUserService.GetOrCreateUserIdAsync();
+            var tags = await _tagService.GetRecipeTagsAsync(recipeId, userId);
+            return Ok(tags);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Set tags for a recipe (replaces existing tags).
+    /// </summary>
+    [HttpPut("recipe/{recipeId}")]
+    public async Task<ActionResult> SetRecipeTags(Guid recipeId, [FromBody] UpdateRecipeTagsDto dto)
+    {
+        try
+        {
+            var userId = await _currentUserService.GetOrCreateUserIdAsync();
+            await _tagService.SetRecipeTagsAsync(recipeId, userId, dto.TagIds);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Add a tag to a recipe.
+    /// </summary>
+    [HttpPost("recipe/{recipeId}/tag/{tagId}")]
+    public async Task<ActionResult> AddTagToRecipe(Guid recipeId, Guid tagId)
+    {
+        try
+        {
+            var userId = await _currentUserService.GetOrCreateUserIdAsync();
+            await _tagService.AddTagToRecipeAsync(recipeId, tagId, userId);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Remove a tag from a recipe.
+    /// </summary>
+    [HttpDelete("recipe/{recipeId}/tag/{tagId}")]
+    public async Task<ActionResult> RemoveTagFromRecipe(Guid recipeId, Guid tagId)
+    {
+        try
+        {
+            var userId = await _currentUserService.GetOrCreateUserIdAsync();
+            await _tagService.RemoveTagFromRecipeAsync(recipeId, tagId, userId);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+}
+
+
+================================================================================
+FILE END: \StorhaugenEats.API\Controllers\TagsController.cs
 ================================================================================
 
 
@@ -3153,6 +3443,49 @@ public class UserRecipesController : ControllerBase
             var userId = await _currentUserService.GetOrCreateUserIdAsync();
             var recipe = await _userRecipeService.RestoreRecipeAsync(id, userId);
             return Ok(recipe);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    // ==========================================
+    // MULTI-GROUP AGGREGATION ENDPOINTS
+    // ==========================================
+
+    /// <summary>
+    /// Get combined recipes from multiple groups (households).
+    /// This endpoint aggregates recipes from all members of the selected groups.
+    /// </summary>
+    [HttpPost("groups/aggregate")]
+    public async Task<ActionResult<AggregatedRecipePagedResult>> GetGroupsCombinedRecipes(
+        [FromBody] GetMultiGroupRecipesQuery query)
+    {
+        try
+        {
+            var userId = await _currentUserService.GetOrCreateUserIdAsync();
+            var result = await _userRecipeService.GetGroupsCombinedRecipesAsync(userId, query);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Get common favorites from multiple groups - recipes that multiple members have rated highly.
+    /// </summary>
+    [HttpPost("groups/common-favorites")]
+    public async Task<ActionResult<List<CommonFavoriteDto>>> GetGroupsCommonFavorites(
+        [FromBody] GetMultiGroupFavoritesQuery query)
+    {
+        try
+        {
+            var userId = await _currentUserService.GetOrCreateUserIdAsync();
+            var result = await _userRecipeService.GetGroupsCommonFavoritesAsync(userId, query);
+            return Ok(result);
         }
         catch (InvalidOperationException ex)
         {
@@ -3381,6 +3714,10 @@ public class AppDbContext : DbContext
     public DbSet<UserRecipe> UserRecipes { get; set; }
     public DbSet<UserFriendship> UserFriendships { get; set; }
     public DbSet<ActivityFeedItem> ActivityFeedItems { get; set; }
+
+    // Tags for personal recipe organization
+    public DbSet<RecipeTag> RecipeTags { get; set; }
+    public DbSet<UserRecipeTag> UserRecipeTags { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -3703,6 +4040,54 @@ public class AppDbContext : DbContext
             entity.Property(e => e.IsProfilePublic).HasDefaultValue(true);
             entity.Property(e => e.Bio).HasMaxLength(500);
             entity.Property(e => e.FavoriteCuisines).HasColumnType("jsonb").HasDefaultValue("[]");
+        });
+
+        // ==========================================
+        // RECIPE TAGS FOR PERSONAL ORGANIZATION
+        // ==========================================
+
+        modelBuilder.Entity<RecipeTag>().ToTable("recipe_tags");
+        modelBuilder.Entity<UserRecipeTag>().ToTable("user_recipe_tags");
+
+        // RecipeTag configuration
+        modelBuilder.Entity<RecipeTag>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Color).HasMaxLength(7);
+            entity.Property(e => e.Icon).HasMaxLength(50);
+
+            // Unique tag names per user
+            entity.HasIndex(e => new { e.UserId, e.Name }).IsUnique();
+
+            // Index for user's tags
+            entity.HasIndex(e => e.UserId);
+
+            // Relationship
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // UserRecipeTag (join table) configuration
+        modelBuilder.Entity<UserRecipeTag>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            // Unique constraint: a recipe can only have each tag once
+            entity.HasIndex(e => new { e.UserRecipeId, e.TagId }).IsUnique();
+
+            // Relationships
+            entity.HasOne(e => e.UserRecipe)
+                .WithMany(r => r.UserRecipeTags)
+                .HasForeignKey(e => e.UserRecipeId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Tag)
+                .WithMany(t => t.UserRecipeTags)
+                .HasForeignKey(e => e.TagId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }
@@ -4560,6 +4945,96 @@ FILE END: \StorhaugenEats.API\Models\Rating.cs
 
 
 ================================================================================
+FILE START: \StorhaugenEats.API\Models\RecipeTag.cs
+================================================================================
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace StorhaugenEats.API.Models;
+
+/// <summary>
+/// Represents a personal tag/category for organizing recipes.
+/// Tags are user-owned and only visible to the owner.
+/// Examples: "Kylling", "Rask middag", "Grill", "Søndag"
+/// </summary>
+[Table("recipe_tags")]
+public class RecipeTag
+{
+    [Key]
+    [Column("id")]
+    public Guid Id { get; set; }
+
+    /// <summary>
+    /// The user who owns this tag.
+    /// </summary>
+    [Required]
+    [Column("user_id")]
+    public Guid UserId { get; set; }
+
+    /// <summary>
+    /// The tag name (e.g., "Kylling", "Rask")
+    /// </summary>
+    [Required]
+    [Column("name")]
+    [MaxLength(50)]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Optional color for visual distinction (hex code).
+    /// </summary>
+    [Column("color")]
+    [MaxLength(7)]
+    public string? Color { get; set; }
+
+    /// <summary>
+    /// Optional icon name (Material Icons).
+    /// </summary>
+    [Column("icon")]
+    [MaxLength(50)]
+    public string? Icon { get; set; }
+
+    [Column("created_at")]
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // Navigation properties
+    public User User { get; set; } = null!;
+    public ICollection<UserRecipeTag> UserRecipeTags { get; set; } = new List<UserRecipeTag>();
+}
+
+/// <summary>
+/// Join table linking UserRecipes to RecipeTags.
+/// Allows a recipe to have multiple tags and a tag to be applied to multiple recipes.
+/// </summary>
+[Table("user_recipe_tags")]
+public class UserRecipeTag
+{
+    [Key]
+    [Column("id")]
+    public Guid Id { get; set; }
+
+    [Required]
+    [Column("user_recipe_id")]
+    public Guid UserRecipeId { get; set; }
+
+    [Required]
+    [Column("tag_id")]
+    public Guid TagId { get; set; }
+
+    [Column("created_at")]
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // Navigation properties
+    public UserRecipe UserRecipe { get; set; } = null!;
+    public RecipeTag Tag { get; set; } = null!;
+}
+
+
+================================================================================
+FILE END: \StorhaugenEats.API\Models\RecipeTag.cs
+================================================================================
+
+
+================================================================================
 FILE START: \StorhaugenEats.API\Models\User.cs
 ================================================================================
 using System.ComponentModel.DataAnnotations;
@@ -4812,6 +5287,7 @@ public class UserRecipe
     public User User { get; set; } = null!;
     public GlobalRecipe? GlobalRecipe { get; set; }
     public ICollection<Rating> Ratings { get; set; } = new List<Rating>();
+    public ICollection<UserRecipeTag> UserRecipeTags { get; set; } = new List<UserRecipeTag>();
 
     // Helper properties
     [NotMapped]
@@ -5050,9 +5526,10 @@ FILE END: \StorhaugenEats.API\Services\ActivityFeedService.cs
 FILE START: \StorhaugenEats.API\Services\CurrentUserService.cs
 ================================================================================
 using System.Security.Claims;
+using System.Text.Json; // Add this
+using Microsoft.EntityFrameworkCore;
 using StorhaugenEats.API.Data;
 using StorhaugenEats.API.Models;
-using Microsoft.EntityFrameworkCore;
 
 namespace StorhaugenEats.API.Services;
 
@@ -5069,18 +5546,14 @@ public class CurrentUserService : ICurrentUserService
 
     public string? GetUserEmail()
     {
-        return _httpContextAccessor.HttpContext?.User
-            ?.FindFirst(ClaimTypes.Email)?.Value
-            ?? _httpContextAccessor.HttpContext?.User
-            ?.FindFirst("email")?.Value;
+        return _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.Email)?.Value
+            ?? _httpContextAccessor.HttpContext?.User?.FindFirst("email")?.Value;
     }
 
     public string? GetUserSubject()
     {
-        return _httpContextAccessor.HttpContext?.User
-            ?.FindFirst(ClaimTypes.NameIdentifier)?.Value
-            ?? _httpContextAccessor.HttpContext?.User
-            ?.FindFirst("sub")?.Value;
+        return _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? _httpContextAccessor.HttpContext?.User?.FindFirst("sub")?.Value;
     }
 
     public bool IsAuthenticated()
@@ -5103,51 +5576,136 @@ public class CurrentUserService : ICurrentUserService
             throw new UnauthorizedAccessException("User email not found in token");
         }
 
-        // Try to find existing user by email
+        // 1. Resolve the best possible display name from the token
+        var displayName = GetDisplayNameFromToken(email);
+        var avatarUrl = GetAvatarFromToken();
+
+        // 2. Check DB
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
 
         if (user == null)
         {
-            // Create new user
-            // Get display name from JWT claims or use email
-            var displayName = _httpContextAccessor.HttpContext?.User
-                ?.FindFirst("name")?.Value
-                ?? _httpContextAccessor.HttpContext?.User
-                ?.FindFirst(ClaimTypes.Name)?.Value
-                ?? email.Split('@')[0]; // Fallback to email prefix
-
-            var avatarUrl = _httpContextAccessor.HttpContext?.User
-                ?.FindFirst("picture")?.Value;
-
+            // --- CREATE NEW USER ---
             user = new User
             {
                 Id = Guid.NewGuid(),
                 Email = email,
-                DisplayName = displayName,
+                DisplayName = displayName, // Now uses the parsed name
                 AvatarUrl = avatarUrl,
                 SupabaseUserId = subject,
                 UniqueShareId = GenerateUniqueShareId(),
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
-
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
+        }
+        else
+        {
+            // --- AUTO-UPDATE EXISTING USER ---
+            // If the DB has an email-like name, but we found a real name in the token, update it!
+            bool dataChanged = false;
+
+            // Update Name if better one found
+            if (user.DisplayName.Contains("@") && !displayName.Contains("@"))
+            {
+                user.DisplayName = displayName;
+                dataChanged = true;
+            }
+
+            // Update Avatar if new one found
+            if (string.IsNullOrEmpty(user.AvatarUrl) && !string.IsNullOrEmpty(avatarUrl))
+            {
+                user.AvatarUrl = avatarUrl;
+                dataChanged = true;
+            }
+
+            if (dataChanged)
+            {
+                user.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
         }
 
         return user.Id;
     }
 
+    // --- HELPER METHODS ---
+
+    private string GetDisplayNameFromToken(string email)
+    {
+        var user = _httpContextAccessor.HttpContext?.User;
+        if (user == null) return email.Split('@')[0];
+
+        // 1. Try standard claims
+        var name = user.FindFirst("name")?.Value ?? user.FindFirst(ClaimTypes.Name)?.Value;
+
+        // 2. Try parsing Supabase 'user_metadata' claim
+        if (string.IsNullOrEmpty(name) || name.Contains("@"))
+        {
+            var metadata = user.FindFirst("user_metadata")?.Value;
+            if (!string.IsNullOrEmpty(metadata))
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(metadata);
+                    if (doc.RootElement.TryGetProperty("name", out var nameProp))
+                    {
+                        name = nameProp.GetString();
+                    }
+                    else if (doc.RootElement.TryGetProperty("full_name", out var fullProp))
+                    {
+                        name = fullProp.GetString();
+                    }
+                }
+                catch { /* Ignore JSON errors */ }
+            }
+        }
+
+        // 3. Fallback to Email prefix
+        return !string.IsNullOrWhiteSpace(name) ? name : email.Split('@')[0];
+    }
+
+    private string? GetAvatarFromToken()
+    {
+        var user = _httpContextAccessor.HttpContext?.User;
+        if (user == null) return null;
+
+        // 1. Try standard picture claim
+        var avatar = user.FindFirst("picture")?.Value;
+
+        // 2. Try Supabase 'user_metadata'
+        if (string.IsNullOrEmpty(avatar))
+        {
+            var metadata = user.FindFirst("user_metadata")?.Value;
+            if (!string.IsNullOrEmpty(metadata))
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(metadata);
+                    if (doc.RootElement.TryGetProperty("avatar_url", out var avProp))
+                    {
+                        avatar = avProp.GetString();
+                    }
+                    else if (doc.RootElement.TryGetProperty("picture", out var picProp))
+                    {
+                        avatar = picProp.GetString();
+                    }
+                }
+                catch { }
+            }
+        }
+        return avatar;
+    }
+
     private string GenerateUniqueShareId()
     {
-        // Generate a random 12-character alphanumeric string
-        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Exclude similar-looking characters
+        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
         var random = new Random();
         return new string(Enumerable.Repeat(chars, 12)
             .Select(s => s[random.Next(s.Length)]).ToArray());
     }
 }
-
 
 ================================================================================
 FILE END: \StorhaugenEats.API\Services\CurrentUserService.cs
@@ -6245,6 +6803,7 @@ FILE END: \StorhaugenEats.API\Services\IHouseholdService.cs
 FILE START: \StorhaugenEats.API\Services\IRatingService.cs
 ================================================================================
 using StorhaugenEats.API.Models;
+using StorhaugenWebsite.Shared.DTOs;
 
 namespace StorhaugenEats.API.Services;
 
@@ -6254,6 +6813,8 @@ public interface IRatingService
     Task<IEnumerable<Rating>> GetRatingsForRecipeAsync(Guid globalRecipeId);
     Task<Rating> UpsertRatingAsync(Guid userId, Guid globalRecipeId, int score, string? comment = null);
     Task<bool> DeleteRatingAsync(Guid userId, Guid globalRecipeId);
+    Task<List<UserRatingDto>> GetGlobalRecipeRatingsForUserAsync(Guid userId, int skip = 0, int take = 50);
+
 }
 
 
@@ -6277,6 +6838,38 @@ public interface IStorageService
 
 ================================================================================
 FILE END: \StorhaugenEats.API\Services\IStorageService.cs
+================================================================================
+
+
+================================================================================
+FILE START: \StorhaugenEats.API\Services\ITagService.cs
+================================================================================
+using StorhaugenWebsite.Shared.DTOs;
+
+namespace StorhaugenEats.API.Services;
+
+/// <summary>
+/// Service for managing personal recipe tags.
+/// </summary>
+public interface ITagService
+{
+    // Tag CRUD
+    Task<List<TagDto>> GetUserTagsAsync(Guid userId);
+    Task<TagDto?> GetTagAsync(Guid tagId, Guid userId);
+    Task<TagDto> CreateTagAsync(Guid userId, CreateTagDto dto);
+    Task<TagDto> UpdateTagAsync(Guid tagId, Guid userId, UpdateTagDto dto);
+    Task DeleteTagAsync(Guid tagId, Guid userId);
+
+    // Recipe-Tag management
+    Task<List<TagReferenceDto>> GetRecipeTagsAsync(Guid recipeId, Guid userId);
+    Task SetRecipeTagsAsync(Guid recipeId, Guid userId, List<Guid> tagIds);
+    Task AddTagToRecipeAsync(Guid recipeId, Guid tagId, Guid userId);
+    Task RemoveTagFromRecipeAsync(Guid recipeId, Guid tagId, Guid userId);
+}
+
+
+================================================================================
+FILE END: \StorhaugenEats.API\Services\ITagService.cs
 ================================================================================
 
 
@@ -6351,9 +6944,13 @@ public interface IUserRecipeService
     // Visibility checks
     Task<bool> CanUserViewRecipeAsync(Guid recipeId, Guid requestingUserId);
 
-    // Household aggregation
+    // Household aggregation (single group)
     Task<AggregatedRecipePagedResult> GetHouseholdRecipesAsync(Guid householdId, Guid requestingUserId, GetCombinedRecipesQuery query);
     Task<List<CommonFavoriteDto>> GetCommonFavoritesAsync(Guid householdId, Guid requestingUserId, GetCommonFavoritesQuery query);
+
+    // Multi-group aggregation
+    Task<AggregatedRecipePagedResult> GetGroupsCombinedRecipesAsync(Guid requestingUserId, GetMultiGroupRecipesQuery query);
+    Task<List<CommonFavoriteDto>> GetGroupsCommonFavoritesAsync(Guid requestingUserId, GetMultiGroupFavoritesQuery query);
 
     // Friends' recipes
     Task<UserRecipePagedResult> GetFriendsRecipesAsync(Guid userId, GetUserRecipesQuery query);
@@ -6394,6 +6991,8 @@ FILE START: \StorhaugenEats.API\Services\RatingService.cs
 using Microsoft.EntityFrameworkCore;
 using StorhaugenEats.API.Data;
 using StorhaugenEats.API.Models;
+using StorhaugenWebsite.Shared.DTOs;
+using Supabase.Gotrue;
 
 namespace StorhaugenEats.API.Services;
 
@@ -6468,6 +7067,27 @@ public class RatingService : IRatingService
 
         return true;
     }
+
+    public async Task<List<UserRatingDto>> GetGlobalRecipeRatingsForUserAsync(Guid userId, int skip = 0, int take = 50)
+    {
+        return await _context.Ratings
+            .AsNoTracking()
+           .Where(r => r.UserId == userId && r.GlobalRecipeId != null)
+            .OrderByDescending(r => r.UpdatedAt)
+            .Skip(skip)
+            .Take(take)
+            .Select(r => new UserRatingDto
+            {
+                GlobalRecipeId = r.GlobalRecipeId!.Value,
+                RecipeTitle = r.GlobalRecipe!.Title,
+                ImageUrl = r.GlobalRecipe!.ImageUrl,
+                Score = r.Score,
+                Comment = r.Comment,
+                RatedAt = r.UpdatedAt
+            })
+            .ToListAsync();
+    }
+
 }
 
 
@@ -6556,6 +7176,269 @@ public class SupabaseStorageService : IStorageService
 
 ================================================================================
 FILE END: \StorhaugenEats.API\Services\SupabaseStorageService.cs
+================================================================================
+
+
+================================================================================
+FILE START: \StorhaugenEats.API\Services\TagService.cs
+================================================================================
+using Microsoft.EntityFrameworkCore;
+using StorhaugenEats.API.Data;
+using StorhaugenEats.API.Models;
+using StorhaugenWebsite.Shared.DTOs;
+
+namespace StorhaugenEats.API.Services;
+
+/// <summary>
+/// Service for managing personal recipe tags.
+/// </summary>
+public class TagService : ITagService
+{
+    private readonly AppDbContext _context;
+
+    public TagService(AppDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<List<TagDto>> GetUserTagsAsync(Guid userId)
+    {
+        var tags = await _context.RecipeTags
+            .Where(t => t.UserId == userId)
+            .Select(t => new TagDto
+            {
+                Id = t.Id,
+                Name = t.Name,
+                Color = t.Color,
+                Icon = t.Icon,
+                RecipeCount = t.UserRecipeTags.Count,
+                CreatedAt = t.CreatedAt
+            })
+            .OrderBy(t => t.Name)
+            .ToListAsync();
+
+        return tags;
+    }
+
+    public async Task<TagDto?> GetTagAsync(Guid tagId, Guid userId)
+    {
+        var tag = await _context.RecipeTags
+            .Where(t => t.Id == tagId && t.UserId == userId)
+            .Select(t => new TagDto
+            {
+                Id = t.Id,
+                Name = t.Name,
+                Color = t.Color,
+                Icon = t.Icon,
+                RecipeCount = t.UserRecipeTags.Count,
+                CreatedAt = t.CreatedAt
+            })
+            .FirstOrDefaultAsync();
+
+        return tag;
+    }
+
+    public async Task<TagDto> CreateTagAsync(Guid userId, CreateTagDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Name))
+            throw new InvalidOperationException("Tag name is required");
+
+        // Check for duplicate name
+        var exists = await _context.RecipeTags
+            .AnyAsync(t => t.UserId == userId && t.Name.ToLower() == dto.Name.ToLower());
+
+        if (exists)
+            throw new InvalidOperationException($"A tag with name '{dto.Name}' already exists");
+
+        var tag = new RecipeTag
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Name = dto.Name.Trim(),
+            Color = dto.Color,
+            Icon = dto.Icon,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.RecipeTags.Add(tag);
+        await _context.SaveChangesAsync();
+
+        return new TagDto
+        {
+            Id = tag.Id,
+            Name = tag.Name,
+            Color = tag.Color,
+            Icon = tag.Icon,
+            RecipeCount = 0,
+            CreatedAt = tag.CreatedAt
+        };
+    }
+
+    public async Task<TagDto> UpdateTagAsync(Guid tagId, Guid userId, UpdateTagDto dto)
+    {
+        var tag = await _context.RecipeTags
+            .Include(t => t.UserRecipeTags)
+            .FirstOrDefaultAsync(t => t.Id == tagId && t.UserId == userId);
+
+        if (tag == null)
+            throw new InvalidOperationException("Tag not found");
+
+        if (!string.IsNullOrWhiteSpace(dto.Name))
+        {
+            // Check for duplicate name (excluding current tag)
+            var exists = await _context.RecipeTags
+                .AnyAsync(t => t.UserId == userId && t.Id != tagId && t.Name.ToLower() == dto.Name.ToLower());
+
+            if (exists)
+                throw new InvalidOperationException($"A tag with name '{dto.Name}' already exists");
+
+            tag.Name = dto.Name.Trim();
+        }
+
+        if (dto.Color != null)
+            tag.Color = dto.Color;
+
+        if (dto.Icon != null)
+            tag.Icon = dto.Icon;
+
+        await _context.SaveChangesAsync();
+
+        return new TagDto
+        {
+            Id = tag.Id,
+            Name = tag.Name,
+            Color = tag.Color,
+            Icon = tag.Icon,
+            RecipeCount = tag.UserRecipeTags.Count,
+            CreatedAt = tag.CreatedAt
+        };
+    }
+
+    public async Task DeleteTagAsync(Guid tagId, Guid userId)
+    {
+        var tag = await _context.RecipeTags
+            .FirstOrDefaultAsync(t => t.Id == tagId && t.UserId == userId);
+
+        if (tag == null)
+            throw new InvalidOperationException("Tag not found");
+
+        _context.RecipeTags.Remove(tag);
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task<List<TagReferenceDto>> GetRecipeTagsAsync(Guid recipeId, Guid userId)
+    {
+        // Verify recipe belongs to user
+        var recipe = await _context.UserRecipes
+            .FirstOrDefaultAsync(r => r.Id == recipeId && r.UserId == userId);
+
+        if (recipe == null)
+            throw new InvalidOperationException("Recipe not found");
+
+        var tags = await _context.UserRecipeTags
+            .Where(rt => rt.UserRecipeId == recipeId)
+            .Select(rt => new TagReferenceDto
+            {
+                Id = rt.Tag.Id,
+                Name = rt.Tag.Name,
+                Color = rt.Tag.Color
+            })
+            .ToListAsync();
+
+        return tags;
+    }
+
+    public async Task SetRecipeTagsAsync(Guid recipeId, Guid userId, List<Guid> tagIds)
+    {
+        // Verify recipe belongs to user
+        var recipe = await _context.UserRecipes
+            .Include(r => r.UserRecipeTags)
+            .FirstOrDefaultAsync(r => r.Id == recipeId && r.UserId == userId);
+
+        if (recipe == null)
+            throw new InvalidOperationException("Recipe not found");
+
+        // Verify all tags belong to user
+        var validTagIds = await _context.RecipeTags
+            .Where(t => t.UserId == userId && tagIds.Contains(t.Id))
+            .Select(t => t.Id)
+            .ToListAsync();
+
+        // Remove existing tags
+        _context.UserRecipeTags.RemoveRange(recipe.UserRecipeTags);
+
+        // Add new tags
+        foreach (var tagId in validTagIds)
+        {
+            recipe.UserRecipeTags.Add(new UserRecipeTag
+            {
+                Id = Guid.NewGuid(),
+                UserRecipeId = recipeId,
+                TagId = tagId,
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task AddTagToRecipeAsync(Guid recipeId, Guid tagId, Guid userId)
+    {
+        // Verify recipe belongs to user
+        var recipe = await _context.UserRecipes
+            .FirstOrDefaultAsync(r => r.Id == recipeId && r.UserId == userId);
+
+        if (recipe == null)
+            throw new InvalidOperationException("Recipe not found");
+
+        // Verify tag belongs to user
+        var tag = await _context.RecipeTags
+            .FirstOrDefaultAsync(t => t.Id == tagId && t.UserId == userId);
+
+        if (tag == null)
+            throw new InvalidOperationException("Tag not found");
+
+        // Check if already exists
+        var exists = await _context.UserRecipeTags
+            .AnyAsync(rt => rt.UserRecipeId == recipeId && rt.TagId == tagId);
+
+        if (exists)
+            return; // Already tagged
+
+        _context.UserRecipeTags.Add(new UserRecipeTag
+        {
+            Id = Guid.NewGuid(),
+            UserRecipeId = recipeId,
+            TagId = tagId,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task RemoveTagFromRecipeAsync(Guid recipeId, Guid tagId, Guid userId)
+    {
+        // Verify recipe belongs to user
+        var recipe = await _context.UserRecipes
+            .FirstOrDefaultAsync(r => r.Id == recipeId && r.UserId == userId);
+
+        if (recipe == null)
+            throw new InvalidOperationException("Recipe not found");
+
+        var recipeTag = await _context.UserRecipeTags
+            .FirstOrDefaultAsync(rt => rt.UserRecipeId == recipeId && rt.TagId == tagId);
+
+        if (recipeTag != null)
+        {
+            _context.UserRecipeTags.Remove(recipeTag);
+            await _context.SaveChangesAsync();
+        }
+    }
+}
+
+
+================================================================================
+FILE END: \StorhaugenEats.API\Services\TagService.cs
 ================================================================================
 
 
@@ -7504,6 +8387,190 @@ public class UserRecipeService : IUserRecipeService
 
     // Private helpers
 
+    public async Task<AggregatedRecipePagedResult> GetGroupsCombinedRecipesAsync(
+        Guid requestingUserId,
+        GetMultiGroupRecipesQuery query)
+    {
+        if (query.GroupIds == null || !query.GroupIds.Any())
+        {
+            return new AggregatedRecipePagedResult
+            {
+                Recipes = new List<AggregatedRecipeDto>(),
+                TotalCount = 0,
+                Page = query.Page,
+                PageSize = query.PageSize
+            };
+        }
+
+        // Verify user is a member of ALL requested groups
+        var userMemberships = await _context.HouseholdMembers
+            .Where(hm => hm.UserId == requestingUserId)
+            .Select(hm => hm.HouseholdId)
+            .ToListAsync();
+
+        var unauthorizedGroups = query.GroupIds.Except(userMemberships).ToList();
+        if (unauthorizedGroups.Any())
+        {
+            throw new InvalidOperationException(
+                $"You are not a member of groups: {string.Join(", ", unauthorizedGroups)}");
+        }
+
+        // Get all unique member IDs from ALL selected groups
+        var allMemberIds = await _context.HouseholdMembers
+            .Where(hm => query.GroupIds.Contains(hm.HouseholdId))
+            .Select(hm => hm.UserId)
+            .Distinct()
+            .ToListAsync();
+
+        // Get recipes from all members that are visible to groups
+        var queryable = _context.UserRecipes
+            .Include(r => r.User)
+            .Include(r => r.GlobalRecipe)
+            .Include(r => r.Ratings)
+                .ThenInclude(rt => rt.User)
+            .Where(r => allMemberIds.Contains(r.UserId))
+            .Where(r => r.Visibility == "household" || r.Visibility == "public" || r.Visibility == "friends")
+            .Where(r => !r.IsArchived);
+
+        // Filter by specific members
+        if (query.FilterByMembers?.Any() == true)
+        {
+            queryable = queryable.Where(r => query.FilterByMembers.Contains(r.UserId));
+        }
+
+        // Filter by minimum rating
+        if (query.MinRating.HasValue)
+        {
+            queryable = queryable.Where(r =>
+                r.Ratings.Any() && r.Ratings.Average(rt => rt.Score) >= query.MinRating.Value);
+        }
+
+        // Search
+        if (!string.IsNullOrEmpty(query.Search))
+        {
+            queryable = queryable.Where(r =>
+                (r.LocalTitle != null && r.LocalTitle.Contains(query.Search)) ||
+                (r.GlobalRecipe != null && r.GlobalRecipe.Title.Contains(query.Search)));
+        }
+
+        // Sorting
+        queryable = query.SortBy.ToLower() switch
+        {
+            "name" => query.SortDescending
+                ? queryable.OrderByDescending(r => r.LocalTitle ?? r.GlobalRecipe!.Title)
+                : queryable.OrderBy(r => r.LocalTitle ?? r.GlobalRecipe!.Title),
+            "rating" => query.SortDescending
+                ? queryable.OrderByDescending(r => r.Ratings.Any() ? r.Ratings.Average(rt => rt.Score) : 0)
+                : queryable.OrderBy(r => r.Ratings.Any() ? r.Ratings.Average(rt => rt.Score) : 0),
+            "owner" => query.SortDescending
+                ? queryable.OrderByDescending(r => r.User.DisplayName)
+                : queryable.OrderBy(r => r.User.DisplayName),
+            _ => query.SortDescending
+                ? queryable.OrderByDescending(r => r.CreatedAt)
+                : queryable.OrderBy(r => r.CreatedAt)
+        };
+
+        var totalCount = await queryable.CountAsync();
+        var recipes = await queryable
+            .Skip((query.Page - 1) * query.PageSize)
+            .Take(query.PageSize)
+            .ToListAsync();
+
+        return new AggregatedRecipePagedResult
+        {
+            Recipes = recipes.Select(r => MapToAggregatedDto(r, allMemberIds)).ToList(),
+            TotalCount = totalCount,
+            Page = query.Page,
+            PageSize = query.PageSize
+        };
+    }
+
+    public async Task<List<CommonFavoriteDto>> GetGroupsCommonFavoritesAsync(
+        Guid requestingUserId,
+        GetMultiGroupFavoritesQuery query)
+    {
+        if (query.GroupIds == null || !query.GroupIds.Any())
+        {
+            return new List<CommonFavoriteDto>();
+        }
+
+        // Verify user is a member of ALL requested groups
+        var userMemberships = await _context.HouseholdMembers
+            .Where(hm => hm.UserId == requestingUserId)
+            .Select(hm => hm.HouseholdId)
+            .ToListAsync();
+
+        var unauthorizedGroups = query.GroupIds.Except(userMemberships).ToList();
+        if (unauthorizedGroups.Any())
+        {
+            throw new InvalidOperationException(
+                $"You are not a member of groups: {string.Join(", ", unauthorizedGroups)}");
+        }
+
+        // Get all unique member IDs from ALL selected groups
+        var allMemberIds = await _context.HouseholdMembers
+            .Where(hm => query.GroupIds.Contains(hm.HouseholdId))
+            .Select(hm => hm.UserId)
+            .Distinct()
+            .ToListAsync();
+
+        // Find global recipes that multiple members have rated highly
+        var commonFavorites = await _context.Ratings
+            .Include(r => r.GlobalRecipe)
+            .Include(r => r.User)
+            .Where(r => r.GlobalRecipeId.HasValue)
+            .Where(r => allMemberIds.Contains(r.UserId))
+            .GroupBy(r => r.GlobalRecipeId)
+            .Where(g => g.Count() >= query.MinMembers)
+            .Where(g => g.Average(r => r.Score) >= query.MinAverageRating)
+            .Select(g => new
+            {
+                GlobalRecipeId = g.Key!.Value,
+                Ratings = g.ToList(),
+                AverageRating = g.Average(r => r.Score),
+                MemberCount = g.Count()
+            })
+            .OrderByDescending(x => x.AverageRating)
+            .ThenByDescending(x => x.MemberCount)
+            .Take(query.Limit)
+            .ToListAsync();
+
+        var globalRecipeIds = commonFavorites.Select(cf => cf.GlobalRecipeId).ToList();
+        var globalRecipes = await _context.GlobalRecipes
+            .Where(gr => globalRecipeIds.Contains(gr.Id))
+            .ToDictionaryAsync(gr => gr.Id);
+
+        // Check which ones are in the requesting user's collection
+        var userRecipeGlobalIds = await _context.UserRecipes
+            .Where(ur => ur.UserId == requestingUserId && ur.GlobalRecipeId.HasValue)
+            .Select(ur => ur.GlobalRecipeId!.Value)
+            .ToListAsync();
+
+        return commonFavorites.Select(cf =>
+        {
+            var globalRecipe = globalRecipes.GetValueOrDefault(cf.GlobalRecipeId);
+            return new CommonFavoriteDto
+            {
+                GlobalRecipeId = cf.GlobalRecipeId,
+                Name = globalRecipe?.Title ?? "Unknown",
+                ImageUrl = globalRecipe?.ImageUrl,
+                Description = globalRecipe?.Description,
+                MemberRatings = cf.Ratings.Select(r => new MemberRatingDto
+                {
+                    UserId = r.UserId,
+                    DisplayName = r.User?.DisplayName ?? "Unknown",
+                    AvatarUrl = r.User?.AvatarUrl,
+                    Rating = r.Score,
+                    Comment = r.Comment,
+                    RatedAt = r.CreatedAt
+                }).ToList(),
+                AverageRating = cf.AverageRating,
+                MembersWhoRated = cf.MemberCount,
+                IsInMyCollection = userRecipeGlobalIds.Contains(cf.GlobalRecipeId)
+            };
+        }).ToList();
+    }
+
     public async Task<UserRecipePagedResult> GetFriendsRecipesAsync(Guid userId, GetUserRecipesQuery query)
     {
         // Get all friend user IDs
@@ -7870,6 +8937,7 @@ builder.Services.AddHttpClient<IHelloFreshScraperService, HelloFreshScraperServi
 builder.Services.AddScoped<IUserFriendshipService, UserFriendshipService>();
 builder.Services.AddScoped<IActivityFeedService, ActivityFeedService>();
 builder.Services.AddScoped<IUserRecipeService, UserRecipeService>();
+builder.Services.AddScoped<ITagService, TagService>();
 
 // JWT Authentication (Supabase JWT)
 var jwtSecret = builder.Configuration["Supabase:JwtSecret"] ?? throw new InvalidOperationException("JWT Secret not configured");
@@ -8535,11 +9603,14 @@ public class ApiClient : IApiClient
         return (await response.Content.ReadFromJsonAsync<UserFriendshipDto>(_jsonOptions))!;
     }
 
-    public async Task<UserFriendshipDto> RespondToFriendRequestAsync(Guid id, RespondFriendRequestDto action)
+    // In StorhaugenWebsite\ApiClient\ApiClient.cs
+
+    public async Task<UserFriendshipDto> RespondToFriendRequestAsync(Guid id, RespondFriendRequestDto dto)
     {
         await AddAuthHeaderAsync();
-        var dto = new { Action = action.ToString().ToLower() };
+
         var response = await _httpClient.PostAsJsonAsync($"/api/friendships/{id}/respond", dto, _jsonOptions);
+
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<UserFriendshipDto>(_jsonOptions))!;
     }
@@ -8609,10 +9680,18 @@ public class ApiClient : IApiClient
             ?? new ActivitySummaryDto();
     }
 
-	// Household Recipe Aggregation
-	// In ApiClient.cs
+    public async Task<List<UserRatingDto>> GetUserRatingsAsync(Guid userId, int skip = 0, int take = 50)
+    {
+        await AddAuthHeaderAsync();
 
-	public async Task<AggregatedRecipePagedResult> GetHouseholdCombinedRecipesAsync(Guid householdId, GetCombinedRecipesQuery query)
+        var url = $"/api/ratings/user/{userId}?skip={skip}&take={take}";
+        return (await _httpClient.GetFromJsonAsync<List<UserRatingDto>>(url, _jsonOptions)) ?? new List<UserRatingDto>();
+    }
+
+    // Household Recipe Aggregation
+    // In ApiClient.cs
+
+    public async Task<AggregatedRecipePagedResult> GetHouseholdCombinedRecipesAsync(Guid householdId, GetCombinedRecipesQuery query)
 	{
 		await AddAuthHeaderAsync();
 		var queryParams = new List<string>();
@@ -8648,6 +9727,87 @@ public class ApiClient : IApiClient
         var url = $"/api/households/{householdId}/common-favorites?minimumMembers={minimumMembers}&limit={limit}";
         return (await _httpClient.GetFromJsonAsync<List<CommonFavoriteDto>>(url, _jsonOptions))
             ?? new List<CommonFavoriteDto>();
+    }
+
+    // Multi-group Recipe Aggregation
+    public async Task<AggregatedRecipePagedResult> GetGroupsCombinedRecipesAsync(GetMultiGroupRecipesQuery query)
+    {
+        await AddAuthHeaderAsync();
+        var response = await _httpClient.PostAsJsonAsync("/api/user-recipes/groups/aggregate", query, _jsonOptions);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<AggregatedRecipePagedResult>(_jsonOptions))
+            ?? new AggregatedRecipePagedResult();
+    }
+
+    public async Task<List<CommonFavoriteDto>> GetGroupsCommonFavoritesAsync(GetMultiGroupFavoritesQuery query)
+    {
+        await AddAuthHeaderAsync();
+        var response = await _httpClient.PostAsJsonAsync("/api/user-recipes/groups/common-favorites", query, _jsonOptions);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<List<CommonFavoriteDto>>(_jsonOptions))
+            ?? new List<CommonFavoriteDto>();
+    }
+
+    // ==========================================
+    // TAGS (Personal Recipe Organization)
+    // ==========================================
+
+    public async Task<List<TagDto>> GetMyTagsAsync()
+    {
+        await AddAuthHeaderAsync();
+        return (await _httpClient.GetFromJsonAsync<List<TagDto>>("/api/tags", _jsonOptions))
+            ?? new List<TagDto>();
+    }
+
+    public async Task<TagDto?> GetTagAsync(Guid id)
+    {
+        await AddAuthHeaderAsync();
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<TagDto>($"/api/tags/{id}", _jsonOptions);
+        }
+        catch (HttpRequestException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<TagDto> CreateTagAsync(CreateTagDto dto)
+    {
+        await AddAuthHeaderAsync();
+        var response = await _httpClient.PostAsJsonAsync("/api/tags", dto, _jsonOptions);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<TagDto>(_jsonOptions))!;
+    }
+
+    public async Task<TagDto> UpdateTagAsync(Guid id, UpdateTagDto dto)
+    {
+        await AddAuthHeaderAsync();
+        var response = await _httpClient.PutAsJsonAsync($"/api/tags/{id}", dto, _jsonOptions);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<TagDto>(_jsonOptions))!;
+    }
+
+    public async Task DeleteTagAsync(Guid id)
+    {
+        await AddAuthHeaderAsync();
+        var response = await _httpClient.DeleteAsync($"/api/tags/{id}");
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<List<TagReferenceDto>> GetRecipeTagsAsync(Guid recipeId)
+    {
+        await AddAuthHeaderAsync();
+        return (await _httpClient.GetFromJsonAsync<List<TagReferenceDto>>($"/api/tags/recipe/{recipeId}", _jsonOptions))
+            ?? new List<TagReferenceDto>();
+    }
+
+    public async Task SetRecipeTagsAsync(Guid recipeId, List<Guid> tagIds)
+    {
+        await AddAuthHeaderAsync();
+        var dto = new UpdateRecipeTagsDto { TagIds = tagIds };
+        var response = await _httpClient.PutAsJsonAsync($"/api/tags/recipe/{recipeId}", dto, _jsonOptions);
+        response.EnsureSuccessStatusCode();
     }
 }
 
@@ -8742,9 +9902,25 @@ public interface IApiClient
     Task<ActivityFeedPagedResult> GetMyActivityAsync(int page = 1, int pageSize = 20);
     Task<ActivitySummaryDto> GetActivitySummaryAsync();
 
-    // Household Recipe Aggregation
+    // Household Recipe Aggregation (single group - backwards compatible)
     Task<AggregatedRecipePagedResult> GetHouseholdCombinedRecipesAsync(Guid householdId, GetCombinedRecipesQuery query);
     Task<List<CommonFavoriteDto>> GetHouseholdCommonFavoritesAsync(Guid householdId, int minimumMembers = 2, int limit = 10);
+
+    // Multi-group Recipe Aggregation
+    Task<AggregatedRecipePagedResult> GetGroupsCombinedRecipesAsync(GetMultiGroupRecipesQuery query);
+    Task<List<CommonFavoriteDto>> GetGroupsCommonFavoritesAsync(GetMultiGroupFavoritesQuery query);
+
+    // Tags (personal recipe organization)
+    Task<List<TagDto>> GetMyTagsAsync();
+    Task<TagDto?> GetTagAsync(Guid id);
+    Task<TagDto> CreateTagAsync(CreateTagDto dto);
+    Task<TagDto> UpdateTagAsync(Guid id, UpdateTagDto dto);
+    Task DeleteTagAsync(Guid id);
+    Task<List<TagReferenceDto>> GetRecipeTagsAsync(Guid recipeId);
+    Task SetRecipeTagsAsync(Guid recipeId, List<Guid> tagIds);
+
+    // Ratings
+    Task<List<UserRatingDto>> GetUserRatingsAsync(Guid userId, int skip = 0, int take = 50);
 }
 
 
@@ -10906,7 +12082,7 @@ FILE START: \StorhaugenWebsite\Pages\AddFood.razor
 
             await RecipeService.CreateRecipeAsync(createDto);
             RecipeService.InvalidateCache();
-            Navigation.NavigateTo("/");
+            Navigation.NavigateTo("");
         }
         catch (Exception ex) { _errorMessage = ex.Message; }
         finally { _isSubmitting = false; }
@@ -12174,6 +13350,7 @@ FILE START: \StorhaugenWebsite\Pages\CookBook.razor
 @inject IDeviceStateService DeviceState
 @inject IApiClient ApiClient
 @attribute [Authorize]
+@implements IDisposable
 
 <div class="cookbook-header d-flex flex-column gap-3 mb-4">
     <div class="d-flex justify-space-between align-center">
@@ -12190,6 +13367,26 @@ FILE START: \StorhaugenWebsite\Pages\CookBook.razor
         </div>
     </div>
 
+    @* Group Filter (Multi-select) - Only show if user has multiple groups *@
+    @if (HouseholdState.UserHouseholds.Count > 1)
+    {
+        <div class="group-filter-section">
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1">Vis fra grupper:</MudText>
+            <div class="d-flex gap-2 overflow-x-auto py-1">
+                @foreach (var group in HouseholdState.UserHouseholds)
+                {
+                    <MudChip T="string"
+                             Variant="@(HouseholdState.IsGroupActive(group.Id) ? Variant.Filled : Variant.Outlined)"
+                             Color="Color.Secondary"
+                             OnClick="@(() => ToggleGroup(group.Id))"
+                             Icon="@(HouseholdState.IsGroupActive(group.Id) ? Icons.Material.Rounded.CheckCircle : Icons.Material.Rounded.RadioButtonUnchecked)">
+                        @group.Name
+                    </MudChip>
+                }
+            </div>
+        </div>
+    }
+
     @* Search Bar *@
     <MudTextField @bind-Value="_searchQuery"
                   Placeholder="Søk i oppskrifter..."
@@ -12202,7 +13399,7 @@ FILE START: \StorhaugenWebsite\Pages\CookBook.razor
                   Class="search-field"
                   Margin="Margin.Dense" />
 
-    @* Filters *@
+    @* Recipe Filters *@
     <div class="d-flex gap-2 overflow-x-auto py-1">
         <MudChip T="string" Variant="@(_filterMode == "all" ? Variant.Filled : Variant.Outlined)"
                  Color="Color.Primary" OnClick="@(() => SetFilter("all"))">Alle</MudChip>
@@ -12211,6 +13408,34 @@ FILE START: \StorhaugenWebsite\Pages\CookBook.razor
         <MudChip T="string" Variant="@(_filterMode == "favorites" ? Variant.Filled : Variant.Outlined)"
                  Color="Color.Primary" OnClick="@(() => SetFilter("favorites"))" Icon="@Icons.Material.Rounded.Star">Favoritter</MudChip>
     </div>
+
+    @* Tag Filters (Kategorier) - Personal organization *@
+    @if (_tags.Any())
+    {
+        <div class="tag-filter-section">
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1">Kategorier:</MudText>
+            <div class="d-flex gap-2 overflow-x-auto py-1">
+                <MudChip T="string"
+                         Variant="@(!_activeTagIds.Any() ? Variant.Filled : Variant.Outlined)"
+                         Color="Color.Tertiary"
+                         OnClick="ClearTagFilter"
+                         Size="Size.Small">
+                    Alle
+                </MudChip>
+                @foreach (var tag in _tags)
+                {
+                    <MudChip T="string"
+                             Variant="@(_activeTagIds.Contains(tag.Id) ? Variant.Filled : Variant.Outlined)"
+                             Color="Color.Tertiary"
+                             OnClick="@(() => ToggleTagFilter(tag.Id))"
+                             Size="Size.Small"
+                             Style="@(tag.Color != null ? $"--mud-palette-tertiary: {tag.Color};" : "")">
+                        @tag.Name
+                    </MudChip>
+                }
+            </div>
+        </div>
+    }
 </div>
 
 @if (_isLoading)
@@ -12281,7 +13506,7 @@ else
 }
 
 @code {
-    // We use AggregatedRecipeDto to support the merged view [cite: 3423]
+    // We use AggregatedRecipeDto to support the merged view
     private List<AggregatedRecipeDto> _recipes = new();
     private bool _isLoading = true;
 
@@ -12291,18 +13516,70 @@ else
     private string _viewMode = "card";
     private Guid? _currentUserId;
 
+    // Tags (personal organization / kategorier)
+    private List<TagDto> _tags = new();
+    private List<Guid> _activeTagIds = new();
+
     protected override async Task OnInitializedAsync()
     {
-        await HouseholdState.InitializeAsync();
+        // Subscribe to group filter changes
+        HouseholdState.OnActiveGroupsChanged += OnGroupsChanged;
 
-        // Get user ID from claims or state for filtering "Mine"
-        // Note: In a real app, parse the JWT or get from profile service.
-        // For filtering logic below, we rely on the API query parameters.
+        await HouseholdState.InitializeAsync();
 
         // Load view preference
         _viewMode = DeviceState.Settings.ViewMode ?? "card";
 
+        // Load user's tags
+        await LoadTags();
+
         await LoadRecipes();
+    }
+
+    private async Task LoadTags()
+    {
+        try
+        {
+            _tags = await ApiClient.GetMyTagsAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading tags: {ex.Message}");
+        }
+    }
+
+    private async Task ToggleTagFilter(Guid tagId)
+    {
+        if (_activeTagIds.Contains(tagId))
+        {
+            _activeTagIds.Remove(tagId);
+        }
+        else
+        {
+            _activeTagIds.Add(tagId);
+        }
+        await LoadRecipes();
+    }
+
+    private async Task ClearTagFilter()
+    {
+        _activeTagIds.Clear();
+        await LoadRecipes();
+    }
+
+    private async void OnGroupsChanged()
+    {
+        await InvokeAsync(async () =>
+        {
+            await LoadRecipes();
+            StateHasChanged();
+        });
+    }
+
+    private async Task ToggleGroup(Guid groupId)
+    {
+        HouseholdState.ToggleGroupFilter(groupId);
+        // LoadRecipes will be called via OnGroupsChanged event
     }
 
     private async Task LoadRecipes()
@@ -12312,8 +13589,32 @@ else
 
         try
         {
-            // If user has a household, fetch the merged list
-            if (HouseholdState.HasHousehold && HouseholdState.CurrentHousehold != null)
+            // If "mine" filter or tags are active, use personal recipe endpoint
+            // Tags are personal, so they only apply to your own recipes
+            if (_filterMode == "mine" || _activeTagIds.Any())
+            {
+                var query = new GetUserRecipesQuery
+                {
+                    Search = _searchQuery,
+                    PageSize = 50,
+                    SortDescending = true,
+                    TagIds = _activeTagIds.Any() ? _activeTagIds : null
+                };
+
+                var result = await RecipeService.GetMyRecipesAsync(query);
+
+                // Map UserRecipeDto to AggregatedRecipeDto for consistent UI
+                _recipes = result.Recipes.Select(r => new AggregatedRecipeDto
+                {
+                    UserRecipeId = r.Id,
+                    Name = r.Name,
+                    ImageUrls = r.ImageUrls,
+                    HouseholdAverageRating = r.AverageRating,
+                    OwnerDisplayName = "Deg"
+                }).ToList();
+            }
+            // If user has groups with active filters, fetch from multiple groups
+            else if (HouseholdState.HasHousehold && HouseholdState.ActiveGroupFilters.Any())
             {
                 var query = new GetCombinedRecipesQuery
                 {
@@ -12323,26 +13624,26 @@ else
                 };
 
                 // Apply Filters
-                if (_filterMode == "mine")
-                {
-                    // FilterByMembers expects a List<Guid>.
-                    // We need the current user's ID. Assuming AuthService or UserProfile has it.
-                    // If not readily available in frontend memory, we might need to fetch profile first.
-                    var user = await ApiClient.GetMyProfileAsync();
-                    if (user != null) query.FilterByMembers = new List<Guid> { user.Id };
-                }
-                else if (_filterMode == "favorites")
+                if (_filterMode == "favorites")
                 {
                     query.MinRating = 8.0; // Show high rated items
                 }
 
-                var result = await RecipeService.GetHouseholdCombinedRecipesAsync(HouseholdState.CurrentHousehold.Id, query);
+                // Use multi-group aggregation
+                var result = await RecipeService.GetGroupsCombinedRecipesAsync(
+                    HouseholdState.ActiveGroupFilters,
+                    query);
                 _recipes = result.Recipes;
             }
             else
             {
-                // Fallback for users without household: Get generic "My Recipes" [cite: 1189]
-                var query = new GetUserRecipesQuery { PageSize = 50 };
+                // Fallback for users without groups: Get personal recipes only
+                var query = new GetUserRecipesQuery
+                {
+                    Search = _searchQuery,
+                    PageSize = 50,
+                    SortDescending = true
+                };
                 var result = await RecipeService.GetMyRecipesAsync(query);
 
                 // Map UserRecipeDto to AggregatedRecipeDto for consistent UI
@@ -12358,7 +13659,7 @@ else
         }
         catch (Exception ex)
         {
-            Console.WriteLine(ex);
+            Console.WriteLine($"Error loading recipes: {ex.Message}");
         }
         finally
         {
@@ -12398,6 +13699,11 @@ else
             _ => "rating-low"
         };
     }
+
+    public void Dispose()
+    {
+        HouseholdState.OnActiveGroupsChanged -= OnGroupsChanged;
+    }
 }
 
 ================================================================================
@@ -12423,7 +13729,7 @@ FILE START: \StorhaugenWebsite\Pages\FoodDetails.razor
 @attribute [Authorize]
 
 <div class="detail-header">
-    <button class="detail-back-btn" @onclick="@(() => Navigation.NavigateTo("/"))">
+    <button class="detail-back-btn" @onclick="@(() => Navigation.NavigateTo(""))">
         <MudIcon Icon="@Icons.Material.Rounded.ArrowBack" Size="Size.Small" />
         Tilbake
     </button>
@@ -12865,6 +14171,130 @@ FILE END: \StorhaugenWebsite\Pages\FoodDetails.razor
 
 
 ================================================================================
+FILE START: \StorhaugenWebsite\Pages\FriendRatings.razor
+================================================================================
+@page "/friends/{FriendUserId:guid}/ratings"
+@using Microsoft.AspNetCore.Authorization
+@using MudBlazor
+@using StorhaugenWebsite.ApiClient
+@using StorhaugenWebsite.Services
+@using StorhaugenWebsite.Shared.DTOs
+@inject IApiClient ApiClient
+@inject IUserFriendshipService FriendshipService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@attribute [Authorize]
+
+<MudPaper Class="pa-4" Elevation="0">
+    <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Rounded.ArrowBack"
+               OnClick="@(() => Navigation.NavigateTo("friends"))">
+        Tilbake
+    </MudButton>
+
+    @if (!_loaded)
+    {
+        <div class="d-flex justify-center my-6">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+        </div>
+    }
+    else if (_friend == null)
+    {
+        <MudText>Fant ikke venn.</MudText>
+    }
+    else
+    {
+        <div class="d-flex align-center gap-3 my-4">
+            <MudAvatar Size="Size.Large" Color="Color.Primary" Variant="Variant.Filled">
+                @(_friend.DisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+            </MudAvatar>
+
+            <div>
+                <MudText Typo="Typo.h5">@_friend.DisplayName</MudText>
+                <MudText Typo="Typo.caption">Vurderinger</MudText>
+            </div>
+        </div>
+
+        @if (_ratings.Count == 0)
+        {
+            <MudText>Ingen vurderinger enn�.</MudText>
+        }
+        else
+        {
+            <div class="d-flex flex-column gap-2">
+                @foreach (var r in _ratings)
+                {
+                    string linkUrl = r.UserRecipeId.HasValue
+                    ? $"food/{r.UserRecipeId}"
+                    : $"browse/{r.GlobalRecipeId}";
+
+                    <MudPaper Class="pa-3" Elevation="0" Style="cursor:pointer;"
+                              @onclick="@(() => Navigation.NavigateTo(linkUrl))">
+                        <div class="d-flex align-center gap-3">
+                            <MudAvatar Size="Size.Medium">
+                                @if (!string.IsNullOrWhiteSpace(r.ImageUrl))
+                                {
+                                    <img src="@r.ImageUrl" />
+                                }
+                                else
+                                {
+                                    <MudIcon Icon="@Icons.Material.Rounded.Restaurant" />
+                                }
+                            </MudAvatar>
+
+                            <div class="flex-grow-1">
+                                <MudText Typo="Typo.subtitle2">@r.RecipeTitle</MudText>
+
+                                @if (!string.IsNullOrWhiteSpace(r.Comment))
+                                {
+                                    <MudText Typo="Typo.caption">@r.Comment</MudText>
+                                }
+
+                                <MudText Typo="Typo.caption">@r.RatedAt.ToLocalTime().ToString("dd.MM.yyyy")</MudText>
+                            </div>
+
+                            <MudChip Color="Color.Primary" T=string Variant="Variant.Filled">
+                                @($"{r.Score}/10")
+                            </MudChip>
+                        </div>
+                    </MudPaper>
+                }
+            </div>
+        }
+    }
+</MudPaper>
+
+@code {
+    [Parameter] public Guid FriendUserId { get; set; }
+
+    private FriendProfileDto? _friend;
+    private List<UserRatingDto> _ratings = new();
+    private bool _loaded;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _friend = await FriendshipService.GetUserProfileAsync(FriendUserId);
+            _ratings = await ApiClient.GetUserRatingsAsync(FriendUserId, skip: 0, take: 100);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Kunne ikke laste vurderinger: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loaded = true;
+        }
+    }
+}
+
+
+================================================================================
+FILE END: \StorhaugenWebsite\Pages\FriendRatings.razor
+================================================================================
+
+
+================================================================================
 FILE START: \StorhaugenWebsite\Pages\Friends.razor
 ================================================================================
 @page "/friends"
@@ -12872,316 +14302,261 @@ FILE START: \StorhaugenWebsite\Pages\Friends.razor
 @using MudBlazor
 @using StorhaugenWebsite.Shared.DTOs
 @using StorhaugenWebsite.Services
+@using StorhaugenWebsite.ApiClient
 @inject IUserFriendshipService FriendshipService
-@inject IUserRecipeService RecipeService
-@inject IAuthService AuthService
+@inject IHouseholdStateService HouseholdState
+@inject IApiClient ApiClient
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 @attribute [Authorize]
 
-<MudText Typo="Typo.h5" Class="mb-4">Venner</MudText>
+<div class="friends-container animate-in">
+    @* --- HEADER --- *@
+    <div class="d-flex justify-space-between align-center mb-4">
+        <MudText Typo="Typo.h4" Style="font-family: 'Fraunces', serif;">Venner</MudText>
+        @if (_friends.Any())
+        {
+            <MudText Typo="Typo.caption" Color="Color.Secondary">@_friends.Count venner</MudText>
+        }
+    </div>
 
-<MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" Class="mb-4">
-    <MudTabPanel Text="Venner" BadgeData="@_friends.Count" BadgeColor="Color.Primary">
-        @if (_isLoading)
+    @* --- SEARCH BAR --- *@
+    <MudTextField @bind-Value="_searchQuery"
+                  Placeholder="Søk etter navn eller ID..."
+                  Variant="Variant.Outlined"
+                  Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Rounded.Search"
+                  OnKeyUp="OnSearchKeyUp"
+                  Immediate="true"
+                  DebounceInterval="500"
+                  OnDebounceIntervalElapsed="PerformSearch"
+                  Class="search-field mb-4"
+                  Clearable="true"
+                  OnClearButtonClick="@(() => _searchQuery = string.Empty)" />
+
+    @* --- LOADING STATE --- *@
+    @if (_isLoading)
+    {
+        <div class="d-flex flex-column gap-3">
+            @for (int i = 0; i < 4; i++)
+            {
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="72px" Class="rounded-lg" />
+            }
+        </div>
+    }
+    @* --- SEARCH RESULTS MODE --- *@
+    else if (!string.IsNullOrWhiteSpace(_searchQuery))
+    {
+        <MudText Typo="Typo.subtitle2" Class="mb-2 ml-1" Color="Color.Secondary">Resultater</MudText>
+
+        @if (_searchResults.Any())
         {
-            <div class="d-flex flex-column gap-3 mt-4">
-                @for (int i = 0; i < 3; i++)
+            <div class="d-flex flex-column gap-3">
+                @foreach (var user in _searchResults)
                 {
-                    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="60px" />
-                }
-            </div>
-        }
-        else if (!_friends.Any())
-        {
-            <div class="empty-state mt-4">
-                <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Large" Color="Color.Default" />
-                <MudText Typo="Typo.h6" Class="mt-2">Ingen venner ennå</MudText>
-                <MudText Typo="Typo.body2" Color="Color.Secondary">Søk etter brukere for å legge til venner</MudText>
-            </div>
-        }
-        else
-        {
-            <div class="d-flex flex-column gap-2 mt-4">
-                @foreach (var friend in _friends)
-                {
-                    <MudPaper Class="pa-3" Elevation="1">
+                    <MudPaper Class="pa-3 friend-card" Elevation="0" Outlined="true">
                         <div class="d-flex align-center gap-3">
-                            <MudAvatar Color="Color.Primary" Size="Size.Medium">
-                                @(friend.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                            <MudAvatar Color="Color.Info" Size="Size.Medium">
+                                @(user.DisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
                             </MudAvatar>
                             <div class="flex-grow-1">
-                                <MudText Typo="Typo.body1">@friend.FriendDisplayName</MudText>
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                    @friend.RecipeCount oppskrifter · @friend.RecipeCount venner
-                                </MudText>
+                                <MudText Typo="Typo.body1" Style="font-weight: 600;">@user.DisplayName</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">ID: @user.ShareId</MudText>
                             </div>
-                            <MudIconButton Icon="@Icons.Material.Rounded.PersonRemove"
-                                          Color="Color.Error"
-                                          Size="Size.Small"
-                                          OnClick="@(() => RemoveFriend(friend))" />
+
+                            @if (user.FriendshipStatus == "friends")
+                            {
+                                <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Rounded.Check">Venn</MudChip>
+                            }
+                            else if (user.FriendshipStatus == "pending_sent")
+                            {
+                                <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Text">Venter</MudChip>
+                            }
+                            else if (user.FriendshipStatus == "pending_received")
+                            {
+                                <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Text">Har sendt deg</MudChip>
+                            }
+                            else
+                            {
+                                <MudIconButton Icon="@Icons.Material.Rounded.PersonAdd"
+                                               Color="Color.Primary"
+                                               Variant="Variant.Filled"
+                                               Size="Size.Small"
+                                               OnClick="@(() => SendFriendRequest(user))" />
+                            }
                         </div>
                     </MudPaper>
                 }
             </div>
         }
-    </MudTabPanel>
+        else if (!_isSearching)
+        {
+            <div class="empty-state">
+                <MudIcon Icon="@Icons.Material.Rounded.SearchOff" Size="Size.Large" Color="Color.Default" />
+                <MudText Typo="Typo.body1" Class="mt-2">Ingen brukere funnet</MudText>
+            </div>
+        }
+    }
+    else
+    {
+        @* --- STANDARD LIST MODE --- *@
 
-    <MudTabPanel Text="Forespørsler" BadgeData="@_pendingReceived.Count" BadgeColor="Color.Warning">
+        @* 1. INCOMING REQUESTS *@
         @if (_pendingReceived.Any())
         {
-            <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2">Mottatte forespørsler</MudText>
-            <div class="d-flex flex-column gap-2">
+            <div class="section-header">
+                <MudIcon Icon="@Icons.Material.Rounded.MarkEmailUnread" Size="Size.Small" Color="Color.Primary" />
+                <MudText Typo="Typo.subtitle2" Color="Color.Primary">Forespørsler</MudText>
+            </div>
+
+            <div class="d-flex flex-column gap-2 mb-6">
                 @foreach (var request in _pendingReceived)
                 {
-                    <MudPaper Class="pa-3" Elevation="1">
+                    <MudPaper Class="pa-3 friend-card request-card" Elevation="0">
                         <div class="d-flex align-center gap-3">
                             <MudAvatar Color="Color.Secondary" Size="Size.Medium">
                                 @(request.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
                             </MudAvatar>
                             <div class="flex-grow-1">
-                                <MudText Typo="Typo.body1">@request.FriendDisplayName</MudText>
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                    Sendt @request.CreatedAt.ToString("dd. MMM")
-                                </MudText>
+                                <MudText Typo="Typo.body2" Style="font-weight: 600;">@request.FriendDisplayName</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">Vil bli venn med deg</MudText>
                             </div>
-                            <MudButtonGroup Variant="Variant.Outlined" Size="Size.Small">
-                                <MudButton Color="Color.Success" OnClick="@(() => AcceptRequest(request))">
-                                    Godta
-                                </MudButton>
-                                <MudButton Color="Color.Error" OnClick="@(() => RejectRequest(request))">
-                                    Avslå
-                                </MudButton>
-                            </MudButtonGroup>
+                        </div>
+                        <div class="d-flex gap-2 mt-3">
+                            <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Small" FullWidth="true" OnClick="@(() => AcceptRequest(request))">Godta</MudButton>
+                            <MudButton Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" FullWidth="true" OnClick="@(() => RejectRequest(request))">Avslå</MudButton>
                         </div>
                     </MudPaper>
                 }
             </div>
         }
 
-        @if (_pendingSent.Any())
+        @* 2. FRIENDS LIST *@
+        @if (_friends.Any())
         {
-            <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2">Sendte forespørsler</MudText>
             <div class="d-flex flex-column gap-2">
-                @foreach (var request in _pendingSent)
+                @foreach (var friend in _friends)
                 {
-                    <MudPaper Class="pa-3" Elevation="1">
+                    <MudPaper Class="pa-3 friend-card" Elevation="0" @onclick="@(() => OpenFriendProfile(friend))">
                         <div class="d-flex align-center gap-3">
-                            <MudAvatar Color="Color.Tertiary" Size="Size.Medium">
-                                @(request.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                            <MudAvatar Color="Color.Primary" Size="Size.Medium" Variant="Variant.Filled">
+                                @(friend.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
                             </MudAvatar>
                             <div class="flex-grow-1">
-                                <MudText Typo="Typo.body1">@request.FriendDisplayName</MudText>
+                                <MudText Typo="Typo.body1" Style="font-weight: 600;">@friend.FriendDisplayName</MudText>
                                 <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                    Venter på svar...
+                                    @friend.RecipeCount oppskrifter
                                 </MudText>
                             </div>
-                            <MudIconButton Icon="@Icons.Material.Rounded.Cancel"
-                                          Color="Color.Default"
-                                          Size="Size.Small"
-                                          OnClick="@(() => CancelRequest(request))" />
+
+                            @* --- FRIEND MENU --- *@
+                            <MudMenu Icon="@Icons.Material.Rounded.MoreVert" Size="Size.Small" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" @onclick:stopPropagation="true">
+                                <MudMenuItem Icon="@Icons.Material.Rounded.Person" OnClick="@(() => OpenFriendProfile(friend))">Se profil</MudMenuItem>
+
+                                @* --- INVITE TO HOUSEHOLD ACTION --- *@
+                                <MudMenuItem Icon="@Icons.Material.Rounded.GroupAdd" IconColor="Color.Success" OnClick="@(() => InviteFriendToMyHousehold(friend))">
+                                    Inviter til min husstand
+                                </MudMenuItem>
+
+                                <MudDivider />
+                                <MudMenuItem Icon="@Icons.Material.Rounded.PersonRemove" IconColor="Color.Error" OnClick="@(() => RemoveFriend(friend))">Fjern venn</MudMenuItem>
+                            </MudMenu>
                         </div>
                     </MudPaper>
                 }
             </div>
         }
-
-        @if (!_pendingReceived.Any() && !_pendingSent.Any())
+        else if (!_pendingReceived.Any() && !_pendingSent.Any())
         {
-            <div class="empty-state mt-4">
-                <MudIcon Icon="@Icons.Material.Rounded.MarkEmailRead" Size="Size.Large" Color="Color.Default" />
-                <MudText Typo="Typo.h6" Class="mt-2">Ingen ventende forespørsler</MudText>
+            <div class="empty-state mt-8">
+                <MudIcon Icon="@Icons.Material.Rounded.PersonSearch" Size="Size.Large" Color="Color.Default" />
+                <MudText Typo="Typo.h6" Class="mt-2">Ingen venner ennå</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Style="max-width: 250px;">
+                    Søk etter brukernavn eller ID i feltet over for å legge til venner.
+                </MudText>
             </div>
         }
-    </MudTabPanel>
 
-    <MudTabPanel Text="Søk" Icon="@Icons.Material.Rounded.Search">
-        <div class="mt-4">
-            <MudTextField @bind-Value="_searchQuery"
-                         Label="Søk etter brukere"
-                         Variant="Variant.Outlined"
-                         Adornment="Adornment.End"
-                         AdornmentIcon="@Icons.Material.Rounded.Search"
-                         OnAdornmentClick="SearchUsers"
-                         OnKeyDown="@(async (e) => { if (e.Key == "Enter") await SearchUsers(); })"
-                         Immediate="true"
-                         Class="mb-4" />
-
-            @if (_isSearching)
-            {
-                <div class="d-flex flex-column gap-2">
-                    @for (int i = 0; i < 3; i++)
+        @* 3. OUTGOING REQUESTS (Collapsed) *@
+        @if (_pendingSent.Any())
+        {
+            <MudExpansionPanel Text="@($"Sendte forespørsler ({_pendingSent.Count})")" Class="mt-6 shadow-none bg-transparent" DisableGutters="true">
+                <div class="d-flex flex-column gap-2 mt-2">
+                    @foreach (var request in _pendingSent)
                     {
-                        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="60px" />
-                    }
-                </div>
-            }
-            @if (_searchResults.Any())
-            {
-                <div class="d-flex flex-column gap-2">
-                    @foreach (var user in _searchResults)
-                    {
-                        <MudPaper Class="pa-3" Elevation="1">
+                        <MudPaper Class="pa-3 friend-card" Elevation="0" Outlined="true" Style="opacity: 0.8;">
                             <div class="d-flex align-center gap-3">
-                                <MudAvatar Color="Color.Info" Size="Size.Medium">
-                                    @(user.DisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                                <MudAvatar Color="Color.Default" Size="Size.Small">
+                                    @(request.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
                                 </MudAvatar>
                                 <div class="flex-grow-1">
-                                    <MudText Typo="Typo.body1">@user.DisplayName</MudText>
-                                    @* Removed MutualFriendCount as it's not in the DTO *@
+                                    <MudText Typo="Typo.body2">@request.FriendDisplayName</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Venter...</MudText>
                                 </div>
-
-                                @* FIX: Use FriendshipStatus string check instead of boolean properties *@
-                                @if (user.FriendshipStatus == "friends")
-                                {
-                                    <MudChip T="string" Color="Color.Success" Size="Size.Small">Venn</MudChip>
-                                }
-                                else if (user.FriendshipStatus == "pending_sent")
-                                {
-                                    <MudChip T="string" Color="Color.Warning" Size="Size.Small">Venter</MudChip>
-                                }
-                                else if (user.FriendshipStatus == "pending_received")
-                                {
-                                    <MudChip T="string" Color="Color.Info" Size="Size.Small">Har sendt deg</MudChip>
-                                }
-                                else
-                                {
-                                    <MudButton Variant="Variant.Outlined"
-                                               Color="Color.Primary"
-                                               Size="Size.Small"
-                                               StartIcon="@Icons.Material.Rounded.PersonAdd"
-                                               OnClick="@(() => SendFriendRequest(user))">
-                                        Legg til
-                                    </MudButton>
-                                }
+                                <MudIconButton Icon="@Icons.Material.Rounded.Close" Size="Size.Small" OnClick="@(() => CancelRequest(request))" />
                             </div>
                         </MudPaper>
                     }
                 </div>
-            }
-            else if (!string.IsNullOrEmpty(_searchQuery) && _hasSearched)
-            {
-                <div class="empty-state">
-                    <MudIcon Icon="@Icons.Material.Rounded.SearchOff" Size="Size.Large" Color="Color.Default" />
-                    <MudText Typo="Typo.body1" Class="mt-2">Ingen brukere funnet</MudText>
-                </div>
-            }
-        </div>
-    </MudTabPanel>
+            </MudExpansionPanel>
+        }
+    }
+</div>
 
-    <MudTabPanel Text="Oppskrifter" Icon="@Icons.Material.Rounded.MenuBook" OnClick="LoadFriendsRecipes">
-        <div class="mt-4">
-            @if (_isLoadingRecipes)
-            {
-                <div class="d-flex flex-column gap-3">
-                    @for (int i = 0; i < 3; i++)
-                    {
-                        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="80px" />
-                    }
-                </div>
-            }
-            else if (!_friendsRecipes.Any())
-            {
-                <div class="empty-state">
-                    <MudIcon Icon="@Icons.Material.Rounded.MenuBook" Size="Size.Large" Color="Color.Default" />
-                    <MudText Typo="Typo.h6" Class="mt-2">Ingen oppskrifter fra venner</MudText>
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">
-                        @if (!_friends.Any())
-                        {
-                            <span>Legg til venner for å se deres oppskrifter</span>
-                        }
-                        else
-                        {
-                            <span>Vennene dine har ikke delt noen oppskrifter ennå</span>
-                        }
-                    </MudText>
-                </div>
-            }
-            else
-            {
-                <div class="d-flex flex-column gap-3">
-                    @foreach (var recipe in _friendsRecipes)
-                    {
-                        <MudPaper Class="pa-3 recipe-card" Elevation="1" Style="cursor: pointer;" @onclick="() => NavigateToRecipe(recipe)">
-                            <div class="d-flex gap-3">
-                                @if (recipe.ImageUrls.Any())
-                                {
-                                    <MudImage Src="@recipe.ImageUrls.First()"
-                                             Alt="@recipe.Name"
-                                             Width="80"
-                                             Height="80"
-                                             ObjectFit="ObjectFit.Cover"
-                                             Class="rounded" />
-                                }
-                                else
-                                {
-                                    <div class="recipe-placeholder rounded" style="width: 80px; height: 80px; background: var(--mud-palette-background-grey); display: flex; align-items: center; justify-content: center;">
-                                        <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Color="Color.Default" />
-                                    </div>
-                                }
-                                <div class="flex-grow-1">
-                                    <MudText Typo="Typo.subtitle1" Class="font-weight-medium">@recipe.Name</MudText>
-                                    <div class="d-flex align-center gap-2 mt-1">
-                                        <MudAvatar Color="Color.Primary" Size="Size.Small" Style="width: 20px; height: 20px; font-size: 0.65rem;">
-                                            @(recipe.UserDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
-                                        </MudAvatar>
-                                        <MudText Typo="Typo.caption" Color="Color.Secondary">@recipe.UserDisplayName</MudText>
-                                    </div>
-                                    @if (recipe.MyRating.HasValue)
-                                    {
-                                        <div class="d-flex align-center gap-1 mt-1">
-                                            <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" Color="Color.Warning" />
-                                            <MudText Typo="Typo.caption">@recipe.MyRating.Value/10</MudText>
-                                        </div>
-                                    }
-                                </div>
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                    @recipe.CreatedAt.ToString("dd. MMM")
-                                </MudText>
-                            </div>
-                        </MudPaper>
-                    }
-                </div>
+<style>
+    .friend-card {
+        background: var(--mud-palette-surface);
+        border: 1px solid var(--mud-palette-divider);
+        border-radius: 16px;
+        transition: transform 0.2s, background-color 0.2s;
+        cursor: pointer;
+    }
 
-                @if (_hasMoreRecipes)
-                {
-                    <div class="d-flex justify-center mt-4">
-                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="LoadMoreRecipes" Disabled="_isLoadingMoreRecipes">
-                            @if (_isLoadingMoreRecipes)
-                            {
-                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                            }
-                            Last inn mer
-                        </MudButton>
-                    </div>
-                }
-            }
-        </div>
-    </MudTabPanel>
-</MudTabs>
+        .friend-card:hover {
+            background-color: var(--mud-palette-background-grey);
+        }
+
+        .friend-card:active {
+            transform: scale(0.98);
+        }
+
+    .request-card {
+        background: rgba(var(--mud-palette-primary-rgb), 0.05);
+        border-color: rgba(var(--mud-palette-primary-rgb), 0.2);
+    }
+
+    .section-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+        padding-left: 4px;
+    }
+
+    .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        opacity: 0.7;
+        padding: 40px 20px;
+    }
+</style>
 
 @code {
-    // FIX 1: Change type to UserFriendshipDto to match what the API returns
     private List<UserFriendshipDto> _friends = new();
     private List<UserFriendshipDto> _pendingReceived = new();
     private List<UserFriendshipDto> _pendingSent = new();
     private List<UserSearchResultDto> _searchResults = new();
+
     private string _searchQuery = "";
     private bool _isLoading = true;
     private bool _isSearching = false;
-    private bool _hasSearched = false;
-
-    // Friends' recipes state
-    private List<UserRecipeDto> _friendsRecipes = new();
-    private bool _isLoadingRecipes = false;
-    private bool _isLoadingMoreRecipes = false;
-    private bool _hasMoreRecipes = false;
-    private bool _recipesLoaded = false;
-    private int _recipesPage = 1;
-    private const int _recipesPageSize = 10;
 
     protected override async Task OnInitializedAsync()
     {
+        await HouseholdState.InitializeAsync();
         await LoadFriendships();
     }
 
@@ -13193,7 +14568,6 @@ FILE START: \StorhaugenWebsite\Pages\Friends.razor
         try
         {
             var friendships = await FriendshipService.GetFriendshipsAsync();
-            // This assignment now works because types match
             _friends = friendships.Friends ?? new();
             _pendingReceived = friendships.PendingReceived ?? new();
             _pendingSent = friendships.PendingSent ?? new();
@@ -13209,12 +14583,16 @@ FILE START: \StorhaugenWebsite\Pages\Friends.razor
         }
     }
 
-    private async Task SearchUsers()
+    private async Task PerformSearch()
     {
-        if (string.IsNullOrWhiteSpace(_searchQuery)) return;
+        if (string.IsNullOrWhiteSpace(_searchQuery))
+        {
+            _searchResults.Clear();
+            StateHasChanged();
+            return;
+        }
 
         _isSearching = true;
-        _hasSearched = true;
         StateHasChanged();
 
         try
@@ -13232,18 +14610,21 @@ FILE START: \StorhaugenWebsite\Pages\Friends.razor
         }
     }
 
+    private async Task OnSearchKeyUp(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter") await PerformSearch();
+    }
+
     private async Task SendFriendRequest(UserSearchResultDto user)
     {
         try
         {
-            // FIX 2: Use user.Id instead of user.UserId
             await FriendshipService.SendFriendRequestAsync(user.Id);
+            user.FriendshipStatus = "pending_sent"; // Optimistic update
+            Snackbar.Add($"Forespørsel sendt til {user.DisplayName}", Severity.Success);
 
-            // FIX 3: Update the string status instead of missing bool property
-            user.FriendshipStatus = "pending_sent";
-
-            Snackbar.Add($"Venneforespørsel sendt til {user.DisplayName}", Severity.Success);
-            await LoadFriendships();
+            // Reload in background to sync state properly
+            _ = LoadFriendships();
         }
         catch (Exception ex)
         {
@@ -13256,15 +14637,12 @@ FILE START: \StorhaugenWebsite\Pages\Friends.razor
         try
         {
             await FriendshipService.AcceptFriendRequestAsync(request.Id);
-
-            // FIX 4: Use FriendDisplayName instead of OtherUserName
             Snackbar.Add($"Du er nå venn med {request.FriendDisplayName}!", Severity.Success);
-
             await LoadFriendships();
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Kunne ikke godta forespørsel: {ex.Message}", Severity.Error);
+            Snackbar.Add($"Feil: {ex.Message}", Severity.Error);
         }
     }
 
@@ -13273,12 +14651,12 @@ FILE START: \StorhaugenWebsite\Pages\Friends.razor
         try
         {
             await FriendshipService.RejectFriendRequestAsync(request.Id);
-            Snackbar.Add("Forespørsel avslått", Severity.Info);
-            await LoadFriendships();
+            _pendingReceived.Remove(request);
+            StateHasChanged();
         }
-        catch (Exception ex)
+        catch
         {
-            Snackbar.Add($"Kunne ikke avslå forespørsel: {ex.Message}", Severity.Error);
+            Snackbar.Add("Kunne ikke avslå", Severity.Error);
         }
     }
 
@@ -13287,92 +14665,87 @@ FILE START: \StorhaugenWebsite\Pages\Friends.razor
         try
         {
             await FriendshipService.RemoveFriendAsync(request.Id);
+            _pendingSent.Remove(request);
+            StateHasChanged();
             Snackbar.Add("Forespørsel kansellert", Severity.Info);
-            await LoadFriendships();
         }
-        catch (Exception ex)
+        catch
         {
-            Snackbar.Add($"Kunne ikke kansellere forespørsel: {ex.Message}", Severity.Error);
+            Snackbar.Add("Kunne ikke kansellere", Severity.Error);
         }
     }
 
-    // FIX 5: Update signature to accept UserFriendshipDto
     private async Task RemoveFriend(UserFriendshipDto friend)
     {
-        try
-        {
-            // Use friend.Id (the friendship ID) instead of friend.FriendshipId
-            await FriendshipService.RemoveFriendAsync(friend.Id);
+        var confirm = await DialogService.ShowMessageBox(
+            "Fjern venn",
+            $"Er du sikker på at du vil fjerne {friend.FriendDisplayName}?",
+            yesText: "Fjern", cancelText: "Avbryt");
 
-            // Use friend.FriendDisplayName
-            Snackbar.Add($"{friend.FriendDisplayName} fjernet fra venner", Severity.Info);
-
-            await LoadFriendships();
-        }
-        catch (Exception ex)
+        if (confirm == true)
         {
-            Snackbar.Add($"Kunne ikke fjerne venn: {ex.Message}", Severity.Error);
-        }
-    }
-
-    private async Task LoadFriendsRecipes()
-    {
-        if (_recipesLoaded) return;
-
-        _isLoadingRecipes = true;
-        _recipesPage = 1;
-        StateHasChanged();
-
-        try
-        {
-            var query = new GetUserRecipesQuery { Page = _recipesPage, PageSize = _recipesPageSize };
-            var result = await RecipeService.GetFriendsRecipesAsync(query);
-            _friendsRecipes = result.Recipes;
-            _hasMoreRecipes = result.TotalPages > _recipesPage;
-            _recipesLoaded = true;
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Kunne ikke laste oppskrifter: {ex.Message}", Severity.Error);
-        }
-        finally
-        {
-            _isLoadingRecipes = false;
-            StateHasChanged();
+            try
+            {
+                await FriendshipService.RemoveFriendAsync(friend.Id);
+                _friends.Remove(friend);
+                StateHasChanged();
+                Snackbar.Add($"{friend.FriendDisplayName} fjernet", Severity.Info);
+            }
+            catch
+            {
+                Snackbar.Add("Kunne ikke fjerne venn", Severity.Error);
+            }
         }
     }
 
-    private async Task LoadMoreRecipes()
+    private void OpenFriendProfile(UserFriendshipDto friend)
     {
-        _isLoadingMoreRecipes = true;
-        _recipesPage++;
-        StateHasChanged();
-
-        try
-        {
-            var query = new GetUserRecipesQuery { Page = _recipesPage, PageSize = _recipesPageSize };
-            var result = await RecipeService.GetFriendsRecipesAsync(query);
-            _friendsRecipes.AddRange(result.Recipes);
-            _hasMoreRecipes = result.TotalPages > _recipesPage;
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Kunne ikke laste flere oppskrifter: {ex.Message}", Severity.Error);
-            _recipesPage--;
-        }
-        finally
-        {
-            _isLoadingMoreRecipes = false;
-            StateHasChanged();
-        }
+        Navigation.NavigateTo($"friends/{friend.FriendUserId}/ratings");
     }
 
-    private void NavigateToRecipe(UserRecipeDto recipe)
+    // --- NEW: Invite Friend to Household Logic ---
+    private async Task InviteFriendToMyHousehold(UserFriendshipDto friend)
     {
-        Navigation.NavigateTo($"/food/{recipe.Id}");
+        // 1. Check if user has a household
+        if (!HouseholdState.HasHousehold || HouseholdState.CurrentHousehold == null)
+        {
+            Snackbar.Add("Du må være medlem av en husstand for å invitere.", Severity.Warning);
+            return;
+        }
+
+        var householdName = HouseholdState.CurrentHousehold.Name;
+
+        // 2. Confirm action
+        var confirm = await DialogService.ShowMessageBox(
+            "Inviter til husstand",
+            $"Vil du invitere {friend.FriendDisplayName} til å bli medlem av {householdName}?",
+            yesText: "Inviter", cancelText: "Avbryt");
+
+        if (confirm == true)
+        {
+            try
+            {
+                var inviteDto = new InviteToHouseholdDto
+                {
+                    UniqueShareId = friend.FriendShareId // Using ShareID to lookup user
+                };
+
+                await ApiClient.InviteToHouseholdAsync(HouseholdState.CurrentHousehold.Id, inviteDto);
+
+                Snackbar.Add($"Invitasjon sendt til {friend.FriendDisplayName}!", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                if (ex.Message.Contains("already a member"))
+                    Snackbar.Add($"{friend.FriendDisplayName} er allerede medlem.", Severity.Info);
+                else if (ex.Message.Contains("already pending"))
+                    Snackbar.Add("Invitasjon er allerede sendt.", Severity.Warning);
+                else
+                    Snackbar.Add($"Kunne ikke sende invitasjon: {ex.Message}", Severity.Error);
+            }
+        }
     }
 }
-
 
 ================================================================================
 FILE END: \StorhaugenWebsite\Pages\Friends.razor
@@ -13999,8 +15372,11 @@ FILE START: \StorhaugenWebsite\Pages\Login.razor
 ================================================================================
 @page "/login"
 @using StorhaugenWebsite.Services
+@using System.ComponentModel.DataAnnotations
+@using System.Text.Json
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
+@inject ISnackbar Snackbar
 
 <div class="login-container">
     <div class="login-card animate-in">
@@ -14011,36 +15387,240 @@ FILE START: \StorhaugenWebsite\Pages\Login.razor
         <h1 class="login-title">Storhaugen Eats</h1>
         <p class="login-subtitle">Sporing av familiemiddager gjort enkelt</p>
 
+        @* --- ALERTS --- *@
         @if (!string.IsNullOrEmpty(_errorMessage))
         {
-            <MudAlert Severity="Severity.Error" Class="mb-4" Dense="true" Style="border-radius: 12px; text-align: left;">
+            <MudAlert Severity="Severity.Error" Class="mb-4" Dense="true" ShowCloseIcon="true" CloseIconClicked="() => _errorMessage = null">
                 @_errorMessage
             </MudAlert>
         }
 
-        <button class="login-btn" @onclick="LogIn" disabled="@_isLoading">
-            @if (_isLoading)
+        @if (!string.IsNullOrEmpty(_successMessage))
+        {
+            <MudAlert Severity="Severity.Success" Class="mb-4" Variant="Variant.Filled" Dense="true">
+                <MudText Typo="Typo.body2">@_successMessage</MudText>
+            </MudAlert>
+        }
+
+        @* --- FORM AREA --- *@
+        <div class="form-content">
+            @if (_isLoginMode)
             {
-                <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Surface" />
-                <span>Logger inn...</span>
+                // *** LOGIN FORM ***
+                <MudForm @ref="_loginForm" @bind-IsValid="_loginValid" @onkeydown="@(e => HandleEnterKey(e))">
+                    <MudTextField @bind-Value="_email"
+                                  Label="E-post"
+                                  Variant="Variant.Outlined"
+                                  InputType="InputType.Email"
+                                  Required="true"
+                                  RequiredError="E-post er p�krevd"
+                                  Immediate="true"
+                                  Class="mb-3" />
+
+                    <MudTextField @bind-Value="_password"
+                                  Label="Passord"
+                                  Variant="Variant.Outlined"
+                                  InputType="@_passwordInputType"
+                                  Adornment="Adornment.End"
+                                  AdornmentIcon="@_passwordInputIcon"
+                                  OnAdornmentClick="TogglePasswordVisibility"
+                                  Required="true"
+                                  RequiredError="Passord er p�krevd"
+                                  Immediate="true"
+                                  Class="mb-4" />
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               FullWidth="true"
+                               Size="Size.Large"
+                               OnClick="DoEmailLogin"
+                               Disabled="@(_isLoading || !_loginValid)"
+                               Class="login-action-btn">
+                        @if (_isLoading)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                            <span>Logger inn...</span>
+                        }
+                        else
+                        {
+                            <span>Logg inn</span>
+                        }
+                    </MudButton>
+                </MudForm>
+
+                <div class="toggle-mode-text mt-4">
+                    Har du ikke bruker? <a href="#" @onclick:preventDefault @onclick="ToggleMode" class="text-link">Opprett konto</a>
+                </div>
             }
             else
             {
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                </svg>
-                <span>Fortsett med Google</span>
+                // *** REGISTER FORM ***
+                <MudForm @ref="_registerForm" @bind-IsValid="_registerValid" @onkeydown="@(e => HandleEnterKey(e))">
+                    <MudTextField @bind-Value="_regDisplayName"
+                                  Label="Navn"
+                                  Variant="Variant.Outlined"
+                                  Required="true"
+                                  RequiredError="Navn er p�krevd"
+                                  Immediate="true"
+                                  Class="mb-3" />
+
+                    <MudTextField @bind-Value="_regEmail"
+                                  Label="E-post"
+                                  Variant="Variant.Outlined"
+                                  InputType="InputType.Email"
+                                  Required="true"
+                                  RequiredError="E-post er p�krevd"
+                                  Validation="@(new EmailAddressAttribute() { ErrorMessage = "Ugyldig e-post" })"
+                                  Immediate="true"
+                                  Class="mb-3" />
+
+                    <MudTextField @bind-Value="_regPassword"
+                                  Label="Passord"
+                                  Variant="Variant.Outlined"
+                                  InputType="@_passwordInputType"
+                                  Adornment="Adornment.End"
+                                  AdornmentIcon="@_passwordInputIcon"
+                                  OnAdornmentClick="TogglePasswordVisibility"
+                                  Required="true"
+                                  RequiredError="Passord er p�krevd"
+                                  HelperText="Minst 6 tegn"
+                                  Immediate="true"
+                                  Class="mb-4" />
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Secondary"
+                               FullWidth="true"
+                               Size="Size.Large"
+                               OnClick="DoEmailRegister"
+                               Disabled="@(_isLoading || !_registerValid)"
+                               Class="login-action-btn">
+                        @if (_isLoading)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                            <span>Registrerer...</span>
+                        }
+                        else
+                        {
+                            <span>Opprett konto</span>
+                        }
+                    </MudButton>
+                </MudForm>
+
+                <div class="toggle-mode-text mt-4">
+                    Har du allerede bruker? <a href="#" @onclick:preventDefault @onclick="ToggleMode" class="text-link">Logg inn</a>
+                </div>
             }
+        </div>
+
+        <div class="divider-text mt-6 mb-4">ELLER</div>
+
+        <button class="google-btn" @onclick="DoGoogleLogin" disabled="@_isLoading">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+            </svg>
+            <span>Fortsett med Google</span>
         </button>
     </div>
 </div>
 
+<style>
+    .login-action-btn {
+        border-radius: 12px;
+        height: 48px;
+        text-transform: none;
+        font-weight: 600;
+        font-family: 'DM Sans', sans-serif;
+    }
+
+    .text-link {
+        color: var(--mud-palette-primary);
+        font-weight: 600;
+        text-decoration: none;
+    }
+
+        .text-link:hover {
+            text-decoration: underline;
+        }
+
+    .toggle-mode-text {
+        font-size: 0.9rem;
+        color: var(--mud-palette-text-secondary);
+    }
+
+    .google-btn {
+        width: 100%;
+        padding: 12px 24px;
+        border-radius: 12px;
+        border: 1px solid var(--mud-palette-divider);
+        background: var(--mud-palette-surface);
+        color: var(--mud-palette-text-primary);
+        font-weight: 500;
+        font-size: 0.95rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        transition: background-color 0.2s;
+        font-family: 'DM Sans', system-ui, sans-serif;
+    }
+
+        .google-btn:hover {
+            background-color: var(--mud-palette-background-grey);
+        }
+
+    .divider-text {
+        display: flex;
+        align-items: center;
+        color: var(--mud-palette-text-secondary);
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+
+        .divider-text::before, .divider-text::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: var(--mud-palette-divider);
+        }
+
+        .divider-text::before {
+            margin-right: 10px;
+        }
+
+        .divider-text::after {
+            margin-left: 10px;
+        }
+</style>
+
 @code {
     private bool _isLoading = false;
     private string? _errorMessage;
+    private string? _successMessage;
+
+    // Toggle state: true = Login, false = Register
+    private bool _isLoginMode = true;
+
+    // Login Fields
+    private MudForm? _loginForm;
+    private bool _loginValid;
+    private string _email = "";
+    private string _password = "";
+
+    // Register Fields
+    private MudForm? _registerForm;
+    private bool _registerValid;
+    private string _regEmail = "";
+    private string _regPassword = "";
+    private string _regDisplayName = "";
+
+    // Password Visibility
+    private bool _passwordVisible;
+    private InputType _passwordInputType = InputType.Password;
+    private string _passwordInputIcon = Icons.Material.Filled.VisibilityOff;
 
     protected override async Task OnInitializedAsync()
     {
@@ -14051,13 +15631,41 @@ FILE START: \StorhaugenWebsite\Pages\Login.razor
         }
     }
 
-    private async Task LogIn()
+    private void ToggleMode()
     {
+        _isLoginMode = !_isLoginMode;
+        _errorMessage = null;
+        _successMessage = null;
+    }
+
+    private void TogglePasswordVisibility()
+    {
+        if (_passwordVisible)
+        {
+            _passwordVisible = false;
+            _passwordInputIcon = Icons.Material.Filled.VisibilityOff;
+            _passwordInputType = InputType.Password;
+        }
+        else
+        {
+            _passwordVisible = true;
+            _passwordInputIcon = Icons.Material.Filled.Visibility;
+            _passwordInputType = InputType.Text;
+        }
+    }
+
+    private async Task DoEmailLogin()
+    {
+        await _loginForm!.Validate();
+        if (!_loginValid) return;
+
         _isLoading = true;
         _errorMessage = null;
-        StateHasChanged();
+        _successMessage = null;
 
-        var (success, error) = await AuthService.LoginAsync();
+        var (success, error) = await AuthService.SignInWithEmailAsync(_email, _password);
+
+        _isLoading = false;
 
         if (success)
         {
@@ -14065,13 +15673,108 @@ FILE START: \StorhaugenWebsite\Pages\Login.razor
         }
         else
         {
-            _errorMessage = error;
+            _errorMessage = CleanErrorMessage(error);
         }
+    }
+
+    private async Task DoEmailRegister()
+    {
+        await _registerForm!.Validate();
+        if (!_registerValid) return;
+
+        _isLoading = true;
+        _errorMessage = null;
+        _successMessage = null;
+
+        var (success, error) = await AuthService.SignUpWithEmailAsync(_regEmail, _regPassword, _regDisplayName);
 
         _isLoading = false;
+
+        if (success)
+        {
+            // If explicit error message returned (like "Check your email"), treat it as success message
+            if (!string.IsNullOrEmpty(error))
+            {
+                // Explicitly warn the user about email confirmation
+                _successMessage = "Konto opprettet! Du m� bekrefte e-postadressen din f�r du kan logge inn. Sjekk innboksen din.";
+
+                // Clear inputs and switch to login mode so they can login after confirming
+                _regEmail = "";
+                _regPassword = "";
+                _regDisplayName = "";
+                _isLoginMode = true;
+            }
+            else
+            {
+                // Immediate login success (Auto confirm enabled)
+                Navigation.NavigateTo("");
+            }
+        }
+        else
+        {
+            _errorMessage = CleanErrorMessage(error);
+        }
+    }
+
+    private async Task DoGoogleLogin()
+    {
+        _isLoading = true;
+        var (success, error) = await AuthService.LoginAsync();
+        if (!success)
+        {
+            _errorMessage = CleanErrorMessage(error);
+            _isLoading = false;
+        }
+    }
+
+    private async Task HandleEnterKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            if (_isLoginMode) await DoEmailLogin();
+            else await DoEmailRegister();
+        }
+    }
+
+    // Helper to make Supabase JSON errors readable
+    private string CleanErrorMessage(string? error)
+    {
+        if (string.IsNullOrEmpty(error)) return "En ukjent feil oppstod.";
+
+        // Try to parse JSON if it looks like JSON
+        if (error.Trim().StartsWith("{"))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(error);
+                var root = doc.RootElement;
+
+                // Look for "error_code" or "msg"
+                if (root.TryGetProperty("error_code", out var codeElement))
+                {
+                    var code = codeElement.GetString();
+                    if (code == "email_not_confirmed") return "E-posten er ikke bekreftet. Sjekk innboksen din.";
+                    if (code == "invalid_credentials") return "Feil e-post eller passord.";
+                }
+
+                if (root.TryGetProperty("msg", out var msgElement))
+                {
+                    return msgElement.GetString() ?? error;
+                }
+            }
+            catch
+            {
+                // If parsing fails, just return original or a fallback
+            }
+        }
+
+        // Common text fallbacks
+        if (error.Contains("Invalid login credentials")) return "Feil e-post eller passord.";
+        if (error.Contains("User already registered")) return "Denne e-posten er allerede i bruk.";
+
+        return error;
     }
 }
-
 
 ================================================================================
 FILE END: \StorhaugenWebsite\Pages\Login.razor
@@ -14196,20 +15899,37 @@ FILE START: \StorhaugenWebsite\Pages\Settings.razor
     </MudSelect>
 </div>
 
-@if (HouseholdState.UserHouseholds.Count > 1)
+@if (HouseholdState.UserHouseholds.Any())
 {
     <div class="form-section">
-        <p class="form-section-title">Bytt Husstand</p>
-        <MudSelect T="Guid"
-                   Label="Velg aktiv husstand"
-                   Value="@(HouseholdState.CurrentHousehold?.Id ?? Guid.Empty)"
-                   ValueChanged="SwitchHousehold"
-                   Variant="Variant.Outlined">
-            @foreach (var household in HouseholdState.UserHouseholds)
+        <div class="d-flex justify-space-between align-center mb-2">
+            <p class="form-section-title" style="margin-bottom: 0;">Dine Grupper</p>
+            <MudButton Variant="Variant.Text"
+                       Color="Color.Primary"
+                       Size="Size.Small"
+                       StartIcon="@Icons.Material.Rounded.Settings"
+                       Href="/household">
+                Administrer
+            </MudButton>
+        </div>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+            Du er med i @HouseholdState.UserHouseholds.Count gruppe(r). Trykk p� en gruppe for � velge/fravelge den i kokeboken.
+        </MudText>
+        <div class="d-flex flex-wrap gap-2">
+            @foreach (var group in HouseholdState.UserHouseholds)
             {
-                <MudSelectItem Value="@household.Id">@household.Name</MudSelectItem>
+                <MudChip T="string"
+                         Variant="@(HouseholdState.IsGroupActive(group.Id) ? Variant.Filled : Variant.Outlined)"
+                         Color="Color.Primary"
+                         OnClick="@(() => ToggleGroupFilter(group.Id))"
+                         Icon="@(HouseholdState.IsGroupActive(group.Id) ? Icons.Material.Rounded.CheckCircle : Icons.Material.Rounded.RadioButtonUnchecked)">
+                    @group.Name
+                    <MudText Typo="Typo.caption" Class="ml-1" Style="opacity: 0.7;">
+                        (@(group.Members?.Count ?? 0))
+                    </MudText>
+                </MudChip>
             }
-        </MudSelect>
+        </div>
     </div>
 }
 
@@ -14370,18 +16090,11 @@ FILE START: \StorhaugenWebsite\Pages\Settings.razor
         }
     }
 
-    private async Task SwitchHousehold(Guid householdId)
+    private void ToggleGroupFilter(Guid groupId)
     {
-        try
-        {
-            await HouseholdState.SetCurrentHouseholdAsync(householdId);
-            StateHasChanged();
-            Snackbar.Add("Husstand byttet", Severity.Success);
-        }
-        catch
-        {
-            Snackbar.Add("Feil ved bytte av husstand", Severity.Error);
-        }
+        HouseholdState.ToggleGroupFilter(groupId);
+        StateHasChanged();
+        Snackbar.Add("Gruppefilter oppdatert", Severity.Info);
     }
 
     private async Task OnThemeChanged(string themeName)
@@ -14540,12 +16253,14 @@ namespace StorhaugenWebsite.Services
         string? CurrentUserEmail { get; }
         string? CurrentUserName { get; }
 
-        Task<(bool success, string? errorMessage)> LoginAsync();
+        Task<(bool success, string? errorMessage)> LoginAsync(); // Keep for Google
+        // --- ADD THESE ---
+        Task<(bool success, string? errorMessage)> SignInWithEmailAsync(string email, string password);
+        Task<(bool success, string? errorMessage)> SignUpWithEmailAsync(string email, string password, string displayName);
+        // -----------------
         Task LogoutAsync();
         Task InitializeAsync();
         Task<string?> GetAccessTokenAsync();
-
-        // Add this missing line:
         void UpdateCachedDisplayName(string? displayName);
     }
 }
@@ -14676,6 +16391,66 @@ public class SupabaseAuthService : IAuthService, IAsyncDisposable
         }
     }
 
+    public async Task<(bool success, string? errorMessage)> SignInWithEmailAsync(string email, string password)
+    {
+        try
+        {
+            var session = await _supabaseClient.Auth.SignIn(email, password);
+
+            if (session != null && session.User != null)
+            {
+                _session = session;
+                OnAuthStateChanged?.Invoke();
+                return (true, null);
+            }
+            return (false, "Invalid credentials");
+        }
+        catch (Exception ex)
+        {
+            // Supabase throws specific exceptions for invalid login
+            return (false, ex.Message);
+        }
+    }
+
+    public async Task<(bool success, string? errorMessage)> SignUpWithEmailAsync(string email, string password, string displayName)
+    {
+        try
+        {
+            var options = new SignUpOptions
+            {
+                Data = new Dictionary<string, object>
+                {
+                    { "name", displayName }, // Pass display name to Supabase metadata
+                    { "full_name", displayName } // Some providers look for full_name
+                }
+            };
+
+            var session = await _supabaseClient.Auth.SignUp(email, password, options);
+
+            // If Supabase is set to "Auto Confirm Emails", you get a session immediately.
+            // If "Confirm Email" is on, session might be null, but User is not.
+            if (session?.User != null)
+            {
+                if (session.AccessToken != null)
+                {
+                    _session = session;
+                    OnAuthStateChanged?.Invoke();
+                    return (true, null);
+                }
+                else
+                {
+                    return (true, "Registration successful! Please check your email to confirm your account.");
+                }
+            }
+
+            return (false, "Registration failed.");
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message);
+        }
+    }
+
     public async Task LogoutAsync()
     {
         try
@@ -14748,7 +16523,7 @@ FILE START: \StorhaugenWebsite\Services\Authentication\SupabaseAuthStateProvider
 ================================================================================
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.JSInterop;
-using Newtonsoft.Json; // Needed for Supabase JSON serialization
+using Newtonsoft.Json;
 using Supabase.Gotrue;
 using System.Security.Claims;
 using static Supabase.Gotrue.Constants;
@@ -14759,8 +16534,6 @@ public class SupabaseAuthStateProvider : AuthenticationStateProvider
 {
     private readonly Supabase.Client _client;
     private readonly IJSRuntime _jsRuntime;
-
-    // dedicated key just for auth
     private const string AuthCacheKey = "supa_auth_session";
 
     public SupabaseAuthStateProvider(Supabase.Client client, IJSRuntime jsRuntime)
@@ -14774,25 +16547,22 @@ public class SupabaseAuthStateProvider : AuthenticationStateProvider
     {
         try
         {
-            // 1. Check if Supabase already has the session in memory (from Program.cs)
+            // 1. Check if Supabase already has the session in memory
             var session = _client.Auth.CurrentSession;
 
             if (session != null)
             {
-                // CRITICAL FIX: If we found a session in RAM, ensure it's saved to LocalStorage immediately.
-                // This covers the case where Program.cs initialized the session from the URL 
-                // before this provider started listening to events.
+                // Ensure persistence if session exists in memory
                 var json = JsonConvert.SerializeObject(session);
                 await _jsRuntime.InvokeVoidAsync("localStorage.setItem", AuthCacheKey, json);
             }
             else
             {
-                // 2. If memory is empty, try to load from Browser LocalStorage
+                // 2. Try to load from LocalStorage
                 var cachedJson = await _jsRuntime.InvokeAsync<string>("localStorage.getItem", AuthCacheKey);
 
                 if (!string.IsNullOrEmpty(cachedJson))
                 {
-                    // Restore session logic...
                     session = JsonConvert.DeserializeObject<Session>(cachedJson);
                     if (session?.AccessToken != null)
                     {
@@ -14802,15 +16572,33 @@ public class SupabaseAuthStateProvider : AuthenticationStateProvider
                 }
             }
 
-            // 2. Create Claims
+            // 3. Create Claims
             if (session?.User != null)
             {
+                // --- FIX STARTS HERE ---
+                // Try to get display name from metadata ("name" or "full_name"), fallback to email
+                string? displayName = session.User.Email;
+
+                if (session.User.UserMetadata != null)
+                {
+                    if (session.User.UserMetadata.TryGetValue("name", out var nameObj) && nameObj != null)
+                    {
+                        displayName = nameObj.ToString();
+                    }
+                    else if (session.User.UserMetadata.TryGetValue("full_name", out var fullNameObj) && fullNameObj != null)
+                    {
+                        displayName = fullNameObj.ToString();
+                    }
+                }
+
                 var claims = new List<Claim>
                 {
-                    new Claim(ClaimTypes.Name, session.User.Email ?? ""),
+                    // Use the resolved displayName here instead of just email
+                    new Claim(ClaimTypes.Name, displayName ?? ""),
                     new Claim(ClaimTypes.Email, session.User.Email ?? ""),
                     new Claim(ClaimTypes.NameIdentifier, session.User.Id ?? "")
                 };
+                // --- FIX ENDS HERE ---
 
                 var identity = new ClaimsIdentity(claims, "Supabase");
                 return new AuthenticationState(new ClaimsPrincipal(identity));
@@ -14818,19 +16606,17 @@ public class SupabaseAuthStateProvider : AuthenticationStateProvider
         }
         catch
         {
-            // If session restoration fails (e.g. invalid JSON), clear storage
             await _jsRuntime.InvokeVoidAsync("localStorage.removeItem", AuthCacheKey);
         }
 
-        // 3. Not Authenticated
         return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()));
     }
 
+    // ... rest of the file (OnAuthStateChanged, Dispose) remains the same
     private async void OnAuthStateChanged(object sender, AuthState state)
     {
         var session = _client.Auth.CurrentSession;
 
-        // Handle Persistence
         if (state == AuthState.SignedIn || state == AuthState.TokenRefreshed)
         {
             if (session != null)
@@ -15224,9 +17010,8 @@ using StorhaugenWebsite.Shared.DTOs;
 namespace StorhaugenWebsite.Services;
 
 /// <summary>
-/// LEGACY: Manages household state for the current user.
-/// While households still exist, the application is transitioning to a user-centric model.
-/// New features should use user-level state and services.
+/// Manages group (household) state for the current user.
+/// Supports multi-group filtering - user can be in multiple groups and filter which ones to view.
 /// </summary>
 public class HouseholdStateService : IHouseholdStateService
 {
@@ -15234,13 +17019,21 @@ public class HouseholdStateService : IHouseholdStateService
     private readonly IAuthService _authService;
 
     public event Action? OnHouseholdChanged;
+    public event Action? OnActiveGroupsChanged;
 
-    public HouseholdDto? CurrentHousehold { get; private set; }
     public List<HouseholdDto> UserHouseholds { get; private set; } = new();
-    public bool HasHousehold => CurrentHousehold != null;
-    public bool NeedsHouseholdSetup => _authService.IsAuthenticated && !HasHousehold && UserHouseholds.Count == 0;
+    public List<Guid> ActiveGroupFilters { get; private set; } = new();
 
-    // FIX: Add state tracking
+    public List<HouseholdDto> ActiveGroups =>
+        UserHouseholds.Where(h => ActiveGroupFilters.Contains(h.Id)).ToList();
+
+    public bool HasHousehold => UserHouseholds.Any();
+    public bool NeedsHouseholdSetup => _authService.IsAuthenticated && !HasHousehold;
+
+    // [DEPRECATED] For backwards compatibility - returns first active group or first household
+    public HouseholdDto? CurrentHousehold =>
+        ActiveGroups.FirstOrDefault() ?? UserHouseholds.FirstOrDefault();
+
     private bool _isInitialized = false;
     private Task? _currentLoadingTask;
 
@@ -15255,7 +17048,6 @@ public class HouseholdStateService : IHouseholdStateService
     {
         if (_authService.IsAuthenticated)
         {
-            // FIX: Don't re-fetch if we are already initialized and have data
             if (!_isInitialized)
             {
                 await InitializeAsync();
@@ -15264,14 +17056,14 @@ public class HouseholdStateService : IHouseholdStateService
         else
         {
             // Reset state on logout
-            CurrentHousehold = null;
             UserHouseholds.Clear();
+            ActiveGroupFilters.Clear();
             _isInitialized = false;
             OnHouseholdChanged?.Invoke();
+            OnActiveGroupsChanged?.Invoke();
         }
     }
 
-    // Add forceRefresh parameter
     public async Task InitializeAsync(bool forceRefresh = false)
     {
         if (!_authService.IsAuthenticated) return;
@@ -15293,23 +17085,18 @@ public class HouseholdStateService : IHouseholdStateService
     {
         try
         {
-            // Get user's households (API Call 1)
+            // Get user's households
             await RefreshHouseholdsAsync();
 
-            // Get user profile (API Call 2)
-            var user = await _apiClient.GetMyProfileAsync();
-
-            if (user?.CurrentHouseholdId.HasValue == true)
+            // By default, activate ALL groups so user sees everything
+            if (!ActiveGroupFilters.Any() && UserHouseholds.Any())
             {
-                CurrentHousehold = UserHouseholds.FirstOrDefault(h => h.Id == user.CurrentHouseholdId.Value);
-            }
-            else if (UserHouseholds.Count == 1)
-            {
-                await SetCurrentHouseholdAsync(UserHouseholds[0].Id);
+                ActiveGroupFilters = UserHouseholds.Select(h => h.Id).ToList();
             }
 
-            _isInitialized = true; // Mark as done
+            _isInitialized = true;
             OnHouseholdChanged?.Invoke();
+            OnActiveGroupsChanged?.Invoke();
         }
         catch (Exception ex)
         {
@@ -15325,17 +17112,19 @@ public class HouseholdStateService : IHouseholdStateService
         {
             UserHouseholds = await _apiClient.GetMyHouseholdsAsync();
 
-            if (CurrentHousehold != null && !UserHouseholds.Any(h => h.Id == CurrentHousehold.Id))
-            {
-                CurrentHousehold = null;
-            }
+            // Clean up ActiveGroupFilters - remove any groups user is no longer a member of
+            ActiveGroupFilters = ActiveGroupFilters
+                .Where(id => UserHouseholds.Any(h => h.Id == id))
+                .ToList();
 
-            if (CurrentHousehold == null && UserHouseholds.Count == 1)
+            // If no active filters and user has groups, activate all
+            if (!ActiveGroupFilters.Any() && UserHouseholds.Any())
             {
-                CurrentHousehold = UserHouseholds[0];
+                ActiveGroupFilters = UserHouseholds.Select(h => h.Id).ToList();
             }
 
             OnHouseholdChanged?.Invoke();
+            OnActiveGroupsChanged?.Invoke();
         }
         catch (Exception ex)
         {
@@ -15343,15 +17132,65 @@ public class HouseholdStateService : IHouseholdStateService
         }
     }
 
+    public void ToggleGroupFilter(Guid groupId)
+    {
+        if (!UserHouseholds.Any(h => h.Id == groupId)) return;
+
+        if (ActiveGroupFilters.Contains(groupId))
+        {
+            // Don't allow removing the last active group
+            if (ActiveGroupFilters.Count > 1)
+            {
+                ActiveGroupFilters.Remove(groupId);
+            }
+        }
+        else
+        {
+            ActiveGroupFilters.Add(groupId);
+        }
+
+        OnActiveGroupsChanged?.Invoke();
+    }
+
+    public void SelectAllGroups()
+    {
+        ActiveGroupFilters = UserHouseholds.Select(h => h.Id).ToList();
+        OnActiveGroupsChanged?.Invoke();
+    }
+
+    public void ClearAllGroups()
+    {
+        // Keep at least one group active if available
+        if (UserHouseholds.Any())
+        {
+            ActiveGroupFilters = new List<Guid> { UserHouseholds.First().Id };
+        }
+        else
+        {
+            ActiveGroupFilters.Clear();
+        }
+        OnActiveGroupsChanged?.Invoke();
+    }
+
+    public bool IsGroupActive(Guid groupId)
+    {
+        return ActiveGroupFilters.Contains(groupId);
+    }
+
+    // [DEPRECATED] For backwards compatibility
     public async Task SetCurrentHouseholdAsync(Guid householdId)
     {
         if (!_authService.IsAuthenticated) throw new UnauthorizedAccessException("User is not authenticated");
         try
         {
             await _apiClient.SwitchHouseholdAsync(householdId);
-            CurrentHousehold = UserHouseholds.FirstOrDefault(h => h.Id == householdId);
             await _apiClient.UpdateMyProfileAsync(new UpdateUserDto { CurrentHouseholdId = householdId });
+
+            // Set only this group as active (backwards compatible behavior)
+            ActiveGroupFilters = new List<Guid> { householdId };
+
             OnHouseholdChanged?.Invoke();
+            OnActiveGroupsChanged?.Invoke();
         }
         catch (Exception ex)
         {
@@ -15367,8 +17206,15 @@ public class HouseholdStateService : IHouseholdStateService
         {
             var household = await _apiClient.CreateHouseholdAsync(new CreateHouseholdDto { Name = name });
             await RefreshHouseholdsAsync();
-            CurrentHousehold = UserHouseholds.FirstOrDefault(h => h.Id == household.Id);
+
+            // Add the new group to active filters
+            if (!ActiveGroupFilters.Contains(household.Id))
+            {
+                ActiveGroupFilters.Add(household.Id);
+            }
+
             OnHouseholdChanged?.Invoke();
+            OnActiveGroupsChanged?.Invoke();
             return household;
         }
         catch (Exception ex)
@@ -15397,6 +17243,7 @@ public class HouseholdStateService : IHouseholdStateService
             await _apiClient.AcceptInviteAsync(inviteId);
             await RefreshHouseholdsAsync();
             OnHouseholdChanged?.Invoke();
+            OnActiveGroupsChanged?.Invoke();
         }
         catch (Exception ex)
         {
@@ -15419,22 +17266,75 @@ using StorhaugenWebsite.Shared.DTOs;
 namespace StorhaugenWebsite.Services;
 
 /// <summary>
-/// LEGACY: Manages household state for the current user.
-/// While households still exist, the application is transitioning to a user-centric model.
-/// New features should use user-level state and services.
+/// Manages group (household) state for the current user.
+/// Supports multi-group filtering - user can be in multiple groups and filter which ones to view.
 /// </summary>
 public interface IHouseholdStateService
 {
     event Action? OnHouseholdChanged;
+    event Action? OnActiveGroupsChanged;
 
-    HouseholdDto? CurrentHousehold { get; }
+    /// <summary>
+    /// All groups (households) the user is a member of.
+    /// </summary>
     List<HouseholdDto> UserHouseholds { get; }
+
+    /// <summary>
+    /// Currently active group filters - which groups to show recipes from.
+    /// By default, all groups are active.
+    /// </summary>
+    List<Guid> ActiveGroupFilters { get; }
+
+    /// <summary>
+    /// The active groups as DTOs (for easy UI binding).
+    /// </summary>
+    List<HouseholdDto> ActiveGroups { get; }
+
+    /// <summary>
+    /// Whether the user is a member of at least one group.
+    /// </summary>
     bool HasHousehold { get; }
+
+    /// <summary>
+    /// Whether the user needs to create or join a group.
+    /// </summary>
     bool NeedsHouseholdSetup { get; }
+
+    /// <summary>
+    /// [DEPRECATED] For backwards compatibility - returns first active group or first household.
+    /// New code should use ActiveGroupFilters instead.
+    /// </summary>
+    HouseholdDto? CurrentHousehold { get; }
 
     Task InitializeAsync(bool force = false);
     Task RefreshHouseholdsAsync();
+
+    /// <summary>
+    /// Toggle a group in the active filters.
+    /// </summary>
+    void ToggleGroupFilter(Guid groupId);
+
+    /// <summary>
+    /// Set all groups as active.
+    /// </summary>
+    void SelectAllGroups();
+
+    /// <summary>
+    /// Clear all group filters (select none).
+    /// </summary>
+    void ClearAllGroups();
+
+    /// <summary>
+    /// Check if a specific group is active in the filter.
+    /// </summary>
+    bool IsGroupActive(Guid groupId);
+
+    /// <summary>
+    /// [DEPRECATED] For backwards compatibility - switches to a single household context.
+    /// New code should use ToggleGroupFilter instead.
+    /// </summary>
     Task SetCurrentHouseholdAsync(Guid householdId);
+
     Task<HouseholdDto> CreateHouseholdAsync(string name);
     Task<List<HouseholdInviteDto>> GetPendingInvitesAsync();
     Task AcceptInviteAsync(Guid inviteId);
@@ -15876,9 +17776,13 @@ namespace StorhaugenWebsite.Services
         Task<UserRecipeDto> ArchiveRecipeAsync(Guid id);
         Task<UserRecipeDto> RestoreRecipeAsync(Guid id);
 
-        // Household Aggregation
+        // Household Aggregation (single group - backwards compatible)
         Task<AggregatedRecipePagedResult> GetHouseholdCombinedRecipesAsync(Guid householdId, GetCombinedRecipesQuery? query = null);
         Task<List<CommonFavoriteDto>> GetHouseholdCommonFavoritesAsync(Guid householdId, int minimumMembers = 2, int limit = 10);
+
+        // Multi-group Aggregation
+        Task<AggregatedRecipePagedResult> GetGroupsCombinedRecipesAsync(List<Guid> groupIds, GetCombinedRecipesQuery? query = null);
+        Task<List<CommonFavoriteDto>> GetGroupsCommonFavoritesAsync(List<Guid> groupIds, int minimumMembers = 2, int limit = 10);
 
         // Friends' Recipes
         Task<UserRecipePagedResult> GetFriendsRecipesAsync(GetUserRecipesQuery? query = null);
@@ -16206,6 +18110,49 @@ namespace StorhaugenWebsite.Services
                 throw new UnauthorizedAccessException();
 
             return await _apiClient.GetHouseholdCommonFavoritesAsync(householdId, minimumMembers, limit);
+        }
+
+        // Multi-group Aggregation
+        public async Task<AggregatedRecipePagedResult> GetGroupsCombinedRecipesAsync(List<Guid> groupIds, GetCombinedRecipesQuery? query = null)
+        {
+            if (!_authService.IsAuthenticated)
+                throw new UnauthorizedAccessException();
+
+            if (groupIds == null || !groupIds.Any())
+                return new AggregatedRecipePagedResult();
+
+            query ??= new GetCombinedRecipesQuery();
+            var multiGroupQuery = new GetMultiGroupRecipesQuery
+            {
+                GroupIds = groupIds,
+                FilterByMembers = query.FilterByMembers,
+                MinRating = query.MinRating,
+                Search = query.Search,
+                SortBy = query.SortBy,
+                SortDescending = query.SortDescending,
+                Page = query.Page,
+                PageSize = query.PageSize
+            };
+
+            return await _apiClient.GetGroupsCombinedRecipesAsync(multiGroupQuery);
+        }
+
+        public async Task<List<CommonFavoriteDto>> GetGroupsCommonFavoritesAsync(List<Guid> groupIds, int minimumMembers = 2, int limit = 10)
+        {
+            if (!_authService.IsAuthenticated)
+                throw new UnauthorizedAccessException();
+
+            if (groupIds == null || !groupIds.Any())
+                return new List<CommonFavoriteDto>();
+
+            var query = new GetMultiGroupFavoritesQuery
+            {
+                GroupIds = groupIds,
+                MinMembers = minimumMembers,
+                Limit = limit
+            };
+
+            return await _apiClient.GetGroupsCommonFavoritesAsync(query);
         }
 
         public async Task<UserRecipePagedResult> GetFriendsRecipesAsync(GetUserRecipesQuery? query = null)
@@ -19015,6 +20962,61 @@ public class GetCombinedRecipesQuery
 }
 
 /// <summary>
+/// Query parameters for getting recipes from multiple groups (households).
+/// Used for the multi-group aggregation feature.
+/// </summary>
+public class GetMultiGroupRecipesQuery
+{
+    /// <summary>
+    /// List of group (household) IDs to aggregate recipes from.
+    /// </summary>
+    public List<Guid> GroupIds { get; set; } = new();
+
+    /// <summary>
+    /// Filter to only show recipes from specific members.
+    /// </summary>
+    public List<Guid>? FilterByMembers { get; set; }
+
+    /// <summary>
+    /// Minimum average rating (from group members).
+    /// </summary>
+    public double? MinRating { get; set; }
+
+    /// <summary>
+    /// Search term for recipe name.
+    /// </summary>
+    public string? Search { get; set; }
+
+    public string SortBy { get; set; } = "date";
+    public bool SortDescending { get; set; } = true;
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 50;
+}
+
+/// <summary>
+/// Query parameters for getting common favorites from multiple groups.
+/// </summary>
+public class GetMultiGroupFavoritesQuery
+{
+    /// <summary>
+    /// List of group (household) IDs to aggregate favorites from.
+    /// </summary>
+    public List<Guid> GroupIds { get; set; } = new();
+
+    /// <summary>
+    /// Minimum number of members who must have rated the recipe.
+    /// </summary>
+    public int MinMembers { get; set; } = 2;
+
+    /// <summary>
+    /// Minimum average rating from those members.
+    /// </summary>
+    public double MinAverageRating { get; set; } = 4.0;
+
+    public int Limit { get; set; } = 20;
+}
+
+/// <summary>
 /// Query parameters for getting common favorites.
 /// </summary>
 public class GetCommonFavoritesQuery
@@ -19303,6 +21305,75 @@ FILE END: \StorhaugenWebsite.Shared\DTOs\StorageDTOs.cs
 
 
 ================================================================================
+FILE START: \StorhaugenWebsite.Shared\DTOs\TagDTOs.cs
+================================================================================
+namespace StorhaugenWebsite.Shared.DTOs;
+
+// ==========================================
+// TAG DTOs - Personal Recipe Organization
+// ==========================================
+
+/// <summary>
+/// DTO representing a recipe tag/category.
+/// </summary>
+public class TagDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Color { get; set; }
+    public string? Icon { get; set; }
+    public int RecipeCount { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
+/// <summary>
+/// DTO for creating a new tag.
+/// </summary>
+public class CreateTagDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Color { get; set; }
+    public string? Icon { get; set; }
+}
+
+/// <summary>
+/// DTO for updating a tag.
+/// </summary>
+public class UpdateTagDto
+{
+    public string? Name { get; set; }
+    public string? Color { get; set; }
+    public string? Icon { get; set; }
+}
+
+/// <summary>
+/// DTO for adding/removing tags from a recipe.
+/// </summary>
+public class UpdateRecipeTagsDto
+{
+    /// <summary>
+    /// List of tag IDs to set on the recipe (replaces existing tags).
+    /// </summary>
+    public List<Guid> TagIds { get; set; } = new();
+}
+
+/// <summary>
+/// Simplified tag reference for use in recipe DTOs.
+/// </summary>
+public class TagReferenceDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Color { get; set; }
+}
+
+
+================================================================================
+FILE END: \StorhaugenWebsite.Shared\DTOs\TagDTOs.cs
+================================================================================
+
+
+================================================================================
 FILE START: \StorhaugenWebsite.Shared\DTOs\UserDTOs.cs
 ================================================================================
 namespace StorhaugenWebsite.Shared.DTOs;
@@ -19335,6 +21406,28 @@ public class UpdateUserDto
 
 ================================================================================
 FILE END: \StorhaugenWebsite.Shared\DTOs\UserDTOs.cs
+================================================================================
+
+
+================================================================================
+FILE START: \StorhaugenWebsite.Shared\DTOs\UserRatingDTOs.cs
+================================================================================
+namespace StorhaugenWebsite.Shared.DTOs;
+
+public class UserRatingDto
+{
+    public Guid? GlobalRecipeId { get; set; } 
+    public Guid? UserRecipeId { get; set; }   
+    public string RecipeTitle { get; set; } = "";
+    public string? ImageUrl { get; set; }
+    public int Score { get; set; }
+    public string? Comment { get; set; }
+    public DateTime RatedAt { get; set; }
+}
+
+
+================================================================================
+FILE END: \StorhaugenWebsite.Shared\DTOs\UserRatingDTOs.cs
 ================================================================================
 
 
@@ -19381,6 +21474,9 @@ public class UserRecipeDto
     public double AverageRating { get; set; }
     public int RatingCount { get; set; }
     public Dictionary<string, int?> HouseholdRatings { get; set; } = new();
+
+    // Tags (personal organization)
+    public List<TagReferenceDto> Tags { get; set; } = new();
 }
 
 /// <summary>
@@ -19395,6 +21491,9 @@ public class CreateUserRecipeDto
     public string? PersonalNotes { get; set; }
     public Guid? GlobalRecipeId { get; set; }
     public string Visibility { get; set; } = "private";
+
+    // Tags (personal organization)
+    public List<Guid>? TagIds { get; set; }
 
     // --- NEW: Dictionary of UserID -> Score (1-10) ---
     public Dictionary<Guid, int>? MemberRatings { get; set; }
@@ -19411,6 +21510,9 @@ public class UpdateUserRecipeDto
     public object? Ingredients { get; set; }
     public string? PersonalNotes { get; set; }
     public string? Visibility { get; set; }
+
+    // Tags (personal organization)
+    public List<Guid>? TagIds { get; set; }
 }
 
 /// <summary>
@@ -19434,6 +21536,10 @@ public class GetUserRecipesQuery
     public bool SortDescending { get; set; } = true;
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 50;
+
+    // Tag filtering
+    public List<Guid>? TagIds { get; set; }
+    public string? Search { get; set; }
 }
 
 /// <summary>

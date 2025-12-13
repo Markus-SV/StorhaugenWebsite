@@ -401,9 +401,7 @@
 
     private void OpenFriendProfile(UserFriendshipDto friend)
     {
-        // Navigate to the profile page (assuming profile page exists)
-        // Navigation.NavigateTo($"/profile/{friend.FriendUserId}");
-        Snackbar.Add($"Går til {friend.FriendDisplayName} sin profil (Kommer snart!)", Severity.Info);
+        Navigation.NavigateTo($"friends/{friend.FriendUserId}/ratings");
     }
 
     // --- NEW: Invite Friend to Household Logic ---

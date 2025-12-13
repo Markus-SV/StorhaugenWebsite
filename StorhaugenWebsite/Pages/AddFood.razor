@@ -343,7 +343,7 @@
 
             await RecipeService.CreateRecipeAsync(createDto);
             RecipeService.InvalidateCache();
-            Navigation.NavigateTo("/");
+            Navigation.NavigateTo("");
         }
         catch (Exception ex) { _errorMessage = ex.Message; }
         finally { _isSubmitting = false; }

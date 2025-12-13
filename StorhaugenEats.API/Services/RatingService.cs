@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using StorhaugenEats.API.Data;
 using StorhaugenEats.API.Models;
+using StorhaugenWebsite.Shared.DTOs;
+using Supabase.Gotrue;
 
 namespace StorhaugenEats.API.Services;
 
@@ -75,4 +77,25 @@ public class RatingService : IRatingService
 
         return true;
     }
+
+    public async Task<List<UserRatingDto>> GetGlobalRecipeRatingsForUserAsync(Guid userId, int skip = 0, int take = 50)
+    {
+        return await _context.Ratings
+            .AsNoTracking()
+           .Where(r => r.UserId == userId && r.GlobalRecipeId != null)
+            .OrderByDescending(r => r.UpdatedAt)
+            .Skip(skip)
+            .Take(take)
+            .Select(r => new UserRatingDto
+            {
+                GlobalRecipeId = r.GlobalRecipeId!.Value,
+                RecipeTitle = r.GlobalRecipe!.Title,
+                ImageUrl = r.GlobalRecipe!.ImageUrl,
+                Score = r.Score,
+                Comment = r.Comment,
+                RatedAt = r.UpdatedAt
+            })
+            .ToListAsync();
+    }
+
 }

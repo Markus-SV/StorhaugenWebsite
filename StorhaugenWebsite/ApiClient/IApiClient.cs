@@ -96,5 +96,8 @@ public interface IApiClient
     Task DeleteTagAsync(Guid id);
     Task<List<TagReferenceDto>> GetRecipeTagsAsync(Guid recipeId);
     Task SetRecipeTagsAsync(Guid recipeId, List<Guid> tagIds);
+
+    // Ratings
+    Task<List<UserRatingDto>> GetUserRatingsAsync(Guid userId, int skip = 0, int take = 50);
 }
 

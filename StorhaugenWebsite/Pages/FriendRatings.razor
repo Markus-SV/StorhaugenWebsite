@@ -1,0 +1,114 @@
+﻿@page "/friends/{FriendUserId:guid}/ratings"
+@using Microsoft.AspNetCore.Authorization
+@using MudBlazor
+@using StorhaugenWebsite.ApiClient
+@using StorhaugenWebsite.Services
+@using StorhaugenWebsite.Shared.DTOs
+@inject IApiClient ApiClient
+@inject IUserFriendshipService FriendshipService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@attribute [Authorize]
+
+<MudPaper Class="pa-4" Elevation="0">
+    <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Rounded.ArrowBack"
+               OnClick="@(() => Navigation.NavigateTo("friends"))">
+        Tilbake
+    </MudButton>
+
+    @if (!_loaded)
+    {
+        <div class="d-flex justify-center my-6">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+        </div>
+    }
+    else if (_friend == null)
+    {
+        <MudText>Fant ikke venn.</MudText>
+    }
+    else
+    {
+        <div class="d-flex align-center gap-3 my-4">
+            <MudAvatar Size="Size.Large" Color="Color.Primary" Variant="Variant.Filled">
+                @(_friend.DisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+            </MudAvatar>
+
+            <div>
+                <MudText Typo="Typo.h5">@_friend.DisplayName</MudText>
+                <MudText Typo="Typo.caption">Vurderinger</MudText>
+            </div>
+        </div>
+
+        @if (_ratings.Count == 0)
+        {
+            <MudText>Ingen vurderinger ennå.</MudText>
+        }
+        else
+        {
+            <div class="d-flex flex-column gap-2">
+                @foreach (var r in _ratings)
+                {
+                    string linkUrl = r.UserRecipeId.HasValue
+                    ? $"food/{r.UserRecipeId}"
+                    : $"browse/{r.GlobalRecipeId}";
+
+                    <MudPaper Class="pa-3" Elevation="0" Style="cursor:pointer;"
+                              @onclick="@(() => Navigation.NavigateTo(linkUrl))">
+                        <div class="d-flex align-center gap-3">
+                            <MudAvatar Size="Size.Medium">
+                                @if (!string.IsNullOrWhiteSpace(r.ImageUrl))
+                                {
+                                    <img src="@r.ImageUrl" />
+                                }
+                                else
+                                {
+                                    <MudIcon Icon="@Icons.Material.Rounded.Restaurant" />
+                                }
+                            </MudAvatar>
+
+                            <div class="flex-grow-1">
+                                <MudText Typo="Typo.subtitle2">@r.RecipeTitle</MudText>
+
+                                @if (!string.IsNullOrWhiteSpace(r.Comment))
+                                {
+                                    <MudText Typo="Typo.caption">@r.Comment</MudText>
+                                }
+
+                                <MudText Typo="Typo.caption">@r.RatedAt.ToLocalTime().ToString("dd.MM.yyyy")</MudText>
+                            </div>
+
+                            <MudChip Color="Color.Primary" T=string Variant="Variant.Filled">
+                                @($"{r.Score}/10")
+                            </MudChip>
+                        </div>
+                    </MudPaper>
+                }
+            </div>
+        }
+    }
+</MudPaper>
+
+@code {
+    [Parameter] public Guid FriendUserId { get; set; }
+
+    private FriendProfileDto? _friend;
+    private List<UserRatingDto> _ratings = new();
+    private bool _loaded;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _friend = await FriendshipService.GetUserProfileAsync(FriendUserId);
+            _ratings = await ApiClient.GetUserRatingsAsync(FriendUserId, skip: 0, take: 100);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Kunne ikke laste vurderinger: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loaded = true;
+        }
+    }
+}

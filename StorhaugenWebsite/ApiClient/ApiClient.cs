@@ -553,10 +553,18 @@ public class ApiClient : IApiClient
             ?? new ActivitySummaryDto();
     }
 
-	// Household Recipe Aggregation
-	// In ApiClient.cs
+    public async Task<List<UserRatingDto>> GetUserRatingsAsync(Guid userId, int skip = 0, int take = 50)
+    {
+        await AddAuthHeaderAsync();
 
-	public async Task<AggregatedRecipePagedResult> GetHouseholdCombinedRecipesAsync(Guid householdId, GetCombinedRecipesQuery query)
+        var url = $"/api/ratings/user/{userId}?skip={skip}&take={take}";
+        return (await _httpClient.GetFromJsonAsync<List<UserRatingDto>>(url, _jsonOptions)) ?? new List<UserRatingDto>();
+    }
+
+    // Household Recipe Aggregation
+    // In ApiClient.cs
+
+    public async Task<AggregatedRecipePagedResult> GetHouseholdCombinedRecipesAsync(Guid householdId, GetCombinedRecipesQuery query)
 	{
 		await AddAuthHeaderAsync();
 		var queryParams = new List<string>();
