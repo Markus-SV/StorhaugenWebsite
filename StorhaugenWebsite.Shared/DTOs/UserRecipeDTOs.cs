@@ -20,6 +20,17 @@ public class UserRecipeDto
     public List<string> ImageUrls { get; set; } = new();
     public object? Ingredients { get; set; }
 
+    // HelloFresh metadata (from global recipe if linked)
+    public int? PrepTimeMinutes { get; set; }
+    public int? CookTimeMinutes { get; set; }
+    public int? Servings { get; set; }
+    public string? Difficulty { get; set; }
+    public string? Cuisine { get; set; }
+    public List<string> RecipeTags { get; set; } = new();
+    public object? NutritionData { get; set; }
+    public bool IsHellofresh { get; set; }
+    public string? HellofreshWeek { get; set; }
+
     // Link status
     public Guid? GlobalRecipeId { get; set; }
     public string? GlobalRecipeName { get; set; }
@@ -56,10 +67,19 @@ public class CreateUserRecipeDto
     public Guid? GlobalRecipeId { get; set; }
     public string Visibility { get; set; } = "private";
 
+    // HelloFresh metadata (stored locally when copying)
+    public int? PrepTimeMinutes { get; set; }
+    public int? CookTimeMinutes { get; set; }
+    public int? Servings { get; set; }
+    public string? Difficulty { get; set; }
+    public string? Cuisine { get; set; }
+    public List<string>? Tags { get; set; }
+    public object? NutritionData { get; set; }
+
     // Tags (personal organization)
     public List<Guid>? TagIds { get; set; }
 
-    // --- NEW: Dictionary of UserID -> Score (1-10) ---
+    // --- Dictionary of UserID -> Score (1-10) ---
     public Dictionary<Guid, int>? MemberRatings { get; set; }
 }
 

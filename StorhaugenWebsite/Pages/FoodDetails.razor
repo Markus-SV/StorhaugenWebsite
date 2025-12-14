@@ -4,6 +4,7 @@
 @using StorhaugenWebsite.Shared.DTOs
 @using StorhaugenWebsite.Services
 @using StorhaugenWebsite.Components
+@using System.Text.Json
 @inject IUserRecipeService RecipeService
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
@@ -76,15 +77,19 @@ else
         <div class="d-flex justify-space-between align-start gap-3">
             <div>
                 <h1 class="detail-title">@_recipe.Name</h1>
-                <div class="d-flex align-center gap-2 mt-1">
-                    @if (IsOwner)
+                <div class="d-flex align-center gap-2 mt-1 flex-wrap">
+                    @if (_recipe.IsHellofresh)
+                    {
+                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Rounded.LocalDining">HelloFresh</MudChip>
+                    }
+                    else if (IsOwner)
                     {
                         <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Text">Min oppskrift</MudChip>
                     }
                     else
                     {
                         <MudChip T="string" Color="Color.Secondary" Size="Size.Small" Icon="@Icons.Material.Rounded.Person">
-                            Eies av: @_recipe.UserDisplayName
+                            @_recipe.UserDisplayName
                         </MudChip>
                     }
                     <MudText Typo="Typo.caption" Color="Color.Secondary">• @_recipe.CreatedAt.ToString("dd. MMM")</MudText>
@@ -100,28 +105,116 @@ else
             }
         </div>
 
+        @* Quick Info (PrepTime, Difficulty, Servings) *@
+        @if (_recipe.PrepTimeMinutes.HasValue || !string.IsNullOrEmpty(_recipe.Difficulty) || _recipe.Servings.HasValue)
+        {
+            <div class="quick-info-row mt-3">
+                @if (_recipe.PrepTimeMinutes.HasValue)
+                {
+                    <div class="quick-info-item">
+                        <MudIcon Icon="@Icons.Material.Rounded.AccessTime" Size="Size.Small" Color="Color.Primary" />
+                        <span>@_recipe.PrepTimeMinutes min</span>
+                    </div>
+                }
+                @if (!string.IsNullOrEmpty(_recipe.Difficulty))
+                {
+                    <div class="quick-info-item">
+                        <MudIcon Icon="@GetDifficultyIcon(_recipe.Difficulty)" Size="Size.Small" Color="Color.Secondary" />
+                        <span>@GetDifficultyLabel(_recipe.Difficulty)</span>
+                    </div>
+                }
+                @if (_recipe.Servings.HasValue)
+                {
+                    <div class="quick-info-item">
+                        <MudIcon Icon="@Icons.Material.Rounded.Group" Size="Size.Small" Color="Color.Tertiary" />
+                        <span>@_recipe.Servings porsjoner</span>
+                    </div>
+                }
+            </div>
+        }
+
         @if (!string.IsNullOrWhiteSpace(_recipe.Description))
         {
             <p class="detail-description mt-4">@_recipe.Description</p>
         }
 
+        @* Recipe Tags *@
+        @if (_recipe.RecipeTags.Any())
+        {
+            <div class="d-flex flex-wrap gap-2 mt-3">
+                @foreach (var tag in _recipe.RecipeTags)
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">@tag</MudChip>
+                }
+            </div>
+        }
+
         @* Link Status *@
-        @if (_recipe.IsLinkedToGlobal)
+        @if (_recipe.IsLinkedToGlobal && !_recipe.IsHellofresh)
         {
             <div class="recipe-source-info mt-3">
                 <div class="d-flex align-center gap-2">
                     <MudIcon Icon="@Icons.Material.Rounded.Link" Color="Color.Info" Size="Size.Small" />
                     <MudText Typo="Typo.caption" Color="Color.Secondary">
-                        Dette er en <b>Global Oppskrift</b> (@(_recipe.GlobalRecipeName)).
-                        @if (!IsOwner)
-                        {
-                            <span>Du ser @_recipe.UserDisplayName sin versjon.</span>
-                        }
+                        Koblet til: <b>@(_recipe.GlobalRecipeName)</b>
                     </MudText>
                 </div>
             </div>
         }
     </div>
+
+    @* --- COLLAPSIBLE SECTIONS --- *@
+    @if (HasNutritionData || HasIngredients)
+    {
+        <MudExpansionPanels Class="mt-4" MultiExpansion="true">
+            @* Nutrition Info *@
+            @if (HasNutritionData)
+            {
+                <MudExpansionPanel Text="Næringsinformasjon" Icon="@Icons.Material.Rounded.LocalFireDepartment">
+                    <div class="nutrition-grid">
+                        @foreach (var item in ParseNutrition())
+                        {
+                            <div class="nutrition-item">
+                                <span class="nutrition-value">@item.Amount</span>
+                                <span class="nutrition-label">@item.Name</span>
+                            </div>
+                        }
+                    </div>
+                </MudExpansionPanel>
+            }
+
+            @* Ingredients *@
+            @if (HasIngredients)
+            {
+                <MudExpansionPanel Text="Ingredienser" Icon="@Icons.Material.Rounded.ShoppingCart" IsInitiallyExpanded="true">
+                    <div class="ingredients-list">
+                        @foreach (var ingredient in ParseIngredients())
+                        {
+                            <div class="ingredient-item">
+                                @if (!string.IsNullOrEmpty(ingredient.Image))
+                                {
+                                    <img src="@GetIngredientImageUrl(ingredient.Image)" alt="@ingredient.Name" class="ingredient-image" />
+                                }
+                                else
+                                {
+                                    <div class="ingredient-placeholder">
+                                        <MudIcon Icon="@Icons.Material.Rounded.Egg" Size="Size.Small" />
+                                    </div>
+                                }
+                                <div class="ingredient-info">
+                                    <span class="ingredient-name">@ingredient.Name</span>
+                                    @if (!string.IsNullOrEmpty(ingredient.Amount) || !string.IsNullOrEmpty(ingredient.Unit))
+                                    {
+                                        <span class="ingredient-amount">@ingredient.Amount @ingredient.Unit</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </MudExpansionPanel>
+            }
+        </MudExpansionPanels>
+    }
 
     @* --- ACTIONS SECTION --- *@
     <div class="form-section">
@@ -265,10 +358,119 @@ else
         margin-bottom: 4px;
     }
 
+    .quick-info-row {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+
+    .quick-info-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        background: var(--mud-palette-background-grey);
+        border-radius: 8px;
+        font-size: 0.85rem;
+    }
+
+    .nutrition-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+    }
+
+    .nutrition-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 8px;
+        background: var(--mud-palette-background-grey);
+        border-radius: 8px;
+        text-align: center;
+    }
+
+    .nutrition-value {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: var(--mud-palette-primary);
+    }
+
+    .nutrition-label {
+        font-size: 0.65rem;
+        color: var(--mud-palette-text-secondary);
+        text-transform: uppercase;
+        margin-top: 2px;
+    }
+
+    .ingredients-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .ingredient-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px;
+        background: var(--mud-palette-background-grey);
+        border-radius: 8px;
+    }
+
+    .ingredient-image {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        object-fit: cover;
+        background: white;
+    }
+
+    .ingredient-placeholder {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        background: var(--mud-palette-divider);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--mud-palette-text-disabled);
+    }
+
+    .ingredient-info {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .ingredient-name {
+        font-weight: 500;
+        color: var(--mud-palette-text-primary);
+    }
+
+    .ingredient-amount {
+        font-size: 0.8rem;
+        color: var(--mud-palette-text-secondary);
+    }
+
     .visibility-card {
         background: var(--mud-palette-background-grey);
         border-radius: 12px;
         padding: 12px;
+    }
+
+    @@media (max-width: 600px) {
+        .nutrition-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .quick-info-row {
+            gap: 8px;
+        }
+
+        .quick-info-item {
+            font-size: 0.8rem;
+            padding: 4px 8px;
+        }
     }
 </style>
 
@@ -447,4 +649,105 @@ else
     private string GetRatingClass(double r) => r >= 8 ? "rating-high" : r >= 5 ? "rating-medium" : "rating-low";
     private string GetVisibilityText(string v) => v switch { "private" => "Privat (Kun deg)", "household" => "Husstand", "public" => "Offentlig", _ => v };
     private string GetVisibilityIcon(string v) => v switch { "household" => Icons.Material.Rounded.Home, "public" => Icons.Material.Rounded.Public, _ => Icons.Material.Rounded.Lock };
+
+    // Difficulty helpers
+    private string GetDifficultyIcon(string? difficulty)
+    {
+        return difficulty?.ToLower() switch
+        {
+            "easy" or "lett" => Icons.Material.Rounded.SentimentSatisfied,
+            "medium" or "middels" => Icons.Material.Rounded.Psychology,
+            "hard" or "vanskelig" => Icons.Material.Rounded.LocalFireDepartment,
+            _ => Icons.Material.Rounded.HelpOutline
+        };
+    }
+
+    private string GetDifficultyLabel(string? difficulty)
+    {
+        return difficulty?.ToLower() switch
+        {
+            "easy" => "Lett",
+            "medium" => "Middels",
+            "hard" => "Vanskelig",
+            _ => difficulty ?? ""
+        };
+    }
+
+    // Nutrition and Ingredients parsing
+    private record NutritionInfo(string Name, string Amount);
+    private record IngredientInfo(string Name, string? Amount, string? Unit, string? Image);
+
+    private bool HasNutritionData => _recipe?.NutritionData != null;
+    private bool HasIngredients => _recipe?.Ingredients != null;
+
+    private List<NutritionInfo> ParseNutrition()
+    {
+        var items = new List<NutritionInfo>();
+        if (_recipe?.NutritionData == null) return items;
+
+        try
+        {
+            if (_recipe.NutritionData is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var prop in jsonElement.EnumerateObject())
+                {
+                    var amount = prop.Value.ToString();
+                    var name = GetNutritionDisplayName(prop.Name);
+                    items.Add(new NutritionInfo(name, amount));
+                }
+            }
+        }
+        catch { }
+        return items;
+    }
+
+    private string GetNutritionDisplayName(string key)
+    {
+        return key.ToLower() switch
+        {
+            "kalorier" => "kcal",
+            "energi (kj)" => "kJ",
+            "fett" => "Fett",
+            "mettet fett" => "M. fett",
+            "karbohydrater" => "Karb.",
+            "sukker" => "Sukker",
+            "protein" => "Protein",
+            "natrium" => "Natrium",
+            _ => key.Length > 8 ? key.Substring(0, 6) + ".." : key
+        };
+    }
+
+    private List<IngredientInfo> ParseIngredients()
+    {
+        var items = new List<IngredientInfo>();
+        if (_recipe?.Ingredients == null) return items;
+
+        try
+        {
+            if (_recipe.Ingredients is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in jsonElement.EnumerateArray())
+                {
+                    var name = item.TryGetProperty("name", out var n) ? n.GetString() : "";
+                    var amount = item.TryGetProperty("amount", out var a) ? a.ToString() : null;
+                    var unit = item.TryGetProperty("unit", out var u) ? u.GetString() : null;
+                    var image = item.TryGetProperty("image", out var i) ? i.GetString() : null;
+
+                    if (!string.IsNullOrEmpty(name))
+                    {
+                        items.Add(new IngredientInfo(name!, amount, unit, image));
+                    }
+                }
+            }
+        }
+        catch { }
+        return items;
+    }
+
+    private string GetIngredientImageUrl(string? imagePath)
+    {
+        if (string.IsNullOrEmpty(imagePath)) return "";
+        if (imagePath.StartsWith("http")) return imagePath;
+        return $"https://d3hvwccx09j84u.cloudfront.net/0,0{imagePath}";
+    }
 }

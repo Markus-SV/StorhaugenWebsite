@@ -1,13 +1,14 @@
 @page "/browse/{Id:guid}"
 @using Microsoft.AspNetCore.Authorization
 @using StorhaugenWebsite.ApiClient
+@using StorhaugenWebsite.Services
 @using StorhaugenWebsite.Shared.DTOs
 @using StorhaugenWebsite.Components
 @inject IApiClient ApiClient
+@inject IUserRecipeService RecipeService
 @inject IFoodService FoodService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
-@inject IHouseholdStateService HouseholdState
 @attribute [Authorize]
 
 <div class="detail-header">
@@ -93,41 +94,36 @@ else
         }
 
         <div class="action-buttons mt-6">
-            @* --- Option A: Link (Reference) --- *@
-            <div class="action-card">
-                <div class="d-flex gap-3">
-                    <MudIcon Icon="@Icons.Material.Rounded.Link" Color="Color.Primary" Size="Size.Medium" />
-                    <div>
-                        <h3 class="action-title">Lagre som referanse</h3>
-                        <p class="action-desc">
-                            Lenker direkte til denne oppskriften.
-                            Flere familier kan rangere samme rett, og ratingen blir delt.
-                        </p>
-                        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="mt-2"
-                                   OnClick="AddToMyListAsLink" Disabled="_isProcessing">
-                            Legg til i min liste
-                        </MudButton>
-                    </div>
-                </div>
-            </div>
+            @* --- Primary Action: Add to my cookbook --- *@
+            <MudButton Variant="Variant.Filled"
+                       Color="@(_recipe.IsHellofresh ? Color.Success : Color.Primary)"
+                       FullWidth="true"
+                       Size="Size.Large"
+                       StartIcon="@Icons.Material.Rounded.Add"
+                       OnClick="AddToMyList"
+                       Disabled="_isProcessing"
+                       Style="border-radius: 12px; height: 52px;">
+                @if (_isProcessing)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    <span>Legger til...</span>
+                }
+                else
+                {
+                    <span>Legg til i min kokebok</span>
+                }
+            </MudButton>
 
-            @* --- Option B: Copy (Fork) --- *@
-            <div class="action-card mt-3">
-                <div class="d-flex gap-3">
-                    <MudIcon Icon="@Icons.Material.Rounded.ContentCopy" Color="Color.Secondary" Size="Size.Medium" />
-                    <div>
-                        <h3 class="action-title">Kopier og tilpass</h3>
-                        <p class="action-desc">
-                            Lager en kopi som du kan redigere.
-                            Du kan endre ingredienser og navn før du lagrer.
-                        </p>
-                        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true" Class="mt-2"
-                                   OnClick="CustomizeAndAdd">
-                            Tilpass og legg til
-                        </MudButton>
-                    </div>
-                </div>
-            </div>
+            @* --- Secondary: Copy and customize --- *@
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Default"
+                       FullWidth="true"
+                       Class="mt-3"
+                       StartIcon="@Icons.Material.Rounded.Edit"
+                       OnClick="CustomizeAndAdd"
+                       Style="border-radius: 12px;">
+                Kopier og tilpass
+            </MudButton>
         </div>
     </div>
 }
@@ -204,7 +200,6 @@ else
         _isLoading = true;
         try
         {
-            // Now we ALWAYS use the Global endpoint, which handles both HelloFresh and Community recipes
             _recipe = await ApiClient.GetGlobalRecipeAsync(Id);
         }
         catch (Exception ex)
@@ -225,36 +220,49 @@ else
         return _recipe.ImageUrls?.FirstOrDefault();
     }
 
-    // Logic for "Option A: Reference"
-    private async Task AddToMyListAsLink()
+    // Add to my list using UserRecipes API
+    private async Task AddToMyList()
     {
-        if (!HouseholdState.HasHousehold)
-        {
-            Snackbar.Add("Du må være medlem av en husstand", Severity.Warning);
-            return;
-        }
+        if (_recipe == null) return;
 
         _isProcessing = true;
         try
         {
-            var dto = new CreateHouseholdRecipeDto { GlobalRecipeId = Id, Fork = false };
-            await ApiClient.CreateRecipeAsync(dto);
-            Snackbar.Add("Oppskrift lagret!", Severity.Success);
+            var dto = new CreateUserRecipeDto
+            {
+                Name = _recipe.Name,
+                Description = _recipe.Description,
+                ImageUrls = _recipe.ImageUrls ?? new List<string>(),
+                GlobalRecipeId = _recipe.Id,
+                PrepTimeMinutes = _recipe.PrepTimeMinutes,
+                Servings = _recipe.Servings,
+                Difficulty = _recipe.Difficulty,
+                Cuisine = _recipe.Cuisine,
+                Tags = _recipe.Tags,
+                Ingredients = _recipe.Ingredients,
+                Visibility = "private"
+            };
+
+            await RecipeService.CreateRecipeAsync(dto);
+            Snackbar.Add($"'{_recipe.Name}' lagt til i din kokebok!", Severity.Success);
             Navigation.NavigateTo("");
         }
-        catch
+        catch (Exception ex)
         {
+            Console.WriteLine($"Error: {ex.Message}");
             Snackbar.Add("Kunne ikke lagre oppskrift", Severity.Error);
         }
-        _isProcessing = false;
+        finally
+        {
+            _isProcessing = false;
+        }
     }
 
-    // Logic for "Option B: Customize/Copy"
+    // Copy and customize
     private void CustomizeAndAdd()
     {
         if (_recipe == null) return;
 
-        // Populate the draft in the service
         FoodService.DraftRecipe = new StorhaugenWebsite.Models.FoodItem
         {
             Name = _recipe.Name,
@@ -263,7 +271,6 @@ else
             GlobalRecipeId = _recipe.Id
         };
 
-        // Navigate to Add page
         Navigation.NavigateTo("add");
     }
 }

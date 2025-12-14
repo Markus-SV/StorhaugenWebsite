@@ -832,6 +832,22 @@ public class UserRecipeService : IUserRecipeService
             .ToDictionary(r => r.User!.DisplayName, r => (int?)r.Score)
             ?? new Dictionary<string, int?>();
 
+        // Parse recipe tags from GlobalRecipe
+        var recipeTags = new List<string>();
+        if (recipe.GlobalRecipe?.Tags != null)
+        {
+            try { recipeTags = JsonSerializer.Deserialize<List<string>>(recipe.GlobalRecipe.Tags) ?? new(); }
+            catch { }
+        }
+
+        // Parse nutrition data from GlobalRecipe
+        object? nutritionData = null;
+        if (recipe.GlobalRecipe?.NutritionData != null)
+        {
+            try { nutritionData = JsonSerializer.Deserialize<object>(recipe.GlobalRecipe.NutritionData); }
+            catch { }
+        }
+
         return new UserRecipeDto
         {
             Id = recipe.Id,
@@ -846,6 +862,18 @@ public class UserRecipeService : IUserRecipeService
                 : (recipe.GlobalRecipe?.Ingredients != null
                     ? JsonSerializer.Deserialize<object>(recipe.GlobalRecipe.Ingredients)
                     : null),
+
+            // HelloFresh metadata from GlobalRecipe
+            PrepTimeMinutes = recipe.GlobalRecipe?.PrepTimeMinutes,
+            CookTimeMinutes = recipe.GlobalRecipe?.CookTimeMinutes,
+            Servings = recipe.GlobalRecipe?.Servings,
+            Difficulty = recipe.GlobalRecipe?.Difficulty,
+            Cuisine = recipe.GlobalRecipe?.Cuisine,
+            RecipeTags = recipeTags,
+            NutritionData = nutritionData,
+            IsHellofresh = recipe.GlobalRecipe?.IsHellofresh ?? false,
+            HellofreshWeek = recipe.GlobalRecipe?.HellofreshWeek,
+
             GlobalRecipeId = recipe.GlobalRecipeId,
             GlobalRecipeName = recipe.GlobalRecipe?.Title,
             IsPublished = recipe.GlobalRecipe?.PublishedFromUserRecipeId == recipe.Id,
