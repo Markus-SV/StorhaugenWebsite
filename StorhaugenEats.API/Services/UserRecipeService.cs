@@ -11,15 +11,18 @@ public class UserRecipeService : IUserRecipeService
     private readonly AppDbContext _context;
     private readonly IActivityFeedService _activityFeedService;
     private readonly IUserFriendshipService _friendshipService;
+    private readonly ICollectionService _collectionService;
 
     public UserRecipeService(
         AppDbContext context,
         IActivityFeedService activityFeedService,
-        IUserFriendshipService friendshipService)
+        IUserFriendshipService friendshipService,
+        ICollectionService collectionService)
     {
         _context = context;
         _activityFeedService = activityFeedService;
         _friendshipService = friendshipService;
+        _collectionService = collectionService;
     }
 
     public async Task<UserRecipePagedResult> GetUserRecipesAsync(Guid userId, GetUserRecipesQuery query)
@@ -119,23 +122,12 @@ public class UserRecipeService : IUserRecipeService
         // Save the recipe first so we have an ID for the ratings
         await _context.SaveChangesAsync();
 
-        // Handle Proxy Ratings (Family members rating at creation time)
+        // Handle Proxy Ratings (collection members rating at creation time)
         if (dto.MemberRatings != null && dto.MemberRatings.Any())
         {
-            var householdId = user.CurrentHouseholdId;
-            var validMemberIds = new List<Guid>();
-
-            if (householdId.HasValue)
-            {
-                validMemberIds = await _context.HouseholdMembers
-                    .Where(hm => hm.HouseholdId == householdId.Value)
-                    .Select(hm => hm.UserId)
-                    .ToListAsync();
-            }
-            else
-            {
-                validMemberIds.Add(userId);
-            }
+            // For now, only allow the creating user to rate
+            // Collection-based member ratings can be added later through the collection API
+            var validMemberIds = new List<Guid> { userId };
 
             var ratingsToAdd = new List<Rating>();
 
@@ -419,321 +411,16 @@ public class UserRecipeService : IUserRecipeService
 
         if (recipe.UserId == requestingUserId) return true;
 
-        return recipe.Visibility switch
-        {
-            "public" => true,
-            "friends" => await _friendshipService.AreFriendsAsync(recipe.UserId, requestingUserId),
-            "household" => await AreInSameHouseholdAsync(recipe.UserId, requestingUserId),
-            _ => false
-        };
-    }
+        // Check visibility
+        if (recipe.Visibility == "public") return true;
+        if (recipe.Visibility == "friends" && await _friendshipService.AreFriendsAsync(recipe.UserId, requestingUserId))
+            return true;
 
-    public async Task<AggregatedRecipePagedResult> GetHouseholdRecipesAsync(
-        Guid householdId,
-        Guid requestingUserId,
-        GetCombinedRecipesQuery query)
-    {
-        var memberIds = await _context.HouseholdMembers
-            .Where(hm => hm.HouseholdId == householdId)
-            .Select(hm => hm.UserId)
-            .ToListAsync();
+        // Check if user can view via a shared collection (private recipes in shared collections are visible to members)
+        if (await _collectionService.CanUserViewRecipeViaCollectionAsync(recipeId, requestingUserId))
+            return true;
 
-        if (!memberIds.Contains(requestingUserId))
-            throw new InvalidOperationException("You are not a member of this household");
-
-        var queryable = _context.UserRecipes
-            .Include(r => r.User)
-            .Include(r => r.GlobalRecipe)
-            .Include(r => r.Ratings)
-                .ThenInclude(rt => rt.User)
-            .Where(r => memberIds.Contains(r.UserId))
-            .Where(r => r.Visibility == "household" || r.Visibility == "public" || r.Visibility == "friends")
-            .Where(r => !r.IsArchived);
-
-        if (query.FilterByMembers?.Any() == true)
-        {
-            queryable = queryable.Where(r => query.FilterByMembers.Contains(r.UserId));
-        }
-
-        if (!string.IsNullOrEmpty(query.Search))
-        {
-            queryable = queryable.Where(r =>
-                (r.LocalTitle != null && r.LocalTitle.Contains(query.Search)) ||
-                (r.GlobalRecipe != null && r.GlobalRecipe.Title.Contains(query.Search)));
-        }
-
-        queryable = query.SortBy.ToLower() switch
-        {
-            "name" => query.SortDescending
-                ? queryable.OrderByDescending(r => r.LocalTitle ?? r.GlobalRecipe!.Title)
-                : queryable.OrderBy(r => r.LocalTitle ?? r.GlobalRecipe!.Title),
-            "rating" => query.SortDescending
-                ? queryable.OrderByDescending(r => r.Ratings.Any() ? r.Ratings.Average(rt => rt.Score) : 0)
-                : queryable.OrderBy(r => r.Ratings.Any() ? r.Ratings.Average(rt => rt.Score) : 0),
-            "owner" => query.SortDescending
-                ? queryable.OrderByDescending(r => r.User.DisplayName)
-                : queryable.OrderBy(r => r.User.DisplayName),
-            _ => query.SortDescending
-                ? queryable.OrderByDescending(r => r.CreatedAt)
-                : queryable.OrderBy(r => r.CreatedAt)
-        };
-
-        var totalCount = await queryable.CountAsync();
-        var recipes = await queryable
-            .Skip((query.Page - 1) * query.PageSize)
-            .Take(query.PageSize)
-            .ToListAsync();
-
-        // CHANGE: Pass requestingUserId to mapper
-        return new AggregatedRecipePagedResult
-        {
-            Recipes = recipes.Select(r => MapToAggregatedDto(r, memberIds, requestingUserId)).ToList(),
-            TotalCount = totalCount,
-            Page = query.Page,
-            PageSize = query.PageSize
-        };
-    }
-
-    public async Task<List<CommonFavoriteDto>> GetCommonFavoritesAsync(
-        Guid householdId,
-        Guid requestingUserId,
-        GetCommonFavoritesQuery query)
-    {
-        var memberIds = await _context.HouseholdMembers
-            .Where(hm => hm.HouseholdId == householdId)
-            .Select(hm => hm.UserId)
-            .ToListAsync();
-
-        if (!memberIds.Contains(requestingUserId))
-            throw new InvalidOperationException("You are not a member of this household");
-
-        var commonFavorites = await _context.Ratings
-            .Include(r => r.GlobalRecipe)
-            .Include(r => r.User)
-            .Where(r => r.GlobalRecipeId.HasValue)
-            .Where(r => memberIds.Contains(r.UserId))
-            .GroupBy(r => r.GlobalRecipeId)
-            .Where(g => g.Count() >= query.MinMembers)
-            .Where(g => g.Average(r => r.Score) >= query.MinAverageRating)
-            .Select(g => new
-            {
-                GlobalRecipeId = g.Key!.Value,
-                Ratings = g.ToList(),
-                AverageRating = g.Average(r => r.Score),
-                MemberCount = g.Count()
-            })
-            .OrderByDescending(x => x.AverageRating)
-            .ThenByDescending(x => x.MemberCount)
-            .Take(query.Limit)
-            .ToListAsync();
-
-        var globalRecipeIds = commonFavorites.Select(cf => cf.GlobalRecipeId).ToList();
-        var globalRecipes = await _context.GlobalRecipes
-            .Where(gr => globalRecipeIds.Contains(gr.Id))
-            .ToDictionaryAsync(gr => gr.Id);
-
-        var userRecipeGlobalIds = await _context.UserRecipes
-            .Where(ur => ur.UserId == requestingUserId && ur.GlobalRecipeId.HasValue)
-            .Select(ur => ur.GlobalRecipeId!.Value)
-            .ToListAsync();
-
-        return commonFavorites.Select(cf =>
-        {
-            var globalRecipe = globalRecipes.GetValueOrDefault(cf.GlobalRecipeId);
-            return new CommonFavoriteDto
-            {
-                GlobalRecipeId = cf.GlobalRecipeId,
-                Name = globalRecipe?.Title ?? "Unknown",
-                ImageUrl = globalRecipe?.ImageUrl,
-                Description = globalRecipe?.Description,
-                MemberRatings = cf.Ratings.Select(r => new MemberRatingDto
-                {
-                    UserId = r.UserId,
-                    DisplayName = r.User?.DisplayName ?? "Unknown",
-                    AvatarUrl = r.User?.AvatarUrl,
-                    Rating = r.Score,
-                    Comment = r.Comment,
-                    RatedAt = r.CreatedAt
-                }).ToList(),
-                AverageRating = cf.AverageRating,
-                MembersWhoRated = cf.MemberCount,
-                IsInMyCollection = userRecipeGlobalIds.Contains(cf.GlobalRecipeId)
-            };
-        }).ToList();
-    }
-
-    public async Task<AggregatedRecipePagedResult> GetGroupsCombinedRecipesAsync(
-        Guid requestingUserId,
-        GetMultiGroupRecipesQuery query)
-    {
-        if (query.GroupIds == null || !query.GroupIds.Any())
-        {
-            return new AggregatedRecipePagedResult
-            {
-                Recipes = new List<AggregatedRecipeDto>(),
-                TotalCount = 0,
-                Page = query.Page,
-                PageSize = query.PageSize
-            };
-        }
-
-        var userMemberships = await _context.HouseholdMembers
-            .Where(hm => hm.UserId == requestingUserId)
-            .Select(hm => hm.HouseholdId)
-            .ToListAsync();
-
-        var unauthorizedGroups = query.GroupIds.Except(userMemberships).ToList();
-        if (unauthorizedGroups.Any())
-        {
-            throw new InvalidOperationException(
-                $"You are not a member of groups: {string.Join(", ", unauthorizedGroups)}");
-        }
-
-        var allMemberIds = await _context.HouseholdMembers
-            .Where(hm => query.GroupIds.Contains(hm.HouseholdId))
-            .Select(hm => hm.UserId)
-            .Distinct()
-            .ToListAsync();
-
-        var queryable = _context.UserRecipes
-            .Include(r => r.User)
-            .Include(r => r.GlobalRecipe)
-            .Include(r => r.Ratings)
-                .ThenInclude(rt => rt.User)
-            .Where(r => allMemberIds.Contains(r.UserId))
-            .Where(r => r.Visibility == "household" || r.Visibility == "public" || r.Visibility == "friends")
-            .Where(r => !r.IsArchived);
-
-        if (query.FilterByMembers?.Any() == true)
-        {
-            queryable = queryable.Where(r => query.FilterByMembers.Contains(r.UserId));
-        }
-
-        if (query.MinRating.HasValue)
-        {
-            queryable = queryable.Where(r =>
-                r.Ratings.Any() && r.Ratings.Average(rt => rt.Score) >= query.MinRating.Value);
-        }
-
-        if (!string.IsNullOrEmpty(query.Search))
-        {
-            queryable = queryable.Where(r =>
-                (r.LocalTitle != null && r.LocalTitle.Contains(query.Search)) ||
-                (r.GlobalRecipe != null && r.GlobalRecipe.Title.Contains(query.Search)));
-        }
-
-        queryable = query.SortBy.ToLower() switch
-        {
-            "name" => query.SortDescending
-                ? queryable.OrderByDescending(r => r.LocalTitle ?? r.GlobalRecipe!.Title)
-                : queryable.OrderBy(r => r.LocalTitle ?? r.GlobalRecipe!.Title),
-            "rating" => query.SortDescending
-                ? queryable.OrderByDescending(r => r.Ratings.Any() ? r.Ratings.Average(rt => rt.Score) : 0)
-                : queryable.OrderBy(r => r.Ratings.Any() ? r.Ratings.Average(rt => rt.Score) : 0),
-            "owner" => query.SortDescending
-                ? queryable.OrderByDescending(r => r.User.DisplayName)
-                : queryable.OrderBy(r => r.User.DisplayName),
-            _ => query.SortDescending
-                ? queryable.OrderByDescending(r => r.CreatedAt)
-                : queryable.OrderBy(r => r.CreatedAt)
-        };
-
-        var totalCount = await queryable.CountAsync();
-        var recipes = await queryable
-            .Skip((query.Page - 1) * query.PageSize)
-            .Take(query.PageSize)
-            .ToListAsync();
-
-        // CHANGE: Pass requestingUserId to mapper
-        return new AggregatedRecipePagedResult
-        {
-            Recipes = recipes.Select(r => MapToAggregatedDto(r, allMemberIds, requestingUserId)).ToList(),
-            TotalCount = totalCount,
-            Page = query.Page,
-            PageSize = query.PageSize
-        };
-    }
-
-    public async Task<List<CommonFavoriteDto>> GetGroupsCommonFavoritesAsync(
-        Guid requestingUserId,
-        GetMultiGroupFavoritesQuery query)
-    {
-        if (query.GroupIds == null || !query.GroupIds.Any())
-        {
-            return new List<CommonFavoriteDto>();
-        }
-
-        var userMemberships = await _context.HouseholdMembers
-            .Where(hm => hm.UserId == requestingUserId)
-            .Select(hm => hm.HouseholdId)
-            .ToListAsync();
-
-        var unauthorizedGroups = query.GroupIds.Except(userMemberships).ToList();
-        if (unauthorizedGroups.Any())
-        {
-            throw new InvalidOperationException(
-                $"You are not a member of groups: {string.Join(", ", unauthorizedGroups)}");
-        }
-
-        var allMemberIds = await _context.HouseholdMembers
-            .Where(hm => query.GroupIds.Contains(hm.HouseholdId))
-            .Select(hm => hm.UserId)
-            .Distinct()
-            .ToListAsync();
-
-        var commonFavorites = await _context.Ratings
-            .Include(r => r.GlobalRecipe)
-            .Include(r => r.User)
-            .Where(r => r.GlobalRecipeId.HasValue)
-            .Where(r => allMemberIds.Contains(r.UserId))
-            .GroupBy(r => r.GlobalRecipeId)
-            .Where(g => g.Count() >= query.MinMembers)
-            .Where(g => g.Average(r => r.Score) >= query.MinAverageRating)
-            .Select(g => new
-            {
-                GlobalRecipeId = g.Key!.Value,
-                Ratings = g.ToList(),
-                AverageRating = g.Average(r => r.Score),
-                MemberCount = g.Count()
-            })
-            .OrderByDescending(x => x.AverageRating)
-            .ThenByDescending(x => x.MemberCount)
-            .Take(query.Limit)
-            .ToListAsync();
-
-        var globalRecipeIds = commonFavorites.Select(cf => cf.GlobalRecipeId).ToList();
-        var globalRecipes = await _context.GlobalRecipes
-            .Where(gr => globalRecipeIds.Contains(gr.Id))
-            .ToDictionaryAsync(gr => gr.Id);
-
-        var userRecipeGlobalIds = await _context.UserRecipes
-            .Where(ur => ur.UserId == requestingUserId && ur.GlobalRecipeId.HasValue)
-            .Select(ur => ur.GlobalRecipeId!.Value)
-            .ToListAsync();
-
-        return commonFavorites.Select(cf =>
-        {
-            var globalRecipe = globalRecipes.GetValueOrDefault(cf.GlobalRecipeId);
-            return new CommonFavoriteDto
-            {
-                GlobalRecipeId = cf.GlobalRecipeId,
-                Name = globalRecipe?.Title ?? "Unknown",
-                ImageUrl = globalRecipe?.ImageUrl,
-                Description = globalRecipe?.Description,
-                MemberRatings = cf.Ratings.Select(r => new MemberRatingDto
-                {
-                    UserId = r.UserId,
-                    DisplayName = r.User?.DisplayName ?? "Unknown",
-                    AvatarUrl = r.User?.AvatarUrl,
-                    Rating = r.Score,
-                    Comment = r.Comment,
-                    RatedAt = r.CreatedAt
-                }).ToList(),
-                AverageRating = cf.AverageRating,
-                MembersWhoRated = cf.MemberCount,
-                IsInMyCollection = userRecipeGlobalIds.Contains(cf.GlobalRecipeId)
-            };
-        }).ToList();
+        return false;
     }
 
     public async Task<UserRecipePagedResult> GetFriendsRecipesAsync(Guid userId, GetUserRecipesQuery query)
@@ -775,17 +462,6 @@ public class UserRecipeService : IUserRecipeService
             Page = query.Page,
             PageSize = query.PageSize,
         };
-    }
-
-    private async Task<bool> AreInSameHouseholdAsync(Guid userId1, Guid userId2)
-    {
-        var user1Households = await _context.HouseholdMembers
-            .Where(hm => hm.UserId == userId1)
-            .Select(hm => hm.HouseholdId)
-            .ToListAsync();
-
-        return await _context.HouseholdMembers
-            .AnyAsync(hm => hm.UserId == userId2 && user1Households.Contains(hm.HouseholdId));
     }
 
     private async Task UpdateGlobalRecipeRatingAsync(Guid globalRecipeId)
@@ -886,56 +562,6 @@ public class UserRecipeService : IUserRecipeService
             AverageRating = recipe.Ratings?.Any() == true ? recipe.Ratings.Average(r => r.Score) : 0,
             RatingCount = recipe.Ratings?.Count ?? 0,
             HouseholdRatings = householdRatings
-        };
-    }
-
-    // CHANGE: Added requestingUserId parameter here to support finding "MyRating"
-    private AggregatedRecipeDto MapToAggregatedDto(UserRecipe recipe, List<Guid> householdMemberIds, Guid requestingUserId)
-    {
-        var imageUrls = new List<string>();
-        try
-        {
-            if (!string.IsNullOrEmpty(recipe.LocalImageUrl))
-            {
-                imageUrls.Add(recipe.LocalImageUrl);
-            }
-            else if (!string.IsNullOrEmpty(recipe.LocalImageUrls) && recipe.LocalImageUrls != "[]")
-            {
-                imageUrls = JsonSerializer.Deserialize<List<string>>(recipe.LocalImageUrls) ?? new();
-            }
-            else if (recipe.GlobalRecipe != null && !string.IsNullOrEmpty(recipe.GlobalRecipe.ImageUrls))
-            {
-                imageUrls = JsonSerializer.Deserialize<List<string>>(recipe.GlobalRecipe.ImageUrls) ?? new();
-            }
-        }
-        catch { }
-
-        // Only include ratings from household members
-        var householdRatings = recipe.Ratings?
-            .Where(r => householdMemberIds.Contains(r.UserId) && r.User != null)
-            .ToDictionary(r => r.User!.DisplayName, r => (int?)r.Score)
-            ?? new Dictionary<string, int?>();
-
-        var householdRatingValues = householdRatings.Values.Where(v => v.HasValue).Select(v => v!.Value).ToList();
-
-        // CHANGE: Extract My Rating for the requesting user
-        var myRating = recipe.Ratings?.FirstOrDefault(r => r.UserId == requestingUserId)?.Score;
-
-        return new AggregatedRecipeDto
-        {
-            UserRecipeId = recipe.Id,
-            OwnerUserId = recipe.UserId,
-            OwnerDisplayName = recipe.User?.DisplayName ?? "Unknown",
-            OwnerAvatarUrl = recipe.User?.AvatarUrl,
-            Name = recipe.LocalTitle ?? recipe.GlobalRecipe?.Title ?? "Untitled",
-            Description = recipe.LocalDescription ?? recipe.GlobalRecipe?.Description,
-            ImageUrls = imageUrls,
-            GlobalRecipeId = recipe.GlobalRecipeId,
-            HouseholdRatings = householdRatings,
-            HouseholdAverageRating = householdRatingValues.Any() ? householdRatingValues.Average() : 0,
-            HouseholdRatingCount = householdRatingValues.Count,
-            MyRating = myRating, // CHANGE: Mapped the new field
-            CreatedAt = recipe.CreatedAt
         };
     }
 }

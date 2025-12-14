@@ -125,13 +125,6 @@ public class ActivityFeedService : IActivityFeedService
         await _context.SaveChangesAsync();
     }
 
-    public async Task RecordJoinedHouseholdActivityAsync(Guid userId, Guid householdId, string householdName)
-    {
-        var activity = ActivityFeedItem.CreateJoinedHouseholdActivity(userId, householdId, householdName);
-        _context.ActivityFeedItems.Add(activity);
-        await _context.SaveChangesAsync();
-    }
-
     public async Task CleanupOldActivitiesAsync(int daysToKeep = 90)
     {
         var cutoffDate = DateTime.UtcNow.AddDays(-daysToKeep);
@@ -165,7 +158,6 @@ public class ActivityFeedService : IActivityFeedService
             RatingScore = metadata.TryGetValue("rating", out var ratingObj) && ratingObj is JsonElement elem
                 ? elem.TryGetInt32(out var rating) ? rating : null
                 : null,
-            HouseholdName = metadata.GetValueOrDefault("householdName")?.ToString(),
             CreatedAt = activity.CreatedAt
         };
     }

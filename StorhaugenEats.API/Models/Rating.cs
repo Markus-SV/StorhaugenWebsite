@@ -13,9 +13,6 @@ public class Rating
     [Column("global_recipe_id")]
     public Guid? GlobalRecipeId { get; set; }
 
-    [Column("household_recipe_id")]
-    public Guid? HouseholdRecipeId { get; set; }
-
     /// <summary>
     /// Reference to the user recipe being rated (new user-centric model).
     /// </summary>
@@ -42,7 +39,6 @@ public class Rating
 
     // Navigation properties
     public GlobalRecipe? GlobalRecipe { get; set; }
-    public HouseholdRecipe? HouseholdRecipe { get; set; }
     public UserRecipe? UserRecipe { get; set; }
     public User User { get; set; } = null!;
 

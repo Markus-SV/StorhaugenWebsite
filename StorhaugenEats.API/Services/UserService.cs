@@ -16,21 +16,18 @@ public class UserService : IUserService
     public async Task<User?> GetByIdAsync(Guid id)
     {
         return await _context.Users
-            .Include(u => u.CurrentHousehold)
             .FirstOrDefaultAsync(u => u.Id == id);
     }
 
     public async Task<User?> GetByEmailAsync(string email)
     {
         return await _context.Users
-            .Include(u => u.CurrentHousehold)
             .FirstOrDefaultAsync(u => u.Email == email);
     }
 
     public async Task<User?> GetByShareIdAsync(string shareId)
     {
         return await _context.Users
-            .Include(u => u.CurrentHousehold)
             .FirstOrDefaultAsync(u => u.UniqueShareId == shareId);
     }
 

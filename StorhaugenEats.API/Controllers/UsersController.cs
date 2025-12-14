@@ -39,7 +39,6 @@ public class UsersController : ControllerBase
             Email = user.Email,
             DisplayName = user.DisplayName,
             AvatarUrl = user.AvatarUrl,
-            CurrentHouseholdId = user.CurrentHouseholdId,
             UniqueShareId = user.UniqueShareId,
             CreatedAt = user.CreatedAt
         });
@@ -63,18 +62,6 @@ public class UsersController : ControllerBase
         if (dto.AvatarUrl != null)
             user.AvatarUrl = dto.AvatarUrl;
 
-        if (dto.CurrentHouseholdId.HasValue)
-        {
-            // Verify user is a member of the household
-            var isMember = await _context.HouseholdMembers
-                .AnyAsync(hm => hm.HouseholdId == dto.CurrentHouseholdId.Value && hm.UserId == userId);
-
-            if (!isMember)
-                return BadRequest(new { message = "You are not a member of that household" });
-
-            user.CurrentHouseholdId = dto.CurrentHouseholdId.Value;
-        }
-
         user.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
@@ -84,14 +71,13 @@ public class UsersController : ControllerBase
             Email = user.Email,
             DisplayName = user.DisplayName,
             AvatarUrl = user.AvatarUrl,
-            CurrentHouseholdId = user.CurrentHouseholdId,
             UniqueShareId = user.UniqueShareId,
             CreatedAt = user.CreatedAt
         });
     }
 
     /// <summary>
-    /// Get a user's public profile (for household members)
+    /// Get a user's public profile (for collection members or friends)
     /// </summary>
     [HttpGet("{id}")]
     public async Task<ActionResult<UserDto>> GetUserProfile(Guid id)
@@ -102,18 +88,32 @@ public class UsersController : ControllerBase
         if (user == null)
             return NotFound();
 
-        // Check if current user shares a household with this user
-        var sharedHousehold = await _context.HouseholdMembers
-            .Where(hm => hm.UserId == currentUserId)
-            .Select(hm => hm.HouseholdId)
+        // Allow if same user
+        if (currentUserId == id)
+        {
+            return Ok(new UserDto
+            {
+                Id = user.Id,
+                Email = user.Email,
+                DisplayName = user.DisplayName,
+                AvatarUrl = user.AvatarUrl,
+                UniqueShareId = user.UniqueShareId,
+                CreatedAt = user.CreatedAt
+            });
+        }
+
+        // Check if current user shares a collection with this user
+        var sharedCollection = await _context.CollectionMembers
+            .Where(cm => cm.UserId == currentUserId)
+            .Select(cm => cm.CollectionId)
             .Intersect(
-                _context.HouseholdMembers
-                    .Where(hm => hm.UserId == id)
-                    .Select(hm => hm.HouseholdId)
+                _context.CollectionMembers
+                    .Where(cm => cm.UserId == id)
+                    .Select(cm => cm.CollectionId)
             )
             .AnyAsync();
 
-        if (!sharedHousehold && currentUserId != id)
+        if (!sharedCollection)
             return Forbid();
 
         return Ok(new UserDto
@@ -122,7 +122,6 @@ public class UsersController : ControllerBase
             Email = user.Email,
             DisplayName = user.DisplayName,
             AvatarUrl = user.AvatarUrl,
-            CurrentHouseholdId = null, // Don't expose current household for privacy
             UniqueShareId = user.UniqueShareId,
             CreatedAt = user.CreatedAt
         });

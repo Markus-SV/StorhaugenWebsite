@@ -29,14 +29,6 @@ public interface IUserRecipeService
     // Visibility checks
     Task<bool> CanUserViewRecipeAsync(Guid recipeId, Guid requestingUserId);
 
-    // Household aggregation (single group)
-    Task<AggregatedRecipePagedResult> GetHouseholdRecipesAsync(Guid householdId, Guid requestingUserId, GetCombinedRecipesQuery query);
-    Task<List<CommonFavoriteDto>> GetCommonFavoritesAsync(Guid householdId, Guid requestingUserId, GetCommonFavoritesQuery query);
-
-    // Multi-group aggregation
-    Task<AggregatedRecipePagedResult> GetGroupsCombinedRecipesAsync(Guid requestingUserId, GetMultiGroupRecipesQuery query);
-    Task<List<CommonFavoriteDto>> GetGroupsCommonFavoritesAsync(Guid requestingUserId, GetMultiGroupFavoritesQuery query);
-
     // Friends' recipes
     Task<UserRecipePagedResult> GetFriendsRecipesAsync(Guid userId, GetUserRecipesQuery query);
 }

@@ -16,7 +16,6 @@ public interface IActivityFeedService
     Task RecordRatingActivityAsync(Guid userId, Guid recipeId, string recipeName, int rating, string? imageUrl = null);
     Task RecordAddedRecipeActivityAsync(Guid userId, Guid recipeId, string recipeName, string? imageUrl = null);
     Task RecordPublishedActivityAsync(Guid userId, Guid globalRecipeId, string recipeName, string? imageUrl = null);
-    Task RecordJoinedHouseholdActivityAsync(Guid userId, Guid householdId, string householdName);
 
     // Cleanup
     Task CleanupOldActivitiesAsync(int daysToKeep = 90);

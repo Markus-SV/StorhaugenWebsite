@@ -316,10 +316,10 @@ public class GlobalRecipesController : ControllerBase
         if (recipe.IsHellofresh)
             return BadRequest(new { message = "Cannot delete HelloFresh recipes" });
 
-        // Check if any households are using this recipe
-        var usageCount = await _context.HouseholdRecipes.CountAsync(hr => hr.GlobalRecipeId == id);
+        // Check if any users are using this recipe
+        var usageCount = await _context.UserRecipes.CountAsync(ur => ur.GlobalRecipeId == id);
         if (usageCount > 0)
-            return BadRequest(new { message = $"Cannot delete recipe that is used by {usageCount} household(s). They would need to fork it first." });
+            return BadRequest(new { message = $"Cannot delete recipe that is used by {usageCount} user(s). They would need to detach it first." });
 
         _context.GlobalRecipes.Remove(recipe);
         await _context.SaveChangesAsync();

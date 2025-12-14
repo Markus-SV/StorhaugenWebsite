@@ -17,12 +17,12 @@ public class ActivityFeedItemDto
     public string? UserAvatarUrl { get; set; }
 
     /// <summary>
-    /// Type of activity: "rated", "added", "published", "joined_household".
+    /// Type of activity: "rated", "added", "published".
     /// </summary>
     public string ActivityType { get; set; } = string.Empty;
 
     /// <summary>
-    /// Type of target: "user_recipe", "global_recipe", "household".
+    /// Type of target: "user_recipe", "global_recipe".
     /// </summary>
     public string TargetType { get; set; } = string.Empty;
 
@@ -32,7 +32,6 @@ public class ActivityFeedItemDto
     public string? RecipeName { get; set; }
     public string? RecipeImageUrl { get; set; }
     public int? RatingScore { get; set; }
-    public string? HouseholdName { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
@@ -49,7 +48,6 @@ public class ActivityFeedItemDto
             "rated" => $"{UserDisplayName} rated {RecipeName ?? "a recipe"} {RatingScore}/10",
             "added" => $"{UserDisplayName} added {RecipeName ?? "a new recipe"}",
             "published" => $"{UserDisplayName} published {RecipeName ?? "a recipe"} to the community",
-            "joined_household" => $"{UserDisplayName} joined {HouseholdName ?? "a household"}",
             _ => $"{UserDisplayName} did something"
         };
     }

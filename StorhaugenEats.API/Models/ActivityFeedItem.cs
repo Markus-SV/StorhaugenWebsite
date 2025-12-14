@@ -22,7 +22,7 @@ public class ActivityFeedItem
     public Guid UserId { get; set; }
 
     /// <summary>
-    /// Type of activity: 'rated', 'added', 'published', 'joined_household'
+    /// Type of activity: 'rated', 'added', 'published'
     /// </summary>
     [Required]
     [Column("activity_type")]
@@ -30,7 +30,7 @@ public class ActivityFeedItem
     public string ActivityType { get; set; } = string.Empty;
 
     /// <summary>
-    /// Type of target entity: 'user_recipe', 'global_recipe', 'household'
+    /// Type of target entity: 'user_recipe', 'global_recipe'
     /// </summary>
     [Required]
     [Column("target_type")]
@@ -45,7 +45,7 @@ public class ActivityFeedItem
     public Guid TargetId { get; set; }
 
     /// <summary>
-    /// Additional metadata as JSON (recipe name, rating score, household name, etc.)
+    /// Additional metadata as JSON (recipe name, rating score, etc.)
     /// Example: { "recipeName": "Spaghetti", "rating": 8, "imageUrl": "..." }
     /// </summary>
     [Column("metadata", TypeName = "jsonb")]
@@ -114,25 +114,6 @@ public class ActivityFeedItem
             ActivityType = "published",
             TargetType = "global_recipe",
             TargetId = globalRecipeId,
-            Metadata = System.Text.Json.JsonSerializer.Serialize(metadata),
-            CreatedAt = DateTime.UtcNow
-        };
-    }
-
-    public static ActivityFeedItem CreateJoinedHouseholdActivity(Guid userId, Guid householdId, string householdName)
-    {
-        var metadata = new Dictionary<string, object?>
-        {
-            ["householdName"] = householdName
-        };
-
-        return new ActivityFeedItem
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            ActivityType = "joined_household",
-            TargetType = "household",
-            TargetId = householdId,
             Metadata = System.Text.Json.JsonSerializer.Serialize(metadata),
             CreatedAt = DateTime.UtcNow
         };

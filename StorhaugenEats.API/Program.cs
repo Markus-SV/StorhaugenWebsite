@@ -42,7 +42,6 @@ builder.Services.AddHttpContextAccessor();
 // Application Services
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<IHouseholdService, HouseholdService>();
 builder.Services.AddScoped<IGlobalRecipeService, GlobalRecipeService>();
 builder.Services.AddScoped<IRatingService, RatingService>();
 builder.Services.AddScoped<IStorageService, SupabaseStorageService>();
