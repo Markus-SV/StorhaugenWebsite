@@ -15,10 +15,21 @@
 <div class="cookbook-header d-flex flex-column gap-3 mb-4">
 
     @* Group Selection *@
-    @if (HouseholdState.UserHouseholds.Count > 1)
+    @if (HouseholdState.UserHouseholds.Any())
     {
         <div class="group-filter-section">
             <div class="horizontal-scroll-container">
+
+                @* Personal pseudo-group *@
+                <div class="group-chip @(_personalGroupActive ? "active" : "")"
+                     @onclick="TogglePersonalGroup">
+                    @if (_personalGroupActive)
+                    {
+                        <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Class="mr-1" />
+                    }
+                    <span>Personlig</span>
+                </div>
+
                 @foreach (var group in HouseholdState.UserHouseholds)
                 {
                     var isActive = HouseholdState.IsGroupActive(group.Id);
@@ -33,6 +44,7 @@
             </div>
         </div>
     }
+
 
     @* Search & Sort *@
     <div class="d-flex gap-2">
@@ -206,6 +218,14 @@ else
     private string _sortBy = "date";
     private List<TagDto> _tags = new();
     private List<Guid> _activeTagIds = new();
+    private bool _personalGroupActive = false;
+
+    private async Task TogglePersonalGroup()
+    {
+        _personalGroupActive = !_personalGroupActive;
+        await LoadRecipes();
+    }
+
 
     // Generates a stable color based on the username string
     private string GetUserColor(string username)
@@ -263,36 +283,75 @@ else
     {
         _isLoading = true;
         StateHasChanged();
+
         try
         {
-            var query = new GetCombinedRecipesQuery { Search = _searchQuery, PageSize = 50 };
+            var combined = new List<AggregatedRecipeDto>();
 
-            if (HouseholdState.HasHousehold && HouseholdState.ActiveGroupFilters.Any())
+            // NOTE: you sort client-side anyway, so backend sort isn’t critical here
+            var groupQuery = new GetCombinedRecipesQuery
             {
-                var result = await RecipeService.GetGroupsCombinedRecipesAsync(HouseholdState.ActiveGroupFilters, query);
-                _recipes = result.Recipes;
+                Search = _searchQuery,
+                PageSize = 50
+            };
+
+            var hasSelectedGroups = HouseholdState.HasHousehold && HouseholdState.ActiveGroupFilters.Any();
+
+            // Old behavior: if you have NO active group filters -> show personal
+            // New behavior: also show personal when the Personal chip is active (even if groups are selected)
+            var shouldLoadPersonal = _personalGroupActive || !hasSelectedGroups;
+
+            // 1) Load selected group recipes
+            if (hasSelectedGroups)
+            {
+                var groupResult = await RecipeService.GetGroupsCombinedRecipesAsync(HouseholdState.ActiveGroupFilters, groupQuery);
+                combined.AddRange(groupResult.Recipes);
             }
-            else
+
+            // 2) Load personal (ungrouped) recipes
+            if (shouldLoadPersonal)
             {
-                var userQuery = new GetUserRecipesQuery { Search = _searchQuery, PageSize = 50, TagIds = _activeTagIds.Any() ? _activeTagIds : null };
-                var result = await RecipeService.GetMyRecipesAsync(userQuery);
-                // Map local results to aggregated DTO
-                _recipes = result.Recipes.Select(r => new AggregatedRecipeDto
+                var userQuery = new GetUserRecipesQuery
+                {
+                    Search = _searchQuery,
+                    PageSize = 50,
+                    TagIds = _activeTagIds.Any() ? _activeTagIds : null
+                };
+
+                var personalResult = await RecipeService.GetMyRecipesAsync(userQuery);
+
+                // Map personal results to aggregated DTO
+                var personalMapped = personalResult.Recipes.Select(r => new AggregatedRecipeDto
                 {
                     UserRecipeId = r.Id,
                     Name = r.Name,
                     ImageUrls = r.ImageUrls,
                     HouseholdAverageRating = r.AverageRating,
-                    OwnerDisplayName = "Deg",
+                    OwnerDisplayName = AuthService.CurrentUserName, // <- IMPORTANT: makes your UI show “Meg”
                     MyRating = r.MyRating,
                     CreatedAt = r.CreatedAt,
                     HouseholdRatings = r.HouseholdRatings
-                }).ToList();
+                });
+
+                combined.AddRange(personalMapped);
             }
+
+            // 3) Deduplicate just in case (safe when you merge sources)
+            _recipes = combined
+                .DistinctBy(r => r.UserRecipeId)
+                .ToList();
         }
-        catch (Exception ex) { Console.WriteLine($"Error: {ex.Message}"); }
-        finally { _isLoading = false; StateHasChanged(); }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
     }
+
 
     private async Task OnSearchChanged(string value) { await LoadRecipes(); }
     private void OpenRecipe(Guid id) { Navigation.NavigateTo($"food/{id}"); }

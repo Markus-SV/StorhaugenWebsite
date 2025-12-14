@@ -150,19 +150,7 @@
                                     @friend.RecipeCount oppskrifter
                                 </MudText>
                             </div>
-
-                            @* --- FRIEND MENU --- *@
-                            <MudMenu Icon="@Icons.Material.Rounded.MoreVert" Size="Size.Small" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" @onclick:stopPropagation="true">
-                                <MudMenuItem Icon="@Icons.Material.Rounded.Person" OnClick="@(() => OpenFriendProfile(friend))">Se profil</MudMenuItem>
-
-                                @* --- INVITE TO HOUSEHOLD ACTION --- *@
-                                <MudMenuItem Icon="@Icons.Material.Rounded.GroupAdd" IconColor="Color.Success" OnClick="@(() => InviteFriendToMyHousehold(friend))">
-                                    Inviter til min husstand
-                                </MudMenuItem>
-
-                                <MudDivider />
-                                <MudMenuItem Icon="@Icons.Material.Rounded.PersonRemove" IconColor="Color.Error" OnClick="@(() => RemoveFriend(friend))">Fjern venn</MudMenuItem>
-                            </MudMenu>
+                            <MudIcon Icon="@Icons.Material.Rounded.ChevronRight" Color="Color.Default" />
                         </div>
                     </MudPaper>
                 }
@@ -321,10 +309,8 @@
         try
         {
             await FriendshipService.SendFriendRequestAsync(user.Id);
-            user.FriendshipStatus = "pending_sent"; // Optimistic update
+            user.FriendshipStatus = "pending_sent";
             Snackbar.Add($"Forespørsel sendt til {user.DisplayName}", Severity.Success);
-
-            // Reload in background to sync state properly
             _ = LoadFriendships();
         }
         catch (Exception ex)
@@ -376,74 +362,8 @@
         }
     }
 
-    private async Task RemoveFriend(UserFriendshipDto friend)
-    {
-        var confirm = await DialogService.ShowMessageBox(
-            "Fjern venn",
-            $"Er du sikker på at du vil fjerne {friend.FriendDisplayName}?",
-            yesText: "Fjern", cancelText: "Avbryt");
-
-        if (confirm == true)
-        {
-            try
-            {
-                await FriendshipService.RemoveFriendAsync(friend.Id);
-                _friends.Remove(friend);
-                StateHasChanged();
-                Snackbar.Add($"{friend.FriendDisplayName} fjernet", Severity.Info);
-            }
-            catch
-            {
-                Snackbar.Add("Kunne ikke fjerne venn", Severity.Error);
-            }
-        }
-    }
-
     private void OpenFriendProfile(UserFriendshipDto friend)
     {
-        Navigation.NavigateTo($"friends/{friend.FriendUserId}/ratings");
-    }
-
-    // --- NEW: Invite Friend to Household Logic ---
-    private async Task InviteFriendToMyHousehold(UserFriendshipDto friend)
-    {
-        // 1. Check if user has a household
-        if (!HouseholdState.HasHousehold || HouseholdState.CurrentHousehold == null)
-        {
-            Snackbar.Add("Du må være medlem av en husstand for å invitere.", Severity.Warning);
-            return;
-        }
-
-        var householdName = HouseholdState.CurrentHousehold.Name;
-
-        // 2. Confirm action
-        var confirm = await DialogService.ShowMessageBox(
-            "Inviter til husstand",
-            $"Vil du invitere {friend.FriendDisplayName} til å bli medlem av {householdName}?",
-            yesText: "Inviter", cancelText: "Avbryt");
-
-        if (confirm == true)
-        {
-            try
-            {
-                var inviteDto = new InviteToHouseholdDto
-                {
-                    UniqueShareId = friend.FriendShareId // Using ShareID to lookup user
-                };
-
-                await ApiClient.InviteToHouseholdAsync(HouseholdState.CurrentHousehold.Id, inviteDto);
-
-                Snackbar.Add($"Invitasjon sendt til {friend.FriendDisplayName}!", Severity.Success);
-            }
-            catch (Exception ex)
-            {
-                if (ex.Message.Contains("already a member"))
-                    Snackbar.Add($"{friend.FriendDisplayName} er allerede medlem.", Severity.Info);
-                else if (ex.Message.Contains("already pending"))
-                    Snackbar.Add("Invitasjon er allerede sendt.", Severity.Warning);
-                else
-                    Snackbar.Add($"Kunne ikke sende invitasjon: {ex.Message}", Severity.Error);
-            }
-        }
+        Navigation.NavigateTo($"friends/{friend.FriendUserId}");
     }
 }

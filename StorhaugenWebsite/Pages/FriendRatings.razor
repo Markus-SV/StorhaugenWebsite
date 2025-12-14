@@ -1,4 +1,4 @@
-﻿@page "/friends/{FriendUserId:guid}/ratings"
+﻿@page "/friends/{FriendUserId:guid}"
 @using Microsoft.AspNetCore.Authorization
 @using MudBlazor
 @using StorhaugenWebsite.ApiClient
@@ -6,15 +6,22 @@
 @using StorhaugenWebsite.Shared.DTOs
 @inject IApiClient ApiClient
 @inject IUserFriendshipService FriendshipService
+@inject IHouseholdStateService HouseholdState
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 @attribute [Authorize]
 
 <MudPaper Class="pa-4" Elevation="0">
-    <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Rounded.ArrowBack"
-               OnClick="@(() => Navigation.NavigateTo("friends"))">
-        Tilbake
-    </MudButton>
+    <div class="d-flex justify-space-between align-center mb-4">
+        <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Rounded.ArrowBack"
+                   OnClick="@(() => Navigation.NavigateTo("friends"))">
+            Tilbake
+        </MudButton>
+        <MudMenu Icon="@Icons.Material.Rounded.MoreVert" AnchorOrigin="Origin.BottomRight">
+            <MudMenuItem Icon="@Icons.Material.Rounded.PersonRemove" IconColor="Color.Error" OnClick="RemoveFriend">Fjern venn</MudMenuItem>
+        </MudMenu>
+    </div>
 
     @if (!_loaded)
     {
@@ -24,41 +31,62 @@
     }
     else if (_friend == null)
     {
-        <MudText>Fant ikke venn.</MudText>
+        <div class="d-flex flex-column align-center pa-4">
+            <MudIcon Icon="@Icons.Material.Rounded.PersonOff" Size="Size.Large" Color="Color.Default" />
+            <MudText Class="mt-2">Fant ikke brukerprofil.</MudText>
+        </div>
     }
     else
     {
-        <div class="d-flex align-center gap-3 my-4">
-            <MudAvatar Size="Size.Large" Color="Color.Primary" Variant="Variant.Filled">
+        @* --- PROFILE HEADER --- *@
+        <div class="d-flex flex-column align-center mb-6">
+            <MudAvatar Style="width:80px; height:80px; font-size: 2rem;" Color="Color.Primary" Variant="Variant.Filled" Class="mb-3">
                 @(_friend.DisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
             </MudAvatar>
 
-            <div>
-                <MudText Typo="Typo.h5">@_friend.DisplayName</MudText>
-                <MudText Typo="Typo.caption">Vurderinger</MudText>
+            <MudText Typo="Typo.h5" Style="font-weight: 700;">@_friend.DisplayName</MudText>
+
+            @if (!string.IsNullOrWhiteSpace(_friend.Bio))
+            {
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1 text-center">@_friend.Bio</MudText>
+            }
+
+            <div class="d-flex gap-2 mt-4">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Success"
+                           StartIcon="@Icons.Material.Rounded.GroupAdd"
+                           OnClick="OpenInviteDialog">
+                    Inviter til gruppe
+                </MudButton>
             </div>
         </div>
 
+        <MudDivider Class="my-4" />
+
+        <MudText Typo="Typo.h6" Class="mb-3">Vurderinger</MudText>
+
         @if (_ratings.Count == 0)
         {
-            <MudText>Ingen vurderinger ennå.</MudText>
+            <div class="pa-4 text-center">
+                <MudText Color="Color.Secondary">Ingen vurderinger ennå.</MudText>
+            </div>
         }
         else
         {
-            <div class="d-flex flex-column gap-2">
+            <div class="d-flex flex-column gap-3">
                 @foreach (var r in _ratings)
                 {
                     string linkUrl = r.UserRecipeId.HasValue
                     ? $"food/{r.UserRecipeId}"
                     : $"browse/{r.GlobalRecipeId}";
 
-                    <MudPaper Class="pa-3" Elevation="0" Style="cursor:pointer;"
+                    <MudPaper Class="pa-3" Elevation="0" Outlined="true" Style="cursor:pointer;"
                               @onclick="@(() => Navigation.NavigateTo(linkUrl))">
                         <div class="d-flex align-center gap-3">
-                            <MudAvatar Size="Size.Medium">
+                            <MudAvatar Size="Size.Medium" Rounded="true">
                                 @if (!string.IsNullOrWhiteSpace(r.ImageUrl))
                                 {
-                                    <img src="@r.ImageUrl" />
+                                    <img src="@r.ImageUrl" style="width:100%; height:100%; object-fit:cover;" />
                                 }
                                 else
                                 {
@@ -67,18 +95,18 @@
                             </MudAvatar>
 
                             <div class="flex-grow-1">
-                                <MudText Typo="Typo.subtitle2">@r.RecipeTitle</MudText>
+                                <MudText Typo="Typo.subtitle2" Style="font-weight: 600;">@r.RecipeTitle</MudText>
 
                                 @if (!string.IsNullOrWhiteSpace(r.Comment))
                                 {
-                                    <MudText Typo="Typo.caption">@r.Comment</MudText>
+                                    <MudText Typo="Typo.caption" Class="d-block text-truncate" Style="max-width: 200px;">"@r.Comment"</MudText>
                                 }
 
-                                <MudText Typo="Typo.caption">@r.RatedAt.ToLocalTime().ToString("dd.MM.yyyy")</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@r.RatedAt.ToLocalTime().ToString("dd.MM.yyyy")</MudText>
                             </div>
 
-                            <MudChip Color="Color.Primary" T=string Variant="Variant.Filled">
-                                @($"{r.Score}/10")
+                            <MudChip Color="Color.Primary" T=string Size="Size.Small" Variant="Variant.Filled" Style="font-weight: 700;">
+                                @($"{r.Score}")
                             </MudChip>
                         </div>
                     </MudPaper>
@@ -88,6 +116,38 @@
     }
 </MudPaper>
 
+@* --- DIALOG FOR INVITING TO HOUSEHOLD --- *@
+<MudDialog @bind-IsVisible="_showInviteDialog" Options="new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true }">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Velg gruppe</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_availableHouseholds.Any())
+        {
+            <MudList T="HouseholdDto" Clickable="true">
+                @foreach (var hh in _availableHouseholds)
+                {
+                    <MudListItem OnClick="@(() => InviteToHousehold(hh))">
+                        <div class="d-flex align-center gap-2">
+                            <MudIcon Icon="@Icons.Material.Rounded.HomeWork" Color="Color.Primary" />
+                            <MudText>@hh.Name</MudText>
+                        </div>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+        else
+        {
+            <div class="pa-4 text-center">
+                <MudText Typo="Typo.body1">@_friend?.DisplayName er allerede medlem i alle dine grupper.</MudText>
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showInviteDialog = false)">Lukk</MudButton>
+    </DialogActions>
+</MudDialog>
+
 @code {
     [Parameter] public Guid FriendUserId { get; set; }
 
@@ -95,20 +155,115 @@
     private List<UserRatingDto> _ratings = new();
     private bool _loaded;
 
+    // Invite Dialog Logic
+    private bool _showInviteDialog;
+    private List<HouseholdDto> _availableHouseholds = new();
+
     protected override async Task OnInitializedAsync()
     {
+        await HouseholdState.InitializeAsync();
         try
         {
+            // Load both profile and friend status to ensure we have friendship ID for removal
             _friend = await FriendshipService.GetUserProfileAsync(FriendUserId);
             _ratings = await ApiClient.GetUserRatingsAsync(FriendUserId, skip: 0, take: 100);
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Kunne ikke laste vurderinger: {ex.Message}", Severity.Error);
+            Snackbar.Add($"Kunne ikke laste profil: {ex.Message}", Severity.Error);
         }
         finally
         {
             _loaded = true;
+        }
+    }
+
+    private void OpenInviteDialog()
+    {
+        if (!HouseholdState.HasHousehold)
+        {
+            Snackbar.Add("Du må være medlem av en husstand for å invitere.", Severity.Warning);
+            return;
+        }
+
+        // Filter households: Only show ones where the friend is NOT already a member
+        _availableHouseholds = HouseholdState.UserHouseholds
+            .Where(h => !h.Members.Any(m => m.UserId == FriendUserId))
+            .ToList();
+
+        _showInviteDialog = true;
+    }
+
+    private async Task InviteToHousehold(HouseholdDto household)
+    {
+        if (_friend == null) return;
+
+        var confirm = await DialogService.ShowMessageBox(
+            "Inviter til gruppe",
+            $"Vil du invitere {_friend.DisplayName} til {household.Name}?",
+            yesText: "Ja, inviter", cancelText: "Avbryt");
+
+        if (confirm == true)
+        {
+            try
+            {
+                var inviteDto = new InviteToHouseholdDto
+                {
+                    UniqueShareId = _friend.ShareId // Using ShareID to lookup user
+                };
+
+                await ApiClient.InviteToHouseholdAsync(household.Id, inviteDto);
+                Snackbar.Add($"Invitasjon sendt!", Severity.Success);
+                _showInviteDialog = false;
+
+                // Optimistically remove from available list so they can't double click
+                _availableHouseholds.Remove(household);
+            }
+            catch (Exception ex)
+            {
+                if (ex.Message.Contains("already pending"))
+                    Snackbar.Add("Invitasjon er allerede sendt.", Severity.Warning);
+                else
+                    Snackbar.Add($"Feil: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task RemoveFriend()
+    {
+        if (_friend == null) return;
+
+        // We need the FriendshipId. Since we only have FriendUserId here,
+        // we might need to fetch the friendship object first, or use a new API endpoint.
+        // Assuming your service allows removing by FriendshipId, we need to find it first.
+        // For efficiency, usually the Profile DTO should carry the FriendshipId, but if not:
+
+        var friendships = await FriendshipService.GetFriendshipsAsync();
+        var friendship = friendships.Friends.FirstOrDefault(f => f.FriendUserId == FriendUserId);
+
+        if (friendship == null)
+        {
+            Snackbar.Add("Kunne ikke finne vennskapet.", Severity.Error);
+            return;
+        }
+
+        var confirm = await DialogService.ShowMessageBox(
+            "Fjern venn",
+            $"Er du sikker på at du vil fjerne {_friend.DisplayName}?",
+            yesText: "Fjern", cancelText: "Avbryt");
+
+        if (confirm == true)
+        {
+            try
+            {
+                await FriendshipService.RemoveFriendAsync(friendship.Id);
+                Snackbar.Add($"{_friend.DisplayName} fjernet.", Severity.Info);
+                Navigation.NavigateTo("friends");
+            }
+            catch
+            {
+                Snackbar.Add("Kunne ikke fjerne venn.", Severity.Error);
+            }
         }
     }
 }

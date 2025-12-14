@@ -128,23 +128,14 @@ public class HouseholdStateService : IHouseholdStateService
 
     public void ToggleGroupFilter(Guid groupId)
     {
-        if (!UserHouseholds.Any(h => h.Id == groupId)) return;
-
         if (ActiveGroupFilters.Contains(groupId))
-        {
-            // Don't allow removing the last active group
-            if (ActiveGroupFilters.Count > 1)
-            {
-                ActiveGroupFilters.Remove(groupId);
-            }
-        }
+            ActiveGroupFilters.Remove(groupId);
         else
-        {
             ActiveGroupFilters.Add(groupId);
-        }
 
         OnActiveGroupsChanged?.Invoke();
     }
+
 
     public void SelectAllGroups()
     {
@@ -154,15 +145,9 @@ public class HouseholdStateService : IHouseholdStateService
 
     public void ClearAllGroups()
     {
-        // Keep at least one group active if available
-        if (UserHouseholds.Any())
-        {
-            ActiveGroupFilters = new List<Guid> { UserHouseholds.First().Id };
-        }
-        else
-        {
-            ActiveGroupFilters.Clear();
-        }
+
+        ActiveGroupFilters.Clear();
+        
         OnActiveGroupsChanged?.Invoke();
     }
 
