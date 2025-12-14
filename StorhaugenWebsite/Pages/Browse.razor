@@ -11,10 +11,6 @@
 @inject ISnackbar Snackbar
 @attribute [Authorize]
 
-<div class="d-flex align-center justify-space-between mb-4">
-    <h1 class="page-title" style="margin-bottom: 0; font-size: 1.5rem;">Utforsk</h1>
-</div>
-
 @* --- Search & Filters --- *@
 <div class="d-flex flex-column gap-3 mb-4">
     <MudTextField @bind-Value="_searchQuery"
@@ -42,54 +38,55 @@
                 HelloFresh
             </MudChip>
         </div>
-
-        @* Sorting dropdown *@
-        @if (_sourceMode == "hellofresh")
-        {
-            <MudSelect T="string" @bind-Value="_sortBy" Variant="Variant.Outlined" Margin="Margin.Dense"
-                       Style="width: 150px; font-size: 0.85rem;" Dense="true">
-                <MudSelectItem Value="@("popular")">Populære</MudSelectItem>
-                <MudSelectItem Value="@("preptime")">Tilberedningstid</MudSelectItem>
-                <MudSelectItem Value="@("difficulty")">Vanskelighetsgrad</MudSelectItem>
-                <MudSelectItem Value="@("newest")">Nyeste</MudSelectItem>
-            </MudSelect>
-        }
     </div>
 
-    @* --- Week Selector for HelloFresh (Mobile-friendly) --- *@
+    @* --- Compact controls row for HelloFresh: Week selector + Sort --- *@
     @if (_sourceMode == "hellofresh")
     {
-        <div class="week-selector">
-            <div class="week-selector-header">
+        <div class="d-flex align-center gap-2 flex-wrap">
+            @* Compact Week Selector *@
+            <div class="week-selector-compact">
                 <MudIconButton Icon="@Icons.Material.Rounded.ChevronLeft"
                                Size="Size.Small"
                                OnClick="PreviousWeek"
-                               Disabled="_weekOffset <= -4" />
-                <span class="week-selector-title">@GetCurrentWeekLabel()</span>
+                               Disabled="_weekOffset <= -4"
+                               Class="week-nav-btn" />
+                <div class="week-chips-compact">
+                    @foreach (var weekOption in GetWeekOptions())
+                    {
+                        <MudChip T="string"
+                                 Size="Size.Small"
+                                 Color="@(GetSelectedWeek() == weekOption.Week ? Color.Success : Color.Default)"
+                                 Variant="@(GetSelectedWeek() == weekOption.Week ? Variant.Filled : Variant.Outlined)"
+                                 OnClick="@(() => SelectWeek(weekOption.Week))"
+                                 Class="week-chip-compact">
+                            @weekOption.ShortLabel
+                        </MudChip>
+                    }
+                </div>
                 <MudIconButton Icon="@Icons.Material.Rounded.ChevronRight"
                                Size="Size.Small"
                                OnClick="NextWeek"
-                               Disabled="_weekOffset >= 4" />
-            </div>
-            <div class="week-chips-scroll">
-                @foreach (var weekOption in GetWeekOptions())
+                               Disabled="_weekOffset >= 4"
+                               Class="week-nav-btn" />
+                @if (!string.IsNullOrEmpty(_selectedWeek))
                 {
-                    <MudChip T="string"
-                             Size="Size.Small"
-                             Color="@(GetSelectedWeek() == weekOption.Week ? Color.Success : Color.Default)"
-                             Variant="@(GetSelectedWeek() == weekOption.Week ? Variant.Filled : Variant.Outlined)"
-                             OnClick="@(() => SelectWeek(weekOption.Week))">
-                        @weekOption.ShortLabel
-                    </MudChip>
+                    <MudIconButton Icon="@Icons.Material.Rounded.FilterAltOff"
+                                   Size="Size.Small"
+                                   OnClick="ClearWeekFilter"
+                                   Title="Vis alle uker"
+                                   Class="week-clear-btn" />
                 }
             </div>
-            @if (!string.IsNullOrEmpty(_selectedWeek))
-            {
-                <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="ClearWeekFilter" Class="mt-1">
-                    <MudIcon Icon="@Icons.Material.Rounded.FilterAltOff" Size="Size.Small" Class="mr-1" />
-                    Vis alle uker
-                </MudButton>
-            }
+
+            @* Sorting dropdown *@
+            <MudSelect T="string" @bind-Value="_sortBy" Variant="Variant.Outlined" Margin="Margin.Dense"
+                       Style="min-width: 130px; font-size: 0.8rem;" Dense="true">
+                <MudSelectItem Value="@("popular")">Populære</MudSelectItem>
+                <MudSelectItem Value="@("preptime")">Tid</MudSelectItem>
+                <MudSelectItem Value="@("difficulty")">Nivå</MudSelectItem>
+                <MudSelectItem Value="@("newest")">Nyeste</MudSelectItem>
+            </MudSelect>
         </div>
     }
 </div>
@@ -129,26 +126,25 @@ else
         {
             <div class="food-card animate-in" @onclick="() => OpenRecipeDetail(recipe)">
 
-                @* --- Image with green lemon placeholder for HelloFresh --- *@
-                @if (GetImageUrl(recipe) != null)
+                @* --- Image with green lemon placeholder for HelloFresh (always use template as images are broken) --- *@
+                @if (recipe.IsHellofresh)
+                {
+                    <div class="food-card-placeholder hellofresh-placeholder">
+                        <svg class="lemon-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                            <ellipse cx="50" cy="55" rx="35" ry="40" fill="#9ACD32" />
+                            <path d="M50 15 Q55 5 60 15 Q58 20 50 18 Q42 20 40 15 Q45 5 50 15" fill="#6B8E23" />
+                            <ellipse cx="40" cy="50" rx="5" ry="8" fill="rgba(255,255,255,0.3)" />
+                        </svg>
+                    </div>
+                }
+                else if (GetImageUrl(recipe) != null)
                 {
                     <img src="@GetImageUrl(recipe)" alt="@recipe.Name" class="food-card-image" />
                 }
                 else
                 {
-                    <div class="food-card-placeholder @(recipe.IsHellofresh ? "hellofresh-placeholder" : "")">
-                        @if (recipe.IsHellofresh)
-                        {
-                            <svg class="lemon-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                                <ellipse cx="50" cy="55" rx="35" ry="40" fill="#9ACD32" />
-                                <path d="M50 15 Q55 5 60 15 Q58 20 50 18 Q42 20 40 15 Q45 5 50 15" fill="#6B8E23" />
-                                <ellipse cx="40" cy="50" rx="5" ry="8" fill="rgba(255,255,255,0.3)" />
-                            </svg>
-                        }
-                        else
-                        {
-                            <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" />
-                        }
+                    <div class="food-card-placeholder">
+                        <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" />
                     </div>
                 }
 
@@ -194,16 +190,6 @@ else
                         }
                     </div>
 
-                    @* Quick action: only "Add to list" button (link), no copy *@
-                    <div class="mt-3">
-                        <MudButton Variant="Variant.Filled" Color="@(recipe.IsHellofresh ? Color.Success : Color.Primary)"
-                                   Size="Size.Small" FullWidth="true"
-                                   StartIcon="@Icons.Material.Rounded.Add"
-                                   OnClick="@(() => AddToMyList(recipe))"
-                                   Disabled="_isProcessing">
-                            Legg til i min liste
-                        </MudButton>
-                    </div>
                 </div>
             </div>
         }
@@ -364,40 +350,42 @@ else
         100% { background-position: -200% 0; }
     }
 
-    /* Week Selector - Mobile Friendly */
-    .week-selector {
+    /* Compact Week Selector - Inline with sort */
+    .week-selector-compact {
+        display: flex;
+        align-items: center;
+        gap: 2px;
         background: var(--mud-palette-surface);
-        padding: 12px;
-        border-radius: 12px;
+        padding: 4px 6px;
+        border-radius: 8px;
         border: 1px solid var(--mud-palette-lines-default);
     }
 
-    .week-selector-header {
+    .week-chips-compact {
         display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        margin-bottom: 12px;
+        gap: 4px;
     }
 
-    .week-selector-title {
-        font-weight: 600;
-        font-size: 0.9rem;
-        min-width: 120px;
-        text-align: center;
+    .week-chip-compact {
+        font-size: 0.7rem !important;
+        height: 24px !important;
+        padding: 0 8px !important;
     }
 
-    .week-chips-scroll {
-        display: flex;
-        gap: 8px;
-        overflow-x: auto;
-        padding-bottom: 4px;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
+    .week-nav-btn {
+        padding: 4px !important;
+        min-width: 28px !important;
+        width: 28px !important;
+        height: 28px !important;
     }
 
-    .week-chips-scroll::-webkit-scrollbar {
-        display: none;
+    .week-clear-btn {
+        padding: 4px !important;
+        min-width: 28px !important;
+        width: 28px !important;
+        height: 28px !important;
+        margin-left: 4px;
+        color: var(--mud-palette-text-secondary);
     }
 
     /* Responsive improvements */

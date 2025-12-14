@@ -5,9 +5,7 @@
         public string Id { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
 
-        // --- ADD THIS LINE ---
         public bool IsHelloFresh { get; set; } = false;
-        // ---------------------
 
         public string? Description { get; set; }
         public List<string> ImageUrls { get; set; } = new();
@@ -17,12 +15,20 @@
         public bool IsArchived { get; set; } = false;
         public DateTime? ArchivedDate { get; set; }
         public string? ArchivedBy { get; set; }
-         
+
         // Multi-tenant fields
         public Guid? GlobalRecipeId { get; set; }
         public string? GlobalRecipeName { get; set; }
         public bool IsForked { get; set; }
         public string? PersonalNotes { get; set; }
+
+        // Recipe metadata (from HelloFresh or manual)
+        public int? PrepTimeMinutes { get; set; }
+        public int? CookTimeMinutes { get; set; }
+        public int? Servings { get; set; }
+        public string? Difficulty { get; set; }
+        public string? Cuisine { get; set; }
+        public object? Ingredients { get; set; }
 
         // Public sharing
         public bool IsPublic { get; set; }

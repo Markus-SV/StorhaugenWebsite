@@ -288,7 +288,6 @@ else
         {
             var combined = new List<AggregatedRecipeDto>();
 
-            // NOTE: you sort client-side anyway, so backend sort isn’t critical here
             var groupQuery = new GetCombinedRecipesQuery
             {
                 Search = _searchQuery,
@@ -297,8 +296,9 @@ else
 
             var hasSelectedGroups = HouseholdState.HasHousehold && HouseholdState.ActiveGroupFilters.Any();
 
-            // Old behavior: if you have NO active group filters -> show personal
-            // New behavior: also show personal when the Personal chip is active (even if groups are selected)
+            // Show personal recipes when:
+            // 1. Personal chip is active, OR
+            // 2. No group filters are selected (default behavior)
             var shouldLoadPersonal = _personalGroupActive || !hasSelectedGroups;
 
             // 1) Load selected group recipes
@@ -327,7 +327,7 @@ else
                     Name = r.Name,
                     ImageUrls = r.ImageUrls,
                     HouseholdAverageRating = r.AverageRating,
-                    OwnerDisplayName = AuthService.CurrentUserName, // <- IMPORTANT: makes your UI show “Meg”
+                    OwnerDisplayName = AuthService.CurrentUserName,
                     MyRating = r.MyRating,
                     CreatedAt = r.CreatedAt,
                     HouseholdRatings = r.HouseholdRatings
@@ -336,7 +336,7 @@ else
                 combined.AddRange(personalMapped);
             }
 
-            // 3) Deduplicate just in case (safe when you merge sources)
+            // 3) Deduplicate by UserRecipeId (prefer first occurrence)
             _recipes = combined
                 .DistinctBy(r => r.UserRecipeId)
                 .ToList();

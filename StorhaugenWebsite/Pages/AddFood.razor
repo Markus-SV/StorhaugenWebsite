@@ -102,6 +102,48 @@
                       Lines="8"
                       Placeholder="Ingredienser blir lagt til her..."
                       Style="--mud-default-borderradius: 12px;" />
+
+        @* Collapsible metadata section *@
+        <MudExpansionPanels Class="mt-4" Elevation="0">
+            <MudExpansionPanel Text="Tilleggsinfo" Style="background: var(--mud-palette-background); border-radius: 12px;">
+                <div class="d-flex flex-wrap gap-3">
+                    <MudNumericField T="int?" @bind-Value="_newFood.PrepTimeMinutes"
+                                     Label="Tilberedningstid (min)"
+                                     Variant="Variant.Outlined"
+                                     Min="1" Max="300"
+                                     Style="flex: 1; min-width: 140px; --mud-default-borderradius: 10px;"
+                                     Adornment="Adornment.Start"
+                                     AdornmentIcon="@Icons.Material.Rounded.AccessTime" />
+
+                    <MudNumericField T="int?" @bind-Value="_newFood.Servings"
+                                     Label="Porsjoner"
+                                     Variant="Variant.Outlined"
+                                     Min="1" Max="20"
+                                     Style="flex: 1; min-width: 100px; --mud-default-borderradius: 10px;"
+                                     Adornment="Adornment.Start"
+                                     AdornmentIcon="@Icons.Material.Rounded.People" />
+                </div>
+
+                <div class="d-flex flex-wrap gap-3 mt-3">
+                    <MudSelect T="string" @bind-Value="_newFood.Difficulty"
+                               Label="Vanskelighetsgrad"
+                               Variant="Variant.Outlined"
+                               Style="flex: 1; min-width: 140px; --mud-default-borderradius: 10px;"
+                               AnchorOrigin="Origin.BottomCenter">
+                        <MudSelectItem Value="@((string?)null)">Ikke valgt</MudSelectItem>
+                        <MudSelectItem Value="@("easy")">Lett</MudSelectItem>
+                        <MudSelectItem Value="@("medium")">Middels</MudSelectItem>
+                        <MudSelectItem Value="@("hard")">Vanskelig</MudSelectItem>
+                    </MudSelect>
+
+                    <MudTextField @bind-Value="_newFood.Cuisine"
+                                  Label="Kjøkken / Type"
+                                  Variant="Variant.Outlined"
+                                  Placeholder="f.eks. Italiensk, Asiatisk..."
+                                  Style="flex: 1; min-width: 140px; --mud-default-borderradius: 10px;" />
+                </div>
+            </MudExpansionPanel>
+        </MudExpansionPanels>
     </div>
 
     <div class="form-section">
@@ -388,6 +430,15 @@
     {
         _newFood.Name = draft.Name;
         _newFood.Description = draft.Description;
+        _newFood.PrepTimeMinutes = draft.PrepTimeMinutes;
+        _newFood.CookTimeMinutes = draft.CookTimeMinutes;
+        _newFood.Servings = draft.Servings;
+        _newFood.Difficulty = draft.Difficulty;
+        _newFood.Cuisine = draft.Cuisine;
+        _newFood.Ingredients = draft.Ingredients;
+        _newFood.GlobalRecipeId = draft.GlobalRecipeId;
+        _newFood.IsHelloFresh = draft.IsHelloFresh;
+        _isHelloFresh = draft.IsHelloFresh;
         _fromDraft = true;
         if (draft.ImageUrls != null)
         {
@@ -448,10 +499,13 @@
                 PersonalNotes = _newFood.PersonalNotes,
                 GlobalRecipeId = _newFood.GlobalRecipeId,
                 Visibility = finalVisibility,
-                MemberRatings = ratingsToSend
-                // Note: The API doesn't seem to have a specific "HouseholdId" field on UserRecipe yet,
-                // it relies on the user's membership. In a multi-group system, you might want to tag *which* group
-                // this is for, but currently the visibility "household" usually implies "any group I am in".
+                MemberRatings = ratingsToSend,
+                // Metadata fields
+                PrepTimeMinutes = _newFood.PrepTimeMinutes,
+                Servings = _newFood.Servings,
+                Difficulty = _newFood.Difficulty,
+                Cuisine = _newFood.Cuisine,
+                Ingredients = _newFood.Ingredients
             };
 
             await RecipeService.CreateRecipeAsync(createDto);
