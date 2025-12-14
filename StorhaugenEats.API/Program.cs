@@ -55,6 +55,7 @@ builder.Services.AddScoped<IUserFriendshipService, UserFriendshipService>();
 builder.Services.AddScoped<IActivityFeedService, ActivityFeedService>();
 builder.Services.AddScoped<IUserRecipeService, UserRecipeService>();
 builder.Services.AddScoped<ITagService, TagService>();
+builder.Services.AddScoped<ICollectionService, CollectionService>();
 
 // JWT Authentication (Supabase JWT)
 var jwtSecret = builder.Configuration["Supabase:JwtSecret"] ?? throw new InvalidOperationException("JWT Secret not configured");

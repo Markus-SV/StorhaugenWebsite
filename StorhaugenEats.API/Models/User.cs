@@ -28,9 +28,6 @@ public class User
     [MaxLength(12)]
     public string UniqueShareId { get; set; } = string.Empty;
 
-    [Column("current_household_id")]
-    public Guid? CurrentHouseholdId { get; set; }
-
     [Column("supabase_user_id")]
     [MaxLength(255)]
     public string? SupabaseUserId { get; set; }
@@ -41,7 +38,7 @@ public class User
     [Column("updated_at")]
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    // New fields for user-centric social features
+    // User-centric social features
     [Column("is_profile_public")]
     public bool IsProfilePublic { get; set; } = true;
 
@@ -53,11 +50,12 @@ public class User
     public string FavoriteCuisines { get; set; } = "[]";
 
     // Navigation properties
-    public Household? CurrentHousehold { get; set; }
     public ICollection<UserRecipe> UserRecipes { get; set; } = new List<UserRecipe>();
     public ICollection<UserFriendship> SentFriendRequests { get; set; } = new List<UserFriendship>();
     public ICollection<UserFriendship> ReceivedFriendRequests { get; set; } = new List<UserFriendship>();
     public ICollection<ActivityFeedItem> Activities { get; set; } = new List<ActivityFeedItem>();
+    public ICollection<Collection> OwnedCollections { get; set; } = new List<Collection>();
+    public ICollection<CollectionMember> CollectionMemberships { get; set; } = new List<CollectionMember>();
 
     // Backward compatibility properties
     [NotMapped]

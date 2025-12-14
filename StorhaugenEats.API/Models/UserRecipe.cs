@@ -53,11 +53,11 @@ public class UserRecipe
     public string? PersonalNotes { get; set; }
 
     /// <summary>
-    /// Visibility level: 'private', 'household', 'friends', 'public'
-    /// - private: Only the owner can see
-    /// - household: Members of user's households can see
+    /// Visibility level: 'private', 'friends', 'public'
+    /// - private: Only the owner can see (unless shared via a collection)
     /// - friends: User's friends can see
     /// - public: Everyone can see (and it appears in browse)
+    /// Note: Private recipes shared via a collection are visible to collection members.
     /// </summary>
     [Required]
     [Column("visibility")]
@@ -81,6 +81,7 @@ public class UserRecipe
     public GlobalRecipe? GlobalRecipe { get; set; }
     public ICollection<Rating> Ratings { get; set; } = new List<Rating>();
     public ICollection<UserRecipeTag> UserRecipeTags { get; set; } = new List<UserRecipeTag>();
+    public ICollection<UserRecipeCollection> UserRecipeCollections { get; set; } = new List<UserRecipeCollection>();
 
     // Helper properties
     [NotMapped]

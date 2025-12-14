@@ -52,6 +52,9 @@ public class UserRecipeDto
 
     // Tags (personal organization)
     public List<TagReferenceDto> Tags { get; set; } = new();
+
+    // Collections this recipe belongs to
+    public List<CollectionReferenceDto> Collections { get; set; } = new();
 }
 
 /// <summary>
@@ -79,6 +82,9 @@ public class CreateUserRecipeDto
     // Tags (personal organization)
     public List<Guid>? TagIds { get; set; }
 
+    // Collections to add this recipe to
+    public List<Guid>? CollectionIds { get; set; }
+
     // --- Dictionary of UserID -> Score (1-10) ---
     public Dictionary<Guid, int>? MemberRatings { get; set; }
 }
@@ -97,6 +103,9 @@ public class UpdateUserRecipeDto
 
     // Tags (personal organization)
     public List<Guid>? TagIds { get; set; }
+
+    // Collections (replaces current collections if provided)
+    public List<Guid>? CollectionIds { get; set; }
 }
 
 /// <summary>
