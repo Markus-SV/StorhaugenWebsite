@@ -1,6 +1,5 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Text;
 using System.Text.Json;
 using StorhaugenWebsite.Shared.DTOs;
 using StorhaugenWebsite.Services;
@@ -49,191 +48,105 @@ public class ApiClient : IApiClient
         return (await response.Content.ReadFromJsonAsync<UserDto>(_jsonOptions))!;
     }
 
-    // Household Methods
-    public async Task<List<HouseholdDto>> GetMyHouseholdsAsync()
+    // Collection Methods
+    public async Task<List<CollectionDto>> GetMyCollectionsAsync()
     {
         await AddAuthHeaderAsync();
-        return (await _httpClient.GetFromJsonAsync<List<HouseholdDto>>("/api/households/my", _jsonOptions)) ?? new();
+        return (await _httpClient.GetFromJsonAsync<List<CollectionDto>>("/api/collections", _jsonOptions)) ?? new();
     }
 
-    public async Task<HouseholdDto?> GetHouseholdAsync(Guid id)
+    public async Task<CollectionDto?> GetCollectionAsync(Guid id)
     {
         await AddAuthHeaderAsync();
-        return await _httpClient.GetFromJsonAsync<HouseholdDto>($"/api/households/{id}", _jsonOptions);
+        return await _httpClient.GetFromJsonAsync<CollectionDto>($"/api/collections/{id}", _jsonOptions);
     }
 
-    public async Task<HouseholdDto> CreateHouseholdAsync(CreateHouseholdDto dto)
+    public async Task<CollectionDto> CreateCollectionAsync(CreateCollectionDto dto)
     {
         await AddAuthHeaderAsync();
-        var response = await _httpClient.PostAsJsonAsync("/api/households", dto, _jsonOptions);
+        var response = await _httpClient.PostAsJsonAsync("/api/collections", dto, _jsonOptions);
         response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<HouseholdDto>(_jsonOptions))!;
+        return (await response.Content.ReadFromJsonAsync<CollectionDto>(_jsonOptions))!;
     }
 
-    public async Task<HouseholdDto> UpdateHouseholdSettingsAsync(Guid id, UpdateHouseholdSettingsDto dto)
+    public async Task<CollectionDto> UpdateCollectionAsync(Guid id, UpdateCollectionDto dto)
     {
         await AddAuthHeaderAsync();
-        var response = await _httpClient.PutAsJsonAsync($"/api/households/{id}/settings", dto, _jsonOptions);
+        var response = await _httpClient.PutAsJsonAsync($"/api/collections/{id}", dto, _jsonOptions);
         response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<HouseholdDto>(_jsonOptions))!;
+        return (await response.Content.ReadFromJsonAsync<CollectionDto>(_jsonOptions))!;
     }
 
-    public async Task<HouseholdDto> UpdateHouseholdNameAsync(Guid id, UpdateHouseholdDto dto)
+    public async Task DeleteCollectionAsync(Guid id)
     {
         await AddAuthHeaderAsync();
-        var response = await _httpClient.PutAsJsonAsync($"/api/households/{id}", dto, _jsonOptions);
-        response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<HouseholdDto>(_jsonOptions))!;
-    }
-
-    public async Task<HouseholdDto> RegenerateHouseholdShareIdAsync(Guid id)
-    {
-        await AddAuthHeaderAsync();
-        var response = await _httpClient.PostAsync($"/api/households/{id}/regenerate-share-id", null);
-        response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<HouseholdDto>(_jsonOptions))!;
-    }
-
-    public async Task SwitchHouseholdAsync(Guid householdId)
-    {
-        await AddAuthHeaderAsync();
-        var response = await _httpClient.PostAsync($"/api/households/{householdId}/switch", null);
+        var response = await _httpClient.DeleteAsync($"/api/collections/{id}");
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task<List<HouseholdInviteDto>> GetPendingInvitesAsync()
+    public async Task<CollectionRecipesResult> GetCollectionRecipesAsync(Guid id, GetCollectionRecipesQuery? query = null)
     {
         await AddAuthHeaderAsync();
-        return (await _httpClient.GetFromJsonAsync<List<HouseholdInviteDto>>("/api/households/invites/pending", _jsonOptions)) ?? new();
+        var queryParams = new List<string>();
+
+        if (query != null)
+        {
+            if (!string.IsNullOrWhiteSpace(query.Search))
+                queryParams.Add($"search={Uri.EscapeDataString(query.Search)}");
+
+            queryParams.Add($"sortBy={Uri.EscapeDataString(query.SortBy)}");
+            queryParams.Add($"sortDescending={query.SortDescending}");
+            queryParams.Add($"page={query.Page}");
+            queryParams.Add($"pageSize={query.PageSize}");
+        }
+
+        var url = queryParams.Count > 0
+            ? $"/api/collections/{id}/recipes?{string.Join("&", queryParams)}"
+            : $"/api/collections/{id}/recipes";
+
+        return (await _httpClient.GetFromJsonAsync<CollectionRecipesResult>(url, _jsonOptions))
+            ?? new CollectionRecipesResult();
     }
 
-    public async Task AcceptInviteAsync(Guid inviteId)
+    public async Task AddRecipeToCollectionAsync(Guid collectionId, AddRecipeToCollectionDto dto)
     {
         await AddAuthHeaderAsync();
-        var response = await _httpClient.PostAsync($"/api/households/invites/{inviteId}/accept", null);
+        var response = await _httpClient.PostAsJsonAsync($"/api/collections/{collectionId}/recipes", dto, _jsonOptions);
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task RejectInviteAsync(Guid inviteId)
+    public async Task RemoveRecipeFromCollectionAsync(Guid collectionId, Guid recipeId)
     {
         await AddAuthHeaderAsync();
-        var response = await _httpClient.PostAsync($"/api/households/invites/{inviteId}/reject", null);
+        var response = await _httpClient.DeleteAsync($"/api/collections/{collectionId}/recipes/{recipeId}");
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task InviteToHouseholdAsync(Guid householdId, InviteToHouseholdDto dto)
+    public async Task<List<CollectionMemberDto>> GetCollectionMembersAsync(Guid collectionId)
     {
         await AddAuthHeaderAsync();
-        var response = await _httpClient.PostAsJsonAsync($"/api/households/{householdId}/invites", dto, _jsonOptions);
+        return (await _httpClient.GetFromJsonAsync<List<CollectionMemberDto>>($"/api/collections/{collectionId}/members", _jsonOptions))
+            ?? new List<CollectionMemberDto>();
+    }
+
+    public async Task AddCollectionMemberAsync(Guid collectionId, AddCollectionMemberDto dto)
+    {
+        await AddAuthHeaderAsync();
+        var response = await _httpClient.PostAsJsonAsync($"/api/collections/{collectionId}/members", dto, _jsonOptions);
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task LeaveHouseholdAsync(Guid householdId)
+    public async Task RemoveCollectionMemberAsync(Guid collectionId, Guid memberId)
     {
         await AddAuthHeaderAsync();
-        var response = await _httpClient.PostAsync($"/api/households/{householdId}/leave", null);
+        var response = await _httpClient.DeleteAsync($"/api/collections/{collectionId}/members/{memberId}");
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task<List<HouseholdSearchResultDto>> SearchHouseholdsAsync(string query)
+    public async Task LeaveCollectionAsync(Guid collectionId)
     {
         await AddAuthHeaderAsync();
-        var results = await _httpClient.GetFromJsonAsync<List<HouseholdSearchResultDto>>($"/api/households/search?query={Uri.EscapeDataString(query)}", _jsonOptions);
-        return results ?? new List<HouseholdSearchResultDto>();
-    }
-
-    public async Task<List<HouseholdFriendshipDto>> GetHouseholdFriendshipsAsync()
-    {
-        await AddAuthHeaderAsync();
-        var results = await _httpClient.GetFromJsonAsync<List<HouseholdFriendshipDto>>("/api/household-friendships", _jsonOptions);
-        return results ?? new List<HouseholdFriendshipDto>();
-    }
-
-    public async Task<HouseholdFriendshipDto> SendHouseholdFriendRequestAsync(SendHouseholdFriendRequestDto dto)
-    {
-        await AddAuthHeaderAsync();
-        var response = await _httpClient.PostAsJsonAsync("/api/household-friendships/request", dto, _jsonOptions);
-        response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<HouseholdFriendshipDto>(_jsonOptions))!;
-    }
-
-    public async Task<HouseholdFriendshipDto> RespondHouseholdFriendRequestAsync(Guid requestId, RespondFriendRequestDto dto)
-    {
-        await AddAuthHeaderAsync();
-        var response = await _httpClient.PostAsJsonAsync($"/api/household-friendships/{requestId}/respond", dto, _jsonOptions);
-        response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<HouseholdFriendshipDto>(_jsonOptions))!;
-    }
-
-    // Household Recipe Methods
-    public async Task<List<HouseholdRecipeDto>> GetRecipesAsync(bool includeArchived = false)
-    {
-        await AddAuthHeaderAsync();
-        var url = $"/api/household-recipes?includeArchived={includeArchived}";
-        return (await _httpClient.GetFromJsonAsync<List<HouseholdRecipeDto>>(url, _jsonOptions)) ?? new();
-    }
-
-    public async Task<HouseholdRecipeDto?> GetRecipeAsync(Guid id)
-    {
-        await AddAuthHeaderAsync();
-        return await _httpClient.GetFromJsonAsync<HouseholdRecipeDto>($"/api/household-recipes/{id}", _jsonOptions);
-    }
-
-    public async Task<PublicRecipeDto?> GetPublicRecipeAsync(Guid id)
-    {
-        await AddAuthHeaderAsync();
-        return await _httpClient.GetFromJsonAsync<PublicRecipeDto>($"api/household-recipes/public/{id}", _jsonOptions);
-    }
-
-    public async Task<HouseholdRecipeDto> CreateRecipeAsync(CreateHouseholdRecipeDto dto)
-    {
-        await AddAuthHeaderAsync();
-        var response = await _httpClient.PostAsJsonAsync("/api/household-recipes", dto, _jsonOptions);
-        response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<HouseholdRecipeDto>(_jsonOptions))!;
-    }
-
-    public async Task<HouseholdRecipeDto> UpdateRecipeAsync(Guid id, UpdateHouseholdRecipeDto dto)
-    {
-        await AddAuthHeaderAsync();
-        var response = await _httpClient.PutAsJsonAsync($"/api/household-recipes/{id}", dto, _jsonOptions);
-        response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<HouseholdRecipeDto>(_jsonOptions))!;
-    }
-
-    public async Task ArchiveRecipeAsync(Guid id)
-    {
-        await AddAuthHeaderAsync();
-        var response = await _httpClient.PostAsync($"/api/household-recipes/{id}/archive", null);
-        response.EnsureSuccessStatusCode();
-    }
-
-    public async Task RestoreRecipeAsync(Guid id)
-    {
-        await AddAuthHeaderAsync();
-        var response = await _httpClient.PostAsync($"/api/household-recipes/{id}/restore", null);
-        response.EnsureSuccessStatusCode();
-    }
-
-    public async Task RateRecipeAsync(Guid id, int rating)
-    {
-        await AddAuthHeaderAsync();
-        var dto = new RateRecipeDto { Rating = rating };
-        var response = await _httpClient.PostAsJsonAsync($"/api/household-recipes/{id}/rate", dto, _jsonOptions);
-        response.EnsureSuccessStatusCode();
-    }
-
-    public async Task ForkRecipeAsync(Guid id)
-    {
-        await AddAuthHeaderAsync();
-        var response = await _httpClient.PostAsync($"/api/household-recipes/{id}/fork", null);
-        response.EnsureSuccessStatusCode();
-    }
-
-    public async Task DeleteRecipeAsync(Guid id)
-    {
-        await AddAuthHeaderAsync();
-        var response = await _httpClient.DeleteAsync($"/api/household-recipes/{id}");
+        var response = await _httpClient.PostAsync($"/api/collections/{collectionId}/leave", null);
         response.EnsureSuccessStatusCode();
     }
 
@@ -292,24 +205,6 @@ public class ApiClient : IApiClient
         await AddAuthHeaderAsync();
         var response = await _httpClient.DeleteAsync($"/api/global-recipes/{id}");
         response.EnsureSuccessStatusCode();
-    }
-
-    // Public Household Recipes (community recipes)
-    public async Task<PublicRecipePagedResult> BrowsePublicRecipesAsync(BrowsePublicRecipesQuery query)
-    {
-        var queryParams = new List<string>();
-
-        if (!string.IsNullOrWhiteSpace(query.Search))
-            queryParams.Add($"search={Uri.EscapeDataString(query.Search)}");
-
-        queryParams.Add($"sortBy={Uri.EscapeDataString(query.SortBy)}");
-        queryParams.Add($"page={query.Page}");
-        queryParams.Add($"pageSize={query.PageSize}");
-
-        var url = $"/api/household-recipes/public?{string.Join("&", queryParams)}";
-
-        return (await _httpClient.GetFromJsonAsync<PublicRecipePagedResult>(url, _jsonOptions))
-            ?? new PublicRecipePagedResult();
     }
 
     // Storage Methods
@@ -479,14 +374,10 @@ public class ApiClient : IApiClient
         return (await response.Content.ReadFromJsonAsync<UserFriendshipDto>(_jsonOptions))!;
     }
 
-    // In StorhaugenWebsite\ApiClient\ApiClient.cs
-
     public async Task<UserFriendshipDto> RespondToFriendRequestAsync(Guid id, RespondFriendRequestDto dto)
     {
         await AddAuthHeaderAsync();
-
         var response = await _httpClient.PostAsJsonAsync($"/api/friendships/{id}/respond", dto, _jsonOptions);
-
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<UserFriendshipDto>(_jsonOptions))!;
     }
@@ -559,75 +450,11 @@ public class ApiClient : IApiClient
     public async Task<List<UserRatingDto>> GetUserRatingsAsync(Guid userId, int skip = 0, int take = 50)
     {
         await AddAuthHeaderAsync();
-
         var url = $"/api/ratings/user/{userId}?skip={skip}&take={take}";
         return (await _httpClient.GetFromJsonAsync<List<UserRatingDto>>(url, _jsonOptions)) ?? new List<UserRatingDto>();
     }
 
-    // Household Recipe Aggregation
-    // In ApiClient.cs
-
-    public async Task<AggregatedRecipePagedResult> GetHouseholdCombinedRecipesAsync(Guid householdId, GetCombinedRecipesQuery query)
-    {
-        await AddAuthHeaderAsync();
-        var queryParams = new List<string>();
-
-        if (!string.IsNullOrWhiteSpace(query.Search))
-            queryParams.Add($"search={Uri.EscapeDataString(query.Search)}");
-
-        // FIX: Changed from query.MemberIds to query.FilterByMembers
-        if (query.FilterByMembers != null && query.FilterByMembers.Count > 0)
-        {
-            foreach (var memberId in query.FilterByMembers)
-                queryParams.Add($"filterByMembers={memberId}");
-        }
-
-        // FIX: Changed from query.MinimumRating to query.MinRating
-        if (query.MinRating.HasValue)
-            queryParams.Add($"minRating={query.MinRating.Value}");
-
-        queryParams.Add($"sortBy={Uri.EscapeDataString(query.SortBy)}");
-        queryParams.Add($"sortDescending={query.SortDescending}"); // Added this based on DTO
-        queryParams.Add($"page={query.Page}");
-        queryParams.Add($"pageSize={query.PageSize}");
-
-        var url = $"/api/households/{householdId}/combined-recipes?{string.Join("&", queryParams)}";
-
-        return (await _httpClient.GetFromJsonAsync<AggregatedRecipePagedResult>(url, _jsonOptions))
-            ?? new AggregatedRecipePagedResult();
-    }
-
-    public async Task<List<CommonFavoriteDto>> GetHouseholdCommonFavoritesAsync(Guid householdId, int minimumMembers = 2, int limit = 10)
-    {
-        await AddAuthHeaderAsync();
-        var url = $"/api/households/{householdId}/common-favorites?minimumMembers={minimumMembers}&limit={limit}";
-        return (await _httpClient.GetFromJsonAsync<List<CommonFavoriteDto>>(url, _jsonOptions))
-            ?? new List<CommonFavoriteDto>();
-    }
-
-    // Multi-group Recipe Aggregation
-    public async Task<AggregatedRecipePagedResult> GetGroupsCombinedRecipesAsync(GetMultiGroupRecipesQuery query)
-    {
-        await AddAuthHeaderAsync();
-        var response = await _httpClient.PostAsJsonAsync("/api/user-recipes/groups/aggregate", query, _jsonOptions);
-        response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<AggregatedRecipePagedResult>(_jsonOptions))
-            ?? new AggregatedRecipePagedResult();
-    }
-
-    public async Task<List<CommonFavoriteDto>> GetGroupsCommonFavoritesAsync(GetMultiGroupFavoritesQuery query)
-    {
-        await AddAuthHeaderAsync();
-        var response = await _httpClient.PostAsJsonAsync("/api/user-recipes/groups/common-favorites", query, _jsonOptions);
-        response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<List<CommonFavoriteDto>>(_jsonOptions))
-            ?? new List<CommonFavoriteDto>();
-    }
-
-    // ==========================================
-    // TAGS (Personal Recipe Organization)
-    // ==========================================
-
+    // Tags (Personal Recipe Organization)
     public async Task<List<TagDto>> GetMyTagsAsync()
     {
         await AddAuthHeaderAsync();
@@ -686,13 +513,12 @@ public class ApiClient : IApiClient
         response.EnsureSuccessStatusCode();
     }
 
+    // HelloFresh
     public async Task<HelloFreshRawResponse?> GetHelloFreshTestRawAsync()
     {
-        // Calls your own backend, which proxies to HelloFresh
         return await _httpClient.GetFromJsonAsync<HelloFreshRawResponse>("/api/hellofresh/test-proxy", _jsonOptions);
     }
 
-    // HelloFresh sync methods
     public async Task<HelloFreshSyncResult> TriggerHelloFreshSyncAsync(bool force = false)
     {
         var url = force ? "/api/hellofresh/sync?force=true" : "/api/hellofresh/sync";
