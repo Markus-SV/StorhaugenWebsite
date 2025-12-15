@@ -5,16 +5,16 @@ using StorhaugenWebsite.Shared.DTOs;
 namespace StorhaugenWebsite.Services
 {
     /// <summary>
-    /// TRANSITIONING: This service currently uses household-recipes endpoints.
-    /// It should be migrated to use IUserRecipeService endpoints instead.
-    /// The FoodItem model will be replaced with UserRecipeDto.
+    /// Legacy service for FoodItem compatibility.
+    /// Wraps the user-centric recipe APIs.
     /// </summary>
     public class FoodService : IFoodService
     {
         private readonly IApiClient _apiClient;
         private readonly IAuthService _authService;
-        public FoodItem? DraftRecipe { get; set; } 
+        public FoodItem? DraftRecipe { get; set; }
         public List<FoodItem> CachedFoods { get; private set; } = new();
+
         public FoodService(IApiClient apiClient, IAuthService authService)
         {
             _apiClient = apiClient;
@@ -33,8 +33,9 @@ namespace StorhaugenWebsite.Services
         {
             if (!_authService.IsAuthenticated) throw new UnauthorizedAccessException();
 
-            var recipes = await _apiClient.GetRecipesAsync(includeArchived);
-            var mappedRecipes = recipes.Select(MapToFoodItem).ToList();
+            var query = new GetUserRecipesQuery { IncludeArchived = includeArchived };
+            var result = await _apiClient.GetMyUserRecipesAsync(query);
+            var mappedRecipes = result.Recipes.Select(MapToFoodItem).ToList();
 
             // Update the cache if we are fetching the standard active list
             if (!includeArchived)
@@ -50,7 +51,7 @@ namespace StorhaugenWebsite.Services
             if (!Guid.TryParse(id, out var recipeId))
                 return null;
 
-            var recipe = await _apiClient.GetRecipeAsync(recipeId);
+            var recipe = await _apiClient.GetUserRecipeAsync(recipeId);
             return recipe != null ? MapToFoodItem(recipe) : null;
         }
 
@@ -61,21 +62,21 @@ namespace StorhaugenWebsite.Services
             if (string.IsNullOrWhiteSpace(food.Name))
                 throw new ArgumentException("Food name cannot be empty.");
 
-            var dto = new CreateHouseholdRecipeDto
+            var dto = new CreateUserRecipeDto
             {
                 Name = food.Name,
                 Description = food.Description,
                 ImageUrls = food.ImageUrls,
-                PersonalNotes = null,
-                IsPublic = food.IsPublic
+                PersonalNotes = food.PersonalNotes,
+                Visibility = food.IsPublic ? "public" : "private"
             };
 
-            var created = await _apiClient.CreateRecipeAsync(dto);
+            var created = await _apiClient.CreateUserRecipeAsync(dto);
 
             // Add the user's rating if provided
             foreach (var rating in food.Ratings.Where(r => r.Value.HasValue))
             {
-                await _apiClient.RateRecipeAsync(created.Id, rating.Value!.Value);
+                await _apiClient.RateUserRecipeAsync(created.Id, rating.Value!.Value);
             }
 
             return created.Id.ToString();
@@ -91,7 +92,7 @@ namespace StorhaugenWebsite.Services
             if (!Guid.TryParse(food.Id, out var recipeId))
                 throw new ArgumentException("Invalid ID format.");
 
-            var dto = new UpdateHouseholdRecipeDto
+            var dto = new UpdateUserRecipeDto
             {
                 Name = food.Name,
                 Description = food.Description,
@@ -99,7 +100,7 @@ namespace StorhaugenWebsite.Services
                 PersonalNotes = food.PersonalNotes
             };
 
-            await _apiClient.UpdateRecipeAsync(recipeId, dto);
+            await _apiClient.UpdateUserRecipeAsync(recipeId, dto);
         }
 
         public async Task ArchiveFoodAsync(string id, string archivedBy)
@@ -109,7 +110,7 @@ namespace StorhaugenWebsite.Services
             if (!Guid.TryParse(id, out var recipeId))
                 throw new ArgumentException("Invalid ID format.");
 
-            await _apiClient.ArchiveRecipeAsync(recipeId);
+            await _apiClient.ArchiveUserRecipeAsync(recipeId);
         }
 
         public async Task RestoreFoodAsync(string id)
@@ -119,7 +120,7 @@ namespace StorhaugenWebsite.Services
             if (!Guid.TryParse(id, out var recipeId))
                 throw new ArgumentException("Invalid ID format.");
 
-            await _apiClient.RestoreRecipeAsync(recipeId);
+            await _apiClient.RestoreUserRecipeAsync(recipeId);
         }
 
         public async Task UpdateRatingAsync(string foodId, string personName, int rating)
@@ -131,7 +132,7 @@ namespace StorhaugenWebsite.Services
             if (!Guid.TryParse(foodId, out var recipeId))
                 throw new ArgumentException("Invalid ID format.");
 
-            await _apiClient.RateRecipeAsync(recipeId, rating);
+            await _apiClient.RateUserRecipeAsync(recipeId, rating);
         }
 
         public async Task<string> UploadImageAsync(byte[] imageData, string fileName)
@@ -152,7 +153,8 @@ namespace StorhaugenWebsite.Services
             if (!Guid.TryParse(id, out var recipeId))
                 throw new ArgumentException("Invalid ID format.");
 
-            await _apiClient.ForkRecipeAsync(recipeId);
+            // Fork is now "detach" - creates a local copy
+            await _apiClient.DetachUserRecipeAsync(recipeId);
         }
 
         public async Task SetPublicStatusAsync(string id, bool isPublic)
@@ -162,16 +164,16 @@ namespace StorhaugenWebsite.Services
             if (!Guid.TryParse(id, out var recipeId))
                 throw new ArgumentException("Invalid ID format.");
 
-            var dto = new UpdateHouseholdRecipeDto
+            var dto = new UpdateUserRecipeDto
             {
-                IsPublic = isPublic
+                Visibility = isPublic ? "public" : "private"
             };
 
-            await _apiClient.UpdateRecipeAsync(recipeId, dto);
+            await _apiClient.UpdateUserRecipeAsync(recipeId, dto);
         }
 
-        // Map HouseholdRecipeDto to FoodItem for backward compatibility
-        private FoodItem MapToFoodItem(HouseholdRecipeDto recipe)
+        // Map UserRecipeDto to FoodItem for backward compatibility
+        private FoodItem MapToFoodItem(UserRecipeDto recipe)
         {
             return new FoodItem
             {
@@ -179,18 +181,23 @@ namespace StorhaugenWebsite.Services
                 Name = recipe.Name,
                 Description = recipe.Description,
                 ImageUrls = recipe.ImageUrls,
-                Ratings = recipe.Ratings,
-                DateAdded = recipe.DateAdded,
-                AddedBy = recipe.AddedByName ?? "Unknown",
+                Ratings = recipe.HouseholdRatings ?? new Dictionary<string, int?>(),
+                DateAdded = recipe.CreatedAt,
+                AddedBy = recipe.UserDisplayName ?? "Unknown",
                 IsArchived = recipe.IsArchived,
-                ArchivedDate = recipe.ArchivedDate,
-                ArchivedBy = recipe.ArchivedByName,
+                ArchivedDate = null,
+                ArchivedBy = null,
                 GlobalRecipeId = recipe.GlobalRecipeId,
                 GlobalRecipeName = recipe.GlobalRecipeName,
-                IsForked = recipe.IsForked,
+                IsForked = false,
                 PersonalNotes = recipe.PersonalNotes,
-                IsPublic = recipe.IsPublic,
-                HouseholdName = recipe.HouseholdName
+                IsPublic = recipe.Visibility == "public",
+                PrepTimeMinutes = recipe.PrepTimeMinutes,
+                CookTimeMinutes = recipe.CookTimeMinutes,
+                Servings = recipe.Servings,
+                Difficulty = recipe.Difficulty,
+                Cuisine = recipe.Cuisine,
+                Ingredients = recipe.Ingredients
             };
         }
     }

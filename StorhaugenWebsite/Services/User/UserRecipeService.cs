@@ -134,66 +134,6 @@ namespace StorhaugenWebsite.Services
             return result;
         }
 
-        public async Task<AggregatedRecipePagedResult> GetHouseholdCombinedRecipesAsync(Guid householdId, GetCombinedRecipesQuery? query = null)
-        {
-            if (!_authService.IsAuthenticated)
-                throw new UnauthorizedAccessException();
-
-            query ??= new GetCombinedRecipesQuery();
-            return await _apiClient.GetHouseholdCombinedRecipesAsync(householdId, query);
-        }
-
-        public async Task<List<CommonFavoriteDto>> GetHouseholdCommonFavoritesAsync(Guid householdId, int minimumMembers = 2, int limit = 10)
-        {
-            if (!_authService.IsAuthenticated)
-                throw new UnauthorizedAccessException();
-
-            return await _apiClient.GetHouseholdCommonFavoritesAsync(householdId, minimumMembers, limit);
-        }
-
-        // Multi-group Aggregation
-        public async Task<AggregatedRecipePagedResult> GetGroupsCombinedRecipesAsync(List<Guid> groupIds, GetCombinedRecipesQuery? query = null)
-        {
-            if (!_authService.IsAuthenticated)
-                throw new UnauthorizedAccessException();
-
-            if (groupIds == null || !groupIds.Any())
-                return new AggregatedRecipePagedResult();
-
-            query ??= new GetCombinedRecipesQuery();
-            var multiGroupQuery = new GetMultiGroupRecipesQuery
-            {
-                GroupIds = groupIds,
-                FilterByMembers = query.FilterByMembers,
-                MinRating = query.MinRating,
-                Search = query.Search,
-                SortBy = query.SortBy,
-                SortDescending = query.SortDescending,
-                Page = query.Page,
-                PageSize = query.PageSize
-            };
-
-            return await _apiClient.GetGroupsCombinedRecipesAsync(multiGroupQuery);
-        }
-
-        public async Task<List<CommonFavoriteDto>> GetGroupsCommonFavoritesAsync(List<Guid> groupIds, int minimumMembers = 2, int limit = 10)
-        {
-            if (!_authService.IsAuthenticated)
-                throw new UnauthorizedAccessException();
-
-            if (groupIds == null || !groupIds.Any())
-                return new List<CommonFavoriteDto>();
-
-            var query = new GetMultiGroupFavoritesQuery
-            {
-                GroupIds = groupIds,
-                MinMembers = minimumMembers,
-                Limit = limit
-            };
-
-            return await _apiClient.GetGroupsCommonFavoritesAsync(query);
-        }
-
         public async Task<UserRecipePagedResult> GetFriendsRecipesAsync(GetUserRecipesQuery? query = null)
         {
             if (!_authService.IsAuthenticated)

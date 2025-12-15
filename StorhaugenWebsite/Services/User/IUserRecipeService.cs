@@ -23,14 +23,6 @@ namespace StorhaugenWebsite.Services
         Task<UserRecipeDto> ArchiveRecipeAsync(Guid id);
         Task<UserRecipeDto> RestoreRecipeAsync(Guid id);
 
-        // Household Aggregation (single group - backwards compatible)
-        Task<AggregatedRecipePagedResult> GetHouseholdCombinedRecipesAsync(Guid householdId, GetCombinedRecipesQuery? query = null);
-        Task<List<CommonFavoriteDto>> GetHouseholdCommonFavoritesAsync(Guid householdId, int minimumMembers = 2, int limit = 10);
-
-        // Multi-group Aggregation
-        Task<AggregatedRecipePagedResult> GetGroupsCombinedRecipesAsync(List<Guid> groupIds, GetCombinedRecipesQuery? query = null);
-        Task<List<CommonFavoriteDto>> GetGroupsCommonFavoritesAsync(List<Guid> groupIds, int minimumMembers = 2, int limit = 10);
-
         // Friends' Recipes
         Task<UserRecipePagedResult> GetFriendsRecipesAsync(GetUserRecipesQuery? query = null);
 

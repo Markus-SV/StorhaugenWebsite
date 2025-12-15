@@ -32,7 +32,6 @@
 
         // Public sharing
         public bool IsPublic { get; set; }
-        public string? HouseholdName { get; set; }
 
         public double AverageRating
         {
