@@ -19,20 +19,6 @@
                 </div>
             </MudPaper>
 
-            <MudPaper Class="@(Visibility == "household" ? "mud-border-primary pa-2" : "pa-2")"
-                     Elevation="0"
-                     Style="@GetItemStyle("household")"
-                     @onclick="@(() => SetVisibility("household"))">
-                <div class="d-flex align-center gap-2">
-                    <MudRadio Value="@("household")" Color="Color.Primary" Dense="true" />
-                    <MudIcon Icon="@Icons.Material.Rounded.Home" Size="Size.Small" />
-                    <div>
-                        <MudText Typo="Typo.body2">Husstand</MudText>
-                        <MudText Typo="Typo.caption" Color="Color.Secondary">Synlig for husstandsmedlemmer</MudText>
-                    </div>
-                </div>
-            </MudPaper>
-
             <MudPaper Class="@(Visibility == "friends" ? "mud-border-primary pa-2" : "pa-2")"
                      Elevation="0"
                      Style="@GetItemStyle("friends")"

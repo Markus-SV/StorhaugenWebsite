@@ -37,7 +37,6 @@ builder.Services.AddScoped(sp => new Supabase.Client(supabaseUrl, supabaseAnonKe
 // Authentication & API Services
 builder.Services.AddScoped<IAuthService, SupabaseAuthService>();
 builder.Services.AddScoped<IApiClient, ApiClient>();
-builder.Services.AddScoped<IHouseholdStateService, HouseholdStateService>();
 builder.Services.AddAuthorizationCore();
 builder.Services.AddScoped<AuthenticationStateProvider, SupabaseAuthStateProvider>();
 // Other Services
@@ -59,9 +58,5 @@ builder.Services.AddScoped<IHelloFreshSyncService, HelloFreshSyncService>();
 var host = builder.Build();
 var authService = host.Services.GetRequiredService<IAuthService>();
 await authService.InitializeAsync();
-
-// Initialize household state (will auto-load after auth)
-var householdStateService = host.Services.GetRequiredService<IHouseholdStateService>();
-await householdStateService.InitializeAsync();
 
 await host.RunAsync();
