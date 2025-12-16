@@ -51,6 +51,7 @@ builder.Services.AddScoped<IFoodService, FoodService>();
 builder.Services.AddScoped<IUserRecipeService, UserRecipeService>();
 builder.Services.AddScoped<IUserFriendshipService, UserFriendshipService>();
 builder.Services.AddScoped<IActivityFeedService, ActivityFeedService>();
+builder.Services.AddScoped<ICollectionStateService, CollectionStateService>();
 
 // HelloFresh sync service (triggers background sync on login)
 builder.Services.AddScoped<IHelloFreshSyncService, HelloFreshSyncService>();
@@ -58,5 +59,9 @@ builder.Services.AddScoped<IHelloFreshSyncService, HelloFreshSyncService>();
 var host = builder.Build();
 var authService = host.Services.GetRequiredService<IAuthService>();
 await authService.InitializeAsync();
+
+// Initialize collection state (will auto-load after auth)
+var collectionStateService = host.Services.GetRequiredService<ICollectionStateService>();
+await collectionStateService.InitializeAsync();
 
 await host.RunAsync();

@@ -5,7 +5,7 @@
 @using StorhaugenWebsite.Services
 @using StorhaugenWebsite.Models
 @inject IUserRecipeService RecipeService
-@inject IHouseholdStateService HouseholdState
+@inject ICollectionStateService CollectionState
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
 @inject IApiClient ApiClient
@@ -14,31 +14,31 @@
 
 <div class="cookbook-header d-flex flex-column gap-3 mb-4">
 
-    @* Group Selection *@
-    @if (HouseholdState.UserHouseholds.Any())
+    @* Collection Selection *@
+    @if (CollectionState.UserCollections.Any())
     {
         <div class="group-filter-section">
             <div class="horizontal-scroll-container">
 
-                @* Personal pseudo-group *@
-                <div class="group-chip @(_personalGroupActive ? "active" : "")"
-                     @onclick="TogglePersonalGroup">
-                    @if (_personalGroupActive)
+                @* Personal pseudo-collection *@
+                <div class="group-chip @(_personalActive ? "active" : "")"
+                     @onclick="TogglePersonal">
+                    @if (_personalActive)
                     {
                         <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Class="mr-1" />
                     }
                     <span>Personlig</span>
                 </div>
 
-                @foreach (var group in HouseholdState.UserHouseholds)
+                @foreach (var collection in CollectionState.UserCollections)
                 {
-                    var isActive = HouseholdState.IsGroupActive(group.Id);
-                    <div class="group-chip @(isActive ? "active" : "")" @onclick="@(() => ToggleGroup(group.Id))">
+                    var isActive = CollectionState.IsCollectionActive(collection.Id);
+                    <div class="group-chip @(isActive ? "active" : "")" @onclick="@(() => ToggleCollection(collection.Id))">
                         @if (isActive)
                         {
                             <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Class="mr-1" />
                         }
-                        <span>@group.Name</span>
+                        <span>@collection.Name</span>
                     </div>
                 }
             </div>
@@ -155,12 +155,12 @@ else
                             </div>
                         </div>
 
-                        @* Right: Average Badge (Moved Here) *@
-                        @if (recipe.HouseholdAverageRating > 0)
+                        @* Right: Average Badge *@
+                        @if (recipe.AverageRating > 0)
                         {
-                            <span class="rating-badge" style="color: @GetScoreColor(recipe.HouseholdAverageRating); flex-shrink: 0;">
+                            <span class="rating-badge" style="color: @GetScoreColor(recipe.AverageRating); flex-shrink: 0;">
                                 <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" Style="font-size: 14px; margin-right:2px;" />
-                                @recipe.HouseholdAverageRating.ToString("0.0")
+                                @recipe.AverageRating.ToString("0.0")
                             </span>
                         }
                     </div>
@@ -179,16 +179,12 @@ else
                             </div>
                         }
 
-                        @* 2. Other Member Ratings (Deduped & Colored by Name) *@
+                        @* 2. Other Member Ratings *@
                         @{
-                            // Filter logic:
-                            // 1. Remove entries without values.
-                            // 2. Remove entries where the Key (Name) matches current user (case-insensitive).
-                            // 3. Distinct by Key to prevent double listing.
-                            var otherRatings = recipe.HouseholdRatings
-                            .Where(r => r.Value.HasValue && !string.Equals(r.Key, AuthService.CurrentUserName, StringComparison.OrdinalIgnoreCase))
-                            .DistinctBy(r => r.Key)
-                            .Take(4);
+                            var otherRatings = (recipe.Ratings ?? new Dictionary<string, int?>())
+                                .Where(r => r.Value.HasValue && !string.Equals(r.Key, AuthService.CurrentUserName, StringComparison.OrdinalIgnoreCase))
+                                .DistinctBy(r => r.Key)
+                                .Take(4);
                         }
 
                         @foreach (var rating in otherRatings)
@@ -218,11 +214,11 @@ else
     private string _sortBy = "date";
     private List<TagDto> _tags = new();
     private List<Guid> _activeTagIds = new();
-    private bool _personalGroupActive = false;
+    private bool _personalActive = false;
 
-    private async Task TogglePersonalGroup()
+    private async Task TogglePersonal()
     {
-        _personalGroupActive = !_personalGroupActive;
+        _personalActive = !_personalActive;
         await LoadRecipes();
     }
 
@@ -232,7 +228,6 @@ else
     {
         if (string.IsNullOrEmpty(username)) return "#9E9E9E";
         int hash = Math.Abs(username.GetHashCode());
-        // A curated list of distinct colors (excluding primary orange/reds to avoid confusion)
         string[] palette = {
             "#2E7D32", "#00695C", "#0277BD", "#1565C0", "#283593",
             "#4527A0", "#6A1B9A", "#AD1457", "#C62828", "#D84315"
@@ -250,8 +245,8 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        HouseholdState.OnActiveGroupsChanged += OnGroupsChanged;
-        await HouseholdState.InitializeAsync();
+        CollectionState.OnActiveFiltersChanged += OnFiltersChanged;
+        await CollectionState.InitializeAsync();
         await LoadTags();
         await LoadRecipes();
     }
@@ -261,7 +256,7 @@ else
         return _sortBy switch
         {
             "name" => _recipes.OrderBy(r => r.Name),
-            "rating" => _recipes.OrderByDescending(r => r.HouseholdAverageRating),
+            "rating" => _recipes.OrderByDescending(r => r.AverageRating),
             "personal_rating" => _recipes.OrderByDescending(r => r.MyRating ?? 0),
             _ => _recipes.OrderByDescending(r => r.CreatedAt)
         };
@@ -276,8 +271,8 @@ else
         await LoadRecipes();
     }
 
-    private async void OnGroupsChanged() { await InvokeAsync(async () => { await LoadRecipes(); StateHasChanged(); }); }
-    private async Task ToggleGroup(Guid groupId) { HouseholdState.ToggleGroupFilter(groupId); }
+    private async void OnFiltersChanged() { await InvokeAsync(async () => { await LoadRecipes(); StateHasChanged(); }); }
+    private void ToggleCollection(Guid collectionId) { CollectionState.ToggleCollectionFilter(collectionId); }
 
     private async Task LoadRecipes()
     {
@@ -287,28 +282,41 @@ else
         try
         {
             var combined = new List<AggregatedRecipeDto>();
-
-            var groupQuery = new GetCombinedRecipesQuery
-            {
-                Search = _searchQuery,
-                PageSize = 50
-            };
-
-            var hasSelectedGroups = HouseholdState.HasHousehold && HouseholdState.ActiveGroupFilters.Any();
+            var hasSelectedCollections = CollectionState.HasCollections && CollectionState.ActiveCollectionFilters.Any();
 
             // Show personal recipes when:
             // 1. Personal chip is active, OR
-            // 2. No group filters are selected (default behavior)
-            var shouldLoadPersonal = _personalGroupActive || !hasSelectedGroups;
+            // 2. No collection filters are selected (default behavior)
+            var shouldLoadPersonal = _personalActive || !hasSelectedCollections;
 
-            // 1) Load selected group recipes
-            if (hasSelectedGroups)
+            // 1) Load selected collection recipes
+            if (hasSelectedCollections)
             {
-                var groupResult = await RecipeService.GetGroupsCombinedRecipesAsync(HouseholdState.ActiveGroupFilters, groupQuery);
-                combined.AddRange(groupResult.Recipes);
+                foreach (var collectionId in CollectionState.ActiveCollectionFilters)
+                {
+                    try
+                    {
+                        var query = new GetCollectionRecipesQuery { Search = _searchQuery, PageSize = 50 };
+                        var collectionResult = await ApiClient.GetCollectionRecipesAsync(collectionId, query);
+                        // Map to aggregated DTO
+                        var mappedRecipes = collectionResult.Recipes.Select(r => new AggregatedRecipeDto
+                        {
+                            UserRecipeId = r.Id,
+                            Name = r.Name,
+                            ImageUrls = r.ImageUrls,
+                            AverageRating = r.AverageRating,
+                            OwnerDisplayName = r.UserDisplayName ?? "Unknown",
+                            MyRating = r.MyRating,
+                            CreatedAt = r.CreatedAt,
+                            Ratings = r.HouseholdRatings
+                        });
+                        combined.AddRange(mappedRecipes);
+                    }
+                    catch { /* Continue to next collection */ }
+                }
             }
 
-            // 2) Load personal (ungrouped) recipes
+            // 2) Load personal (user's own) recipes
             if (shouldLoadPersonal)
             {
                 var userQuery = new GetUserRecipesQuery
@@ -326,11 +334,11 @@ else
                     UserRecipeId = r.Id,
                     Name = r.Name,
                     ImageUrls = r.ImageUrls,
-                    HouseholdAverageRating = r.AverageRating,
+                    AverageRating = r.AverageRating,
                     OwnerDisplayName = AuthService.CurrentUserName,
                     MyRating = r.MyRating,
                     CreatedAt = r.CreatedAt,
-                    HouseholdRatings = r.HouseholdRatings
+                    Ratings = r.HouseholdRatings
                 });
 
                 combined.AddRange(personalMapped);
@@ -356,5 +364,5 @@ else
     private async Task OnSearchChanged(string value) { await LoadRecipes(); }
     private void OpenRecipe(Guid id) { Navigation.NavigateTo($"food/{id}"); }
 
-    public void Dispose() { HouseholdState.OnActiveGroupsChanged -= OnGroupsChanged; }
+    public void Dispose() { CollectionState.OnActiveFiltersChanged -= OnFiltersChanged; }
 }

@@ -3,7 +3,6 @@
 @using StorhaugenWebsite.Services
 @inject IAuthService AuthService
 @inject IFoodService FoodService
-@inject IHouseholdStateService HouseholdState // Inject this!
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @attribute [Authorize]
@@ -16,20 +15,7 @@
     }
 </div>
 
-@if (!HouseholdState.HasHousehold)
-{
-    <div class="empty-state">
-        <div class="empty-state-icon">
-            <MudIcon Icon="@Icons.Material.Rounded.Home" Size="Size.Large" />
-        </div>
-        <h2 class="empty-state-title">Ingen husstand valgt</h2>
-        <p class="empty-state-text">Du må være medlem av en husstand for å se arkiverte måltider.</p>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="settings" StartIcon="@Icons.Material.Rounded.Settings">
-            Gå til innstillinger
-        </MudButton>
-    </div>
-}
-else if (_isLoading)
+@if (_isLoading)
 {
     <div class="d-flex flex-column gap-2">
         @for (int i = 0; i < 3; i++)
@@ -110,11 +96,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        // 2. Only load if we have a household
-        if (HouseholdState.HasHousehold)
-        {
-            await LoadArchivedItems();
-        }
+        await LoadArchivedItems();
     }
 
     private async Task LoadArchivedItems()

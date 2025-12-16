@@ -31,13 +31,6 @@
                         @if (_visibilityFilter == "private") { <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Color="Color.Primary" /> }
                     </div>
                 </MudMenuItem>
-                <MudMenuItem OnClick="@(() => SetVisibilityFilter("household"))">
-                    <div class="d-flex align-center gap-2">
-                        <MudIcon Icon="@Icons.Material.Rounded.Home" Size="Size.Small" />
-                        <span>Husstand</span>
-                        @if (_visibilityFilter == "household") { <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Color="Color.Primary" /> }
-                    </div>
-                </MudMenuItem>
                 <MudMenuItem OnClick="@(() => SetVisibilityFilter("friends"))">
                     <div class="d-flex align-center gap-2">
                         <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Small" />
@@ -284,7 +277,6 @@
         return _visibilityFilter switch
         {
             "private" => "Private",
-            "household" => "Husstand",
             "friends" => "Venner",
             "public" => "Offentlige",
             _ => "Alle"
@@ -296,7 +288,7 @@
         return visibility switch
         {
             "private" => Icons.Material.Rounded.Lock,
-            "household" => Icons.Material.Rounded.Home,
+            "household" => Icons.Material.Rounded.Lock, // Legacy: treat as private
             "friends" => Icons.Material.Rounded.People,
             "public" => Icons.Material.Rounded.Public,
             _ => Icons.Material.Rounded.Lock
@@ -308,7 +300,7 @@
         return visibility switch
         {
             "private" => "Privat",
-            "household" => "Husstand",
+            "household" => "Privat", // Legacy: treat as private
             "friends" => "Venner",
             "public" => "Offentlig",
             _ => "Privat"

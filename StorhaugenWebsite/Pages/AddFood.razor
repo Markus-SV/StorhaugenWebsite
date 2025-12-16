@@ -9,7 +9,7 @@
 @inject IAuthService AuthService
 @inject IFoodService FoodService
 @inject IUserRecipeService RecipeService
-@inject IHouseholdStateService HouseholdState
+@inject ICollectionStateService CollectionState
 @inject IApiClient ApiClient
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
@@ -183,40 +183,94 @@
         </div>
     </div>
 
-    @* --- PRIVACY & GROUP SELECTION --- *@
+    @* --- PRIVACY & COLLECTION SELECTION --- *@
     <div class="form-section">
         <div class="d-flex justify-space-between align-center">
             <p class="form-section-title mb-0">Deling</p>
             <MudSwitch T="bool"
-                       Value="@_shareWithGroup"
-                       ValueChanged="OnShareGroupToggled"
+                       Value="@_shareWithCollection"
+                       ValueChanged="OnShareCollectionToggled"
                        Color="Color.Primary"
-                       Label="Legg til i gruppe" />
+                       Label="Legg til i samling" />
         </div>
 
-        @if (_shareWithGroup)
+        @if (_shareWithCollection)
         {
             <div class="mt-3 animate-in">
-                @if (HouseholdState.UserHouseholds.Any())
+                @if (CollectionState.UserCollections.Any())
                 {
                     <MudSelect T="Guid?"
-                               Label="Velg gruppe"
-                               Value="@_selectedGroupId"
-                               ValueChanged="OnGroupSelectionChanged"
+                               Label="Velg samling"
+                               Value="@_selectedCollectionId"
+                               ValueChanged="OnCollectionSelectionChanged"
                                Variant="Variant.Outlined"
                                AnchorOrigin="Origin.BottomCenter">
-                        @foreach (var group in HouseholdState.UserHouseholds)
+                        @foreach (var collection in CollectionState.UserCollections)
                         {
-                            <MudSelectItem Value="@((Guid?)group.Id)">@group.Name</MudSelectItem>
+                            <MudSelectItem Value="@((Guid?)collection.Id)">@collection.Name</MudSelectItem>
                         }
                     </MudSelect>
+
+                    @* Quick create new collection *@
+                    <div class="mt-2">
+                        @if (_showCreateCollection)
+                        {
+                            <div class="d-flex gap-2 align-center">
+                                <MudTextField @bind-Value="_newCollectionName"
+                                              Label="Navn på samling"
+                                              Variant="Variant.Outlined"
+                                              Size="Size.Small"
+                                              Style="flex: 1; --mud-default-borderradius: 8px;" />
+                                <MudIconButton Icon="@Icons.Material.Rounded.Check"
+                                               Color="Color.Success"
+                                               Size="Size.Small"
+                                               OnClick="CreateNewCollection" />
+                                <MudIconButton Icon="@Icons.Material.Rounded.Close"
+                                               Color="Color.Default"
+                                               Size="Size.Small"
+                                               OnClick="CancelCreateCollection" />
+                            </div>
+                        }
+                        else
+                        {
+                            <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small"
+                                       StartIcon="@Icons.Material.Rounded.Add"
+                                       OnClick="ShowCreateCollectionDialog">
+                                Opprett ny samling
+                            </MudButton>
+                        }
+                    </div>
                 }
                 else
                 {
-                    <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-2">
-                        Du er ikke medlem av noen grupper.
-                        <MudLink Href="/households" Typo="Typo.body2">Opprett en gruppe her.</MudLink>
-                    </MudAlert>
+                    @if (_showCreateCollection)
+                    {
+                        <div class="d-flex gap-2 align-center mt-2">
+                            <MudTextField @bind-Value="_newCollectionName"
+                                          Label="Navn på samling"
+                                          Variant="Variant.Outlined"
+                                          Size="Size.Small"
+                                          Style="flex: 1; --mud-default-borderradius: 8px;" />
+                            <MudIconButton Icon="@Icons.Material.Rounded.Check"
+                                           Color="Color.Success"
+                                           Size="Size.Small"
+                                           OnClick="CreateNewCollection" />
+                            <MudIconButton Icon="@Icons.Material.Rounded.Close"
+                                           Color="Color.Default"
+                                           Size="Size.Small"
+                                           OnClick="CancelCreateCollection" />
+                        </div>
+                    }
+                    else
+                    {
+                        <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
+                            Du har ingen samlinger enda.
+                            <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small"
+                                       OnClick="ShowCreateCollectionDialog">
+                                Opprett en samling
+                            </MudButton>
+                        </MudAlert>
+                    }
                 }
             </div>
         }
@@ -325,13 +379,15 @@
     private string _currentUserName = "";
     private bool _isHelloFresh = true;
 
-    // Group & Privacy State
-    private bool _shareWithGroup = false;
+    // Collection & Privacy State
+    private bool _shareWithCollection = false;
     private bool _isPublic = false;
-    private Guid? _selectedGroupId;
+    private Guid? _selectedCollectionId;
+    private string _newCollectionName = "";
+    private bool _showCreateCollection = false;
 
     // Member list for rating (Filtered based on selection)
-    private List<HouseholdMemberDto> _currentRatingMembers = new();
+    private List<CollectionMemberDto> _currentRatingMembers = new();
     #endregion
 
     #region Camera & OCR State
@@ -343,28 +399,28 @@
     public class ProcessedImage { public string Name { get; set; } = ""; public string Data { get; set; } = ""; }
     #endregion
 
-    #region Household & Ratings State
+    #region Ratings State
     private Dictionary<Guid, int> _memberRatings = new();
     private Dictionary<Guid, bool> _memberIncluded = new();
     #endregion
 
     protected override async Task OnInitializedAsync()
     {
-        await HouseholdState.InitializeAsync();
+        await CollectionState.InitializeAsync();
         _currentUserName = AuthService.CurrentUserName ?? "Unknown";
 
-        // Auto-select first group if available
-        if (HouseholdState.UserHouseholds.Any())
+        // Auto-select first collection if available
+        if (CollectionState.UserCollections.Any())
         {
-            _shareWithGroup = true;
-            _selectedGroupId = HouseholdState.UserHouseholds.First().Id;
+            _shareWithCollection = true;
+            _selectedCollectionId = CollectionState.UserCollections.First().Id;
         }
         else
         {
-            _shareWithGroup = false;
+            _shareWithCollection = false;
         }
 
-        UpdateRatingMemberList();
+        await UpdateRatingMemberListAsync();
 
         if (FoodService.DraftRecipe != null)
         {
@@ -372,49 +428,57 @@
         }
     }
 
-    private void OnShareGroupToggled(bool toggled)
+    private async Task OnShareCollectionToggled(bool toggled)
     {
-        _shareWithGroup = toggled;
+        _shareWithCollection = toggled;
 
-        if (_shareWithGroup && _selectedGroupId == null && HouseholdState.UserHouseholds.Any())
+        if (_shareWithCollection && _selectedCollectionId == null && CollectionState.UserCollections.Any())
         {
-            _selectedGroupId = HouseholdState.UserHouseholds.First().Id;
+            _selectedCollectionId = CollectionState.UserCollections.First().Id;
         }
 
-        UpdateRatingMemberList();
+        await UpdateRatingMemberListAsync();
     }
 
-    private void OnGroupSelectionChanged(Guid? groupId)
+    private async Task OnCollectionSelectionChanged(Guid? collectionId)
     {
-        _selectedGroupId = groupId;
-        UpdateRatingMemberList();
+        _selectedCollectionId = collectionId;
+        await UpdateRatingMemberListAsync();
     }
 
-    private void UpdateRatingMemberList()
+    private async Task UpdateRatingMemberListAsync()
     {
-        if (_shareWithGroup && _selectedGroupId.HasValue)
+        if (_shareWithCollection && _selectedCollectionId.HasValue)
         {
-            // Get members of the specific selected group [cite: 1664]
-            var group = HouseholdState.UserHouseholds.FirstOrDefault(h => h.Id == _selectedGroupId.Value);
-            _currentRatingMembers = group?.Members ?? new List<HouseholdMemberDto>();
+            // Get members of the selected collection
+            try
+            {
+                _currentRatingMembers = await CollectionState.GetCollectionMembersAsync(_selectedCollectionId.Value);
+            }
+            catch
+            {
+                _currentRatingMembers = new List<CollectionMemberDto>();
+            }
         }
         else
         {
             // If private, only show current user
-            // We create a temporary DTO for the current user to display in the rating list
-            _currentRatingMembers = new List<HouseholdMemberDto>();
+            _currentRatingMembers = new List<CollectionMemberDto>();
 
-            // We need the current user's ID.
-            // Since we might not have the full ID easily accessible in this scope without looking up profile,
-            // we can try to find it in any household or just use the AuthState if we had the ID there.
-            // Fallback: If user is in ANY household, find their ID.
-            var myMemberInfo = HouseholdState.UserHouseholds
-                .SelectMany(h => h.Members)
-                .FirstOrDefault(m => m.DisplayName == _currentUserName); // Fallback matching
-
-            if (myMemberInfo != null)
+            // Try to get current user info from any collection they belong to
+            foreach (var collection in CollectionState.UserCollections)
             {
-                _currentRatingMembers.Add(myMemberInfo);
+                try
+                {
+                    var members = await CollectionState.GetCollectionMembersAsync(collection.Id);
+                    var myMemberInfo = members.FirstOrDefault(m => m.DisplayName == _currentUserName);
+                    if (myMemberInfo != null)
+                    {
+                        _currentRatingMembers.Add(myMemberInfo);
+                        break;
+                    }
+                }
+                catch { /* Continue to next collection */ }
             }
         }
 
@@ -484,12 +548,8 @@
                 }
             }
 
-            // Determine Visibility
-            string finalVisibility = "private";
-            if (_isPublic)
-                finalVisibility = "public";
-            else if (_shareWithGroup && _selectedGroupId.HasValue)
-                finalVisibility = "household"; // Visible to the household
+            // Determine Visibility - only "private" or "public" now (no more "household")
+            string finalVisibility = _isPublic ? "public" : "private";
 
             var createDto = new CreateUserRecipeDto
             {
@@ -508,7 +568,14 @@
                 Ingredients = _newFood.Ingredients
             };
 
-            await RecipeService.CreateRecipeAsync(createDto);
+            var createdRecipe = await RecipeService.CreateRecipeAsync(createDto);
+
+            // If sharing with a collection, add the recipe to that collection
+            if (_shareWithCollection && _selectedCollectionId.HasValue && createdRecipe != null)
+            {
+                await CollectionState.AddRecipeToCollectionAsync(_selectedCollectionId.Value, createdRecipe.Id);
+            }
+
             RecipeService.InvalidateCache();
             Navigation.NavigateTo("");
         }
@@ -729,6 +796,44 @@
             var newIdx = index - _draftImageUrls.Count;
             if (newIdx >= 0 && newIdx < _imageData.Count) { _imageData.RemoveAt(newIdx); _imageNames.RemoveAt(newIdx); _imagePreviewUrls.RemoveAt(index); }
         }
+    }
+    #endregion
+
+    #region Collection Methods
+    private void ShowCreateCollectionDialog()
+    {
+        _showCreateCollection = true;
+        _newCollectionName = "";
+    }
+
+    private async Task CreateNewCollection()
+    {
+        if (string.IsNullOrWhiteSpace(_newCollectionName))
+        {
+            Snackbar.Add("Samlingsnavn kan ikke være tomt.", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            var newCollection = await CollectionState.CreateCollectionAsync(_newCollectionName);
+            _selectedCollectionId = newCollection.Id;
+            _shareWithCollection = true;
+            _showCreateCollection = false;
+            _newCollectionName = "";
+            await UpdateRatingMemberListAsync();
+            Snackbar.Add($"Samlingen '{newCollection.Name}' ble opprettet!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Kunne ikke opprette samling: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void CancelCreateCollection()
+    {
+        _showCreateCollection = false;
+        _newCollectionName = "";
     }
     #endregion
 

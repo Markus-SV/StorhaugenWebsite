@@ -7,7 +7,7 @@
 @inject IThemeService ThemeService
 @inject IDeviceStateService DeviceState
 @inject IAuthService AuthService
-@inject IHouseholdStateService HouseholdState
+@inject ICollectionStateService CollectionState
 
 <MudThemeProvider @ref="_themeProvider" @bind-IsDarkMode="@_isDarkMode" Theme="_currentTheme" />
 <MudPopoverProvider />
@@ -69,12 +69,12 @@ else
         // We capture the state here so we can check it immediately below
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         
-        // 3. IF LOGGED IN: Initialize Household State immediately
-        // This prevents the "No Household" flash because we wait for this 
+        // 3. IF LOGGED IN: Initialize Collection State immediately
+        // This prevents UI flash because we wait for this
         // to finish before setting _isAuthReady = true.
         if (authState.User.Identity?.IsAuthenticated == true)
         {
-            await HouseholdState.InitializeAsync();
+            await CollectionState.InitializeAsync();
         }
         
         // 4. Mark as ready - UI will now render

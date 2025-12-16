@@ -5,7 +5,7 @@
 @using StorhaugenWebsite.Services
 @using StorhaugenWebsite.ApiClient
 @inject IUserFriendshipService FriendshipService
-@inject IHouseholdStateService HouseholdState
+@inject ICollectionStateService CollectionState
 @inject IApiClient ApiClient
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
@@ -245,7 +245,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await HouseholdState.InitializeAsync();
+        await CollectionState.InitializeAsync();
         await LoadFriendships();
     }
 

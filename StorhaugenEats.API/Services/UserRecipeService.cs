@@ -416,9 +416,13 @@ public class UserRecipeService : IUserRecipeService
         if (recipe.Visibility == "friends" && await _friendshipService.AreFriendsAsync(recipe.UserId, requestingUserId))
             return true;
 
-        // Check if user can view via a shared collection (private recipes in shared collections are visible to members)
-        if (await _collectionService.CanUserViewRecipeViaCollectionAsync(recipeId, requestingUserId))
-            return true;
+        // Legacy "household" visibility: treat as collection-based access
+        // Also check collection membership for private recipes shared via collections
+        if (recipe.Visibility == "household" || recipe.Visibility == "private")
+        {
+            if (await _collectionService.CanUserViewRecipeViaCollectionAsync(recipeId, requestingUserId))
+                return true;
+        }
 
         return false;
     }

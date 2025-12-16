@@ -5,7 +5,7 @@
 @using StorhaugenWebsite.Shared.DTOs
 @inject IAuthService AuthService
 @inject IDeviceStateService DeviceState
-@inject IHouseholdStateService HouseholdState
+@inject ICollectionStateService CollectionState
 @inject IApiClient ApiClient
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
@@ -61,7 +61,7 @@
             </div>
         </div>
         <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-top: -8px;">
-            Brukes for å bli invitert direkte til andres husstander
+            Brukes for å bli lagt til i andres samlinger
         </MudText>
     }
 </div>
@@ -97,34 +97,31 @@
     </MudSelect>
 </div>
 
-@if (HouseholdState.UserHouseholds.Any())
+@if (CollectionState.UserCollections.Any())
 {
     <div class="form-section">
         <div class="d-flex justify-space-between align-center mb-2">
-            <p class="form-section-title" style="margin-bottom: 0;">Dine Grupper</p>
+            <p class="form-section-title" style="margin-bottom: 0;">Dine Samlinger</p>
             <MudButton Variant="Variant.Text"
                        Color="Color.Primary"
                        Size="Size.Small"
                        StartIcon="@Icons.Material.Rounded.Settings"
-                       Href="/household">
+                       Href="/collections">
                 Administrer
             </MudButton>
         </div>
         <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
-            Du er med i @HouseholdState.UserHouseholds.Count gruppe(r). Trykk på en gruppe for å velge/fravelge den i kokeboken.
+            Du er med i @CollectionState.UserCollections.Count samling(er). Trykk på en samling for å velge/fravelge den i kokeboken.
         </MudText>
         <div class="d-flex flex-wrap gap-2">
-            @foreach (var group in HouseholdState.UserHouseholds)
+            @foreach (var collection in CollectionState.UserCollections)
             {
                 <MudChip T="string"
-                         Variant="@(HouseholdState.IsGroupActive(group.Id) ? Variant.Filled : Variant.Outlined)"
+                         Variant="@(CollectionState.IsCollectionActive(collection.Id) ? Variant.Filled : Variant.Outlined)"
                          Color="Color.Primary"
-                         OnClick="@(() => ToggleGroupFilter(group.Id))"
-                         Icon="@(HouseholdState.IsGroupActive(group.Id) ? Icons.Material.Rounded.CheckCircle : Icons.Material.Rounded.RadioButtonUnchecked)">
-                    @group.Name
-                    <MudText Typo="Typo.caption" Class="ml-1" Style="opacity: 0.7;">
-                        (@(group.Members?.Count ?? 0))
-                    </MudText>
+                         OnClick="@(() => ToggleCollectionFilter(collection.Id))"
+                         Icon="@(CollectionState.IsCollectionActive(collection.Id) ? Icons.Material.Rounded.CheckCircle : Icons.Material.Rounded.RadioButtonUnchecked)">
+                    @collection.Name
                 </MudChip>
             }
         </div>
@@ -233,7 +230,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await HouseholdState.InitializeAsync();
+        await CollectionState.InitializeAsync();
 
         try
         {
@@ -288,11 +285,11 @@
         }
     }
 
-    private void ToggleGroupFilter(Guid groupId)
+    private void ToggleCollectionFilter(Guid collectionId)
     {
-        HouseholdState.ToggleGroupFilter(groupId);
+        CollectionState.ToggleCollectionFilter(collectionId);
         StateHasChanged();
-        Snackbar.Add("Gruppefilter oppdatert", Severity.Info);
+        Snackbar.Add("Samlingsfilter oppdatert", Severity.Info);
     }
 
     private async Task OnThemeChanged(string themeName)

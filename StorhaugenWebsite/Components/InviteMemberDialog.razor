@@ -1,6 +1,5 @@
 @*
-    LEGACY: Dialog for inviting members to a household.
-    Still needed while households exist for member management.
+    Dialog for inviting members to a collection.
 *@
 @using StorhaugenWebsite.ApiClient
 @using StorhaugenWebsite.Shared.DTOs
@@ -11,36 +10,36 @@
 <MudDialog>
     <DialogContent>
         <div class="invite-dialog">
-            <MudText Typo="Typo.h6" Class="mb-2">Invite Member to @HouseholdName</MudText>
+            <MudText Typo="Typo.h6" Class="mb-2">Inviter medlem til @CollectionName</MudText>
             <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-                Invite someone using their email address or unique Share ID.
+                Inviter noen ved hjelp av e-postadresse eller unik Dele-ID.
             </MudText>
 
             <MudTabs Rounded="true" Centered="true" Class="mb-4" @bind-ActivePanelIndex="_activeTab">
-                <MudTabPanel Text="Email" Icon="@Icons.Material.Rounded.Email">
+                <MudTabPanel Text="E-post" Icon="@Icons.Material.Rounded.Email">
                     <MudForm @ref="_emailForm" @bind-IsValid="_emailIsValid" Class="mt-3">
                         <MudTextField @bind-Value="_email"
-                                      Label="Email Address"
+                                      Label="E-postadresse"
                                       Variant="Variant.Outlined"
                                       Required="true"
-                                      RequiredError="Email is required"
-                                      Validation="@(new EmailAddressAttribute() { ErrorMessage = "Please enter a valid email address" })"
+                                      RequiredError="E-post er påkrevd"
+                                      Validation="@(new EmailAddressAttribute() { ErrorMessage = "Vennligst skriv inn en gyldig e-postadresse" })"
                                       Adornment="Adornment.Start"
                                       AdornmentIcon="@Icons.Material.Rounded.Email"
-                                      HelperText="e.g., friend@example.com"
+                                      HelperText="f.eks. venn@example.com"
                                       Immediate="true" />
                     </MudForm>
                 </MudTabPanel>
-                <MudTabPanel Text="Share ID" Icon="@Icons.Material.Rounded.Tag">
+                <MudTabPanel Text="Dele-ID" Icon="@Icons.Material.Rounded.Tag">
                     <MudForm @ref="_shareIdForm" @bind-IsValid="_shareIdIsValid" Class="mt-3">
                         <MudTextField @bind-Value="_shareId"
-                                      Label="Share ID"
+                                      Label="Dele-ID"
                                       Variant="Variant.Outlined"
                                       Required="true"
-                                      RequiredError="Share ID is required"
+                                      RequiredError="Dele-ID er påkrevd"
                                       Adornment="Adornment.Start"
                                       AdornmentIcon="@Icons.Material.Rounded.Tag"
-                                      HelperText="e.g., ABC123XYZ"
+                                      HelperText="f.eks. ABC123XYZ"
                                       Immediate="true"
                                       Style="text-transform: uppercase; font-family: monospace; letter-spacing: 1px;" />
                     </MudForm>
@@ -62,13 +61,13 @@
             }
 
             <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-3">
-                <strong>Note:</strong> The invitee must have an account to accept the invitation. They can find their Share ID in Settings.
+                <strong>Merk:</strong> Den inviterte må ha en konto. De finner sin Dele-ID i Innstillinger.
             </MudText>
         </div>
     </DialogContent>
 
     <DialogActions>
-        <MudButton OnClick="Cancel" Disabled="_isSending">Cancel</MudButton>
+        <MudButton OnClick="Cancel" Disabled="_isSending">Avbryt</MudButton>
         <MudButton Variant="Variant.Filled"
                    Color="Color.Primary"
                    OnClick="SendInvite"
@@ -76,12 +75,12 @@
             @if (_isSending)
             {
                 <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                <span>Sending...</span>
+                <span>Sender...</span>
             }
             else
             {
                 <MudIcon Icon="@Icons.Material.Rounded.Send" Class="mr-2" Size="Size.Small" />
-                <span>Send Invite</span>
+                <span>Send invitasjon</span>
             }
         </MudButton>
     </DialogActions>
@@ -98,10 +97,10 @@
     IMudDialogInstance? MudDialog { get; set; }
 
     [Parameter]
-    public Guid HouseholdId { get; set; }
+    public Guid CollectionId { get; set; }
 
     [Parameter]
-    public string HouseholdName { get; set; } = "";
+    public string CollectionName { get; set; } = "";
 
     private MudForm? _emailForm;
     private MudForm? _shareIdForm;
@@ -130,7 +129,7 @@
             await _emailForm!.Validate();
             if (!_emailIsValid || string.IsNullOrWhiteSpace(_email))
             {
-                _errorMessage = "Please enter a valid email address";
+                _errorMessage = "Vennligst skriv inn en gyldig e-postadresse";
                 return;
             }
         }
@@ -139,7 +138,7 @@
             await _shareIdForm!.Validate();
             if (!_shareIdIsValid || string.IsNullOrWhiteSpace(_shareId))
             {
-                _errorMessage = "Please enter a Share ID";
+                _errorMessage = "Vennligst skriv inn en Dele-ID";
                 return;
             }
         }
@@ -149,16 +148,16 @@
 
         try
         {
-            var dto = new InviteToHouseholdDto
+            var userIdentifier = _activeTab == 0 ? _email.Trim() : _shareId.Trim().ToUpperInvariant();
+            var dto = new AddCollectionMemberDto
             {
-                Email = _activeTab == 0 ? _email.Trim() : null,
-                UniqueShareId = _activeTab == 1 ? _shareId.Trim().ToUpperInvariant() : null
+                UserIdentifier = userIdentifier
             };
-            await ApiClient.InviteToHouseholdAsync(HouseholdId, dto);
+            await ApiClient.AddCollectionMemberAsync(CollectionId, dto);
 
-            var inviteTarget = _activeTab == 0 ? _email : $"user with ID {_shareId.ToUpperInvariant()}";
-            _successMessage = $"Invitation sent to {inviteTarget}!";
-            Snackbar.Add($"Invitation sent!", Severity.Success);
+            var inviteTarget = _activeTab == 0 ? _email : $"bruker med ID {_shareId.ToUpperInvariant()}";
+            _successMessage = $"Medlem lagt til: {inviteTarget}!";
+            Snackbar.Add("Medlem lagt til!", Severity.Success);
 
             // Clear the form for another invite
             _email = "";
@@ -174,22 +173,22 @@
         {
             if (ex.StatusCode == System.Net.HttpStatusCode.BadRequest)
             {
-                _errorMessage = "This user is already a member or has a pending invitation";
+                _errorMessage = "Denne brukeren er allerede medlem av samlingen";
             }
             else if (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
-                _errorMessage = _activeTab == 1 ? "User with that Share ID not found" : "Household not found";
+                _errorMessage = _activeTab == 1 ? "Bruker med denne Dele-ID ble ikke funnet" : "Samling ikke funnet";
             }
             else
             {
-                _errorMessage = $"Failed to send invitation: {ex.Message}";
+                _errorMessage = $"Kunne ikke legge til medlem: {ex.Message}";
             }
-            Console.WriteLine($"Error sending invite: {ex}");
+            Console.WriteLine($"Error adding member: {ex}");
         }
         catch (Exception ex)
         {
-            _errorMessage = $"An unexpected error occurred: {ex.Message}";
-            Console.WriteLine($"Error sending invite: {ex}");
+            _errorMessage = $"En uventet feil oppstod: {ex.Message}";
+            Console.WriteLine($"Error adding member: {ex}");
         }
         finally
         {

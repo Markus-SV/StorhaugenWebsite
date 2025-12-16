@@ -63,9 +63,9 @@
                     <span>Venner</span>
                 </button>
 
-                <button class="nav-item @(IsActive("households") ? "active" : "")" @onclick="@(() => Navigate("households"))">
-                    <MudIcon Icon="@(IsActive("households") ? Icons.Material.Rounded.HomeWork : Icons.Material.Outlined.HomeWork)" Size="Size.Small" />
-                    <span>Husstand</span>
+                <button class="nav-item @(IsActive("collections") ? "active" : "")" @onclick="@(() => Navigate("collections"))">
+                    <MudIcon Icon="@(IsActive("collections") ? Icons.Material.Rounded.FolderShared : Icons.Material.Outlined.FolderShared)" Size="Size.Small" />
+                    <span>Samlinger</span>
                 </button>
             </div>
         </div>

@@ -623,7 +623,8 @@ else
     private async Task ToggleVisibility()
     {
         if (_recipe == null) return;
-        var newVisibility = _recipe.Visibility == "private" ? "household" : "private";
+        // Cycle: private -> public -> private (no more "household")
+        var newVisibility = _recipe.Visibility == "private" ? "public" : "private";
         try
         {
             await RecipeService.UpdateRecipeAsync(_recipe.Id, new UpdateUserRecipeDto { Visibility = newVisibility });
@@ -647,8 +648,8 @@ else
     private void EditRecipe() => Snackbar.Add("Redigering kommer snart", Severity.Info);
 
     private string GetRatingClass(double r) => r >= 8 ? "rating-high" : r >= 5 ? "rating-medium" : "rating-low";
-    private string GetVisibilityText(string v) => v switch { "private" => "Privat (Kun deg)", "household" => "Husstand", "public" => "Offentlig", _ => v };
-    private string GetVisibilityIcon(string v) => v switch { "household" => Icons.Material.Rounded.Home, "public" => Icons.Material.Rounded.Public, _ => Icons.Material.Rounded.Lock };
+    private string GetVisibilityText(string v) => v switch { "private" => "Privat (Kun deg)", "household" => "Privat", "public" => "Offentlig", _ => v };
+    private string GetVisibilityIcon(string v) => v switch { "public" => Icons.Material.Rounded.Public, _ => Icons.Material.Rounded.Lock };
 
     // Difficulty helpers
     private string GetDifficultyIcon(string? difficulty)
