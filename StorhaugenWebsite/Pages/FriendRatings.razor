@@ -253,7 +253,7 @@
         {
             try
             {
-                await FriendshipService.RemoveFriendAsync(friendship.FriendshipId);
+                await FriendshipService.RemoveFriendAsync(friendship.FriendUserId);
                 Snackbar.Add("Venn fjernet", Severity.Info);
                 Navigation.NavigateTo("friends");
             }
