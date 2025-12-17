@@ -125,7 +125,7 @@ else
     <div class="d-flex flex-column gap-3">
         @foreach (var recipe in _sortedRecipes)
         {
-            <div class="food-card animate-in" @onclick="() => OpenRecipe(recipe.UserRecipeId)">
+            <div class="food-card animate-in" @onclick="() => OpenRecipe(recipe.Id)">
 
                 @* Image Section (Right Side) *@
                 @if (recipe.ImageUrls.Any())
@@ -150,7 +150,7 @@ else
                             <div class="d-flex align-center gap-1">
                                 <MudIcon Icon="@Icons.Material.Rounded.Person" Size="Size.Small" Style="font-size: 12px; opacity: 0.6;" />
                                 <MudText Typo="Typo.caption" Color="Color.Secondary" Class="text-truncate" Style="font-size: 0.75rem;">
-                                    @(recipe.OwnerDisplayName == AuthService.CurrentUserName ? "Meg" : recipe.OwnerDisplayName)
+                                    @(recipe.UserDisplayName == AuthService.CurrentUserName ? "Meg" : recipe.UserDisplayName)
                                 </MudText>
                             </div>
                         </div>
@@ -181,7 +181,7 @@ else
 
                         @* 2. Other Member Ratings *@
                         @{
-                            var otherRatings = (recipe.Ratings ?? new Dictionary<string, int?>())
+                            var otherRatings = (recipe.HouseholdRatings ?? new Dictionary<string, int?>())
                                 .Where(r => r.Value.HasValue && !string.Equals(r.Key, AuthService.CurrentUserName, StringComparison.OrdinalIgnoreCase))
                                 .DistinctBy(r => r.Key)
                                 .Take(4);
@@ -207,8 +207,8 @@ else
 }
 
 @code {
-    private List<AggregatedRecipeDto> _recipes = new();
-    private IEnumerable<AggregatedRecipeDto> _sortedRecipes => GetSortedRecipes();
+    private List<UserRecipeDto> _recipes = new();
+    private IEnumerable<UserRecipeDto> _sortedRecipes => GetSortedRecipes();
     private bool _isLoading = true;
     private string _searchQuery = "";
     private string _sortBy = "date";
@@ -251,7 +251,7 @@ else
         await LoadRecipes();
     }
 
-    private IEnumerable<AggregatedRecipeDto> GetSortedRecipes()
+    private IEnumerable<UserRecipeDto> GetSortedRecipes()
     {
         return _sortBy switch
         {
@@ -281,7 +281,7 @@ else
 
         try
         {
-            var combined = new List<AggregatedRecipeDto>();
+            var combined = new List<UserRecipeDto>();
             var hasSelectedCollections = CollectionState.HasCollections && CollectionState.ActiveCollectionFilters.Any();
 
             // Show personal recipes when:
@@ -298,19 +298,7 @@ else
                     {
                         var query = new GetCollectionRecipesQuery { Search = _searchQuery, PageSize = 50 };
                         var collectionResult = await ApiClient.GetCollectionRecipesAsync(collectionId, query);
-                        // Map to aggregated DTO
-                        var mappedRecipes = collectionResult.Recipes.Select(r => new AggregatedRecipeDto
-                        {
-                            UserRecipeId = r.Id,
-                            Name = r.Name,
-                            ImageUrls = r.ImageUrls,
-                            AverageRating = r.AverageRating,
-                            OwnerDisplayName = r.UserDisplayName ?? "Unknown",
-                            MyRating = r.MyRating,
-                            CreatedAt = r.CreatedAt,
-                            Ratings = r.HouseholdRatings
-                        });
-                        combined.AddRange(mappedRecipes);
+                        combined.AddRange(collectionResult.Recipes);
                     }
                     catch { /* Continue to next collection */ }
                 }
@@ -327,27 +315,21 @@ else
                 };
 
                 var personalResult = await RecipeService.GetMyRecipesAsync(userQuery);
-
-                // Map personal results to aggregated DTO
-                var personalMapped = personalResult.Recipes.Select(r => new AggregatedRecipeDto
-                {
-                    UserRecipeId = r.Id,
-                    Name = r.Name,
-                    ImageUrls = r.ImageUrls,
-                    AverageRating = r.AverageRating,
-                    OwnerDisplayName = AuthService.CurrentUserName,
-                    MyRating = r.MyRating,
-                    CreatedAt = r.CreatedAt,
-                    Ratings = r.HouseholdRatings
-                });
-
-                combined.AddRange(personalMapped);
+                combined.AddRange(personalResult.Recipes);
             }
 
-            // 3) Deduplicate by UserRecipeId (prefer first occurrence)
-            _recipes = combined
-                .DistinctBy(r => r.UserRecipeId)
-                .ToList();
+            // 3) Deduplicate by Id (prefer first occurrence)
+            var deduped = combined.DistinctBy(r => r.Id);
+
+            // 4) Apply client-side tag filtering for collection recipes
+            // (personal recipes are already filtered server-side via TagIds)
+            if (_activeTagIds.Any())
+            {
+                deduped = deduped.Where(r =>
+                    r.Tags.Any(t => _activeTagIds.Contains(t.Id)));
+            }
+
+            _recipes = deduped.ToList();
         }
         catch (Exception ex)
         {
