@@ -452,7 +452,7 @@ else
             _showEditDialog = false;
             Snackbar.Add("Samling oppdatert", Severity.Success);
             await LoadCollection();
-            await CollectionState.RefreshAsync();
+            await CollectionState.RefreshCollectionsAsync();
         }
         catch (Exception ex)
         {
@@ -546,7 +546,7 @@ else
             {
                 await ApiClient.DeleteCollectionAsync(_collection.Id);
                 Snackbar.Add("Samling slettet", Severity.Success);
-                await CollectionState.RefreshAsync();
+                await CollectionState.RefreshCollectionsAsync();
                 Navigation.NavigateTo("/collections");
             }
             catch (Exception ex)
@@ -572,7 +572,7 @@ else
             {
                 await ApiClient.LeaveCollectionAsync(_collection.Id);
                 Snackbar.Add("Du har forlatt samlingen", Severity.Success);
-                await CollectionState.RefreshAsync();
+                await CollectionState.RefreshCollectionsAsync();
                 Navigation.NavigateTo("/collections");
             }
             catch (Exception ex)

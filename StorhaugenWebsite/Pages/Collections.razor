@@ -203,7 +203,7 @@ else
             var collection = await ApiClient.CreateCollectionAsync(dto);
             _showCreateDialog = false;
             Snackbar.Add("Samling opprettet!", Severity.Success);
-            await CollectionState.RefreshAsync();
+            await CollectionState.RefreshCollectionsAsync();
             await LoadCollections();
         }
         catch (Exception ex)
