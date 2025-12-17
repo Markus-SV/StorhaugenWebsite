@@ -10,6 +10,10 @@ namespace StorhaugenEats.API.Models;
 [Table("user_recipe_collections")]
 public class UserRecipeCollection
 {
+    [Key]
+    [Column("id")]
+    public Guid Id { get; set; }
+
     [Required]
     [Column("user_recipe_id")]
     public Guid UserRecipeId { get; set; }
@@ -18,13 +22,21 @@ public class UserRecipeCollection
     [Column("collection_id")]
     public Guid CollectionId { get; set; }
 
-    [Column("created_at")]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    [Column("added_at")]
+    public DateTime AddedAt { get; set; } = DateTime.UtcNow;
 
-    [Column("updated_at")]
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    [Column("added_by_user_id")]
+    public Guid AddedByUserId { get; set; }
+
+    [Column("notes")]
+    [MaxLength(500)]
+    public string? Notes { get; set; }
+
+    [Column("sort_order")]
+    public int SortOrder { get; set; } = 0;
 
     // Navigation properties
     public UserRecipe UserRecipe { get; set; } = null!;
     public Collection Collection { get; set; } = null!;
+    public User AddedByUser { get; set; } = null!;
 }

@@ -27,7 +27,7 @@ public class CollectionService : ICollectionService
             .Include(c => c.Members)
                 .ThenInclude(m => m.User)
             .Include(c => c.UserRecipeCollections)
-            .Where(c => c.OwnerId == userId || c.Members.Any(m => m.UserId == userId))
+            .Where(c => c.OwnerUserId == userId || c.Members.Any(m => m.UserId == userId))
             .OrderBy(c => c.Name)
             .ToListAsync();
 
@@ -63,27 +63,14 @@ public class CollectionService : ICollectionService
             .Include(c => c.Members)
                 .ThenInclude(m => m.User)
             .Include(c => c.UserRecipeCollections)
-            .FirstOrDefaultAsync(c => c.ShareCode == shareCode.ToUpper());
+            .FirstOrDefaultAsync(c => c.UniqueShareId == shareCode.ToUpper());
 
         if (collection == null)
             return null;
 
-        // Check visibility rules
-        if (collection.Visibility == "private")
-            return null; // Private collections cannot be accessed via share code
-
-        if (collection.Visibility == "friends" && userId.HasValue)
-        {
-            // Check if the requesting user is a friend of the owner
-            var areFriends = await _context.UserFriendships
-                .AnyAsync(f =>
-                    f.Status == "accepted" &&
-                    ((f.RequesterUserId == collection.OwnerId && f.TargetUserId == userId.Value) ||
-                     (f.TargetUserId == collection.OwnerId && f.RequesterUserId == userId.Value)));
-
-            if (!areFriends && collection.OwnerId != userId.Value && !collection.Members.Any(m => m.UserId == userId.Value))
-                return null;
-        }
+        // Only shared collections can be accessed via share code
+        if (!collection.IsShared)
+            return null;
 
         return MapToDto(collection, userId ?? Guid.Empty);
     }
@@ -93,30 +80,30 @@ public class CollectionService : ICollectionService
         if (string.IsNullOrWhiteSpace(dto.Name))
             throw new InvalidOperationException("Collection name is required");
 
-        var visibility = ValidateVisibility(dto.Visibility);
+        var isShared = dto.Visibility != "private";
 
         var collection = new Collection
         {
             Id = Guid.NewGuid(),
-            OwnerId = userId,
+            OwnerUserId = userId,
             Name = dto.Name.Trim(),
             Description = dto.Description?.Trim(),
-            Visibility = visibility,
-            ShareCode = visibility != "private" ? GenerateShareCode() : null,
+            IsShared = isShared,
+            UniqueShareId = isShared ? GenerateShareCode() : null,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
 
         _context.Collections.Add(collection);
 
-        // Add owner as member with IsOwner=true
+        // Add owner as member with role=owner
         _context.CollectionMembers.Add(new CollectionMember
         {
+            Id = Guid.NewGuid(),
             CollectionId = collection.Id,
             UserId = userId,
-            IsOwner = true,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            Role = "owner",
+            JoinedAt = DateTime.UtcNow
         });
 
         await _context.SaveChangesAsync();
@@ -132,7 +119,7 @@ public class CollectionService : ICollectionService
         if (collection == null)
             throw new InvalidOperationException("Collection not found");
 
-        if (collection.OwnerId != userId)
+        if (collection.OwnerUserId != userId)
             throw new InvalidOperationException("Only the owner can update this collection");
 
         if (!string.IsNullOrWhiteSpace(dto.Name))
@@ -143,20 +130,20 @@ public class CollectionService : ICollectionService
 
         if (!string.IsNullOrWhiteSpace(dto.Visibility))
         {
-            var newVisibility = ValidateVisibility(dto.Visibility);
-            var wasPrivate = collection.Visibility == "private";
-            var isNowPrivate = newVisibility == "private";
+            var newIsShared = dto.Visibility != "private";
+            var wasPrivate = !collection.IsShared;
+            var isNowPrivate = !newIsShared;
 
-            collection.Visibility = newVisibility;
+            collection.IsShared = newIsShared;
 
-            // Generate share code when becoming non-private, clear when becoming private
-            if (wasPrivate && !isNowPrivate && string.IsNullOrEmpty(collection.ShareCode))
+            // Generate share code when becoming shared, clear when becoming private
+            if (wasPrivate && !isNowPrivate && string.IsNullOrEmpty(collection.UniqueShareId))
             {
-                collection.ShareCode = GenerateShareCode();
+                collection.UniqueShareId = GenerateShareCode();
             }
             else if (isNowPrivate)
             {
-                collection.ShareCode = null;
+                collection.UniqueShareId = null;
             }
         }
 
@@ -174,7 +161,7 @@ public class CollectionService : ICollectionService
         if (collection == null)
             throw new InvalidOperationException("Collection not found");
 
-        if (collection.OwnerId != userId)
+        if (collection.OwnerUserId != userId)
             throw new InvalidOperationException("Only the owner can delete this collection");
 
         // Recipes are not deleted, just the collection and links (cascade)
@@ -236,8 +223,8 @@ public class CollectionService : ICollectionService
                 ? recipesQuery.OrderByDescending(urc => urc.UserRecipe.CreatedAt)
                 : recipesQuery.OrderBy(urc => urc.UserRecipe.CreatedAt),
             _ => query.SortDescending
-                ? recipesQuery.OrderByDescending(urc => urc.CreatedAt)
-                : recipesQuery.OrderBy(urc => urc.CreatedAt)
+                ? recipesQuery.OrderByDescending(urc => urc.AddedAt)
+                : recipesQuery.OrderBy(urc => urc.AddedAt)
         };
 
         // Pagination
@@ -287,10 +274,11 @@ public class CollectionService : ICollectionService
 
         _context.UserRecipeCollections.Add(new UserRecipeCollection
         {
+            Id = Guid.NewGuid(),
             UserRecipeId = dto.UserRecipeId,
             CollectionId = collectionId,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            AddedAt = DateTime.UtcNow,
+            AddedByUserId = userId
         });
 
         await _context.SaveChangesAsync();
@@ -340,8 +328,8 @@ public class CollectionService : ICollectionService
             UserId = m.UserId,
             DisplayName = m.User.DisplayName,
             AvatarUrl = m.User.AvatarUrl,
-            IsOwner = m.IsOwner,
-            CreatedAt = m.CreatedAt
+            IsOwner = m.Role == "owner",
+            CreatedAt = m.JoinedAt
         }).ToList();
     }
 
@@ -354,7 +342,7 @@ public class CollectionService : ICollectionService
         if (collection == null)
             throw new InvalidOperationException("Collection not found");
 
-        if (collection.OwnerId != userId)
+        if (collection.OwnerUserId != userId)
             throw new InvalidOperationException("Only the owner can add members");
 
         // Find user by share ID or email
@@ -370,11 +358,12 @@ public class CollectionService : ICollectionService
 
         _context.CollectionMembers.Add(new CollectionMember
         {
+            Id = Guid.NewGuid(),
             CollectionId = collectionId,
             UserId = targetUser.Id,
-            IsOwner = false,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            Role = "member",
+            JoinedAt = DateTime.UtcNow,
+            InvitedByUserId = userId
         });
 
         await _context.SaveChangesAsync();
@@ -389,14 +378,14 @@ public class CollectionService : ICollectionService
         if (collection == null)
             throw new InvalidOperationException("Collection not found");
 
-        if (collection.OwnerId != userId)
+        if (collection.OwnerUserId != userId)
             throw new InvalidOperationException("Only the owner can remove members");
 
         var member = collection.Members.FirstOrDefault(m => m.UserId == memberId);
         if (member == null)
             throw new InvalidOperationException("Member not found");
 
-        if (member.IsOwner)
+        if (member.Role == "owner")
             throw new InvalidOperationException("Cannot remove the owner");
 
         _context.CollectionMembers.Remove(member);
@@ -412,7 +401,7 @@ public class CollectionService : ICollectionService
         if (member == null)
             throw new InvalidOperationException("You are not a member of this collection");
 
-        if (member.IsOwner)
+        if (member.Role == "owner")
             throw new InvalidOperationException("Cannot leave your own collection. Delete it instead.");
 
         _context.CollectionMembers.Remove(member);
@@ -438,7 +427,7 @@ public class CollectionService : ICollectionService
 
     private bool IsMember(Collection collection, Guid userId)
     {
-        return collection.OwnerId == userId ||
+        return collection.OwnerUserId == userId ||
                collection.Members.Any(m => m.UserId == userId);
     }
 
@@ -449,14 +438,14 @@ public class CollectionService : ICollectionService
             Id = collection.Id,
             Name = collection.Name,
             Description = collection.Description,
-            Visibility = collection.Visibility,
-            ShareCode = collection.ShareCode,
-            OwnerId = collection.OwnerId,
+            Visibility = collection.IsShared ? "shared" : "private",
+            ShareCode = collection.UniqueShareId,
+            OwnerId = collection.OwnerUserId,
             OwnerDisplayName = collection.Owner?.DisplayName ?? "Unknown",
             OwnerAvatarUrl = collection.Owner?.AvatarUrl,
             RecipeCount = collection.UserRecipeCollections?.Count ?? 0,
             MemberCount = collection.Members?.Count ?? 0,
-            IsOwner = collection.OwnerId == userId,
+            IsOwner = collection.OwnerUserId == userId,
             IsMember = IsMember(collection, userId),
             CreatedAt = collection.CreatedAt,
             UpdatedAt = collection.UpdatedAt,
@@ -465,8 +454,8 @@ public class CollectionService : ICollectionService
                 UserId = m.UserId,
                 DisplayName = m.User?.DisplayName ?? "Unknown",
                 AvatarUrl = m.User?.AvatarUrl,
-                IsOwner = m.IsOwner,
-                CreatedAt = m.CreatedAt
+                IsOwner = m.Role == "owner",
+                CreatedAt = m.JoinedAt
             }).ToList() ?? new List<CollectionMemberDto>()
         };
     }

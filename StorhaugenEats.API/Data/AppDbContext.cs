@@ -256,24 +256,33 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Collection>(entity =>
         {
             entity.HasKey(e => e.Id);
-            entity.Property(e => e.Name).IsRequired().HasMaxLength(255);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Description).HasMaxLength(500);
+            entity.Property(e => e.Color).HasMaxLength(7);
+            entity.Property(e => e.Icon).HasMaxLength(50);
+            entity.Property(e => e.UniqueShareId).HasMaxLength(12);
+            entity.Property(e => e.IsDefault).HasDefaultValue(false);
+            entity.Property(e => e.IsShared).HasDefaultValue(false);
+            entity.Property(e => e.SortOrder).HasDefaultValue(0);
 
-            entity.HasIndex(e => e.OwnerId);
+            entity.HasIndex(e => e.OwnerUserId);
+            entity.HasIndex(e => e.UniqueShareId).IsUnique();
 
             entity.HasOne(e => e.Owner)
                 .WithMany(u => u.OwnedCollections)
-                .HasForeignKey(e => e.OwnerId)
+                .HasForeignKey(e => e.OwnerUserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        // CollectionMember with composite PK
+        // CollectionMember with id primary key
         modelBuilder.Entity<CollectionMember>(entity =>
         {
-            entity.HasKey(e => new { e.CollectionId, e.UserId });
-            entity.Property(e => e.IsOwner).HasDefaultValue(false);
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Role).IsRequired().HasMaxLength(20).HasDefaultValue("member");
 
             entity.HasIndex(e => e.UserId);
             entity.HasIndex(e => e.CollectionId);
+            entity.HasIndex(e => new { e.CollectionId, e.UserId }).IsUnique();
 
             entity.HasOne(e => e.Collection)
                 .WithMany(c => c.Members)
@@ -284,15 +293,24 @@ public class AppDbContext : DbContext
                 .WithMany(u => u.CollectionMemberships)
                 .HasForeignKey(e => e.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.InvitedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.InvitedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
-        // UserRecipeCollection with composite PK
+        // UserRecipeCollection with id primary key
         modelBuilder.Entity<UserRecipeCollection>(entity =>
         {
-            entity.HasKey(e => new { e.UserRecipeId, e.CollectionId });
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Notes).HasMaxLength(500);
+            entity.Property(e => e.SortOrder).HasDefaultValue(0);
 
             entity.HasIndex(e => e.CollectionId);
             entity.HasIndex(e => e.UserRecipeId);
+            entity.HasIndex(e => new { e.UserRecipeId, e.CollectionId }).IsUnique();
+            entity.HasIndex(e => new { e.CollectionId, e.SortOrder });
 
             // Deleting a collection deletes only the link rows, not the recipes
             entity.HasOne(e => e.Collection)
@@ -305,6 +323,11 @@ public class AppDbContext : DbContext
                 .WithMany(r => r.UserRecipeCollections)
                 .HasForeignKey(e => e.UserRecipeId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.AddedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.AddedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }
