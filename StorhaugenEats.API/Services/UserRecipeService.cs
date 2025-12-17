@@ -92,94 +92,166 @@ public class UserRecipeService : IUserRecipeService
 
     public async Task<UserRecipeDto> CreateRecipeAsync(Guid userId, CreateUserRecipeDto dto)
     {
-        var user = await _context.Users.FindAsync(userId)
-            ?? throw new InvalidOperationException("User not found");
+        // 1) Validate user exists
+        var userExists = await _context.Users.AnyAsync(u => u.Id == userId);
+        if (!userExists)
+            throw new InvalidOperationException("User not found");
 
-        var recipe = new UserRecipe
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            GlobalRecipeId = dto.GlobalRecipeId,
-            LocalTitle = dto.Name,
-            LocalDescription = dto.Description,
-            LocalIngredients = dto.Ingredients != null ? JsonSerializer.Serialize(dto.Ingredients) : null,
-            LocalImageUrls = dto.ImageUrls != null ? JsonSerializer.Serialize(dto.ImageUrls) : "[]",
-            PersonalNotes = dto.PersonalNotes,
-            Visibility = dto.Visibility ?? "private",
-            // Local metadata fields
-            LocalPrepTimeMinutes = dto.PrepTimeMinutes,
-            LocalCookTimeMinutes = dto.CookTimeMinutes,
-            LocalServings = dto.Servings,
-            LocalDifficulty = dto.Difficulty,
-            LocalCuisine = dto.Cuisine,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-
-        // Increment global usage count if linked
+        // 2) Idempotency: if adding a GlobalRecipe, return existing (or restore if archived)
         if (dto.GlobalRecipeId.HasValue)
         {
-            var globalRecipe = await _context.GlobalRecipes.FindAsync(dto.GlobalRecipeId.Value);
-            if (globalRecipe != null) globalRecipe.TotalTimesAdded++;
+            var existing = await _context.UserRecipes
+                .Include(r => r.User)
+                .Include(r => r.GlobalRecipe)
+                .Include(r => r.Ratings).ThenInclude(rt => rt.User)
+                .FirstOrDefaultAsync(r => r.UserId == userId && r.GlobalRecipeId == dto.GlobalRecipeId.Value);
+
+            if (existing != null)
+            {
+                // If it exists but is archived, restore it (treat as "added back")
+                if (existing.IsArchived)
+                {
+                    existing.IsArchived = false;
+                    existing.ArchivedDate = null;
+                    existing.UpdatedAt = DateTime.UtcNow;
+                    await _context.SaveChangesAsync();
+
+                    // record activity (optional, but usually nice UX)
+                    var img = dto.ImageUrls?.FirstOrDefault()
+                              ?? existing.GlobalRecipe?.ImageUrl
+                              ?? existing.LocalImageUrl;
+
+                    await _activityFeedService.RecordAddedRecipeActivityAsync(
+                        userId, existing.Id, existing.DisplayTitle, img);
+                }
+
+                return MapToDto(existing, userId);
+            }
         }
 
-        _context.UserRecipes.Add(recipe);
+        var now = DateTime.UtcNow;
 
-        // Save the recipe first so we have an ID for the ratings
-        await _context.SaveChangesAsync();
-
-        // Handle Proxy Ratings (collection members rating at creation time)
-        if (dto.MemberRatings != null && dto.MemberRatings.Any())
+        await using var tx = await _context.Database.BeginTransactionAsync();
+        try
         {
-            // For now, only allow the creating user to rate
-            // Collection-based member ratings can be added later through the collection API
-            var validMemberIds = new List<Guid> { userId };
-
-            var ratingsToAdd = new List<Rating>();
-
-            foreach (var kvp in dto.MemberRatings)
+            // 3) Create new user recipe
+            var recipe = new UserRecipe
             {
-                var targetUserId = kvp.Key;
-                var score = kvp.Value;
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                GlobalRecipeId = dto.GlobalRecipeId,
 
-                if (validMemberIds.Contains(targetUserId))
-                {
-                    ratingsToAdd.Add(new Rating
+                LocalTitle = dto.Name,
+                LocalDescription = dto.Description,
+                LocalIngredients = dto.Ingredients != null ? JsonSerializer.Serialize(dto.Ingredients) : null,
+                LocalImageUrls = dto.ImageUrls != null ? JsonSerializer.Serialize(dto.ImageUrls) : "[]",
+                PersonalNotes = dto.PersonalNotes,
+                Visibility = dto.Visibility ?? "private",
+
+                // Local metadata fields
+                LocalPrepTimeMinutes = dto.PrepTimeMinutes,
+                LocalCookTimeMinutes = dto.CookTimeMinutes,
+                LocalServings = dto.Servings,
+                LocalDifficulty = dto.Difficulty,
+                LocalCuisine = dto.Cuisine,
+
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+
+            _context.UserRecipes.Add(recipe);
+
+            // 4) Increment global usage count (atomic) ONLY if we are actually inserting successfully
+            if (dto.GlobalRecipeId.HasValue)
+            {
+                var affected = await _context.Database.ExecuteSqlInterpolatedAsync($@"
+                UPDATE global_recipes
+                SET total_times_added = total_times_added + 1
+                WHERE id = {dto.GlobalRecipeId.Value};
+            ");
+
+                if (affected == 0)
+                    throw new InvalidOperationException("Global recipe not found");
+            }
+
+            await _context.SaveChangesAsync();
+
+            // 5) Optional: initial rating from creator only (keeps your existing rule)
+            if (dto.MemberRatings != null && dto.MemberRatings.Any())
+            {
+                var ratingsToAdd = dto.MemberRatings
+                    .Where(kvp => kvp.Key == userId)
+                    .Select(kvp => new Rating
                     {
                         Id = Guid.NewGuid(),
                         UserRecipeId = recipe.Id,
                         GlobalRecipeId = recipe.GlobalRecipeId,
-                        UserId = targetUserId,
-                        Score = Math.Clamp(score, 1, 10),
-                        CreatedAt = DateTime.UtcNow,
-                        UpdatedAt = DateTime.UtcNow
-                    });
-                }
-            }
+                        UserId = kvp.Key,
+                        Score = Math.Clamp(kvp.Value, 1, 10),
+                        CreatedAt = now,
+                        UpdatedAt = now
+                    })
+                    .ToList();
 
-            if (ratingsToAdd.Any())
-            {
-                _context.Ratings.AddRange(ratingsToAdd);
-                await _context.SaveChangesAsync();
-
-                if (recipe.GlobalRecipeId.HasValue)
+                if (ratingsToAdd.Any())
                 {
-                    await UpdateGlobalRecipeRatingAsync(recipe.GlobalRecipeId.Value);
+                    _context.Ratings.AddRange(ratingsToAdd);
+                    await _context.SaveChangesAsync();
+
+                    if (recipe.GlobalRecipeId.HasValue)
+                    {
+                        await UpdateGlobalRecipeRatingAsync(recipe.GlobalRecipeId.Value);
+                        await _context.SaveChangesAsync(); // <-- important if UpdateGlobalRecipeRatingAsync sets fields
+                    }
                 }
             }
+
+            await tx.CommitAsync();
+
+            // 6) Load with includes for DTO + activity text/image
+            var createdRecipe = await _context.UserRecipes
+                .Include(r => r.User)
+                .Include(r => r.GlobalRecipe)
+                .Include(r => r.Ratings).ThenInclude(rt => rt.User)
+                .FirstAsync(r => r.Id == recipe.Id);
+
+            var imageForActivity = dto.ImageUrls?.FirstOrDefault()
+                                  ?? createdRecipe.GlobalRecipe?.ImageUrl
+                                  ?? createdRecipe.LocalImageUrl;
+
+            await _activityFeedService.RecordAddedRecipeActivityAsync(
+                userId, createdRecipe.Id, createdRecipe.DisplayTitle, imageForActivity);
+
+            return MapToDto(createdRecipe, userId);
         }
+        catch (DbUpdateException ex)
+            when (ex.InnerException is Npgsql.PostgresException pg
+                  && pg.SqlState == Npgsql.PostgresErrorCodes.UniqueViolation)
+        {
+            await tx.RollbackAsync();
 
-        var imageUrls = dto.ImageUrls?.FirstOrDefault();
-        await _activityFeedService.RecordAddedRecipeActivityAsync(userId, recipe.Id, recipe.DisplayTitle, imageUrls);
+            // If the insert raced / double-clicked, return the existing row (idempotent behavior)
+            if (dto.GlobalRecipeId.HasValue)
+            {
+                var existing = await _context.UserRecipes
+                    .Include(r => r.User)
+                    .Include(r => r.GlobalRecipe)
+                    .Include(r => r.Ratings).ThenInclude(rt => rt.User)
+                    .FirstOrDefaultAsync(r => r.UserId == userId && r.GlobalRecipeId == dto.GlobalRecipeId.Value);
 
-        var createdRecipe = await _context.UserRecipes
-            .Include(r => r.User)
-            .Include(r => r.GlobalRecipe)
-            .Include(r => r.Ratings).ThenInclude(rt => rt.User)
-            .FirstAsync(r => r.Id == recipe.Id);
+                if (existing != null)
+                    return MapToDto(existing, userId);
+            }
 
-        return MapToDto(createdRecipe, userId);
+            throw;
+        }
+        catch
+        {
+            await tx.RollbackAsync();
+            throw;
+        }
     }
+
 
     public async Task<UserRecipeDto> UpdateRecipeAsync(Guid recipeId, Guid userId, UpdateUserRecipeDto dto)
     {
