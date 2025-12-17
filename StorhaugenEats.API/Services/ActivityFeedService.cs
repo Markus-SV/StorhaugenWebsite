@@ -104,7 +104,7 @@ public class ActivityFeedService : IActivityFeedService
         };
     }
 
-    public async Task RecordRatingActivityAsync(Guid userId, Guid recipeId, string recipeName, int rating, string? imageUrl = null)
+    public async Task RecordRatingActivityAsync(Guid userId, Guid recipeId, string recipeName, decimal rating, string? imageUrl = null)
     {
         var activity = ActivityFeedItem.CreateRatingActivity(userId, recipeId, recipeName, rating, imageUrl);
         _context.ActivityFeedItems.Add(activity);

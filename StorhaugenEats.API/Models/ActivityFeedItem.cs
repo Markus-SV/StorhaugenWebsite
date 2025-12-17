@@ -58,7 +58,7 @@ public class ActivityFeedItem
     public User User { get; set; } = null!;
 
     // Static factory methods for creating activities
-    public static ActivityFeedItem CreateRatingActivity(Guid userId, Guid recipeId, string recipeName, int rating, string? imageUrl = null)
+    public static ActivityFeedItem CreateRatingActivity(Guid userId, Guid recipeId, string recipeName, decimal rating, string? imageUrl = null)
     {
         var metadata = new Dictionary<string, object?>
         {

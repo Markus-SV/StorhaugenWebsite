@@ -45,10 +45,10 @@ public class UserRecipeDto
     public DateTime UpdatedAt { get; set; }
 
     // Ratings
-    public int? MyRating { get; set; }
+    public decimal? MyRating { get; set; }
     public double AverageRating { get; set; }
     public int RatingCount { get; set; }
-    public Dictionary<string, int?> MemberRatings { get; set; } = new();
+    public Dictionary<string, decimal?> MemberRatings { get; set; } = new();
 
     // Tags (personal organization)
     public List<TagReferenceDto> Tags { get; set; } = new();
@@ -85,8 +85,8 @@ public class CreateUserRecipeDto
     // Collections to add this recipe to
     public List<Guid>? CollectionIds { get; set; }
 
-    // --- Dictionary of UserID -> Score (1-10) ---
-    public Dictionary<Guid, int>? MemberRatings { get; set; }
+    // --- Dictionary of UserID -> Score (0.0-10.0) ---
+    public Dictionary<Guid, decimal>? MemberRatings { get; set; }
 }
 
 /// <summary>

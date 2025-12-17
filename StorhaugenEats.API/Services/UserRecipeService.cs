@@ -327,8 +327,19 @@ public class UserRecipeService : IUserRecipeService
             Title = recipe.LocalTitle ?? "Untitled Recipe",
             Description = recipe.LocalDescription,
             ImageUrl = recipe.LocalImageUrl,
-            ImageUrls = recipe.LocalImageUrls,
+            ImageUrls = recipe.LocalImageUrls ?? "[]",
             Ingredients = recipe.LocalIngredients ?? "[]",
+
+            // Metadata fields
+            PrepTimeMinutes = recipe.LocalPrepTimeMinutes,
+            CookTimeMinutes = recipe.LocalCookTimeMinutes,
+            TotalTimeMinutes = (recipe.LocalPrepTimeMinutes ?? 0) + (recipe.LocalCookTimeMinutes ?? 0) > 0
+                ? (recipe.LocalPrepTimeMinutes ?? 0) + (recipe.LocalCookTimeMinutes ?? 0)
+                : null,
+            Servings = recipe.LocalServings,
+            Difficulty = recipe.LocalDifficulty,
+            Cuisine = recipe.LocalCuisine,
+
             CreatedByUserId = userId,
             IsPublic = true,
             IsHellofresh = false,
@@ -394,7 +405,7 @@ public class UserRecipeService : IUserRecipeService
         return MapToDto(updatedRecipe, userId);
     }
 
-    public async Task<UserRecipeDto> RateRecipeAsync(Guid recipeId, Guid userId, int rating, string? comment = null)
+    public async Task<UserRecipeDto> RateRecipeAsync(Guid recipeId, Guid userId, decimal rating, string? comment = null)
     {
         var recipe = await _context.UserRecipes
             .Include(r => r.User)
@@ -613,8 +624,8 @@ public class UserRecipeService : IUserRecipeService
 
         var memberRatings = recipe.Ratings?
             .Where(r => r.User != null)
-            .ToDictionary(r => r.User!.DisplayName, r => (int?)r.Score)
-            ?? new Dictionary<string, int?>();
+            .ToDictionary(r => r.User!.DisplayName, r => (decimal?)r.Score)
+            ?? new Dictionary<string, decimal?>();
 
         // Parse recipe tags from GlobalRecipe
         var recipeTags = new List<string>();

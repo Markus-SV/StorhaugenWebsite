@@ -41,7 +41,7 @@ public interface IApiClient
     Task DeleteUserRecipeAsync(Guid id);
     Task<PublishRecipeResultDto> PublishUserRecipeAsync(Guid id);
     Task<UserRecipeDto> DetachUserRecipeAsync(Guid id);
-    Task<UserRecipeDto> RateUserRecipeAsync(Guid id, int rating, string? comment = null);
+    Task<UserRecipeDto> RateUserRecipeAsync(Guid id, decimal rating, string? comment = null);
     Task RemoveUserRecipeRatingAsync(Guid id);
     Task<UserRecipeDto> ArchiveUserRecipeAsync(Guid id);
     Task<UserRecipeDto> RestoreUserRecipeAsync(Guid id);

@@ -311,7 +311,7 @@ public class ApiClient : IApiClient
         return (await response.Content.ReadFromJsonAsync<UserRecipeDto>(_jsonOptions))!;
     }
 
-    public async Task<UserRecipeDto> RateUserRecipeAsync(Guid id, int rating, string? comment = null)
+    public async Task<UserRecipeDto> RateUserRecipeAsync(Guid id, decimal rating, string? comment = null)
     {
         await AddAuthHeaderAsync();
         var dto = new { Rating = rating, Comment = comment };

@@ -111,6 +111,9 @@
         catch (Exception ex)
         {
             Snackbar.Add($"Kunne ikke publisere: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
             _isPublishing = false;
         }
 

@@ -180,7 +180,10 @@ else
                                 </span>
                                 @if (recipe.RatingCount > 0)
                                 {
-                                    <span class="rating-count">@recipe.RatingCount</span>
+                                    <span class="rating-count-badge">
+                                        <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Small" Style="font-size: 10px;" />
+                                        @recipe.RatingCount
+                                    </span>
                                 }
                             </div>
                         }

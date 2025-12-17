@@ -4,6 +4,7 @@
 @using StorhaugenWebsite.ApiClient
 @using StorhaugenWebsite.Services
 @using StorhaugenWebsite.Shared.DTOs
+@using StorhaugenWebsite.Components
 @inject IApiClient ApiClient
 @inject IUserFriendshipService FriendshipService
 @inject ICollectionStateService CollectionState
@@ -119,37 +120,7 @@
     }
 </MudPaper>
 
-@* --- DIALOG FOR ADDING TO COLLECTION --- *@
-<MudDialog @bind-IsVisible="_showInviteDialog" Options="new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true }">
-    <TitleContent>
-        <MudText Typo="Typo.h6">Velg samling</MudText>
-    </TitleContent>
-    <DialogContent>
-        @if (_availableCollections.Any())
-        {
-            <MudList T="CollectionDto" Clickable="true">
-                @foreach (var collection in _availableCollections)
-                {
-                    <MudListItem OnClick="@(() => AddToCollection(collection))">
-                        <div class="d-flex align-center gap-2">
-                            <MudIcon Icon="@Icons.Material.Rounded.FolderShared" Color="Color.Primary" />
-                            <MudText>@collection.Name</MudText>
-                        </div>
-                    </MudListItem>
-                }
-            </MudList>
-        }
-        else
-        {
-            <div class="pa-4 text-center">
-                <MudText Typo="Typo.body1">Du har ingen samlinger å legge til brukeren i.</MudText>
-            </div>
-        }
-    </DialogContent>
-    <DialogActions>
-        <MudButton OnClick="@(() => _showInviteDialog = false)">Lukk</MudButton>
-    </DialogActions>
-</MudDialog>
+@* Dialog is now shown via IDialogService with AddMemberToCollectionDialog component *@
 
 @code {
     [Parameter] public Guid FriendUserId { get; set; }
@@ -157,10 +128,6 @@
     private FriendProfileDto? _friend;
     private List<UserRatingDto> _ratings = new();
     private bool _loaded;
-
-    // Add to Collection Dialog Logic
-    private bool _showInviteDialog;
-    private List<CollectionDto> _availableCollections = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -182,6 +149,8 @@
 
     private async Task OpenInviteDialog()
     {
+        if (_friend == null) return;
+
         // Ensure collections are loaded
         await CollectionState.RefreshCollectionsAsync();
 
@@ -192,53 +161,32 @@
         }
 
         // Show collections user owns (only owners can add members)
-        _availableCollections = CollectionState.UserCollections
+        var availableCollections = CollectionState.UserCollections
             .Where(c => CollectionState.IsOwnerOf(c.Id))
             .ToList();
 
-        if (!_availableCollections.Any())
+        if (!availableCollections.Any())
         {
             Snackbar.Add("Du må være eier av en samling for å legge til medlemmer.", Severity.Warning);
             return;
         }
 
-        _showInviteDialog = true;
-        StateHasChanged();
-    }
-
-    private async Task AddToCollection(CollectionDto collection)
-    {
-        if (_friend == null) return;
-
-        var confirm = await DialogService.ShowMessageBox(
-            "Legg til i samling",
-            $"Vil du legge til {_friend.DisplayName} i {collection.Name}?",
-            yesText: "Ja, legg til", cancelText: "Avbryt");
-
-        if (confirm == true)
+        // Use IDialogService to show the dialog component (MudBlazor 8.15 compatible)
+        var parameters = new DialogParameters<AddMemberToCollectionDialog>
         {
-            try
-            {
-                var dto = new AddCollectionMemberDto
-                {
-                    UserIdentifier = _friend.ShareId // Using ShareID to lookup user
-                };
+            { x => x.AvailableCollections, availableCollections },
+            { x => x.UserShareId, _friend.ShareId },
+            { x => x.UserDisplayName, _friend.DisplayName ?? "" }
+        };
 
-                await ApiClient.AddCollectionMemberAsync(collection.Id, dto);
-                Snackbar.Add($"Medlem lagt til!", Severity.Success);
-                _showInviteDialog = false;
+        var options = new DialogOptions
+        {
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true,
+            CloseOnEscapeKey = true
+        };
 
-                // Remove from available list to prevent double-add
-                _availableCollections.Remove(collection);
-            }
-            catch (Exception ex)
-            {
-                if (ex.Message.Contains("already"))
-                    Snackbar.Add("Brukeren er allerede medlem.", Severity.Warning);
-                else
-                    Snackbar.Add($"Feil: {ex.Message}", Severity.Error);
-            }
-        }
+        await DialogService.ShowAsync<AddMemberToCollectionDialog>("Legg til i samling", parameters, options);
     }
 
     private async Task RemoveFriend()

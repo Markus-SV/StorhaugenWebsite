@@ -16,7 +16,7 @@ namespace StorhaugenWebsite.Services
         Task<UserRecipeDto> DetachRecipeAsync(Guid id);
 
         // Rating
-        Task<UserRecipeDto> RateRecipeAsync(Guid id, int rating, string? comment = null);
+        Task<UserRecipeDto> RateRecipeAsync(Guid id, decimal rating, string? comment = null);
         Task RemoveRatingAsync(Guid id);
 
         // Archiving

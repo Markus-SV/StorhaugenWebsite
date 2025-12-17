@@ -96,12 +96,12 @@ namespace StorhaugenWebsite.Services
             return result;
         }
 
-        public async Task<UserRecipeDto> RateRecipeAsync(Guid id, int rating, string? comment = null)
+        public async Task<UserRecipeDto> RateRecipeAsync(Guid id, decimal rating, string? comment = null)
         {
             ValidateAuthorization();
 
-            if (rating < 1 || rating > 10)
-                throw new ArgumentException("Rating must be between 1 and 10.");
+            if (rating < 0 || rating > 10)
+                throw new ArgumentException("Rating must be between 0 and 10.");
 
             var result = await _apiClient.RateUserRecipeAsync(id, rating, comment);
             InvalidateCache();

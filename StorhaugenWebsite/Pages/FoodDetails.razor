@@ -11,6 +11,7 @@
 @inject IApiClient ApiClient
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject ICollectionStateService CollectionState
 @attribute [Authorize]
 
 <div class="detail-header">
@@ -105,9 +106,10 @@ else
                     </span>
                     @if (_recipe.RatingCount > 0)
                     {
-                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
-                            @_recipe.RatingCount @(_recipe.RatingCount == 1 ? "vurdering" : "vurderinger")
-                        </MudText>
+                        <span class="rating-count-badge">
+                            <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Small" Style="font-size: 12px;" />
+                            @_recipe.RatingCount
+                        </span>
                     }
                 </div>
             }
@@ -293,20 +295,50 @@ else
                     </div>
                 }
 
-                @* Visibility Settings *@
+                @* Collection Management *@
                 <div class="visibility-card">
-                    <div class="d-flex align-center justify-space-between">
+                    <div class="d-flex align-center justify-space-between mb-2">
                         <div class="d-flex align-center gap-3">
-                            <MudIcon Icon="@GetVisibilityIcon(_recipe.Visibility)" Color="Color.Primary" />
+                            <MudIcon Icon="@Icons.Material.Rounded.FolderShared" Color="Color.Primary" />
                             <div>
-                                <MudText Typo="Typo.subtitle2">Synlighet</MudText>
-                                <MudText Typo="Typo.caption">@GetVisibilityText(_recipe.Visibility)</MudText>
+                                <MudText Typo="Typo.subtitle2">Samlinger</MudText>
+                                <MudText Typo="Typo.caption">Organiser oppskriften i samlinger</MudText>
                             </div>
                         </div>
-                        <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="ToggleVisibility">
-                            Endre
-                        </MudButton>
                     </div>
+
+                    @if (_recipeCollections.Any())
+                    {
+                        <div class="d-flex flex-wrap gap-2 mb-2">
+                            @foreach (var collection in _recipeCollections)
+                            {
+                                <MudChip T="string"
+                                         Color="Color.Primary"
+                                         Size="Size.Small"
+                                         OnClose="@(() => RemoveFromCollection(collection.Id))"
+                                         Icon="@Icons.Material.Rounded.Folder">
+                                    @collection.Name
+                                </MudChip>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+                            Ikke i noen samling
+                        </MudText>
+                    }
+
+                    @if (CollectionState.UserCollections.Any(c => !_recipeCollections.Any(rc => rc.Id == c.Id)))
+                    {
+                        <MudButton Variant="Variant.Text"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   StartIcon="@Icons.Material.Rounded.Add"
+                                   OnClick="OpenAddToCollectionMenu">
+                            Legg til i samling
+                        </MudButton>
+                    }
                 </div>
 
                 @* Edit / Archive Buttons *@
@@ -365,17 +397,19 @@ else
         <p class="form-section-title">Vurdering</p>
 
         @* My Rating *@
-        <div class="d-flex align-center gap-4 mb-3">
-            <MudRating SelectedValue="@(_myRating)" SelectedValueChanged="OnRatingChanged" MaxValue="10" />
-            <span style="font-weight:bold; font-size: 1.2em;">@(_myRating > 0 ? _myRating.ToString() : "-")</span>
+        <div class="d-flex align-center gap-3 mb-3">
+            <MudSlider T="decimal" @bind-Value="_myRating" ValueChanged="OnRatingChanged" Min="0" Max="10" Step="0.5M" Color="Color.Primary" Style="flex: 1;" />
+            <span class="rating-badge @GetRatingClass((double)_myRating)" style="font-size: 1rem; padding: 8px 14px; min-width: 50px; text-align: center;">
+                @(_myRating > 0 ? _myRating.ToString("0.0") : "-")
+            </span>
         </div>
         <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
-            Din vurdering er personlig og lagres på din bruker.
+            Din vurdering er personlig og lagres på din bruker. (0.0 - 10.0)
         </MudText>
 
         @* Collection Members' Ratings *@
         @{
-            var otherRatings = (_recipe?.MemberRatings ?? new Dictionary<string, int?>())
+            var otherRatings = (_recipe?.MemberRatings ?? new Dictionary<string, decimal?>())
                 .Where(r => r.Value.HasValue && !string.Equals(r.Key, AuthService.CurrentUserName, StringComparison.OrdinalIgnoreCase))
                 .ToList();
         }
@@ -394,7 +428,7 @@ else
                         <div class="rating-circle" style="background-color: @color; color: white;">
                             @initial
                         </div>
-                        <span class="rating-score">@rating.Value</span>
+                        <span class="rating-score">@rating.Value?.ToString("0.0")</span>
                         <MudTooltip Text="@rating.Key" Placement="Placement.Top">
                             <span class="rating-name">@rating.Key</span>
                         </MudTooltip>
@@ -591,8 +625,9 @@ else
     private bool _isProcessing = false;
     private bool _isSavingNotes = false;
     private string _notes = "";
-    private int _myRating = 0;
+    private decimal _myRating = 0;
     private Guid _currentUserId;
+    private List<CollectionDto> _recipeCollections = new();
 
     private bool IsOwner => _recipe?.UserId == _currentUserId;
 
@@ -607,7 +642,9 @@ else
         {
             Console.WriteLine($"Error loading user profile: {ex.Message}");
         }
+        await CollectionState.InitializeAsync();
         await LoadRecipe();
+        await LoadRecipeCollections();
     }
 
     private async Task LoadRecipe()
@@ -619,7 +656,7 @@ else
             if (_recipe != null)
             {
                 _notes = _recipe.PersonalNotes ?? "";
-                _myRating = _recipe.MyRating ?? 0;
+                _myRating = _recipe.MyRating ?? 0m;
             }
         }
         catch (Exception ex)
@@ -720,7 +757,7 @@ else
         _isSavingNotes = false;
     }
 
-    private async Task OnRatingChanged(int rating)
+    private async Task OnRatingChanged(decimal rating)
     {
         if (_recipe == null) return;
         _myRating = rating;
@@ -732,18 +769,72 @@ else
         catch { Snackbar.Add("Kunne ikke lagre vurdering", Severity.Error); }
     }
 
-    private async Task ToggleVisibility()
+    // --- Collection Management ---
+    private async Task LoadRecipeCollections()
     {
         if (_recipe == null) return;
-        // Cycle: private -> public -> private (no more "household")
-        var newVisibility = _recipe.Visibility == "private" ? "public" : "private";
+
+        _recipeCollections = new List<CollectionDto>();
+        foreach (var collection in CollectionState.UserCollections)
+        {
+            try
+            {
+                var result = await ApiClient.GetCollectionRecipesAsync(collection.Id, new GetCollectionRecipesQuery { PageSize = 200 });
+                if (result.Recipes.Any(r => r.Id == _recipe.Id))
+                {
+                    _recipeCollections.Add(collection);
+                }
+            }
+            catch { /* Continue to next collection */ }
+        }
+        StateHasChanged();
+    }
+
+    private async Task RemoveFromCollection(Guid collectionId)
+    {
+        if (_recipe == null) return;
         try
         {
-            await RecipeService.UpdateRecipeAsync(_recipe.Id, new UpdateUserRecipeDto { Visibility = newVisibility });
-            _recipe.Visibility = newVisibility;
-            Snackbar.Add($"Endret til {GetVisibilityText(newVisibility)}", Severity.Info);
+            await CollectionState.RemoveRecipeFromCollectionAsync(collectionId, _recipe.Id);
+            _recipeCollections.RemoveAll(c => c.Id == collectionId);
+            Snackbar.Add("Fjernet fra samling", Severity.Success);
+            StateHasChanged();
         }
-        catch { Snackbar.Add("Feil ved endring", Severity.Error); }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Feil: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task OpenAddToCollectionMenu()
+    {
+        if (_recipe == null) return;
+
+        var availableCollections = CollectionState.UserCollections
+            .Where(c => !_recipeCollections.Any(rc => rc.Id == c.Id))
+            .ToList();
+
+        if (!availableCollections.Any())
+        {
+            Snackbar.Add("Ingen tilgjengelige samlinger", Severity.Info);
+            return;
+        }
+
+        var parameters = new DialogParameters<AddToCollectionDialog>
+        {
+            { x => x.AvailableCollections, availableCollections },
+            { x => x.RecipeId, _recipe.Id }
+        };
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.ExtraSmall, FullWidth = true };
+
+        var dialog = await DialogService.ShowAsync<AddToCollectionDialog>("Legg til i samling", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled && result.Data is CollectionDto selectedCollection)
+        {
+            _recipeCollections.Add(selectedCollection);
+            StateHasChanged();
+        }
     }
 
     private async Task ArchiveRecipe()

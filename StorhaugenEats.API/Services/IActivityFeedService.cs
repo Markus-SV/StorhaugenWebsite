@@ -13,7 +13,7 @@ public interface IActivityFeedService
     Task<ActivitySummaryDto> GetActivitySummaryAsync(Guid userId);
 
     // Activity creation (called by other services)
-    Task RecordRatingActivityAsync(Guid userId, Guid recipeId, string recipeName, int rating, string? imageUrl = null);
+    Task RecordRatingActivityAsync(Guid userId, Guid recipeId, string recipeName, decimal rating, string? imageUrl = null);
     Task RecordAddedRecipeActivityAsync(Guid userId, Guid recipeId, string recipeName, string? imageUrl = null);
     Task RecordPublishedActivityAsync(Guid userId, Guid globalRecipeId, string recipeName, string? imageUrl = null);
 

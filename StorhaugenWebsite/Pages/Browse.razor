@@ -125,26 +125,19 @@ else
         {
             <div class="food-card animate-in" @onclick="() => OpenRecipeDetail(recipe)">
 
-                @* --- Image with green lemon placeholder for HelloFresh (always use template as images are broken) --- *@
-                @if (recipe.IsHellofresh)
+                @* --- Image section - HelloFresh recipes don't show images (images are broken), community recipes show their images --- *@
+                @if (!recipe.IsHellofresh)
                 {
-                    <div class="food-card-placeholder hellofresh-placeholder">
-                        <svg class="lemon-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                            <ellipse cx="50" cy="55" rx="35" ry="40" fill="#9ACD32" />
-                            <path d="M50 15 Q55 5 60 15 Q58 20 50 18 Q42 20 40 15 Q45 5 50 15" fill="#6B8E23" />
-                            <ellipse cx="40" cy="50" rx="5" ry="8" fill="rgba(255,255,255,0.3)" />
-                        </svg>
-                    </div>
-                }
-                else if (GetImageUrl(recipe) != null)
-                {
-                    <img src="@GetImageUrl(recipe)" alt="@recipe.Name" class="food-card-image" />
-                }
-                else
-                {
-                    <div class="food-card-placeholder">
-                        <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" />
-                    </div>
+                    @if (GetImageUrl(recipe) != null)
+                    {
+                        <img src="@GetImageUrl(recipe)" alt="@recipe.Name" class="food-card-image" />
+                    }
+                    else
+                    {
+                        <div class="food-card-placeholder">
+                            <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" />
+                        </div>
+                    }
                 }
 
                 @* --- Text Content --- *@
@@ -171,7 +164,10 @@ else
                                 </span>
                                 @if (recipe.TotalRatings > 0)
                                 {
-                                    <span class="rating-count">@recipe.TotalRatings</span>
+                                    <span class="rating-count-badge">
+                                        <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Small" Style="font-size: 10px;" />
+                                        @recipe.TotalRatings
+                                    </span>
                                 }
                             </div>
                         }

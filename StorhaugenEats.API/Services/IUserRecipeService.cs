@@ -19,7 +19,7 @@ public interface IUserRecipeService
     Task<UserRecipeDto> DetachRecipeAsync(Guid recipeId, Guid userId);
 
     // Rating
-    Task<UserRecipeDto> RateRecipeAsync(Guid recipeId, Guid userId, int rating, string? comment = null);
+    Task<UserRecipeDto> RateRecipeAsync(Guid recipeId, Guid userId, decimal rating, string? comment = null);
     Task RemoveRatingAsync(Guid recipeId, Guid userId);
 
     // Archive

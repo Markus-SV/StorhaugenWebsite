@@ -26,7 +26,7 @@ public class Rating
     [Required]
     [Column("score")]
     [Range(0, 10)]
-    public int Score { get; set; }
+    public decimal Score { get; set; }
 
     [Column("comment")]
     public string? Comment { get; set; }
@@ -44,7 +44,7 @@ public class Rating
 
     // Backward compatibility properties
     [NotMapped]
-    public int RatingValue
+    public decimal RatingValue
     {
         get => Score;
         set => Score = value;

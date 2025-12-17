@@ -69,10 +69,7 @@
         </div>
     </div>
 
-    <MudPaper Class="pa-2 mb-6 d-flex justify-center gap-2" Elevation="0" Style="background: var(--mud-palette-background-grey); border-radius: 12px;">
-        <MudButton Variant="@(_isHelloFresh? Variant.Filled: Variant.Text)" Color="Color.Success" OnClick="@(() => SetFoodType(true))" Class="flex-1" Style="border-radius: 10px;" StartIcon="@Icons.Custom.Brands.MudBlazor">HelloFresh</MudButton>
-        <MudButton Variant="@(!_isHelloFresh ? Variant.Filled : Variant.Text)" Color="Color.Primary" OnClick="@(() => SetFoodType(false))" Class="flex-1" Style="border-radius: 10px;" StartIcon="@Icons.Material.Rounded.Restaurant">Annet</MudButton>
-    </MudPaper>
+    @* HelloFresh toggle removed - users should browse and add HelloFresh recipes from the Browse section *@
 
     @if (!string.IsNullOrEmpty(_errorMessage))
     {
@@ -428,7 +425,7 @@
 
     private bool _ratingEnabled = true;
     private string _currentUserName = "";
-    private bool _isHelloFresh = true;
+    private bool _isHelloFresh = false;
 
     // Collection & Privacy State
     private bool _shareWithCollection = false;

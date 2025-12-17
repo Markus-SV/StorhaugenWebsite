@@ -1,0 +1,88 @@
+@using MudBlazor
+@using StorhaugenWebsite.Shared.DTOs
+@using StorhaugenWebsite.Services
+@inject ICollectionStateService CollectionState
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Rounded.FolderShared" Color="Color.Primary" />
+            <MudText Typo="Typo.h6">Legg til i samling</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (_isProcessing)
+        {
+            <div class="d-flex flex-column align-center pa-4">
+                <MudProgressCircular Indeterminate="true" Size="Size.Large" Color="Color.Primary" />
+                <MudText Typo="Typo.body1" Class="mt-4">Legger til...</MudText>
+            </div>
+        }
+        else if (AvailableCollections.Any())
+        {
+            <MudList T="CollectionDto" Class="py-0">
+                @foreach (var collection in AvailableCollections)
+                {
+                    <MudListItem OnClick="@(() => AddToCollection(collection))">
+                        <div class="d-flex align-center gap-3">
+                            <MudIcon Icon="@Icons.Material.Rounded.Folder" Color="Color.Primary" />
+                            <div>
+                                <MudText Typo="Typo.body1">@collection.Name</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @collection.RecipeCount oppskrifter
+                                </MudText>
+                            </div>
+                        </div>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+        else
+        {
+            <MudText Typo="Typo.body1" Color="Color.Secondary" Class="pa-4 text-center">
+                Ingen tilgjengelige samlinger
+            </MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Color="Color.Default">Avbryt</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter]
+    public List<CollectionDto> AvailableCollections { get; set; } = new();
+
+    [Parameter]
+    public Guid RecipeId { get; set; }
+
+    private bool _isProcessing = false;
+
+    private async Task AddToCollection(CollectionDto collection)
+    {
+        _isProcessing = true;
+        StateHasChanged();
+
+        try
+        {
+            await CollectionState.AddRecipeToCollectionAsync(collection.Id, RecipeId);
+            Snackbar.Add($"Lagt til i {collection.Name}", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(collection));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Feil: {ex.Message}", Severity.Error);
+            _isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+}

@@ -227,6 +227,6 @@ public class UserRecipesController : ControllerBase
 /// </summary>
 public class RateRecipeDto
 {
-    public int Rating { get; set; }
+    public decimal Rating { get; set; }
     public string? Comment { get; set; }
 }

@@ -30,7 +30,7 @@ public class RatingService : IRatingService
             .ToListAsync();
     }
 
-    public async Task<Rating> UpsertRatingAsync(Guid userId, Guid globalRecipeId, int score, string? comment = null)
+    public async Task<Rating> UpsertRatingAsync(Guid userId, Guid globalRecipeId, decimal score, string? comment = null)
     {
         if (score < 0 || score > 10)
             throw new ArgumentException("Score must be between 0 and 10");

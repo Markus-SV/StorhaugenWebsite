@@ -57,7 +57,10 @@ else
                     </span>
                     @if (_recipe.TotalRatings > 0)
                     {
-                        <span class="rating-count">@_recipe.TotalRatings @(_recipe.TotalRatings == 1 ? "vurdering" : "vurderinger")</span>
+                        <span class="rating-count-badge">
+                            <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Small" Style="font-size: 10px;" />
+                            @_recipe.TotalRatings
+                        </span>
                     }
                 </div>
             }
@@ -414,7 +417,7 @@ else
         }
     }
 
-    // Copy and customize
+    // Copy and customize - creates independent copy NOT linked to HelloFresh
     private void CustomizeAndAdd()
     {
         if (_recipe == null) return;
@@ -424,8 +427,10 @@ else
             Name = _recipe.Name,
             Description = _recipe.Description,
             ImageUrls = _recipe.ImageUrls ?? new List<string>(),
-            GlobalRecipeId = _recipe.Id,
-            IsHelloFresh = _recipe.IsHellofresh,
+            // Don't link to GlobalRecipe so it's fully editable
+            GlobalRecipeId = null,
+            // Not a HelloFresh recipe - it's a personal copy
+            IsHelloFresh = false,
             PrepTimeMinutes = _recipe.PrepTimeMinutes,
             CookTimeMinutes = _recipe.CookTimeMinutes,
             Servings = _recipe.Servings,
