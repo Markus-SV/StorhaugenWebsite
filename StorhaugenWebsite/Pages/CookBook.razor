@@ -142,11 +142,26 @@ else
                 @* Content Section (Left Side) *@
                 <div class="food-card-content">
 
-                    @* Top Row: Title, Owner & Average Badge *@
+                    @* Top Row: Title, Source Indicators & Average Badge *@
                     <div class="d-flex justify-space-between align-start">
-                        @* Left: Title & Owner *@
+                        @* Left: Title & Source Indicators *@
                         <div style="min-width: 0; padding-right: 8px;">
-                            <h3 class="food-card-title text-truncate">@recipe.Name</h3>
+                            <div class="d-flex align-center gap-1 mb-1">
+                                @* Source indicator icons *@
+                                @if (recipe.IsHellofresh)
+                                {
+                                    <MudIcon Icon="@Icons.Material.Rounded.LocalDining" Size="Size.Small" Color="Color.Success" Title="HelloFresh" Style="flex-shrink: 0; font-size: 14px;" />
+                                }
+                                @if (recipe.IsPublished)
+                                {
+                                    <MudIcon Icon="@Icons.Material.Rounded.Cloud" Size="Size.Small" Color="Color.Info" Title="Publisert" Style="flex-shrink: 0; font-size: 14px;" />
+                                }
+                                @if (recipe.IsLinkedToGlobal && !recipe.IsHellofresh)
+                                {
+                                    <MudIcon Icon="@Icons.Material.Rounded.Link" Size="Size.Small" Color="Color.Secondary" Title="Koblet" Style="flex-shrink: 0; font-size: 14px;" />
+                                }
+                                <h3 class="food-card-title text-truncate">@recipe.Name</h3>
+                            </div>
                             <div class="d-flex align-center gap-1">
                                 <MudIcon Icon="@Icons.Material.Rounded.Person" Size="Size.Small" Style="font-size: 12px; opacity: 0.6;" />
                                 <MudText Typo="Typo.caption" Color="Color.Secondary" Class="text-truncate" Style="font-size: 0.75rem;">
@@ -158,15 +173,49 @@ else
                         @* Right: Average Badge *@
                         @if (recipe.AverageRating > 0)
                         {
-                            <span class="rating-badge" style="color: @GetScoreColor(recipe.AverageRating); flex-shrink: 0;">
-                                <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" Style="font-size: 14px; margin-right:2px;" />
-                                @recipe.AverageRating.ToString("0.0")
-                            </span>
+                            <div class="d-flex flex-column align-end" style="flex-shrink: 0;">
+                                <span class="rating-badge" style="color: @GetScoreColor(recipe.AverageRating);">
+                                    <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" Style="font-size: 14px; margin-right:2px;" />
+                                    @recipe.AverageRating.ToString("0.0")
+                                </span>
+                                @if (recipe.RatingCount > 0)
+                                {
+                                    <span class="rating-count">@recipe.RatingCount</span>
+                                }
+                            </div>
                         }
                     </div>
 
+                    @* Metadata Row (prep time, difficulty, servings) *@
+                    @if (recipe.PrepTimeMinutes.HasValue || !string.IsNullOrEmpty(recipe.Difficulty) || recipe.Servings.HasValue)
+                    {
+                        <div class="d-flex align-center flex-wrap mt-2 gap-2">
+                            @if (recipe.PrepTimeMinutes.HasValue)
+                            {
+                                <span class="meta-chip">
+                                    <MudIcon Icon="@Icons.Material.Rounded.AccessTime" Size="Size.Small" />
+                                    @recipe.PrepTimeMinutes min
+                                </span>
+                            }
+                            @if (!string.IsNullOrEmpty(recipe.Difficulty))
+                            {
+                                <span class="meta-chip @GetDifficultyClass(recipe.Difficulty)">
+                                    <MudIcon Icon="@GetDifficultyIcon(recipe.Difficulty)" Size="Size.Small" />
+                                    @GetDifficultyLabel(recipe.Difficulty)
+                                </span>
+                            }
+                            @if (recipe.Servings.HasValue)
+                            {
+                                <span class="meta-chip">
+                                    <MudIcon Icon="@Icons.Material.Rounded.Group" Size="Size.Small" />
+                                    @recipe.Servings
+                                </span>
+                            }
+                        </div>
+                    }
+
                     @* Ratings Section (Bottom) *@
-                    <div class="d-flex align-center flex-wrap mt-3 gap-2">
+                    <div class="d-flex align-center flex-wrap mt-2 gap-2">
 
                         @* 1. My Rating (Primary Color) *@
                         @if (recipe.MyRating.HasValue)
@@ -294,10 +343,11 @@ else
             var combined = new List<UserRecipeDto>();
             var hasSelectedCollections = CollectionState.HasCollections && CollectionState.ActiveCollectionFilters.Any();
 
-            // Show personal recipes when:
-            // 1. Personal chip is active, OR
-            // 2. No collection filters are selected (default behavior)
-            var shouldLoadPersonal = _personalActive || !hasSelectedCollections;
+            // When "Personlig" is active (and it's the only filter), show recipes NOT in any collection
+            var showOnlyUncategorized = _personalActive && !hasSelectedCollections;
+
+            // Show all personal recipes when no filters are selected
+            var shouldLoadPersonal = !hasSelectedCollections || _personalActive;
 
             // 1) Load selected collection recipes
             if (hasSelectedCollections)
@@ -306,7 +356,7 @@ else
                 {
                     try
                     {
-                        var query = new GetCollectionRecipesQuery { Search = _searchQuery, PageSize = 50 };
+                        var query = new GetCollectionRecipesQuery { Search = _searchQuery, PageSize = 100 };
                         var collectionResult = await ApiClient.GetCollectionRecipesAsync(collectionId, query);
                         combined.AddRange(collectionResult.Recipes);
                     }
@@ -320,12 +370,37 @@ else
                 var userQuery = new GetUserRecipesQuery
                 {
                     Search = _searchQuery,
-                    PageSize = 50,
+                    PageSize = 100,
                     TagIds = _activeTagIds.Any() ? _activeTagIds : null
                 };
 
                 var personalResult = await RecipeService.GetMyRecipesAsync(userQuery);
-                combined.AddRange(personalResult.Recipes);
+
+                if (showOnlyUncategorized)
+                {
+                    // Get all recipe IDs that are in any collection
+                    var recipesInCollections = new HashSet<Guid>();
+                    foreach (var collection in CollectionState.UserCollections)
+                    {
+                        try
+                        {
+                            var collectionRecipes = await ApiClient.GetCollectionRecipesAsync(collection.Id, new GetCollectionRecipesQuery { PageSize = 200 });
+                            foreach (var r in collectionRecipes.Recipes)
+                            {
+                                recipesInCollections.Add(r.Id);
+                            }
+                        }
+                        catch { /* Continue */ }
+                    }
+
+                    // Filter to only recipes NOT in any collection
+                    var uncategorizedRecipes = personalResult.Recipes.Where(r => !recipesInCollections.Contains(r.Id));
+                    combined.AddRange(uncategorizedRecipes);
+                }
+                else
+                {
+                    combined.AddRange(personalResult.Recipes);
+                }
             }
 
             // 3) Deduplicate by Id (prefer first occurrence)
@@ -356,5 +431,73 @@ else
     private async Task OnSearchChanged(string value) { await LoadRecipes(); }
     private void OpenRecipe(Guid id) { Navigation.NavigateTo($"food/{id}"); }
 
+    // Difficulty helpers
+    private string GetDifficultyIcon(string? difficulty)
+    {
+        return difficulty?.ToLower() switch
+        {
+            "easy" or "lett" => Icons.Material.Rounded.SentimentSatisfied,
+            "medium" or "middels" => Icons.Material.Rounded.Psychology,
+            "hard" or "vanskelig" => Icons.Material.Rounded.LocalFireDepartment,
+            _ => Icons.Material.Rounded.HelpOutline
+        };
+    }
+
+    private string GetDifficultyLabel(string? difficulty)
+    {
+        return difficulty?.ToLower() switch
+        {
+            "easy" => "Lett",
+            "medium" => "Middels",
+            "hard" => "Vanskelig",
+            _ => difficulty ?? ""
+        };
+    }
+
+    private string GetDifficultyClass(string? difficulty)
+    {
+        return difficulty?.ToLower() switch
+        {
+            "easy" or "lett" => "difficulty-easy",
+            "medium" or "middels" => "difficulty-medium",
+            "hard" or "vanskelig" => "difficulty-hard",
+            _ => ""
+        };
+    }
+
     public void Dispose() { CollectionState.OnActiveFiltersChanged -= OnFiltersChanged; }
 }
+
+<style>
+    .meta-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        padding: 2px 6px;
+        background: var(--mud-palette-background-grey);
+        border-radius: 6px;
+        font-size: 0.7rem;
+        color: var(--mud-palette-text-secondary);
+    }
+
+    .meta-chip.difficulty-easy {
+        background: rgba(76, 175, 80, 0.1);
+        color: #2e7d32;
+    }
+
+    .meta-chip.difficulty-medium {
+        background: rgba(255, 152, 0, 0.1);
+        color: #e65100;
+    }
+
+    .meta-chip.difficulty-hard {
+        background: rgba(244, 67, 54, 0.1);
+        color: #c62828;
+    }
+
+    .rating-count {
+        font-size: 0.6rem;
+        color: var(--mud-palette-text-secondary);
+        margin-top: 1px;
+    }
+</style>

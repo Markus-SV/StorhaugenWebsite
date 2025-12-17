@@ -50,47 +50,125 @@ else
             <h1 class="detail-title">@_recipe.Name</h1>
             @if (_recipe.AverageRating > 0)
             {
-                <span class="rating-badge rating-high">
-                    <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
-                    @_recipe.AverageRating.ToString("0.0")
-                </span>
+                <div class="d-flex flex-column align-end">
+                    <span class="rating-badge rating-high">
+                        <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
+                        @_recipe.AverageRating.ToString("0.0")
+                    </span>
+                    @if (_recipe.TotalRatings > 0)
+                    {
+                        <span class="rating-count">@_recipe.TotalRatings @(_recipe.TotalRatings == 1 ? "vurdering" : "vurderinger")</span>
+                    }
+                </div>
             }
         </div>
 
         @* --- Source Badge --- *@
-        <div class="d-flex gap-2 mt-2">
+        <div class="d-flex gap-2 mt-2 flex-wrap">
             @if (_recipe.IsHellofresh)
             {
-                <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Rounded.LocalDining" Color="Color.Primary">
+                <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Rounded.LocalDining" Color="Color.Success">
                     HelloFresh
                 </MudChip>
             }
             else
             {
-                <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Rounded.People" Color="Color.Tertiary">
+                <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Rounded.Cloud" Color="Color.Info">
                     Delt av @(_recipe.CreatedByUserName ?? "Fellesskapet")
                 </MudChip>
             }
-
-            @if (_recipe.PrepTimeMinutes.HasValue)
-            {
-                <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Rounded.AccessTime" Variant="Variant.Text">
-                    @_recipe.PrepTimeMinutes min
-                </MudChip>
-            }
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="align-self-center">• @_recipe.CreatedAt.ToString("dd. MMM yyyy")</MudText>
         </div>
+
+        @* --- Quick Info Row --- *@
+        @if (_recipe.PrepTimeMinutes.HasValue || _recipe.CookTimeMinutes.HasValue || !string.IsNullOrEmpty(_recipe.Difficulty) || _recipe.Servings.HasValue || !string.IsNullOrEmpty(_recipe.Cuisine))
+        {
+            <div class="quick-info-row mt-4">
+                @if (_recipe.PrepTimeMinutes.HasValue)
+                {
+                    <div class="quick-info-item">
+                        <MudIcon Icon="@Icons.Material.Rounded.AccessTime" Size="Size.Small" Color="Color.Primary" />
+                        <span>@_recipe.PrepTimeMinutes min forberedelse</span>
+                    </div>
+                }
+                @if (_recipe.CookTimeMinutes.HasValue)
+                {
+                    <div class="quick-info-item">
+                        <MudIcon Icon="@Icons.Material.Rounded.LocalFireDepartment" Size="Size.Small" Color="Color.Warning" />
+                        <span>@_recipe.CookTimeMinutes min tilberedning</span>
+                    </div>
+                }
+                @if (!string.IsNullOrEmpty(_recipe.Difficulty))
+                {
+                    <div class="quick-info-item @GetDifficultyClass(_recipe.Difficulty)">
+                        <MudIcon Icon="@GetDifficultyIcon(_recipe.Difficulty)" Size="Size.Small" />
+                        <span>@GetDifficultyLabel(_recipe.Difficulty)</span>
+                    </div>
+                }
+                @if (_recipe.Servings.HasValue)
+                {
+                    <div class="quick-info-item">
+                        <MudIcon Icon="@Icons.Material.Rounded.Group" Size="Size.Small" Color="Color.Tertiary" />
+                        <span>@_recipe.Servings porsjoner</span>
+                    </div>
+                }
+                @if (!string.IsNullOrEmpty(_recipe.Cuisine))
+                {
+                    <div class="quick-info-item">
+                        <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small" Color="Color.Info" />
+                        <span>@_recipe.Cuisine</span>
+                    </div>
+                }
+            </div>
+        }
 
         @if (!string.IsNullOrEmpty(_recipe.Description))
         {
             <p class="detail-description mt-4">@_recipe.Description</p>
         }
 
-        @* --- HelloFresh Recipe Details --- *@
+        @* --- Recipe Tags --- *@
+        @if (_recipe.Tags.Any())
+        {
+            <div class="d-flex flex-wrap gap-2 mt-3">
+                @foreach (var tag in _recipe.Tags)
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">@tag</MudChip>
+                }
+            </div>
+        }
+
+        @* --- HelloFresh Recipe Details (Ingredients & Nutrition) --- *@
         @if (_recipe.IsHellofresh)
         {
             <div class="mt-6">
                 <HelloFreshRecipeDetails Recipe="_recipe" />
             </div>
+        }
+        else if (HasIngredients())
+        {
+            @* Community Recipe Ingredients *@
+            <MudExpansionPanels Class="mt-4" MultiExpansion="true">
+                <MudExpansionPanel Text="Ingredienser" Icon="@Icons.Material.Rounded.ShoppingCart" IsInitiallyExpanded="true">
+                    <div class="ingredients-list">
+                        @foreach (var ingredient in GetIngredients())
+                        {
+                            <div class="ingredient-item">
+                                <div class="ingredient-placeholder">
+                                    <MudIcon Icon="@Icons.Material.Rounded.Egg" Size="Size.Small" />
+                                </div>
+                                <div class="ingredient-info">
+                                    <span class="ingredient-name">@ingredient.Name</span>
+                                    @if (!string.IsNullOrEmpty(ingredient.Amount) || !string.IsNullOrEmpty(ingredient.Unit))
+                                    {
+                                        <span class="ingredient-amount">@ingredient.Amount @ingredient.Unit</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </MudExpansionPanel>
+            </MudExpansionPanels>
         }
 
         <div class="action-buttons mt-6">
@@ -180,6 +258,84 @@ else
         font-size: 0.85rem;
         color: var(--mud-palette-text-secondary);
         margin-bottom: 0;
+    }
+
+    .rating-count {
+        font-size: 0.7rem;
+        color: var(--mud-palette-text-secondary);
+        margin-top: 2px;
+    }
+
+    .quick-info-row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .quick-info-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        background: var(--mud-palette-background-grey);
+        border-radius: 8px;
+        font-size: 0.85rem;
+    }
+
+    .quick-info-item.difficulty-easy {
+        background: rgba(76, 175, 80, 0.1);
+        color: #2e7d32;
+    }
+
+    .quick-info-item.difficulty-medium {
+        background: rgba(255, 152, 0, 0.1);
+        color: #e65100;
+    }
+
+    .quick-info-item.difficulty-hard {
+        background: rgba(244, 67, 54, 0.1);
+        color: #c62828;
+    }
+
+    .ingredients-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .ingredient-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px;
+        background: var(--mud-palette-background-grey);
+        border-radius: 8px;
+    }
+
+    .ingredient-placeholder {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        background: var(--mud-palette-divider);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--mud-palette-text-disabled);
+    }
+
+    .ingredient-info {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .ingredient-name {
+        font-weight: 500;
+        color: var(--mud-palette-text-primary);
+    }
+
+    .ingredient-amount {
+        font-size: 0.8rem;
+        color: var(--mud-palette-text-secondary);
     }
 </style>
 
@@ -279,5 +435,81 @@ else
         };
 
         Navigation.NavigateTo("add");
+    }
+
+    // Difficulty helpers
+    private string GetDifficultyIcon(string? difficulty)
+    {
+        return difficulty?.ToLower() switch
+        {
+            "easy" or "lett" => Icons.Material.Rounded.SentimentSatisfied,
+            "medium" or "middels" => Icons.Material.Rounded.Psychology,
+            "hard" or "vanskelig" => Icons.Material.Rounded.LocalFireDepartment,
+            _ => Icons.Material.Rounded.HelpOutline
+        };
+    }
+
+    private string GetDifficultyLabel(string? difficulty)
+    {
+        return difficulty?.ToLower() switch
+        {
+            "easy" => "Lett",
+            "medium" => "Middels",
+            "hard" => "Vanskelig",
+            _ => difficulty ?? ""
+        };
+    }
+
+    private string GetDifficultyClass(string? difficulty)
+    {
+        return difficulty?.ToLower() switch
+        {
+            "easy" or "lett" => "difficulty-easy",
+            "medium" or "middels" => "difficulty-medium",
+            "hard" or "vanskelig" => "difficulty-hard",
+            _ => ""
+        };
+    }
+
+    // Ingredient helpers
+    private record IngredientInfo(string Name, string? Amount, string? Unit);
+
+    private bool HasIngredients()
+    {
+        if (_recipe?.Ingredients == null) return false;
+        if (_recipe.Ingredients is System.Text.Json.JsonElement jsonElement)
+        {
+            return jsonElement.ValueKind == System.Text.Json.JsonValueKind.Array && jsonElement.GetArrayLength() > 0;
+        }
+        return false;
+    }
+
+    private List<IngredientInfo> GetIngredients()
+    {
+        var items = new List<IngredientInfo>();
+        if (_recipe?.Ingredients == null) return items;
+
+        try
+        {
+            if (_recipe.Ingredients is System.Text.Json.JsonElement jsonElement && jsonElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+                foreach (var item in jsonElement.EnumerateArray())
+                {
+                    var name = item.TryGetProperty("name", out var n) ? n.GetString() : "";
+                    var amount = item.TryGetProperty("amount", out var a) ? a.ToString() : null;
+                    var unit = item.TryGetProperty("unit", out var u) ? u.GetString() : null;
+
+                    if (!string.IsNullOrEmpty(name))
+                    {
+                        items.Add(new IngredientInfo(name!, amount, unit));
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error parsing ingredients: {ex.Message}");
+        }
+        return items;
     }
 }

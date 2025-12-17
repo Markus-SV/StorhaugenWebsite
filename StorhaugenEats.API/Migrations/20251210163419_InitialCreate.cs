@@ -325,6 +325,56 @@ namespace StorhaugenEats.API.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
+            // Create recipe_tags table for user-defined tags
+            migrationBuilder.CreateTable(
+                name: "recipe_tags",
+                columns: table => new
+                {
+                    id = table.Column<Guid>(type: "uuid", nullable: false, defaultValueSql: "uuid_generate_v4()"),
+                    user_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    color = table.Column<string>(type: "character varying(7)", maxLength: 7, nullable: true),
+                    icon = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
+                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true, defaultValueSql: "now()")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("recipe_tags_pkey", x => x.id);
+                    table.ForeignKey(
+                        name: "recipe_tags_user_id_fkey",
+                        column: x => x.user_id,
+                        principalTable: "users",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            // Create user_recipe_tags join table
+            migrationBuilder.CreateTable(
+                name: "user_recipe_tags",
+                columns: table => new
+                {
+                    id = table.Column<Guid>(type: "uuid", nullable: false, defaultValueSql: "uuid_generate_v4()"),
+                    user_recipe_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    tag_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true, defaultValueSql: "now()")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("user_recipe_tags_pkey", x => x.id);
+                    table.ForeignKey(
+                        name: "user_recipe_tags_user_recipe_id_fkey",
+                        column: x => x.user_recipe_id,
+                        principalTable: "user_recipes",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "user_recipe_tags_tag_id_fkey",
+                        column: x => x.tag_id,
+                        principalTable: "recipe_tags",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
             migrationBuilder.CreateIndex(
                 name: "IX_activity_feed_activity_type",
                 table: "activity_feed",
@@ -528,6 +578,29 @@ namespace StorhaugenEats.API.Migrations
                 table: "user_recipes",
                 column: "visibility");
 
+            // Indexes for recipe_tags
+            migrationBuilder.CreateIndex(
+                name: "IX_recipe_tags_user_id",
+                table: "recipe_tags",
+                column: "user_id");
+
+            // Indexes for user_recipe_tags
+            migrationBuilder.CreateIndex(
+                name: "IX_user_recipe_tags_user_recipe_id",
+                table: "user_recipe_tags",
+                column: "user_recipe_id");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_user_recipe_tags_tag_id",
+                table: "user_recipe_tags",
+                column: "tag_id");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_user_recipe_tags_user_recipe_id_tag_id",
+                table: "user_recipe_tags",
+                columns: new[] { "user_recipe_id", "tag_id" },
+                unique: true);
+
             migrationBuilder.CreateIndex(
                 name: "IX_users_current_household_id",
                 table: "users",
@@ -698,6 +771,12 @@ namespace StorhaugenEats.API.Migrations
 
             migrationBuilder.DropTable(
                 name: "household_members");
+
+            migrationBuilder.DropTable(
+                name: "user_recipe_tags");
+
+            migrationBuilder.DropTable(
+                name: "recipe_tags");
 
             migrationBuilder.DropTable(
                 name: "ratings");

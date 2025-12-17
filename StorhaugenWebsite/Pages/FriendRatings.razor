@@ -180,8 +180,11 @@
         }
     }
 
-    private void OpenInviteDialog()
+    private async Task OpenInviteDialog()
     {
+        // Ensure collections are loaded
+        await CollectionState.RefreshCollectionsAsync();
+
         if (!CollectionState.HasCollections)
         {
             Snackbar.Add("Du har ingen samlinger.", Severity.Warning);
@@ -193,7 +196,14 @@
             .Where(c => CollectionState.IsOwnerOf(c.Id))
             .ToList();
 
+        if (!_availableCollections.Any())
+        {
+            Snackbar.Add("Du må være eier av en samling for å legge til medlemmer.", Severity.Warning);
+            return;
+        }
+
         _showInviteDialog = true;
+        StateHasChanged();
     }
 
     private async Task AddToCollection(CollectionDto collection)

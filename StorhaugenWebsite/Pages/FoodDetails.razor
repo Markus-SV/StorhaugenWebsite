@@ -98,10 +98,18 @@ else
 
             @if (_recipe.AverageRating > 0)
             {
-                <span class="rating-badge @GetRatingClass(_recipe.AverageRating)" style="font-size: 1rem; padding: 8px 14px;">
-                    <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
-                    @_recipe.AverageRating.ToString("0.0")
-                </span>
+                <div class="d-flex flex-column align-end">
+                    <span class="rating-badge @GetRatingClass(_recipe.AverageRating)" style="font-size: 1rem; padding: 8px 14px;">
+                        <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
+                        @_recipe.AverageRating.ToString("0.0")
+                    </span>
+                    @if (_recipe.RatingCount > 0)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                            @_recipe.RatingCount @(_recipe.RatingCount == 1 ? "vurdering" : "vurderinger")
+                        </MudText>
+                    }
+                </div>
             }
         </div>
 
@@ -355,13 +363,57 @@ else
 
     <div class="form-section">
         <p class="form-section-title">Vurdering</p>
-        <div class="d-flex align-center gap-4">
+
+        @* My Rating *@
+        <div class="d-flex align-center gap-4 mb-3">
             <MudRating SelectedValue="@(_myRating)" SelectedValueChanged="OnRatingChanged" MaxValue="10" />
             <span style="font-weight:bold; font-size: 1.2em;">@(_myRating > 0 ? _myRating.ToString() : "-")</span>
         </div>
-        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
             Din vurdering er personlig og lagres på din bruker.
         </MudText>
+
+        @* Collection Members' Ratings *@
+        @{
+            var otherRatings = (_recipe?.MemberRatings ?? new Dictionary<string, int?>())
+                .Where(r => r.Value.HasValue && !string.Equals(r.Key, AuthService.CurrentUserName, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        @if (otherRatings.Any())
+        {
+            <MudDivider Class="my-3" />
+            <MudText Typo="Typo.subtitle2" Class="mb-2">Andre i samlingen</MudText>
+            <div class="d-flex flex-wrap gap-2">
+                @foreach (var rating in otherRatings)
+                {
+                    var initial = !string.IsNullOrEmpty(rating.Key) ? rating.Key.Substring(0, 1).ToUpper() : "?";
+                    var color = GetUserColor(rating.Key);
+
+                    <div class="rating-pill">
+                        <div class="rating-circle" style="background-color: @color; color: white;">
+                            @initial
+                        </div>
+                        <span class="rating-score">@rating.Value</span>
+                        <MudTooltip Text="@rating.Key" Placement="Placement.Top">
+                            <span class="rating-name">@rating.Key</span>
+                        </MudTooltip>
+                    </div>
+                }
+            </div>
+        }
+
+        @* Public Rating Count (if published) *@
+        @if (_recipe?.IsPublished == true && _recipe.RatingCount > 0)
+        {
+            <MudDivider Class="my-3" />
+            <div class="d-flex align-center gap-2">
+                <MudIcon Icon="@Icons.Material.Rounded.Public" Size="Size.Small" Color="Color.Info" />
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    Offentlig vurdering: <b>@_recipe.AverageRating.ToString("0.0")</b> (@_recipe.RatingCount @(_recipe.RatingCount == 1 ? "vurdering" : "vurderinger"))
+                </MudText>
+            </div>
+        }
     </div>
 }
 
@@ -479,6 +531,40 @@ else
         background: var(--mud-palette-background-grey);
         border-radius: 12px;
         padding: 12px;
+    }
+
+    .rating-pill {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: var(--mud-palette-background-grey);
+        border-radius: 20px;
+        padding: 4px 10px 4px 4px;
+    }
+
+    .rating-circle {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .rating-score {
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .rating-name {
+        font-size: 0.75rem;
+        color: var(--mud-palette-text-secondary);
+        max-width: 60px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     @@media (max-width: 600px) {
@@ -691,6 +777,18 @@ else
     private string GetRatingClass(double r) => r >= 8 ? "rating-high" : r >= 5 ? "rating-medium" : "rating-low";
     private string GetVisibilityText(string v) => v switch { "private" => "Privat (Kun deg)", "household" => "Privat", "public" => "Offentlig", _ => v };
     private string GetVisibilityIcon(string v) => v switch { "public" => Icons.Material.Rounded.Public, _ => Icons.Material.Rounded.Lock };
+
+    // Generates a stable color based on the username string
+    private string GetUserColor(string username)
+    {
+        if (string.IsNullOrEmpty(username)) return "#9E9E9E";
+        int hash = Math.Abs(username.GetHashCode());
+        string[] palette = {
+            "#2E7D32", "#00695C", "#0277BD", "#1565C0", "#283593",
+            "#4527A0", "#6A1B9A", "#AD1457", "#C62828", "#D84315"
+        };
+        return palette[hash % palette.Length];
+    }
 
     // Difficulty helpers
     private string GetDifficultyIcon(string? difficulty)
