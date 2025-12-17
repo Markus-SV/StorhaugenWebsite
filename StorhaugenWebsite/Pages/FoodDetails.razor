@@ -105,15 +105,22 @@ else
             }
         </div>
 
-        @* Quick Info (PrepTime, Difficulty, Servings) *@
-        @if (_recipe.PrepTimeMinutes.HasValue || !string.IsNullOrEmpty(_recipe.Difficulty) || _recipe.Servings.HasValue)
+        @* Quick Info (PrepTime, CookTime, Difficulty, Servings, Cuisine) *@
+        @if (_recipe.PrepTimeMinutes.HasValue || _recipe.CookTimeMinutes.HasValue || !string.IsNullOrEmpty(_recipe.Difficulty) || _recipe.Servings.HasValue || !string.IsNullOrEmpty(_recipe.Cuisine))
         {
             <div class="quick-info-row mt-3">
                 @if (_recipe.PrepTimeMinutes.HasValue)
                 {
                     <div class="quick-info-item">
                         <MudIcon Icon="@Icons.Material.Rounded.AccessTime" Size="Size.Small" Color="Color.Primary" />
-                        <span>@_recipe.PrepTimeMinutes min</span>
+                        <span>@_recipe.PrepTimeMinutes min tilberedning</span>
+                    </div>
+                }
+                @if (_recipe.CookTimeMinutes.HasValue)
+                {
+                    <div class="quick-info-item">
+                        <MudIcon Icon="@Icons.Material.Rounded.LocalFireDepartment" Size="Size.Small" Color="Color.Warning" />
+                        <span>@_recipe.CookTimeMinutes min steking</span>
                     </div>
                 }
                 @if (!string.IsNullOrEmpty(_recipe.Difficulty))
@@ -130,6 +137,22 @@ else
                         <span>@_recipe.Servings porsjoner</span>
                     </div>
                 }
+                @if (!string.IsNullOrEmpty(_recipe.Cuisine))
+                {
+                    <div class="quick-info-item">
+                        <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small" Color="Color.Info" />
+                        <span>@_recipe.Cuisine</span>
+                    </div>
+                }
+            </div>
+        }
+
+        @* HelloFresh Week Info *@
+        @if (_recipe.IsHellofresh && !string.IsNullOrEmpty(_recipe.HellofreshWeek))
+        {
+            <div class="d-flex align-center gap-2 mt-2">
+                <MudIcon Icon="@Icons.Material.Rounded.CalendarMonth" Size="Size.Small" Color="Color.Success" />
+                <MudText Typo="Typo.caption" Color="Color.Secondary">HelloFresh uke @_recipe.HellofreshWeek</MudText>
             </div>
         }
 
@@ -648,7 +671,22 @@ else
         }
     }
 
-    private void EditRecipe() => Snackbar.Add("Redigering kommer snart", Severity.Info);
+    private async Task EditRecipe()
+    {
+        if (_recipe == null) return;
+
+        var parameters = new DialogParameters<EditRecipeDialog> { { x => x.Recipe, _recipe } };
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+
+        var dialog = await DialogService.ShowAsync<EditRecipeDialog>("Rediger", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            // Reload the recipe to get updated data
+            await LoadRecipe();
+        }
+    }
 
     private string GetRatingClass(double r) => r >= 8 ? "rating-high" : r >= 5 ? "rating-medium" : "rating-low";
     private string GetVisibilityText(string v) => v switch { "private" => "Privat (Kun deg)", "household" => "Privat", "public" => "Offentlig", _ => v };

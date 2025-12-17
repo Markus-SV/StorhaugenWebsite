@@ -97,11 +97,62 @@
                       Style="--mud-default-borderradius: 12px;" />
 
         <MudTextField @bind-Value="_newFood.Description"
-                      Label="Beskrivelse / Ingredienser"
+                      Label="Beskrivelse"
                       Variant="Variant.Outlined"
-                      Lines="8"
-                      Placeholder="Ingredienser blir lagt til her..."
+                      Lines="4"
+                      Placeholder="Beskriv retten..."
                       Style="--mud-default-borderradius: 12px;" />
+
+        @* Collapsible structured ingredients section *@
+        <MudExpansionPanels Class="mt-4" Elevation="0">
+            <MudExpansionPanel Text="@GetIngredientsTitle()" Icon="@Icons.Material.Rounded.ShoppingCart" Style="background: var(--mud-palette-background); border-radius: 12px;">
+                <div class="d-flex flex-column gap-2">
+                    @for (int i = 0; i < _structuredIngredients.Count; i++)
+                    {
+                        var index = i;
+                        <div class="d-flex gap-2 align-center">
+                            <MudTextField @bind-Value="_structuredIngredients[index].Name"
+                                          Label="Ingrediens"
+                                          Variant="Variant.Outlined"
+                                          Size="Size.Small"
+                                          Style="flex: 2; --mud-default-borderradius: 8px;" />
+                            <MudTextField @bind-Value="_structuredIngredients[index].Amount"
+                                          Label="Mengde"
+                                          Variant="Variant.Outlined"
+                                          Size="Size.Small"
+                                          Style="flex: 1; --mud-default-borderradius: 8px;" />
+                            <MudSelect T="string" @bind-Value="_structuredIngredients[index].Unit"
+                                       Label="Enhet"
+                                       Variant="Variant.Outlined"
+                                       Dense="true"
+                                       Style="flex: 1; --mud-default-borderradius: 8px;">
+                                <MudSelectItem Value="@("")">-</MudSelectItem>
+                                <MudSelectItem Value="@("stk")">stk</MudSelectItem>
+                                <MudSelectItem Value="@("g")">g</MudSelectItem>
+                                <MudSelectItem Value="@("kg")">kg</MudSelectItem>
+                                <MudSelectItem Value="@("dl")">dl</MudSelectItem>
+                                <MudSelectItem Value="@("l")">l</MudSelectItem>
+                                <MudSelectItem Value="@("ss")">ss</MudSelectItem>
+                                <MudSelectItem Value="@("ts")">ts</MudSelectItem>
+                                <MudSelectItem Value="@("fedd")">fedd</MudSelectItem>
+                            </MudSelect>
+                            <MudIconButton Icon="@Icons.Material.Rounded.Delete"
+                                           Size="Size.Small"
+                                           Color="Color.Error"
+                                           OnClick="@(() => RemoveIngredient(index))" />
+                        </div>
+                    }
+                    <MudButton Variant="Variant.Text"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Rounded.Add"
+                               Size="Size.Small"
+                               OnClick="AddIngredient"
+                               Class="mt-2">
+                        Legg til ingrediens
+                    </MudButton>
+                </div>
+            </MudExpansionPanel>
+        </MudExpansionPanels>
 
         @* Collapsible metadata section *@
         <MudExpansionPanels Class="mt-4" Elevation="0">
@@ -388,6 +439,10 @@
 
     // Member list for rating (Filtered based on selection)
     private List<CollectionMemberDto> _currentRatingMembers = new();
+
+    // Structured ingredients
+    private List<IngredientEntry> _structuredIngredients = new();
+    public class IngredientEntry { public string Name { get; set; } = ""; public string Amount { get; set; } = ""; public string Unit { get; set; } = ""; }
     #endregion
 
     #region Camera & OCR State
@@ -551,6 +606,9 @@
             // Determine Visibility - only "private" or "public" now (no more "household")
             string finalVisibility = _isPublic ? "public" : "private";
 
+            // Use structured ingredients if any are filled in, otherwise use existing (from draft/OCR)
+            var finalIngredients = BuildIngredientsJson() ?? _newFood.Ingredients;
+
             var createDto = new CreateUserRecipeDto
             {
                 Name = _newFood.Name,
@@ -565,7 +623,7 @@
                 Servings = _newFood.Servings,
                 Difficulty = _newFood.Difficulty,
                 Cuisine = _newFood.Cuisine,
-                Ingredients = _newFood.Ingredients
+                Ingredients = finalIngredients
             };
 
             var createdRecipe = await RecipeService.CreateRecipeAsync(createDto);
@@ -845,6 +903,27 @@
     private string GetStepTitle() => _currentStep switch { ScanStep.Front => "1: FORSIDE (SNU)", ScanStep.Ingredients => "2: INGREDIENSER", ScanStep.Back => "3: FREMGANGSMÅTE", _ => "" };
     private string GetInstructionText() => _currentStep == ScanStep.Front ? "Hold telefonen vannrett." : "Hold telefonen loddrett.";
     private string GetStepIcon() => _currentStep == ScanStep.Front ? Icons.Material.Rounded.ScreenRotation : Icons.Material.Rounded.CropPortrait;
+    #endregion
+
+    #region Ingredients Helpers
+    private void AddIngredient() => _structuredIngredients.Add(new IngredientEntry());
+    private void RemoveIngredient(int index)
+    {
+        if (index >= 0 && index < _structuredIngredients.Count)
+            _structuredIngredients.RemoveAt(index);
+    }
+    private string GetIngredientsTitle() => _structuredIngredients.Count > 0
+        ? $"Ingredienser ({_structuredIngredients.Count})"
+        : "Ingredienser (valgfritt)";
+
+    private object? BuildIngredientsJson()
+    {
+        var validIngredients = _structuredIngredients
+            .Where(i => !string.IsNullOrWhiteSpace(i.Name))
+            .Select(i => new { name = i.Name, amount = i.Amount, unit = i.Unit })
+            .ToList();
+        return validIngredients.Any() ? validIngredients : null;
+    }
     #endregion
 
 }

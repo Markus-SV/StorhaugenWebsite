@@ -52,6 +52,24 @@ public class UserRecipe
     [Column("personal_notes")]
     public string? PersonalNotes { get; set; }
 
+    // Local metadata fields (used for non-HelloFresh recipes)
+    [Column("local_prep_time_minutes")]
+    public int? LocalPrepTimeMinutes { get; set; }
+
+    [Column("local_cook_time_minutes")]
+    public int? LocalCookTimeMinutes { get; set; }
+
+    [Column("local_servings")]
+    public int? LocalServings { get; set; }
+
+    [Column("local_difficulty")]
+    [MaxLength(50)]
+    public string? LocalDifficulty { get; set; }
+
+    [Column("local_cuisine")]
+    [MaxLength(100)]
+    public string? LocalCuisine { get; set; }
+
     /// <summary>
     /// Visibility level: 'private', 'friends', 'public'
     /// - private: Only the owner can see (unless shared via a collection)

@@ -101,6 +101,13 @@ public class UpdateUserRecipeDto
     public string? PersonalNotes { get; set; }
     public string? Visibility { get; set; }
 
+    // Metadata fields (editable for non-HelloFresh, non-published recipes)
+    public int? PrepTimeMinutes { get; set; }
+    public int? CookTimeMinutes { get; set; }
+    public int? Servings { get; set; }
+    public string? Difficulty { get; set; }
+    public string? Cuisine { get; set; }
+
     // Tags (personal organization)
     public List<Guid>? TagIds { get; set; }
 

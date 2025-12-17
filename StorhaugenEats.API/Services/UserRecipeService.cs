@@ -106,6 +106,12 @@ public class UserRecipeService : IUserRecipeService
             LocalImageUrls = dto.ImageUrls != null ? JsonSerializer.Serialize(dto.ImageUrls) : "[]",
             PersonalNotes = dto.PersonalNotes,
             Visibility = dto.Visibility ?? "private",
+            // Local metadata fields
+            LocalPrepTimeMinutes = dto.PrepTimeMinutes,
+            LocalCookTimeMinutes = dto.CookTimeMinutes,
+            LocalServings = dto.Servings,
+            LocalDifficulty = dto.Difficulty,
+            LocalCuisine = dto.Cuisine,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -183,12 +189,38 @@ public class UserRecipeService : IUserRecipeService
             .FirstOrDefaultAsync(r => r.Id == recipeId && r.UserId == userId)
             ?? throw new InvalidOperationException("Recipe not found or you don't have permission to edit it");
 
+        // Check if recipe is published - published recipes cannot be edited (only deleted)
+        bool isPublished = recipe.GlobalRecipe?.PublishedFromUserRecipeId == recipe.Id;
+        if (isPublished)
+        {
+            // Only allow personal notes and visibility changes on published recipes
+            if (dto.PersonalNotes != null) recipe.PersonalNotes = dto.PersonalNotes;
+            if (dto.Visibility != null) recipe.Visibility = dto.Visibility;
+            recipe.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+            return MapToDto(recipe, userId);
+        }
+
+        // Check if recipe is HelloFresh - HelloFresh recipes have restrictions
+        bool isHelloFresh = recipe.GlobalRecipe?.IsHellofresh ?? false;
+
+        // Basic fields - always editable for non-published recipes
         if (dto.Name != null) recipe.LocalTitle = dto.Name;
         if (dto.Description != null) recipe.LocalDescription = dto.Description;
         if (dto.Ingredients != null) recipe.LocalIngredients = JsonSerializer.Serialize(dto.Ingredients);
         if (dto.ImageUrls != null) recipe.LocalImageUrls = JsonSerializer.Serialize(dto.ImageUrls);
         if (dto.PersonalNotes != null) recipe.PersonalNotes = dto.PersonalNotes;
         if (dto.Visibility != null) recipe.Visibility = dto.Visibility;
+
+        // Metadata fields - only editable for non-HelloFresh recipes
+        if (!isHelloFresh)
+        {
+            if (dto.PrepTimeMinutes.HasValue) recipe.LocalPrepTimeMinutes = dto.PrepTimeMinutes;
+            if (dto.CookTimeMinutes.HasValue) recipe.LocalCookTimeMinutes = dto.CookTimeMinutes;
+            if (dto.Servings.HasValue) recipe.LocalServings = dto.Servings;
+            if (dto.Difficulty != null) recipe.LocalDifficulty = dto.Difficulty;
+            if (dto.Cuisine != null) recipe.LocalCuisine = dto.Cuisine;
+        }
 
         recipe.UpdatedAt = DateTime.UtcNow;
 
@@ -543,12 +575,12 @@ public class UserRecipeService : IUserRecipeService
                     ? JsonSerializer.Deserialize<object>(recipe.GlobalRecipe.Ingredients)
                     : null),
 
-            // HelloFresh metadata from GlobalRecipe
-            PrepTimeMinutes = recipe.GlobalRecipe?.PrepTimeMinutes,
-            CookTimeMinutes = recipe.GlobalRecipe?.CookTimeMinutes,
-            Servings = recipe.GlobalRecipe?.Servings,
-            Difficulty = recipe.GlobalRecipe?.Difficulty,
-            Cuisine = recipe.GlobalRecipe?.Cuisine,
+            // Metadata - use local values if available, otherwise fall back to GlobalRecipe
+            PrepTimeMinutes = recipe.LocalPrepTimeMinutes ?? recipe.GlobalRecipe?.PrepTimeMinutes,
+            CookTimeMinutes = recipe.LocalCookTimeMinutes ?? recipe.GlobalRecipe?.CookTimeMinutes,
+            Servings = recipe.LocalServings ?? recipe.GlobalRecipe?.Servings,
+            Difficulty = recipe.LocalDifficulty ?? recipe.GlobalRecipe?.Difficulty,
+            Cuisine = recipe.LocalCuisine ?? recipe.GlobalRecipe?.Cuisine,
             RecipeTags = recipeTags,
             NutritionData = nutritionData,
             IsHellofresh = recipe.GlobalRecipe?.IsHellofresh ?? false,

@@ -1,0 +1,353 @@
+@using MudBlazor
+@using Microsoft.AspNetCore.Components.Forms
+@using StorhaugenWebsite.Shared.DTOs
+@using StorhaugenWebsite.Services
+@using StorhaugenWebsite.ApiClient
+@inject IUserRecipeService RecipeService
+@inject IApiClient ApiClient
+@inject ISnackbar Snackbar
+
+<MudDialog Style="max-width: 600px;">
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@Icons.Material.Rounded.Edit" Color="Color.Primary" />
+            <MudText Typo="Typo.h6">Rediger oppskrift</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (_isSaving)
+        {
+            <div class="d-flex flex-column align-center pa-4">
+                <MudProgressCircular Indeterminate="true" Size="Size.Large" Color="Color.Primary" />
+                <MudText Typo="Typo.body1" Class="mt-4">Lagrer endringer...</MudText>
+            </div>
+        }
+        else if (Recipe != null)
+        {
+            @* Show restrictions alert for HelloFresh or published recipes *@
+            @if (Recipe.IsHellofresh)
+            {
+                <MudAlert Severity="Severity.Info" Dense="true" Class="mb-4">
+                    <MudText Typo="Typo.body2">
+                        Dette er en HelloFresh-oppskrift. Du kan endre navn, beskrivelse og bilder, men metadata (tilberedningstid, porsjoner, etc.) kommer fra HelloFresh.
+                    </MudText>
+                </MudAlert>
+            }
+            @if (Recipe.IsPublished)
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-4">
+                    <MudText Typo="Typo.body2">
+                        Denne oppskriften er publisert. Du kan kun redigere notater og synlighet. For andre endringer, slett den publiserte versjonen først.
+                    </MudText>
+                </MudAlert>
+            }
+
+            <div class="d-flex flex-column gap-4">
+                @* Name *@
+                <MudTextField @bind-Value="_name"
+                              Label="Navn"
+                              Variant="Variant.Outlined"
+                              Disabled="@Recipe.IsPublished"
+                              Style="--mud-default-borderradius: 12px;" />
+
+                @* Description *@
+                <MudTextField @bind-Value="_description"
+                              Label="Beskrivelse"
+                              Variant="Variant.Outlined"
+                              Lines="4"
+                              Disabled="@Recipe.IsPublished"
+                              Style="--mud-default-borderradius: 12px;" />
+
+                @* Images section *@
+                @if (!Recipe.IsPublished)
+                {
+                    <div class="form-section-inline">
+                        <MudText Typo="Typo.subtitle2" Class="mb-2">Bilder</MudText>
+                        @if (_imageUrls.Any())
+                        {
+                            <div class="image-preview-grid mb-2">
+                                @for (int i = 0; i < _imageUrls.Count; i++)
+                                {
+                                    var index = i;
+                                    <div class="image-preview-item">
+                                        <img src="@_imageUrls[index]" />
+                                        <button class="image-preview-remove" @onclick="@(() => RemoveImage(index))">
+                                            <MudIcon Icon="@Icons.Material.Rounded.Close" Size="Size.Small" />
+                                        </button>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        <MudFileUpload T="IReadOnlyList<IBrowserFile>" FilesChanged="OnImagesSelected" Accept="image/*" MaximumFileCount="5">
+                            <ActivatorContent>
+                                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.AddPhotoAlternate" Size="Size.Small" Style="border-radius: 8px;">
+                                    Legg til bilde
+                                </MudButton>
+                            </ActivatorContent>
+                        </MudFileUpload>
+                    </div>
+                }
+
+                @* Metadata section - only for non-HelloFresh, non-published recipes *@
+                @if (!Recipe.IsHellofresh && !Recipe.IsPublished)
+                {
+                    <MudExpansionPanels Elevation="0">
+                        <MudExpansionPanel Text="Tilleggsinfo" Style="background: var(--mud-palette-background); border-radius: 12px;">
+                            <div class="d-flex flex-wrap gap-3">
+                                <MudNumericField T="int?" @bind-Value="_prepTimeMinutes"
+                                                 Label="Tilberedningstid (min)"
+                                                 Variant="Variant.Outlined"
+                                                 Min="1" Max="300"
+                                                 Style="flex: 1; min-width: 140px; --mud-default-borderradius: 10px;"
+                                                 Adornment="Adornment.Start"
+                                                 AdornmentIcon="@Icons.Material.Rounded.AccessTime" />
+
+                                <MudNumericField T="int?" @bind-Value="_cookTimeMinutes"
+                                                 Label="Steketid (min)"
+                                                 Variant="Variant.Outlined"
+                                                 Min="1" Max="300"
+                                                 Style="flex: 1; min-width: 140px; --mud-default-borderradius: 10px;"
+                                                 Adornment="Adornment.Start"
+                                                 AdornmentIcon="@Icons.Material.Rounded.LocalFireDepartment" />
+                            </div>
+
+                            <div class="d-flex flex-wrap gap-3 mt-3">
+                                <MudNumericField T="int?" @bind-Value="_servings"
+                                                 Label="Porsjoner"
+                                                 Variant="Variant.Outlined"
+                                                 Min="1" Max="20"
+                                                 Style="flex: 1; min-width: 100px; --mud-default-borderradius: 10px;"
+                                                 Adornment="Adornment.Start"
+                                                 AdornmentIcon="@Icons.Material.Rounded.People" />
+
+                                <MudSelect T="string" @bind-Value="_difficulty"
+                                           Label="Vanskelighetsgrad"
+                                           Variant="Variant.Outlined"
+                                           Style="flex: 1; min-width: 140px; --mud-default-borderradius: 10px;"
+                                           AnchorOrigin="Origin.BottomCenter">
+                                    <MudSelectItem Value="@((string?)null)">Ikke valgt</MudSelectItem>
+                                    <MudSelectItem Value="@("easy")">Lett</MudSelectItem>
+                                    <MudSelectItem Value="@("medium")">Middels</MudSelectItem>
+                                    <MudSelectItem Value="@("hard")">Vanskelig</MudSelectItem>
+                                </MudSelect>
+                            </div>
+
+                            <MudTextField @bind-Value="_cuisine"
+                                          Label="Kjøkken / Type"
+                                          Variant="Variant.Outlined"
+                                          Placeholder="f.eks. Italiensk, Asiatisk..."
+                                          Class="mt-3"
+                                          Style="--mud-default-borderradius: 10px;" />
+                        </MudExpansionPanel>
+                    </MudExpansionPanels>
+                }
+
+                @* Visibility - always editable *@
+                <MudSelect T="string" @bind-Value="_visibility"
+                           Label="Synlighet"
+                           Variant="Variant.Outlined"
+                           Style="--mud-default-borderradius: 12px;"
+                           AnchorOrigin="Origin.BottomCenter">
+                    <MudSelectItem Value="@("private")">Privat (Kun deg)</MudSelectItem>
+                    <MudSelectItem Value="@("friends")">Venner</MudSelectItem>
+                    <MudSelectItem Value="@("public")">Offentlig</MudSelectItem>
+                </MudSelect>
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        @if (!_isSaving)
+        {
+            <MudButton OnClick="Cancel" Color="Color.Default">Avbryt</MudButton>
+            <MudButton OnClick="Save" Color="Color.Primary" Variant="Variant.Filled">
+                Lagre
+            </MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+<style>
+    .form-section-inline {
+        background: var(--mud-palette-background-grey);
+        border-radius: 12px;
+        padding: 12px;
+    }
+
+    .image-preview-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+        gap: 8px;
+    }
+
+    .image-preview-item {
+        position: relative;
+        aspect-ratio: 1;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .image-preview-item img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .image-preview-remove {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        background: rgba(0, 0, 0, 0.6);
+        border: none;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        color: white;
+    }
+
+    .image-preview-remove:hover {
+        background: rgba(0, 0, 0, 0.8);
+    }
+</style>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter]
+    public UserRecipeDto? Recipe { get; set; }
+
+    private bool _isSaving = false;
+
+    // Form fields
+    private string? _name;
+    private string? _description;
+    private List<string> _imageUrls = new();
+    private List<byte[]> _newImageData = new();
+    private List<string> _newImageNames = new();
+    private int? _prepTimeMinutes;
+    private int? _cookTimeMinutes;
+    private int? _servings;
+    private string? _difficulty;
+    private string? _cuisine;
+    private string _visibility = "private";
+
+    protected override void OnInitialized()
+    {
+        if (Recipe != null)
+        {
+            _name = Recipe.Name;
+            _description = Recipe.Description;
+            _imageUrls = new List<string>(Recipe.ImageUrls);
+            _prepTimeMinutes = Recipe.PrepTimeMinutes;
+            _cookTimeMinutes = Recipe.CookTimeMinutes;
+            _servings = Recipe.Servings;
+            _difficulty = Recipe.Difficulty;
+            _cuisine = Recipe.Cuisine;
+            _visibility = Recipe.Visibility;
+        }
+    }
+
+    private void RemoveImage(int index)
+    {
+        if (index >= 0 && index < _imageUrls.Count)
+        {
+            _imageUrls.RemoveAt(index);
+        }
+    }
+
+    private async Task OnImagesSelected(IReadOnlyList<IBrowserFile> files)
+    {
+        foreach (var file in files)
+        {
+            if (_imageUrls.Count + _newImageData.Count >= 5) break;
+
+            try
+            {
+                var fileToRead = await file.RequestImageFileAsync("image/jpeg", 1200, 1200);
+                using var stream = fileToRead.OpenReadStream(30 * 1024 * 1024);
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+                var buffer = ms.ToArray();
+
+                // Add preview URL
+                _imageUrls.Add($"data:image/jpeg;base64,{Convert.ToBase64String(buffer)}");
+                _newImageData.Add(buffer);
+                _newImageNames.Add(file.Name);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Kunne ikke laste bilde: {ex.Message}", Severity.Error);
+            }
+        }
+        StateHasChanged();
+    }
+
+    private async Task Save()
+    {
+        if (Recipe == null) return;
+
+        _isSaving = true;
+        StateHasChanged();
+
+        try
+        {
+            // Upload new images first
+            var finalImageUrls = new List<string>();
+
+            foreach (var url in _imageUrls)
+            {
+                // Keep existing URLs, upload new ones
+                if (url.StartsWith("data:"))
+                {
+                    var index = _imageUrls.IndexOf(url) - (_imageUrls.Count - _newImageData.Count);
+                    if (index >= 0 && index < _newImageData.Count)
+                    {
+                        var uploadResult = await ApiClient.UploadImageAsync(_newImageData[index], _newImageNames[index]);
+                        finalImageUrls.Add(uploadResult.Url);
+                    }
+                }
+                else
+                {
+                    finalImageUrls.Add(url);
+                }
+            }
+
+            var dto = new UpdateUserRecipeDto
+            {
+                Name = _name,
+                Description = _description,
+                ImageUrls = finalImageUrls,
+                Visibility = _visibility
+            };
+
+            // Add metadata only for non-HelloFresh, non-published recipes
+            if (!Recipe.IsHellofresh && !Recipe.IsPublished)
+            {
+                dto.PrepTimeMinutes = _prepTimeMinutes;
+                dto.CookTimeMinutes = _cookTimeMinutes;
+                dto.Servings = _servings;
+                dto.Difficulty = _difficulty;
+                dto.Cuisine = _cuisine;
+            }
+
+            var updatedRecipe = await RecipeService.UpdateRecipeAsync(Recipe.Id, dto);
+            Snackbar.Add("Oppskriften ble oppdatert!", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(updatedRecipe));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Kunne ikke lagre: {ex.Message}", Severity.Error);
+            _isSaving = false;
+            StateHasChanged();
+        }
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+}
