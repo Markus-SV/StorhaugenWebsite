@@ -11,6 +11,7 @@ public interface IApiClient
     // Collections
     Task<List<CollectionDto>> GetMyCollectionsAsync();
     Task<CollectionDto?> GetCollectionAsync(Guid id);
+    Task<CollectionDto?> GetCollectionByShareCodeAsync(string shareCode);
     Task<CollectionDto> CreateCollectionAsync(CreateCollectionDto dto);
     Task<CollectionDto> UpdateCollectionAsync(Guid id, UpdateCollectionDto dto);
     Task DeleteCollectionAsync(Guid id);

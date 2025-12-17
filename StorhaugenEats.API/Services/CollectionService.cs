@@ -53,16 +53,56 @@ public class CollectionService : ICollectionService
         return MapToDto(collection, userId);
     }
 
+    public async Task<CollectionDto?> GetCollectionByShareCodeAsync(string shareCode, Guid? userId)
+    {
+        if (string.IsNullOrWhiteSpace(shareCode))
+            return null;
+
+        var collection = await _context.Collections
+            .Include(c => c.Owner)
+            .Include(c => c.Members)
+                .ThenInclude(m => m.User)
+            .Include(c => c.UserRecipeCollections)
+            .FirstOrDefaultAsync(c => c.ShareCode == shareCode.ToUpper());
+
+        if (collection == null)
+            return null;
+
+        // Check visibility rules
+        if (collection.Visibility == "private")
+            return null; // Private collections cannot be accessed via share code
+
+        if (collection.Visibility == "friends" && userId.HasValue)
+        {
+            // Check if the requesting user is a friend of the owner
+            var areFriends = await _context.UserFriendships
+                .AnyAsync(f =>
+                    f.Status == "accepted" &&
+                    ((f.RequesterUserId == collection.OwnerId && f.TargetUserId == userId.Value) ||
+                     (f.TargetUserId == collection.OwnerId && f.RequesterUserId == userId.Value)));
+
+            if (!areFriends && collection.OwnerId != userId.Value && !collection.Members.Any(m => m.UserId == userId.Value))
+                return null;
+        }
+
+        return MapToDto(collection, userId ?? Guid.Empty);
+    }
+
     public async Task<CollectionDto> CreateCollectionAsync(Guid userId, CreateCollectionDto dto)
     {
         if (string.IsNullOrWhiteSpace(dto.Name))
             throw new InvalidOperationException("Collection name is required");
+
+        var visibility = ValidateVisibility(dto.Visibility);
 
         var collection = new Collection
         {
             Id = Guid.NewGuid(),
             OwnerId = userId,
             Name = dto.Name.Trim(),
+            Description = dto.Description?.Trim(),
+            Visibility = visibility,
+            ShareCode = visibility != "private" ? GenerateShareCode() : null,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -97,6 +137,28 @@ public class CollectionService : ICollectionService
 
         if (!string.IsNullOrWhiteSpace(dto.Name))
             collection.Name = dto.Name.Trim();
+
+        if (dto.Description != null)
+            collection.Description = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim();
+
+        if (!string.IsNullOrWhiteSpace(dto.Visibility))
+        {
+            var newVisibility = ValidateVisibility(dto.Visibility);
+            var wasPrivate = collection.Visibility == "private";
+            var isNowPrivate = newVisibility == "private";
+
+            collection.Visibility = newVisibility;
+
+            // Generate share code when becoming non-private, clear when becoming private
+            if (wasPrivate && !isNowPrivate && string.IsNullOrEmpty(collection.ShareCode))
+            {
+                collection.ShareCode = GenerateShareCode();
+            }
+            else if (isNowPrivate)
+            {
+                collection.ShareCode = null;
+            }
+        }
 
         collection.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
@@ -386,6 +448,9 @@ public class CollectionService : ICollectionService
         {
             Id = collection.Id,
             Name = collection.Name,
+            Description = collection.Description,
+            Visibility = collection.Visibility,
+            ShareCode = collection.ShareCode,
             OwnerId = collection.OwnerId,
             OwnerDisplayName = collection.Owner?.DisplayName ?? "Unknown",
             OwnerAvatarUrl = collection.Owner?.AvatarUrl,
@@ -404,6 +469,20 @@ public class CollectionService : ICollectionService
                 CreatedAt = m.CreatedAt
             }).ToList() ?? new List<CollectionMemberDto>()
         };
+    }
+
+    private static string ValidateVisibility(string visibility)
+    {
+        var valid = new[] { "private", "friends", "public" };
+        var normalized = visibility?.ToLower() ?? "private";
+        return valid.Contains(normalized) ? normalized : "private";
+    }
+
+    private static string GenerateShareCode()
+    {
+        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Avoid ambiguous chars like O/0, I/1
+        var random = new Random();
+        return new string(Enumerable.Range(0, 8).Select(_ => chars[random.Next(chars.Length)]).ToArray());
     }
 
     private UserRecipeDto MapUserRecipeToDto(UserRecipe recipe, Guid userId)

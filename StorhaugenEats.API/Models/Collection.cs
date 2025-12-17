@@ -20,6 +20,27 @@ public class Collection
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
+    /// Optional description of the collection.
+    /// </summary>
+    [Column("description")]
+    [MaxLength(1000)]
+    public string? Description { get; set; }
+
+    /// <summary>
+    /// Visibility of the collection: "private" (members only), "friends" (owner's friends), "public" (anyone)
+    /// </summary>
+    [Column("visibility")]
+    [MaxLength(20)]
+    public string Visibility { get; set; } = "private";
+
+    /// <summary>
+    /// Unique share code for public/friends collections (generated when visibility is changed)
+    /// </summary>
+    [Column("share_code")]
+    [MaxLength(12)]
+    public string? ShareCode { get; set; }
+
+    /// <summary>
     /// The user who owns this collection.
     /// </summary>
     [Required]

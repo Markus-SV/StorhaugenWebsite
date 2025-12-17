@@ -52,6 +52,31 @@ public class CollectionsController : ControllerBase
     }
 
     /// <summary>
+    /// Get a collection by its share code (for public/friends collections).
+    /// </summary>
+    [HttpGet("shared/{shareCode}")]
+    [AllowAnonymous]
+    public async Task<ActionResult<CollectionDto>> GetCollectionByShareCode(string shareCode)
+    {
+        Guid? userId = null;
+        try
+        {
+            userId = await _currentUserService.GetOrCreateUserIdAsync();
+        }
+        catch
+        {
+            // Anonymous access is allowed for public collections
+        }
+
+        var collection = await _collectionService.GetCollectionByShareCodeAsync(shareCode, userId);
+
+        if (collection == null)
+            return NotFound(new { message = "Collection not found or you don't have access" });
+
+        return Ok(collection);
+    }
+
+    /// <summary>
     /// Create a new collection.
     /// </summary>
     [HttpPost]

@@ -181,7 +181,7 @@ else
 
                         @* 2. Other Member Ratings *@
                         @{
-                            var otherRatings = (recipe.HouseholdRatings ?? new Dictionary<string, int?>())
+                            var otherRatings = (recipe.MemberRatings ?? new Dictionary<string, int?>())
                                 .Where(r => r.Value.HasValue && !string.Equals(r.Key, AuthService.CurrentUserName, StringComparison.OrdinalIgnoreCase))
                                 .DistinctBy(r => r.Key)
                                 .Take(4);
@@ -262,7 +262,17 @@ else
         };
     }
 
-    private async Task LoadTags() { try { _tags = await ApiClient.GetMyTagsAsync(); } catch { } }
+    private async Task LoadTags()
+    {
+        try
+        {
+            _tags = await ApiClient.GetMyTagsAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading tags: {ex.Message}");
+        }
+    }
 
     private async Task ToggleTagFilter(Guid tagId)
     {

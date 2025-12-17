@@ -507,7 +507,7 @@ public class UserRecipeService : IUserRecipeService
 
         var myRating = recipe.Ratings?.FirstOrDefault(r => r.UserId == requestingUserId);
 
-        var householdRatings = recipe.Ratings?
+        var memberRatings = recipe.Ratings?
             .Where(r => r.User != null)
             .ToDictionary(r => r.User!.DisplayName, r => (int?)r.Score)
             ?? new Dictionary<string, int?>();
@@ -565,7 +565,7 @@ public class UserRecipeService : IUserRecipeService
             MyRating = myRating?.Score,
             AverageRating = recipe.Ratings?.Any() == true ? recipe.Ratings.Average(r => r.Score) : 0,
             RatingCount = recipe.Ratings?.Count ?? 0,
-            HouseholdRatings = householdRatings
+            MemberRatings = memberRatings
         };
     }
 }

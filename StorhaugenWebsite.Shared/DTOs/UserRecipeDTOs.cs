@@ -48,7 +48,7 @@ public class UserRecipeDto
     public int? MyRating { get; set; }
     public double AverageRating { get; set; }
     public int RatingCount { get; set; }
-    public Dictionary<string, int?> HouseholdRatings { get; set; } = new();
+    public Dictionary<string, int?> MemberRatings { get; set; } = new();
 
     // Tags (personal organization)
     public List<TagReferenceDto> Tags { get; set; } = new();

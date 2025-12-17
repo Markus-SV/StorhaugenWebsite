@@ -1,0 +1,648 @@
+@page "/collections/{Id:guid}"
+@using Microsoft.AspNetCore.Authorization
+@using StorhaugenWebsite.ApiClient
+@using StorhaugenWebsite.Shared.DTOs
+@using StorhaugenWebsite.Services
+@inject IApiClient ApiClient
+@inject ICollectionStateService CollectionState
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject IJSRuntime JSRuntime
+@attribute [Authorize]
+
+<div class="detail-header">
+    <button class="detail-back-btn" @onclick="@(() => Navigation.NavigateTo("/collections"))">
+        <MudIcon Icon="@Icons.Material.Rounded.ArrowBack" Size="Size.Small" />
+        Tilbake
+    </button>
+</div>
+
+@if (_isLoading)
+{
+    <div class="d-flex justify-center mt-8">
+        <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+    </div>
+}
+else if (_collection == null)
+{
+    <div class="empty-state pa-8 text-center">
+        <MudIcon Icon="@Icons.Material.Rounded.SearchOff" Size="Size.Large" Color="Color.Default" />
+        <MudText Typo="Typo.h6" Class="mt-3">Fant ikke samlingen</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/collections">
+            Tilbake til samlinger
+        </MudButton>
+    </div>
+}
+else
+{
+    @* Header *@
+    <div class="collection-header mb-4">
+        <div class="d-flex align-center gap-3 mb-2">
+            <div class="collection-icon-large">
+                <MudIcon Icon="@GetVisibilityIcon(_collection.Visibility)" Size="Size.Large" />
+            </div>
+            <div class="flex-grow-1">
+                <div class="d-flex align-center gap-2">
+                    <h1 class="page-title" style="margin: 0;">@_collection.Name</h1>
+                    @if (_collection.IsOwner)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Rounded.Edit"
+                                       Size="Size.Small"
+                                       OnClick="ShowEditDialog" />
+                    }
+                </div>
+                @if (!string.IsNullOrEmpty(_collection.Description))
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">@_collection.Description</MudText>
+                }
+            </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 mt-3">
+            <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Rounded.Restaurant">
+                @_collection.RecipeCount oppskrifter
+            </MudChip>
+            <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Rounded.People">
+                @_collection.MemberCount medlemmer
+            </MudChip>
+            <MudChip T="string" Size="Size.Small" Color="@GetVisibilityColor(_collection.Visibility)" Icon="@GetVisibilityIcon(_collection.Visibility)">
+                @GetVisibilityText(_collection.Visibility)
+            </MudChip>
+        </div>
+    </div>
+
+    @* Share Section (for non-private collections) *@
+    @if (_collection.IsOwner && _collection.Visibility != "private" && !string.IsNullOrEmpty(_collection.ShareCode))
+    {
+        <div class="form-section">
+            <p class="form-section-title">Del samlingen</p>
+            <div class="share-link-box">
+                <div class="d-flex align-center justify-space-between">
+                    <div>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Delekode</MudText>
+                        <MudText Typo="Typo.h6" Style="font-family: monospace; letter-spacing: 2px;">
+                            @_collection.ShareCode
+                        </MudText>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <MudIconButton Icon="@Icons.Material.Rounded.ContentCopy"
+                                       Color="Color.Primary"
+                                       OnClick="CopyShareCode"
+                                       Title="Kopier kode" />
+                        <MudIconButton Icon="@Icons.Material.Rounded.Share"
+                                       Color="Color.Primary"
+                                       OnClick="CopyShareLink"
+                                       Title="Kopier lenke" />
+                    </div>
+                </div>
+            </div>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+                @if (_collection.Visibility == "public")
+                {
+                    <span>Alle med denne lenken kan se samlingen</span>
+                }
+                else
+                {
+                    <span>Kun dine venner kan se samlingen med denne lenken</span>
+                }
+            </MudText>
+        </div>
+    }
+
+    @* Visibility Settings (owner only) *@
+    @if (_collection.IsOwner)
+    {
+        <div class="form-section">
+            <p class="form-section-title">Innstillinger</p>
+            <MudSelect T="string"
+                       Value="@_collection.Visibility"
+                       ValueChanged="UpdateVisibility"
+                       Label="Synlighet"
+                       Variant="Variant.Outlined"
+                       Class="mb-3">
+                <MudSelectItem Value="@("private")">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Rounded.Lock" Size="Size.Small" />
+                        <div>
+                            <div>Privat</div>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Kun medlemmer kan se</MudText>
+                        </div>
+                    </div>
+                </MudSelectItem>
+                <MudSelectItem Value="@("friends")">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Small" />
+                        <div>
+                            <div>Venner</div>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Dine venner kan se</MudText>
+                        </div>
+                    </div>
+                </MudSelectItem>
+                <MudSelectItem Value="@("public")">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Rounded.Public" Size="Size.Small" />
+                        <div>
+                            <div>Offentlig</div>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Alle kan se</MudText>
+                        </div>
+                    </div>
+                </MudSelectItem>
+            </MudSelect>
+        </div>
+    }
+
+    @* Members Section *@
+    <div class="form-section">
+        <div class="d-flex justify-space-between align-center mb-3">
+            <p class="form-section-title" style="margin: 0;">Medlemmer (@_collection.MemberCount)</p>
+            @if (_collection.IsOwner)
+            {
+                <MudButton Variant="Variant.Text"
+                           Color="Color.Primary"
+                           Size="Size.Small"
+                           StartIcon="@Icons.Material.Rounded.PersonAdd"
+                           OnClick="ShowInviteDialog">
+                    Inviter
+                </MudButton>
+            }
+        </div>
+
+        <div class="d-flex flex-column gap-2">
+            @foreach (var member in _collection.Members.OrderByDescending(m => m.IsOwner))
+            {
+                <div class="member-row">
+                    <MudAvatar Size="Size.Medium" Style="@($"background: {GetMemberColor(member.DisplayName)}")">
+                        @(string.IsNullOrEmpty(member.DisplayName) ? '?' : member.DisplayName[0])
+                    </MudAvatar>
+                    <div class="flex-grow-1">
+                        <MudText Typo="Typo.body1" Style="font-weight: 500;">@member.DisplayName</MudText>
+                        @if (member.IsOwner)
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Primary">Eier</MudText>
+                        }
+                    </div>
+                    @if (_collection.IsOwner && !member.IsOwner)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Rounded.PersonRemove"
+                                       Size="Size.Small"
+                                       Color="Color.Error"
+                                       OnClick="() => RemoveMember(member)" />
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    @* Recipes Section *@
+    <div class="form-section">
+        <div class="d-flex justify-space-between align-center mb-3">
+            <p class="form-section-title" style="margin: 0;">Oppskrifter (@_recipes.Count)</p>
+        </div>
+
+        @if (!_recipes.Any())
+        {
+            <div class="text-center pa-4">
+                <MudIcon Icon="@Icons.Material.Rounded.MenuBook" Size="Size.Large" Color="Color.Default" Style="opacity: 0.5;" />
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">
+                    Ingen oppskrifter i denne samlingen enda
+                </MudText>
+            </div>
+        }
+        else
+        {
+            <div class="d-flex flex-column gap-2">
+                @foreach (var recipe in _recipes.Take(10))
+                {
+                    <div class="recipe-row" @onclick="() => OpenRecipe(recipe.Id)">
+                        @if (recipe.ImageUrls.Any())
+                        {
+                            <img src="@recipe.ImageUrls.First()" class="recipe-thumbnail" />
+                        }
+                        else
+                        {
+                            <div class="recipe-thumbnail-placeholder">
+                                <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small" />
+                            </div>
+                        }
+                        <div class="flex-grow-1" style="min-width: 0;">
+                            <MudText Typo="Typo.body1" Class="text-truncate" Style="font-weight: 500;">@recipe.Name</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@recipe.UserDisplayName</MudText>
+                        </div>
+                        @if (recipe.AverageRating > 0)
+                        {
+                            <div class="d-flex align-center gap-1">
+                                <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" Color="Color.Warning" />
+                                <MudText Typo="Typo.body2">@recipe.AverageRating.ToString("0.0")</MudText>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            @if (_recipes.Count > 10)
+            {
+                <MudButton Variant="Variant.Text" Color="Color.Primary" FullWidth="true" Class="mt-2">
+                    Vis alle @_recipes.Count oppskrifter
+                </MudButton>
+            }
+        }
+    </div>
+
+    @* Danger Zone (owner only) *@
+    @if (_collection.IsOwner)
+    {
+        <div class="form-section">
+            <p class="form-section-title" style="color: var(--mud-palette-error);">Faresone</p>
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Error"
+                       FullWidth="true"
+                       StartIcon="@Icons.Material.Rounded.Delete"
+                       OnClick="ConfirmDelete">
+                Slett samling
+            </MudButton>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+                Oppskriftene slettes ikke, de fjernes bare fra samlingen
+            </MudText>
+        </div>
+    }
+    else
+    {
+        <div class="form-section">
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Warning"
+                       FullWidth="true"
+                       StartIcon="@Icons.Material.Rounded.ExitToApp"
+                       OnClick="LeaveCollection">
+                Forlat samling
+            </MudButton>
+        </div>
+    }
+}
+
+@* Edit Dialog *@
+<MudDialog @bind-Visible="_showEditDialog" Options="@(new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Rediger samling</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_editName"
+                      Label="Navn"
+                      Variant="Variant.Outlined"
+                      Class="mb-3" />
+        <MudTextField @bind-Value="_editDescription"
+                      Label="Beskrivelse"
+                      Variant="Variant.Outlined"
+                      Lines="2" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => _showEditDialog = false">Avbryt</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveEdit">Lagre</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* Invite Dialog *@
+<MudDialog @bind-Visible="_showInviteDialog" Options="@(new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Inviter medlem</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_inviteIdentifier"
+                      Label="E-post eller Dele-ID"
+                      Variant="Variant.Outlined"
+                      Placeholder="navn@eksempel.no eller ABC123"
+                      HelperText="Skriv inn personens e-post eller deres unike Dele-ID" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => _showInviteDialog = false">Avbryt</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="InviteMember" Disabled="@(string.IsNullOrWhiteSpace(_inviteIdentifier))">
+            Inviter
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+<style>
+    .collection-header {
+        background: var(--mud-palette-surface);
+        border-radius: 16px;
+        padding: 20px;
+        border: 1px solid var(--mud-palette-lines-default);
+    }
+
+    .collection-icon-large {
+        width: 64px;
+        height: 64px;
+        border-radius: 16px;
+        background: var(--mud-palette-primary);
+        color: var(--mud-palette-primary-text);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .share-link-box {
+        background: var(--mud-palette-background-grey);
+        border-radius: 12px;
+        padding: 16px;
+    }
+
+    .member-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        background: var(--mud-palette-background-grey);
+        border-radius: 12px;
+    }
+
+    .recipe-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        background: var(--mud-palette-background-grey);
+        border-radius: 12px;
+        cursor: pointer;
+        transition: background 0.15s ease;
+    }
+
+    .recipe-row:hover {
+        background: var(--mud-palette-action-default-hover);
+    }
+
+    .recipe-thumbnail {
+        width: 48px;
+        height: 48px;
+        border-radius: 8px;
+        object-fit: cover;
+    }
+
+    .recipe-thumbnail-placeholder {
+        width: 48px;
+        height: 48px;
+        border-radius: 8px;
+        background: var(--mud-palette-divider);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+</style>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private CollectionDto? _collection;
+    private List<UserRecipeDto> _recipes = new();
+    private bool _isLoading = true;
+
+    private bool _showEditDialog = false;
+    private string _editName = "";
+    private string _editDescription = "";
+
+    private bool _showInviteDialog = false;
+    private string _inviteIdentifier = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCollection();
+    }
+
+    private async Task LoadCollection()
+    {
+        _isLoading = true;
+        try
+        {
+            _collection = await ApiClient.GetCollectionAsync(Id);
+            if (_collection != null)
+            {
+                var result = await ApiClient.GetCollectionRecipesAsync(Id, new GetCollectionRecipesQuery { PageSize = 100 });
+                _recipes = result.Recipes;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading collection: {ex.Message}");
+            Snackbar.Add("Kunne ikke laste samling", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ShowEditDialog()
+    {
+        if (_collection == null) return;
+        _editName = _collection.Name;
+        _editDescription = _collection.Description ?? "";
+        _showEditDialog = true;
+    }
+
+    private async Task SaveEdit()
+    {
+        if (_collection == null) return;
+        try
+        {
+            await ApiClient.UpdateCollectionAsync(_collection.Id, new UpdateCollectionDto
+            {
+                Name = _editName,
+                Description = _editDescription
+            });
+            _showEditDialog = false;
+            Snackbar.Add("Samling oppdatert", Severity.Success);
+            await LoadCollection();
+            await CollectionState.RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating collection: {ex.Message}");
+            Snackbar.Add("Kunne ikke oppdatere samling", Severity.Error);
+        }
+    }
+
+    private async Task UpdateVisibility(string newVisibility)
+    {
+        if (_collection == null) return;
+        try
+        {
+            await ApiClient.UpdateCollectionAsync(_collection.Id, new UpdateCollectionDto
+            {
+                Visibility = newVisibility
+            });
+            Snackbar.Add($"Synlighet endret til {GetVisibilityText(newVisibility)}", Severity.Success);
+            await LoadCollection();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating visibility: {ex.Message}");
+            Snackbar.Add("Kunne ikke endre synlighet", Severity.Error);
+        }
+    }
+
+    private void ShowInviteDialog()
+    {
+        _inviteIdentifier = "";
+        _showInviteDialog = true;
+    }
+
+    private async Task InviteMember()
+    {
+        if (_collection == null || string.IsNullOrWhiteSpace(_inviteIdentifier)) return;
+        try
+        {
+            await ApiClient.AddCollectionMemberAsync(_collection.Id, new AddCollectionMemberDto
+            {
+                UserIdentifier = _inviteIdentifier.Trim()
+            });
+            _showInviteDialog = false;
+            Snackbar.Add("Medlem lagt til!", Severity.Success);
+            await LoadCollection();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error inviting member: {ex.Message}");
+            Snackbar.Add("Kunne ikke legge til medlem. Sjekk at ID/e-post er riktig.", Severity.Error);
+        }
+    }
+
+    private async Task RemoveMember(CollectionMemberDto member)
+    {
+        if (_collection == null) return;
+        var confirm = await DialogService.ShowMessageBox(
+            "Fjern medlem",
+            $"Er du sikker pa at du vil fjerne {member.DisplayName} fra samlingen?",
+            yesText: "Fjern",
+            cancelText: "Avbryt");
+
+        if (confirm == true)
+        {
+            try
+            {
+                await ApiClient.RemoveCollectionMemberAsync(_collection.Id, member.UserId);
+                Snackbar.Add("Medlem fjernet", Severity.Success);
+                await LoadCollection();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error removing member: {ex.Message}");
+                Snackbar.Add("Kunne ikke fjerne medlem", Severity.Error);
+            }
+        }
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (_collection == null) return;
+        var confirm = await DialogService.ShowMessageBox(
+            "Slett samling",
+            $"Er du sikker pa at du vil slette '{_collection.Name}'? Oppskriftene slettes ikke.",
+            yesText: "Slett",
+            cancelText: "Avbryt");
+
+        if (confirm == true)
+        {
+            try
+            {
+                await ApiClient.DeleteCollectionAsync(_collection.Id);
+                Snackbar.Add("Samling slettet", Severity.Success);
+                await CollectionState.RefreshAsync();
+                Navigation.NavigateTo("/collections");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error deleting collection: {ex.Message}");
+                Snackbar.Add("Kunne ikke slette samling", Severity.Error);
+            }
+        }
+    }
+
+    private async Task LeaveCollection()
+    {
+        if (_collection == null) return;
+        var confirm = await DialogService.ShowMessageBox(
+            "Forlat samling",
+            $"Er du sikker pa at du vil forlate '{_collection.Name}'?",
+            yesText: "Forlat",
+            cancelText: "Avbryt");
+
+        if (confirm == true)
+        {
+            try
+            {
+                await ApiClient.LeaveCollectionAsync(_collection.Id);
+                Snackbar.Add("Du har forlatt samlingen", Severity.Success);
+                await CollectionState.RefreshAsync();
+                Navigation.NavigateTo("/collections");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error leaving collection: {ex.Message}");
+                Snackbar.Add("Kunne ikke forlate samling", Severity.Error);
+            }
+        }
+    }
+
+    private async Task CopyShareCode()
+    {
+        if (string.IsNullOrEmpty(_collection?.ShareCode)) return;
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", _collection.ShareCode);
+            Snackbar.Add("Kode kopiert!", Severity.Success);
+        }
+        catch
+        {
+            Snackbar.Add("Kunne ikke kopiere", Severity.Error);
+        }
+    }
+
+    private async Task CopyShareLink()
+    {
+        if (string.IsNullOrEmpty(_collection?.ShareCode)) return;
+        try
+        {
+            var baseUrl = Navigation.BaseUri.TrimEnd('/');
+            var shareUrl = $"{baseUrl}/collections/shared/{_collection.ShareCode}";
+            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", shareUrl);
+            Snackbar.Add("Lenke kopiert!", Severity.Success);
+        }
+        catch
+        {
+            Snackbar.Add("Kunne ikke kopiere", Severity.Error);
+        }
+    }
+
+    private void OpenRecipe(Guid id)
+    {
+        Navigation.NavigateTo($"/food/{id}");
+    }
+
+    private string GetVisibilityIcon(string visibility) => visibility switch
+    {
+        "public" => Icons.Material.Rounded.Public,
+        "friends" => Icons.Material.Rounded.People,
+        _ => Icons.Material.Rounded.Lock
+    };
+
+    private string GetVisibilityText(string visibility) => visibility switch
+    {
+        "public" => "Offentlig",
+        "friends" => "Venner",
+        _ => "Privat"
+    };
+
+    private Color GetVisibilityColor(string visibility) => visibility switch
+    {
+        "public" => Color.Success,
+        "friends" => Color.Info,
+        _ => Color.Default
+    };
+
+    private string GetMemberColor(string name)
+    {
+        var hash = name.GetHashCode();
+        var hue = Math.Abs(hash % 360);
+        return $"hsl({hue}, 45%, 45%)";
+    }
+}

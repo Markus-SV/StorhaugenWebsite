@@ -11,6 +11,18 @@ public class CollectionDto
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+
+    /// <summary>
+    /// Visibility: "private" (members only), "friends" (owner's friends can view), "public" (anyone can view)
+    /// </summary>
+    public string Visibility { get; set; } = "private";
+
+    /// <summary>
+    /// Share code for public/friends collections. Can be used to generate share links.
+    /// </summary>
+    public string? ShareCode { get; set; }
+
     public Guid OwnerId { get; set; }
     public string OwnerDisplayName { get; set; } = string.Empty;
     public string? OwnerAvatarUrl { get; set; }
@@ -64,6 +76,8 @@ public class CollectionMemberDto
 public class CreateCollectionDto
 {
     public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string Visibility { get; set; } = "private";
 }
 
 /// <summary>
@@ -72,6 +86,8 @@ public class CreateCollectionDto
 public class UpdateCollectionDto
 {
     public string? Name { get; set; }
+    public string? Description { get; set; }
+    public string? Visibility { get; set; }
 }
 
 /// <summary>

@@ -10,6 +10,7 @@ public interface ICollectionService
     // Collection CRUD
     Task<List<CollectionDto>> GetUserCollectionsAsync(Guid userId);
     Task<CollectionDto?> GetCollectionAsync(Guid collectionId, Guid userId);
+    Task<CollectionDto?> GetCollectionByShareCodeAsync(string shareCode, Guid? userId);
     Task<CollectionDto> CreateCollectionAsync(Guid userId, CreateCollectionDto dto);
     Task<CollectionDto> UpdateCollectionAsync(Guid collectionId, Guid userId, UpdateCollectionDto dto);
     Task DeleteCollectionAsync(Guid collectionId, Guid userId);

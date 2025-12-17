@@ -494,7 +494,10 @@ else
             var user = await ApiClient.GetMyProfileAsync();
             if (user != null) _currentUserId = user.Id;
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading user profile: {ex.Message}");
+        }
         await LoadRecipe();
     }
 
@@ -698,7 +701,10 @@ else
                 }
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error parsing nutrition data: {ex.Message}");
+        }
         return items;
     }
 
@@ -741,7 +747,10 @@ else
                 }
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error parsing ingredients: {ex.Message}");
+        }
         return items;
     }
 

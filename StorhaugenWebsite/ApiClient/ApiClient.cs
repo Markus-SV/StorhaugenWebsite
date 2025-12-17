@@ -61,6 +61,19 @@ public class ApiClient : IApiClient
         return await _httpClient.GetFromJsonAsync<CollectionDto>($"/api/collections/{id}", _jsonOptions);
     }
 
+    public async Task<CollectionDto?> GetCollectionByShareCodeAsync(string shareCode)
+    {
+        await AddAuthHeaderAsync();
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<CollectionDto>($"/api/collections/shared/{shareCode}", _jsonOptions);
+        }
+        catch (HttpRequestException)
+        {
+            return null;
+        }
+    }
+
     public async Task<CollectionDto> CreateCollectionAsync(CreateCollectionDto dto)
     {
         await AddAuthHeaderAsync();

@@ -1,0 +1,227 @@
+@page "/collections"
+@using Microsoft.AspNetCore.Authorization
+@using StorhaugenWebsite.ApiClient
+@using StorhaugenWebsite.Shared.DTOs
+@using StorhaugenWebsite.Services
+@inject IApiClient ApiClient
+@inject ICollectionStateService CollectionState
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@attribute [Authorize]
+
+<div class="d-flex align-center justify-space-between mb-4">
+    <h1 class="page-title" style="margin-bottom: 0;">Samlinger</h1>
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Rounded.Add"
+               OnClick="ShowCreateDialog">
+        Ny samling
+    </MudButton>
+</div>
+
+@if (_isLoading)
+{
+    <div class="d-flex justify-center mt-8">
+        <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+    </div>
+}
+else if (!_collections.Any())
+{
+    <div class="empty-state pa-8 text-center">
+        <MudIcon Icon="@Icons.Material.Rounded.FolderOpen" Size="Size.Large" Color="Color.Default" />
+        <MudText Typo="Typo.h6" Class="mt-3">Ingen samlinger enda</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+            Opprett en samling for a dele oppskrifter med andre
+        </MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ShowCreateDialog">
+            Opprett din forste samling
+        </MudButton>
+    </div>
+}
+else
+{
+    <div class="d-flex flex-column gap-3">
+        @foreach (var collection in _collections)
+        {
+            <div class="collection-card" @onclick="() => OpenCollection(collection.Id)">
+                <div class="d-flex align-center gap-3">
+                    <div class="collection-icon">
+                        <MudIcon Icon="@GetVisibilityIcon(collection.Visibility)" Size="Size.Medium" />
+                    </div>
+                    <div class="flex-grow-1" style="min-width: 0;">
+                        <div class="d-flex align-center gap-2">
+                            <MudText Typo="Typo.subtitle1" Class="text-truncate" Style="font-weight: 600;">
+                                @collection.Name
+                            </MudText>
+                            @if (collection.IsOwner)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Text">Eier</MudChip>
+                            }
+                        </div>
+                        <div class="d-flex align-center gap-3 mt-1">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small" Style="font-size: 14px; vertical-align: middle;" />
+                                @collection.RecipeCount oppskrifter
+                            </MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Small" Style="font-size: 14px; vertical-align: middle;" />
+                                @collection.MemberCount medlemmer
+                            </MudText>
+                        </div>
+                    </div>
+                    <MudIcon Icon="@Icons.Material.Rounded.ChevronRight" Color="Color.Default" />
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@* Create Collection Dialog *@
+<MudDialog @bind-Visible="_showCreateDialog" Options="@(new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Opprett ny samling</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_newCollectionName"
+                      Label="Navn pa samlingen"
+                      Variant="Variant.Outlined"
+                      Class="mb-3"
+                      Immediate="true" />
+        <MudTextField @bind-Value="_newCollectionDescription"
+                      Label="Beskrivelse (valgfritt)"
+                      Variant="Variant.Outlined"
+                      Lines="2"
+                      Class="mb-3" />
+        <MudSelect T="string" @bind-Value="_newCollectionVisibility" Label="Synlighet" Variant="Variant.Outlined">
+            <MudSelectItem Value="@("private")">
+                <div class="d-flex align-center gap-2">
+                    <MudIcon Icon="@Icons.Material.Rounded.Lock" Size="Size.Small" />
+                    <span>Privat - Kun medlemmer</span>
+                </div>
+            </MudSelectItem>
+            <MudSelectItem Value="@("friends")">
+                <div class="d-flex align-center gap-2">
+                    <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Small" />
+                    <span>Venner - Dine venner kan se</span>
+                </div>
+            </MudSelectItem>
+            <MudSelectItem Value="@("public")">
+                <div class="d-flex align-center gap-2">
+                    <MudIcon Icon="@Icons.Material.Rounded.Public" Size="Size.Small" />
+                    <span>Offentlig - Alle kan se</span>
+                </div>
+            </MudSelectItem>
+        </MudSelect>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => _showCreateDialog = false">Avbryt</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateCollection" Disabled="@(string.IsNullOrWhiteSpace(_newCollectionName))">
+            Opprett
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+<style>
+    .collection-card {
+        background: var(--mud-palette-surface);
+        border-radius: 16px;
+        padding: 16px;
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+        border: 1px solid var(--mud-palette-lines-default);
+    }
+
+    .collection-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .collection-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        background: var(--mud-palette-primary);
+        color: var(--mud-palette-primary-text);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+</style>
+
+@code {
+    private List<CollectionDto> _collections = new();
+    private bool _isLoading = true;
+    private bool _showCreateDialog = false;
+    private string _newCollectionName = "";
+    private string _newCollectionDescription = "";
+    private string _newCollectionVisibility = "private";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCollections();
+    }
+
+    private async Task LoadCollections()
+    {
+        _isLoading = true;
+        try
+        {
+            _collections = await ApiClient.GetMyCollectionsAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading collections: {ex.Message}");
+            Snackbar.Add("Kunne ikke laste samlinger", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ShowCreateDialog()
+    {
+        _newCollectionName = "";
+        _newCollectionDescription = "";
+        _newCollectionVisibility = "private";
+        _showCreateDialog = true;
+    }
+
+    private async Task CreateCollection()
+    {
+        if (string.IsNullOrWhiteSpace(_newCollectionName)) return;
+
+        try
+        {
+            var dto = new CreateCollectionDto
+            {
+                Name = _newCollectionName,
+                Description = _newCollectionDescription,
+                Visibility = _newCollectionVisibility
+            };
+            var collection = await ApiClient.CreateCollectionAsync(dto);
+            _showCreateDialog = false;
+            Snackbar.Add("Samling opprettet!", Severity.Success);
+            await CollectionState.RefreshAsync();
+            await LoadCollections();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error creating collection: {ex.Message}");
+            Snackbar.Add("Kunne ikke opprette samling", Severity.Error);
+        }
+    }
+
+    private void OpenCollection(Guid id)
+    {
+        Navigation.NavigateTo($"/collections/{id}");
+    }
+
+    private string GetVisibilityIcon(string visibility) => visibility switch
+    {
+        "public" => Icons.Material.Rounded.Public,
+        "friends" => Icons.Material.Rounded.People,
+        _ => Icons.Material.Rounded.Lock
+    };
+}

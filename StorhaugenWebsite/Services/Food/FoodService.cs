@@ -181,7 +181,7 @@ namespace StorhaugenWebsite.Services
                 Name = recipe.Name,
                 Description = recipe.Description,
                 ImageUrls = recipe.ImageUrls,
-                Ratings = recipe.HouseholdRatings ?? new Dictionary<string, int?>(),
+                Ratings = recipe.MemberRatings ?? new Dictionary<string, int?>(),
                 DateAdded = recipe.CreatedAt,
                 AddedBy = recipe.UserDisplayName ?? "Unknown",
                 IsArchived = recipe.IsArchived,
