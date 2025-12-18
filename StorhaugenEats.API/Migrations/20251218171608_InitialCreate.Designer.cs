@@ -12,8 +12,8 @@ using StorhaugenEats.API.Data;
 namespace StorhaugenEats.API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20251218165451_AddLocalRecipeMetadata")]
-    partial class AddLocalRecipeMetadata
+    [Migration("20251218171608_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
