@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -39,20 +39,22 @@ namespace StorhaugenEats.API.Migrations
                 table: "users");
 
             migrationBuilder.DropIndex(
-                name: "IX_user_recipes_global_recipe_id",
-                table: "user_recipes");
-
-            migrationBuilder.DropIndex(
                 name: "IX_ratings_household_recipe_id",
                 table: "ratings");
 
+            // Fix: Use correct lowercase index names from AddCollections migration
             migrationBuilder.DropIndex(
-                name: "IX_collections_owner_user_id_sort_order",
+                name: "ix_collections_owner_user_id_sort_order",
                 table: "collections");
 
             migrationBuilder.DropIndex(
-                name: "IX_collections_unique_share_id",
+                name: "ix_collections_unique_share_id",
                 table: "collections");
+
+            // Make user_recipes.global_recipe_id non-unique (multiple users can save same recipe)
+            migrationBuilder.DropIndex(
+                name: "IX_user_recipes_global_recipe_id",
+                table: "user_recipes");
 
             migrationBuilder.DropColumn(
                 name: "current_household_id",
@@ -61,38 +63,6 @@ namespace StorhaugenEats.API.Migrations
             migrationBuilder.DropColumn(
                 name: "household_recipe_id",
                 table: "ratings");
-
-            migrationBuilder.AddColumn<int>(
-                name: "local_cook_time_minutes",
-                table: "user_recipes",
-                type: "integer",
-                nullable: true);
-
-            migrationBuilder.AddColumn<string>(
-                name: "local_cuisine",
-                table: "user_recipes",
-                type: "character varying(100)",
-                maxLength: 100,
-                nullable: true);
-
-            migrationBuilder.AddColumn<string>(
-                name: "local_difficulty",
-                table: "user_recipes",
-                type: "character varying(50)",
-                maxLength: 50,
-                nullable: true);
-
-            migrationBuilder.AddColumn<int>(
-                name: "local_prep_time_minutes",
-                table: "user_recipes",
-                type: "integer",
-                nullable: true);
-
-            migrationBuilder.AddColumn<int>(
-                name: "local_servings",
-                table: "user_recipes",
-                type: "integer",
-                nullable: true);
 
             migrationBuilder.AlterColumn<decimal>(
                 name: "score",
@@ -103,13 +73,6 @@ namespace StorhaugenEats.API.Migrations
                 oldType: "integer");
 
             migrationBuilder.AddColumn<string>(
-                name: "hellofresh_week",
-                table: "global_recipes",
-                type: "character varying(20)",
-                maxLength: 20,
-                nullable: true);
-
-            migrationBuilder.AddColumn<string>(
                 name: "visibility",
                 table: "collections",
                 type: "character varying(20)",
@@ -117,54 +80,7 @@ namespace StorhaugenEats.API.Migrations
                 nullable: false,
                 defaultValue: "");
 
-            migrationBuilder.CreateTable(
-                name: "recipe_tags",
-                columns: table => new
-                {
-                    id = table.Column<Guid>(type: "uuid", nullable: false),
-                    user_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    name = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
-                    color = table.Column<string>(type: "character varying(7)", maxLength: 7, nullable: true),
-                    icon = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
-                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_recipe_tags", x => x.id);
-                    table.ForeignKey(
-                        name: "FK_recipe_tags_users_user_id",
-                        column: x => x.user_id,
-                        principalTable: "users",
-                        principalColumn: "id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "user_recipe_tags",
-                columns: table => new
-                {
-                    id = table.Column<Guid>(type: "uuid", nullable: false),
-                    user_recipe_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    tag_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_user_recipe_tags", x => x.id);
-                    table.ForeignKey(
-                        name: "FK_user_recipe_tags_recipe_tags_tag_id",
-                        column: x => x.tag_id,
-                        principalTable: "recipe_tags",
-                        principalColumn: "id",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_user_recipe_tags_user_recipes_user_recipe_id",
-                        column: x => x.user_recipe_id,
-                        principalTable: "user_recipes",
-                        principalColumn: "id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
+            // Recreate indexes with correct naming
             migrationBuilder.CreateIndex(
                 name: "IX_user_recipes_global_recipe_id",
                 table: "user_recipes",
@@ -176,27 +92,41 @@ namespace StorhaugenEats.API.Migrations
                 column: "unique_share_id",
                 unique: true);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_recipe_tags_user_id",
-                table: "recipe_tags",
-                column: "user_id");
-
+            // Add unique index for recipe_tags (user_id, name)
             migrationBuilder.CreateIndex(
                 name: "IX_recipe_tags_user_id_name",
                 table: "recipe_tags",
                 columns: new[] { "user_id", "name" },
                 unique: true);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_user_recipe_tags_tag_id",
-                table: "user_recipe_tags",
-                column: "tag_id");
+            // Update foreign key naming to be consistent
+            migrationBuilder.DropForeignKey(
+                name: "fk_collection_members_collections_collection_id",
+                table: "collection_members");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_user_recipe_tags_user_recipe_id_tag_id",
-                table: "user_recipe_tags",
-                columns: new[] { "user_recipe_id", "tag_id" },
-                unique: true);
+            migrationBuilder.DropForeignKey(
+                name: "fk_collection_members_users_user_id",
+                table: "collection_members");
+
+            migrationBuilder.DropForeignKey(
+                name: "fk_collection_members_users_invited_by_user_id",
+                table: "collection_members");
+
+            migrationBuilder.DropForeignKey(
+                name: "fk_collections_users_owner_user_id",
+                table: "collections");
+
+            migrationBuilder.DropForeignKey(
+                name: "fk_user_recipe_collections_collections_collection_id",
+                table: "user_recipe_collections");
+
+            migrationBuilder.DropForeignKey(
+                name: "fk_user_recipe_collections_user_recipes_user_recipe_id",
+                table: "user_recipe_collections");
+
+            migrationBuilder.DropForeignKey(
+                name: "fk_user_recipe_collections_users_added_by_user_id",
+                table: "user_recipe_collections");
 
             migrationBuilder.AddForeignKey(
                 name: "FK_collection_members_collections_collection_id",
@@ -286,12 +216,6 @@ namespace StorhaugenEats.API.Migrations
                 name: "FK_user_recipe_collections_users_added_by_user_id",
                 table: "user_recipe_collections");
 
-            migrationBuilder.DropTable(
-                name: "user_recipe_tags");
-
-            migrationBuilder.DropTable(
-                name: "recipe_tags");
-
             migrationBuilder.DropIndex(
                 name: "IX_user_recipes_global_recipe_id",
                 table: "user_recipes");
@@ -300,29 +224,9 @@ namespace StorhaugenEats.API.Migrations
                 name: "IX_collections_unique_share_id",
                 table: "collections");
 
-            migrationBuilder.DropColumn(
-                name: "local_cook_time_minutes",
-                table: "user_recipes");
-
-            migrationBuilder.DropColumn(
-                name: "local_cuisine",
-                table: "user_recipes");
-
-            migrationBuilder.DropColumn(
-                name: "local_difficulty",
-                table: "user_recipes");
-
-            migrationBuilder.DropColumn(
-                name: "local_prep_time_minutes",
-                table: "user_recipes");
-
-            migrationBuilder.DropColumn(
-                name: "local_servings",
-                table: "user_recipes");
-
-            migrationBuilder.DropColumn(
-                name: "hellofresh_week",
-                table: "global_recipes");
+            migrationBuilder.DropIndex(
+                name: "IX_recipe_tags_user_id_name",
+                table: "recipe_tags");
 
             migrationBuilder.DropColumn(
                 name: "visibility",
@@ -539,12 +443,12 @@ namespace StorhaugenEats.API.Migrations
                 column: "household_recipe_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_collections_owner_user_id_sort_order",
+                name: "ix_collections_owner_user_id_sort_order",
                 table: "collections",
                 columns: new[] { "owner_user_id", "sort_order" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_collections_unique_share_id",
+                name: "ix_collections_unique_share_id",
                 table: "collections",
                 column: "unique_share_id",
                 unique: true,
@@ -645,6 +549,62 @@ namespace StorhaugenEats.API.Migrations
                 principalTable: "households",
                 principalColumn: "id",
                 onDelete: ReferentialAction.SetNull);
+
+            migrationBuilder.AddForeignKey(
+                name: "fk_collection_members_collections_collection_id",
+                table: "collection_members",
+                column: "collection_id",
+                principalTable: "collections",
+                principalColumn: "id",
+                onDelete: ReferentialAction.Cascade);
+
+            migrationBuilder.AddForeignKey(
+                name: "fk_collection_members_users_invited_by_user_id",
+                table: "collection_members",
+                column: "invited_by_user_id",
+                principalTable: "users",
+                principalColumn: "id",
+                onDelete: ReferentialAction.SetNull);
+
+            migrationBuilder.AddForeignKey(
+                name: "fk_collection_members_users_user_id",
+                table: "collection_members",
+                column: "user_id",
+                principalTable: "users",
+                principalColumn: "id",
+                onDelete: ReferentialAction.Cascade);
+
+            migrationBuilder.AddForeignKey(
+                name: "fk_collections_users_owner_user_id",
+                table: "collections",
+                column: "owner_user_id",
+                principalTable: "users",
+                principalColumn: "id",
+                onDelete: ReferentialAction.Cascade);
+
+            migrationBuilder.AddForeignKey(
+                name: "fk_user_recipe_collections_collections_collection_id",
+                table: "user_recipe_collections",
+                column: "collection_id",
+                principalTable: "collections",
+                principalColumn: "id",
+                onDelete: ReferentialAction.Cascade);
+
+            migrationBuilder.AddForeignKey(
+                name: "fk_user_recipe_collections_user_recipes_user_recipe_id",
+                table: "user_recipe_collections",
+                column: "user_recipe_id",
+                principalTable: "user_recipes",
+                principalColumn: "id",
+                onDelete: ReferentialAction.Cascade);
+
+            migrationBuilder.AddForeignKey(
+                name: "fk_user_recipe_collections_users_added_by_user_id",
+                table: "user_recipe_collections",
+                column: "added_by_user_id",
+                principalTable: "users",
+                principalColumn: "id",
+                onDelete: ReferentialAction.Restrict);
         }
     }
 }
