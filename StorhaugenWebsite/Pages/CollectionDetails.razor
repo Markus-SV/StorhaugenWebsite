@@ -121,6 +121,7 @@ else
                        ValueChanged="UpdateVisibility"
                        Label="Synlighet"
                        Variant="Variant.Outlined"
+                       ToStringFunc="@(v => GetVisibilityText(v))"
                        Class="mb-3">
                 <MudSelectItem Value="@("private")">
                     <div class="d-flex align-center gap-2">

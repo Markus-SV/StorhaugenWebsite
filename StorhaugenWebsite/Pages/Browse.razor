@@ -175,14 +175,14 @@ else
                         }
                     </div>
 
-                    @if (!recipe.IsHellofresh)
+                    @if (!recipe.IsHellofresh && !string.IsNullOrEmpty(recipe.CreatedByUserName))
                     {
                         <div class="d-flex align-center gap-1">
                             <MudIcon Icon="@Icons.Material.Rounded.Person" Size="Size.Small" Style="font-size: 12px; opacity: 0.6;" />
                             <MudText Typo="Typo.caption" Color="Color.Secondary" Class="text-truncate" Style="font-size: 0.75rem;">
-                                @(recipe.CreatedByUserId)
+                                @recipe.CreatedByUserName
                             </MudText>
-                        </div>                        
+                        </div>
                     }
 
                     @* Recipe metadata chips - Show for both HelloFresh and Community *@
@@ -206,13 +206,6 @@ else
                             <span class="meta-chip">
                                 <MudIcon Icon="@Icons.Material.Rounded.Group" Size="Size.Small" />
                                 @recipe.Servings
-                            </span>
-                        }
-                        @if (!recipe.IsHellofresh && !string.IsNullOrEmpty(recipe.CreatedByUserName))
-                        {
-                            <span class="meta-chip">
-                                <MudIcon Icon="@Icons.Material.Rounded.Person" Size="Size.Small" />
-                                @recipe.CreatedByUserName
                             </span>
                         }
                     </div>

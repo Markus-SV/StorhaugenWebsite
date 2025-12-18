@@ -257,6 +257,15 @@ public class ApiClient : IApiClient
         if (query.IncludeArchived)
             queryParams.Add("includeArchived=true");
 
+        if (!string.IsNullOrWhiteSpace(query.Search))
+            queryParams.Add($"search={Uri.EscapeDataString(query.Search)}");
+
+        if (query.TagIds != null && query.TagIds.Count > 0)
+        {
+            foreach (var tagId in query.TagIds)
+                queryParams.Add($"tagIds={tagId}");
+        }
+
         queryParams.Add($"sortBy={Uri.EscapeDataString(query.SortBy)}");
         queryParams.Add($"page={query.Page}");
         queryParams.Add($"pageSize={query.PageSize}");

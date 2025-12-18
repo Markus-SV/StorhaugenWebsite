@@ -93,7 +93,8 @@ else
                       Variant="Variant.Outlined"
                       Lines="2"
                       Class="mb-3" />
-        <MudSelect T="string" @bind-Value="_newCollectionVisibility" Label="Synlighet" Variant="Variant.Outlined">
+        <MudSelect T="string" @bind-Value="_newCollectionVisibility" Label="Synlighet" Variant="Variant.Outlined"
+                   ToStringFunc="@(v => GetVisibilityDisplayText(v))">
             <MudSelectItem Value="@("private")">
                 <div class="d-flex align-center gap-2">
                     <MudIcon Icon="@Icons.Material.Rounded.Lock" Size="Size.Small" />
@@ -223,5 +224,12 @@ else
         "public" => Icons.Material.Rounded.Public,
         "friends" => Icons.Material.Rounded.People,
         _ => Icons.Material.Rounded.Lock
+    };
+
+    private string GetVisibilityDisplayText(string visibility) => visibility switch
+    {
+        "public" => "Offentlig - Alle kan se",
+        "friends" => "Venner - Dine venner kan se",
+        _ => "Privat - Kun medlemmer"
     };
 }

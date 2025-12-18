@@ -9,10 +9,11 @@
 @inject IFoodService FoodService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
+@inject IJSRuntime JSRuntime
 @attribute [Authorize]
 
 <div class="detail-header">
-    <button class="detail-back-btn" @onclick="@(() => Navigation.NavigateTo("browse"))">
+    <button class="detail-back-btn" @onclick="GoBack">
         <MudIcon Icon="@Icons.Material.Rounded.ArrowBack" Size="Size.Small" />
         Tilbake
     </button>
@@ -336,6 +337,11 @@ else
     private GlobalRecipeDto? _recipe;
     private bool _isLoading = true;
     private bool _isProcessing = false;
+
+    private async Task GoBack()
+    {
+        await JSRuntime.InvokeVoidAsync("history.back");
+    }
 
     protected override async Task OnInitializedAsync()
     {

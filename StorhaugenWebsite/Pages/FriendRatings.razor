@@ -67,6 +67,21 @@
 
         <MudDivider Class="my-4" />
 
+        @* Shared Collections Section *@
+        <div class="d-flex justify-space-between align-center mb-2">
+            <MudText Typo="Typo.h6">Delte samlinger</MudText>
+            <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small"
+                       StartIcon="@Icons.Material.Rounded.Link" OnClick="ShowShareCodeDialog">
+                Åpne med kode
+            </MudButton>
+        </div>
+
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+            Spør @_friend.DisplayName om å dele samlingskoden for å se oppskriftene deres.
+        </MudText>
+
+        <MudDivider Class="my-4" />
+
         <MudText Typo="Typo.h6" Class="mb-3">Vurderinger</MudText>
 
         @if (_ratings.Count == 0)
@@ -122,12 +137,38 @@
 
 @* Dialog is now shown via IDialogService with AddMemberToCollectionDialog component *@
 
+@* Share Code Dialog *@
+<MudDialog @bind-Visible="_showShareCodeDialog" Options="@(new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Åpne samling med kode</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+            Skriv inn samlingskoden du har fått fra vennen din.
+        </MudText>
+        <MudTextField @bind-Value="_shareCode"
+                      Label="Samlingskode"
+                      Variant="Variant.Outlined"
+                      Placeholder="F.eks. ABC123"
+                      Immediate="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => _showShareCodeDialog = false">Avbryt</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenSharedCollection"
+                   Disabled="@(string.IsNullOrWhiteSpace(_shareCode))">
+            Åpne
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
 @code {
     [Parameter] public Guid FriendUserId { get; set; }
 
     private FriendProfileDto? _friend;
     private List<UserRatingDto> _ratings = new();
     private bool _loaded;
+    private bool _showShareCodeDialog = false;
+    private string _shareCode = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -220,5 +261,20 @@
                 Snackbar.Add("Kunne ikke fjerne venn", Severity.Error);
             }
         }
+    }
+
+    private void ShowShareCodeDialog()
+    {
+        _shareCode = "";
+        _showShareCodeDialog = true;
+    }
+
+    private void OpenSharedCollection()
+    {
+        if (string.IsNullOrWhiteSpace(_shareCode)) return;
+
+        _showShareCodeDialog = false;
+        var returnUrl = Uri.EscapeDataString($"/friends/{FriendUserId}");
+        Navigation.NavigateTo($"/collections/shared/{_shareCode.Trim()}?returnUrl={returnUrl}");
     }
 }

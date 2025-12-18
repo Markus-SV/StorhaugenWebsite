@@ -300,7 +300,15 @@
 
     private void NavigateToRecipe(ActivityFeedItemDto item)
     {
-        Navigation.NavigateTo($"food/{item.TargetId}");
+        // Navigate based on target type - user_recipe goes to food, global_recipe goes to browse
+        if (item.TargetType == "global_recipe")
+        {
+            Navigation.NavigateTo($"browse/{item.TargetId}");
+        }
+        else
+        {
+            Navigation.NavigateTo($"food/{item.TargetId}");
+        }
     }
 
     private Color GetActivityColor(string activityType)
