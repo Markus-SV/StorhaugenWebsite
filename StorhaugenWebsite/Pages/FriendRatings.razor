@@ -223,7 +223,7 @@
     private void OpenFriendCollection(CollectionDto collection)
     {
         if (string.IsNullOrEmpty(collection.ShareCode)) return;
-        var returnUrl = Uri.EscapeDataString($"/friends/{FriendUserId}");
+        var returnUrl = Uri.EscapeDataString($"friends/{FriendUserId}");
         Navigation.NavigateTo($"collections/shared/{collection.ShareCode}?returnUrl={returnUrl}");
     }
 
@@ -327,7 +327,7 @@
         if (string.IsNullOrWhiteSpace(_shareCode)) return;
 
         _showShareCodeDialog = false;
-        var returnUrl = Uri.EscapeDataString($"/friends/{FriendUserId}");
+        var returnUrl = Uri.EscapeDataString($"friends/{FriendUserId}");
         Navigation.NavigateTo($"collections/shared/{_shareCode.Trim()}?returnUrl={returnUrl}");
     }
 }
