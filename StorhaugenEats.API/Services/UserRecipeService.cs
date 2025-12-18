@@ -545,19 +545,17 @@ public class UserRecipeService : IUserRecipeService
         if (recipe.UserId == requestingUserId) return true;
 
         // Check visibility
-        if (recipe.Visibility == "public") return true;
-        if (recipe.Visibility == "friends" && await _friendshipService.AreFriendsAsync(recipe.UserId, requestingUserId))
-            return true;
+        var visibility = (recipe.Visibility ?? "private").Trim().ToLowerInvariant();
 
-        // Legacy "household" visibility: treat as collection-based access
-        // Also check collection membership for private recipes shared via collections
-        if (recipe.Visibility == "household" || recipe.Visibility == "private")
+        if (visibility == "public") return true;
+
+        if (visibility == "friends")
         {
-            if (await _collectionService.CanUserViewRecipeViaCollectionAsync(recipeId, requestingUserId))
-                return true;
+            return await _friendshipService.AreFriendsAsync(recipe.UserId, requestingUserId);
         }
 
-        return false;
+        // Treat anything else as private/legacy => allow if accessible through a viewable collection
+        return await _collectionService.CanUserViewRecipeViaCollectionAsync(recipeId, requestingUserId);
     }
 
     public async Task<UserRecipePagedResult> GetFriendsRecipesAsync(Guid userId, GetUserRecipesQuery query)

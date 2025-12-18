@@ -420,12 +420,47 @@ public class CollectionService : ICollectionService
 
     public async Task<bool> CanUserViewRecipeViaCollectionAsync(Guid recipeId, Guid userId)
     {
-        // Check if there's any collection containing this recipe where the user is a member
-        return await _context.UserRecipeCollections
-            .AnyAsync(urc =>
-                urc.UserRecipeId == recipeId &&
-                urc.Collection.Members.Any(m => m.UserId == userId));
+        // Find collections that contain the recipe + minimal access info
+        var collectionInfos = await _context.UserRecipeCollections
+            .Where(urc => urc.UserRecipeId == recipeId)
+            .Select(urc => new
+            {
+                OwnerUserId = urc.Collection.OwnerUserId,
+                Visibility = urc.Collection.Visibility ?? (urc.Collection.IsShared ? "friends" : "private"),
+                IsMember = urc.Collection.Members.Any(m => m.UserId == userId)
+            })
+            .ToListAsync();
+
+        if (collectionInfos.Count == 0)
+            return false;
+
+        // Owner or member => allowed
+        if (collectionInfos.Any(c => c.OwnerUserId == userId || c.IsMember))
+            return true;
+
+        // Public collection => allowed
+        if (collectionInfos.Any(c => string.Equals(c.Visibility, "public", StringComparison.OrdinalIgnoreCase)))
+            return true;
+
+        // Friends collection => allowed if user is friends with the owner of ANY such collection
+        var friendOwners = collectionInfos
+            .Where(c => string.Equals(c.Visibility, "friends", StringComparison.OrdinalIgnoreCase))
+            .Select(c => c.OwnerUserId)
+            .Distinct()
+            .ToList();
+
+        if (friendOwners.Count == 0)
+            return false;
+
+        return await _context.UserFriendships.AnyAsync(f =>
+            f.Status == "accepted" &&
+            (
+                (f.RequesterUserId == userId && friendOwners.Contains(f.TargetUserId)) ||
+                (f.TargetUserId == userId && friendOwners.Contains(f.RequesterUserId))
+            ));
     }
+
+
 
     public async Task<List<CollectionDto>> GetFriendSharedCollectionsAsync(Guid friendUserId, Guid currentUserId)
     {

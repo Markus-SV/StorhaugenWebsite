@@ -23,10 +23,22 @@ namespace StorhaugenWebsite.Services
 
             _themes["System"] = _systemPreference == "dark" ? GenerateDarkTheme() : GenerateLightTheme();
             _themes["Light"] = GenerateLightTheme();
-            _themes["Dark"] = GenerateDarkTheme();
+
+            // Your existing themes
+            _themes["Dark"] = GenerateDarkTheme(); // The original rustic brown
             _themes["Black"] = GenerateBlackTheme();
             _themes["Material"] = GenerateMaterialTheme();
             _themes["Forest"] = GenerateForestTheme();
+
+            // --- NEW THEMES ---
+            // --- DARK VARIANTS (modern / sleek, not bleak) ---
+            _themes["Cafe"] = GenerateCafeDarkTheme();
+            _themes["Walnut"] = GenerateWalnutDarkTheme();
+            _themes["Clay"] = GenerateClayDarkTheme();
+            _themes["Moss"] = GenerateMossDarkTheme();
+            _themes["Ink"] = GenerateInkDarkTheme();
+
+
 
             UpdateDarkModeState();
         }
@@ -125,6 +137,188 @@ namespace StorhaugenWebsite.Services
                 LayoutProperties = new LayoutProperties { DefaultBorderRadius = "16px" }
             };
         }
+
+
+        // ========== CAFE (warm, clean brown + amber accent) ==========
+        private MudTheme GenerateCafeDarkTheme()
+        {
+            return new MudTheme
+            {
+                PaletteDark = new PaletteDark
+                {
+                    Primary = "#F0A35E",
+                    PrimaryDarken = "#E07A2E",
+                    PrimaryLighten = "#FFD2A6",
+
+                    Secondary = "#78BFA0",
+                    Tertiary = "#7CAAD0",
+                    Info = "#7CAAD0",
+                    Success = "#78BFA0",
+                    Warning = "#E6C06A",
+                    Error = "#E07B6F",
+
+                    Background = "#17120D",
+                    Surface = "#2A2118",
+                    AppbarBackground = "#241C14",
+                    DrawerBackground = "#241C14",
+                    AppbarText = "#F5F0E8",
+
+                    TextPrimary = "#F5F0E8",
+                    TextSecondary = "#B7AA9A",
+                    ActionDefault = "#B7AA9A",
+                    Divider = "#3B2F25",
+                    DividerLight = "#4A3B2F",
+                    BackgroundGray = "#201810"
+                },
+                Typography = GetTypography(),
+                LayoutProperties = new LayoutProperties { DefaultBorderRadius = "16px" }
+            };
+        }
+
+        // ========== WALNUT (deeper + sleeker contrast, still warm) ==========
+        private MudTheme GenerateWalnutDarkTheme()
+        {
+            return new MudTheme
+            {
+                PaletteDark = new PaletteDark
+                {
+                    Primary = "#E48B4A",
+                    PrimaryDarken = "#C96E33",
+                    PrimaryLighten = "#F4B789",
+
+                    Secondary = "#7DB6A3",
+                    Tertiary = "#7FA8C7",
+                    Info = "#7FA8C7",
+                    Success = "#7DB6A3",
+                    Warning = "#D7B66A",
+                    Error = "#D8786C",
+
+                    Background = "#120F0D",
+                    Surface = "#1F1914",
+                    AppbarBackground = "#1B1511",
+                    DrawerBackground = "#1B1511",
+                    AppbarText = "#F5F0E8",
+
+                    TextPrimary = "#F5F0E8",
+                    TextSecondary = "#A89B8A",
+                    ActionDefault = "#A89B8A",
+                    Divider = "#2F261F",
+                    DividerLight = "#3B3028",
+                    BackgroundGray = "#18130F"
+                },
+                Typography = GetTypography(),
+                LayoutProperties = new LayoutProperties { DefaultBorderRadius = "16px" }
+            };
+        }
+
+        // ========== CLAY (earthy, modern terracotta, warmer surfaces) ==========
+        private MudTheme GenerateClayDarkTheme()
+        {
+            return new MudTheme
+            {
+                PaletteDark = new PaletteDark
+                {
+                    Primary = "#D98A76",
+                    PrimaryDarken = "#BD6A59",
+                    PrimaryLighten = "#F0B0A2",
+
+                    Secondary = "#7FB3A0",
+                    Tertiary = "#7CAAD0",
+                    Info = "#7CAAD0",
+                    Success = "#7FB3A0",
+                    Warning = "#E0B86C",
+                    Error = "#D66B6B",
+
+                    Background = "#17100F",
+                    Surface = "#2B1B18",
+                    AppbarBackground = "#241513",
+                    DrawerBackground = "#241513",
+                    AppbarText = "#F5EEE9",
+
+                    TextPrimary = "#F5EEE9",
+                    TextSecondary = "#B09A95",
+                    ActionDefault = "#B09A95",
+                    Divider = "#3B2523",
+                    DividerLight = "#4A2F2C",
+                    BackgroundGray = "#211412"
+                },
+                Typography = GetTypography(),
+                LayoutProperties = new LayoutProperties { DefaultBorderRadius = "16px" }
+            };
+        }
+
+        // ========== MOSS (sleek brown base with muted green accent) ==========
+        private MudTheme GenerateMossDarkTheme()
+        {
+            return new MudTheme
+            {
+                PaletteDark = new PaletteDark
+                {
+                    Primary = "#79C98E",
+                    PrimaryDarken = "#55AE73",
+                    PrimaryLighten = "#A7E7B8",
+
+                    Secondary = "#E3A85B",   // warm accent to balance the green
+                    Tertiary = "#7CAAD0",
+                    Info = "#7CAAD0",
+                    Success = "#79C98E",
+                    Warning = "#E6C06A",
+                    Error = "#D8786C",
+
+                    Background = "#14130F",
+                    Surface = "#232016",
+                    AppbarBackground = "#1F1C13",
+                    DrawerBackground = "#1F1C13",
+                    AppbarText = "#F5F0E8",
+
+                    TextPrimary = "#F5F0E8",
+                    TextSecondary = "#ABA38F",
+                    ActionDefault = "#ABA38F",
+                    Divider = "#2F2C1F",
+                    DividerLight = "#3C3828",
+                    BackgroundGray = "#1B190F"
+                },
+                Typography = GetTypography(),
+                LayoutProperties = new LayoutProperties { DefaultBorderRadius = "16px" }
+            };
+        }
+
+        // ========== INK (cleaner, slightly cooler “modern” dark while staying cozy) ==========
+        private MudTheme GenerateInkDarkTheme()
+        {
+            return new MudTheme
+            {
+                PaletteDark = new PaletteDark
+                {
+                    Primary = "#5FAAD8",
+                    PrimaryDarken = "#3E8FB8",
+                    PrimaryLighten = "#92D0EE",
+
+                    Secondary = "#7FB3A0",
+                    Tertiary = "#E6B56A",   // warm counter-accent (prevents “bleak”)
+                    Info = "#5FAAD8",
+                    Success = "#7FB3A0",
+                    Warning = "#E6B56A",
+                    Error = "#D8786C",
+
+                    Background = "#131416",
+                    Surface = "#1C1E22",
+                    AppbarBackground = "#171A1E",
+                    DrawerBackground = "#171A1E",
+                    AppbarText = "#F5F0E8",
+
+                    TextPrimary = "#F5F0E8",
+                    TextSecondary = "#A7AAB0",
+                    ActionDefault = "#A7AAB0",
+                    Divider = "#2A2D33",
+                    DividerLight = "#383C44",
+                    BackgroundGray = "#16181C"
+                },
+                Typography = GetTypography(),
+                LayoutProperties = new LayoutProperties { DefaultBorderRadius = "16px" }
+            };
+        }
+
 
         // ========== DARK THEME (Warm Dark) ==========
         private MudTheme GenerateDarkTheme()

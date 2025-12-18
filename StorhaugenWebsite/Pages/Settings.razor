@@ -111,22 +111,18 @@
             </MudButton>
         </div>
         <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
-            Du er med i @CollectionState.UserCollections.Count samling(er). Trykk på en samling for å velge/fravelge den i kokeboken.
+            Du er med i @CollectionState.UserCollections.Count samling(er). 
         </MudText>
-        <div class="d-flex flex-wrap gap-2">
-            @foreach (var collection in CollectionState.UserCollections)
-            {
-                <MudChip T="string"
-                         Variant="@(CollectionState.IsCollectionActive(collection.Id) ? Variant.Filled : Variant.Outlined)"
-                         Color="Color.Primary"
-                         OnClick="@(() => ToggleCollectionFilter(collection.Id))"
-                         Icon="@(CollectionState.IsCollectionActive(collection.Id) ? Icons.Material.Rounded.CheckCircle : Icons.Material.Rounded.RadioButtonUnchecked)">
-                    @collection.Name
-                </MudChip>
-            }
-        </div>
+       
     </div>
 }
+
+<div class="form-section mt-4">
+    <div class="d-flex justify-center flex-column align-center gap-1">
+        <MudText Typo="Typo.body2" Style="font-weight: 500;">Storhaugen Eats</MudText>
+        <MudText Typo="Typo.caption" Color="Color.Secondary">Versjon 2.0.1</MudText>
+    </div>
+</div>
 
 <div class="form-section">
     <MudButton Variant="Variant.Outlined"
@@ -139,12 +135,6 @@
     </MudButton>
 </div>
 
-<div class="form-section mt-4">
-    <div class="d-flex justify-center flex-column align-center gap-1">
-        <MudText Typo="Typo.body2" Style="font-weight: 500;">Storhaugen Eats</MudText>
-        <MudText Typo="Typo.caption" Color="Color.Secondary">Versjon 1.0.0</MudText>
-    </div>
-</div>
 
 <style>
     .setting-row {
@@ -305,11 +295,21 @@
         return themeName switch
         {
             "System" => "System Default",
-            "Light" => "Light",
-            "Dark" => "Dark",
+            "Light" => "Light (Amber)",
+            "Dark" => "Dark (Rustic)",   // I renamed this slightly to distinguish it
             "Black" => "Midnight Black",
             "Material" => "Material Red",
             "Forest" => "Night Forest",
+
+            // --- NEW THEMES ---
+            "Cafe" => "Dark Café",
+            "Walnut" => "Dark Walnut",
+            "Clay" => "Dark Clay",
+            "Moss" => "Dark Moss",
+            "Ink" => "Dark Ink",
+
+
+
             _ => themeName
         };
     }

@@ -16,7 +16,6 @@
         <MudSpacer />
         @if (AuthService.IsAuthorized)
         {
-            <NotificationBell />
             <MudIconButton Icon="@Icons.Material.Rounded.Settings"
                            Color="Color.Inherit"
                            OnClick="@(() => Navigation.NavigateTo("settings"))"
