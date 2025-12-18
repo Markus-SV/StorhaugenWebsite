@@ -2,71 +2,6 @@
 @using System.Text.Json
 
 <div class="hf-recipe-details">
-    @* --- Quick Info Cards --- *@
-    <div class="hf-quick-info">
-        @if (Recipe.PrepTimeMinutes.HasValue)
-        {
-            <div class="hf-info-card">
-                <MudIcon Icon="@Icons.Material.Rounded.AccessTime" Size="Size.Small" Color="Color.Primary" />
-                <div class="hf-info-content">
-                    <span class="hf-info-label">Tilberedningstid</span>
-                    <span class="hf-info-value">@Recipe.PrepTimeMinutes min</span>
-                </div>
-            </div>
-        }
-
-        @if (!string.IsNullOrEmpty(Recipe.Difficulty))
-        {
-            <div class="hf-info-card">
-                <MudIcon Icon="@GetDifficultyIcon(Recipe.Difficulty)" Size="Size.Small" Color="Color.Secondary" />
-                <div class="hf-info-content">
-                    <span class="hf-info-label">Vanskelighetsgrad</span>
-                    <span class="hf-info-value">@GetDifficultyLabel(Recipe.Difficulty)</span>
-                </div>
-            </div>
-        }
-
-        @if (Recipe.Servings.HasValue)
-        {
-            <div class="hf-info-card">
-                <MudIcon Icon="@Icons.Material.Rounded.Group" Size="Size.Small" Color="Color.Tertiary" />
-                <div class="hf-info-content">
-                    <span class="hf-info-label">Porsjoner</span>
-                    <span class="hf-info-value">@Recipe.Servings</span>
-                </div>
-            </div>
-        }
-
-        @if (!string.IsNullOrEmpty(Recipe.Cuisine))
-        {
-            <div class="hf-info-card">
-                <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small" Color="Color.Info" />
-                <div class="hf-info-content">
-                    <span class="hf-info-label">Kjokken</span>
-                    <span class="hf-info-value">@Recipe.Cuisine</span>
-                </div>
-            </div>
-        }
-    </div>
-
-    @* --- Tags --- *@
-    @if (Recipe.Tags != null && Recipe.Tags.Any())
-    {
-        <div class="hf-section">
-            <h3 class="hf-section-title">
-                <MudIcon Icon="@Icons.Material.Rounded.LocalOffer" Size="Size.Small" />
-                Merkelapper
-            </h3>
-            <div class="d-flex flex-wrap gap-2">
-                @foreach (var tag in Recipe.Tags)
-                {
-                    <MudChip T="string" Size="Size.Small" Color="GetTagColor(tag)" Variant="Variant.Outlined">
-                        @tag
-                    </MudChip>
-                }
-            </div>
-        </div>
-    }
 
     @* --- Nutrition Info --- *@
     @if (NutritionItems.Any())
@@ -122,18 +57,6 @@
             </div>
         </div>
     }
-
-    @* --- HelloFresh Attribution --- *@
-    <div class="hf-attribution">
-        <MudIcon Icon="@Icons.Material.Rounded.LocalDining" Size="Size.Small" />
-        <span>Oppskrift fra HelloFresh</span>
-        @if (!string.IsNullOrEmpty(Recipe.HellofreshWeek))
-        {
-            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">
-                @GetWeekDisplayText(Recipe.HellofreshWeek)
-            </MudChip>
-        }
-    </div>
 </div>
 
 <style>

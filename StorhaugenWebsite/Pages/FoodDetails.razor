@@ -15,7 +15,7 @@
 @attribute [Authorize]
 
 <div class="detail-header">
-    <button class="detail-back-btn" @onclick="@(() => Navigation.NavigateTo(""))">
+    <button class="detail-back-btn" @onclick="@(() => Navigation.NavigateTo("cookbook"))">
         <MudIcon Icon="@Icons.Material.Rounded.ArrowBack" Size="Size.Small" />
         Tilbake
     </button>
@@ -66,12 +66,7 @@ else
             </MudCarousel>
         </div>
     }
-    else
-    {
-        <div style="border-radius: 20px; margin-bottom: 20px; aspect-ratio: 16/9; display:flex; align-items:center; justify-content:center; background: linear-gradient(135deg, var(--mud-palette-divider-light), var(--mud-palette-divider));">
-            <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" Color="Color.Default" />
-        </div>
-    }
+    
 
     @* --- INFO CARD --- *@
     <div class="detail-info-card">
@@ -124,13 +119,6 @@ else
                     <div class="quick-info-item">
                         <MudIcon Icon="@Icons.Material.Rounded.AccessTime" Size="Size.Small" Color="Color.Primary" />
                         <span>@_recipe.PrepTimeMinutes min tilberedning</span>
-                    </div>
-                }
-                @if (_recipe.CookTimeMinutes.HasValue)
-                {
-                    <div class="quick-info-item">
-                        <MudIcon Icon="@Icons.Material.Rounded.LocalFireDepartment" Size="Size.Small" Color="Color.Warning" />
-                        <span>@_recipe.CookTimeMinutes min steking</span>
                     </div>
                 }
                 @if (!string.IsNullOrEmpty(_recipe.Difficulty))
@@ -199,7 +187,7 @@ else
     @* --- COLLAPSIBLE SECTIONS --- *@
     @if (HasNutritionData || HasIngredients)
     {
-        <MudExpansionPanels Class="mt-4" MultiExpansion="true">
+        <MudExpansionPanels Class="mt-4" Style="margin-bottom: 16px" MultiExpansion="true">
             @* Nutrition Info *@
             @if (HasNutritionData)
             {
@@ -264,13 +252,13 @@ else
                     <div class="visibility-card">
                         <div class="d-flex align-center justify-space-between">
                             <div class="d-flex align-center gap-3">
-                                <MudIcon Icon="@Icons.Material.Rounded.Public" Color="Color.Primary" />
+                                <MudIcon Icon="@Icons.Material.Rounded.Public" Color="Color.Info" />
                                 <div>
                                     <MudText Typo="Typo.subtitle2">Publisering</MudText>
                                     <MudText Typo="Typo.caption">Del oppskriften med hele fellesskapet</MudText>
                                 </div>
                             </div>
-                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="PublishRecipe" Disabled="_isProcessing">
+                            <MudButton Variant="Variant.Filled" Color="Color.Info" Size="Size.Small" OnClick="PublishRecipe" Disabled="_isProcessing">
                                 Publiser
                             </MudButton>
                         </div>
@@ -456,7 +444,7 @@ else
         background: var(--mud-palette-surface);
         border-radius: 20px;
         padding: 20px;
-        margin-bottom: 20px;
+        margin-bottom: 16px;
         border: 1px solid var(--mud-palette-divider);
     }
 
