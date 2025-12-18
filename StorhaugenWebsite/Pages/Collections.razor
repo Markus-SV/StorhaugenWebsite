@@ -44,46 +44,47 @@ else
     <div class="d-flex flex-column gap-3">
         @foreach (var collection in _collections)
         {
-            <div class="collection-card">
-                <div class="d-flex align-center gap-3" @onclick="() => OpenCollection(collection.Id)" style="cursor: pointer;">
+            <div class="collection-card clickable"
+                 role="button"
+                 tabindex="0"
+                 @onclick="() => OpenCollection(collection.Id)">
+
+                <div class="d-flex align-center gap-3">
                     <div class="collection-icon">
                         <MudIcon Icon="@GetVisibilityIcon(collection.Visibility)" Size="Size.Medium" />
                     </div>
+
                     <div class="flex-grow-1" style="min-width: 0;">
                         <div class="d-flex align-center gap-2">
                             <MudText Typo="Typo.subtitle1" Class="text-truncate" Style="font-weight: 600;">
                                 @collection.Name
                             </MudText>
+
                             @if (collection.IsOwner)
                             {
-                                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Text">Eier</MudChip>
+                                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Text">
+                                    Eier
+                                </MudChip>
                             }
                         </div>
-                        <div class="d-flex align-center gap-3 mt-1">
+
+                        @* Meta row: members + recipes (no button) *@
+                        <div class="d-flex align-center gap-3 mt-1 collection-meta">
                             <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Small" Style="font-size: 14px; vertical-align: middle;" />
+                                <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Small"
+                                         Style="font-size: 14px; vertical-align: middle;" />
                                 @collection.MemberCount medlemmer
+                            </MudText>
+
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small"
+                                         Style="font-size: 14px; vertical-align: middle;" />
+                                @collection.RecipeCount @(collection.RecipeCount == 1 ? "oppskrift" : "oppskrifter")
                             </MudText>
                         </div>
                     </div>
-                </div>
 
-                @* Recipe count with "se alle" link *@
-                <div class="collection-recipes-row">
-                    <div class="d-flex align-center gap-2">
-                        <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small" Style="font-size: 16px;" Color="Color.Primary" />
-                        <MudText Typo="Typo.body2" Style="font-weight: 600;">
-                            @collection.RecipeCount @(collection.RecipeCount == 1 ? "oppskrift" : "oppskrifter")
-                        </MudText>
-                    </div>
-                    <MudButton Variant="Variant.Text"
-                               Color="Color.Primary"
-                               Size="Size.Small"
-                               EndIcon="@Icons.Material.Rounded.ArrowForward"
-                               OnClick="() => OpenCollection(collection.Id)"
-                               Style="text-transform: none;">
-                        Se alle
-                    </MudButton>
+                    <MudIcon Icon="@Icons.Material.Rounded.ChevronRight" Class="collection-chevron" />
                 </div>
             </div>
         }
@@ -149,6 +150,27 @@ else
     .collection-card:hover {
         transform: translateY(-2px);
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+        .collection-card.clickable {
+            cursor: pointer;
+            transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+        }
+
+            .collection-card.clickable:hover {
+                transform: translateY(-1px);
+                border-color: rgba(var(--mud-palette-primary-rgb), 0.35);
+                box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+            }
+
+    .collection-meta .mud-icon-root {
+        opacity: 0.75;
+    }
+
+    .collection-chevron {
+        opacity: 0.6;
+        font-size: 22px;
+        flex-shrink: 0;
     }
 
     .collection-icon {

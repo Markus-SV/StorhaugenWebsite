@@ -1,6 +1,5 @@
-@page "/collections/shared/{ShareCode}"
+@page "/collections/{CollectionId:guid}/recipes"
 @using Microsoft.AspNetCore.Authorization
-@using System.Web
 @using StorhaugenWebsite.ApiClient
 @using StorhaugenWebsite.Shared.DTOs
 @using StorhaugenWebsite.Components
@@ -30,8 +29,8 @@ else if (_collection == null)
         <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
             Samlingen finnes ikke, eller du har ikke tilgang til den.
         </MudText>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/friends">
-            Tilbake til venner
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="GoBack">
+            Tilbake
         </MudButton>
     </div>
 }
@@ -42,19 +41,12 @@ else
             <div class="collection-icon-large">
                 <MudIcon Icon="@GetVisibilityIcon(_collection.Visibility)" Size="Size.Large" />
             </div>
-
             <div class="flex-grow-1">
                 <h1 class="page-title" style="margin: 0;">@_collection.Name</h1>
-
                 @if (!string.IsNullOrEmpty(_collection.Description))
                 {
                     <MudText Typo="Typo.body2" Color="Color.Secondary">@_collection.Description</MudText>
                 }
-
-                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
-                    <MudIcon Icon="@Icons.Material.Rounded.Person" Size="Size.Small" Style="font-size: 14px; vertical-align: middle;" />
-                    Delt av @_collection.OwnerDisplayName
-                </MudText>
             </div>
         </div>
 
@@ -68,42 +60,21 @@ else
         </div>
     </div>
 
-    <CollectionRecipesList CollectionId="_collection.Id" Title="Oppskrifter" PageSize="30" />
+    <CollectionRecipesList CollectionId="_collection.Id" Title="Oppskrifter" PageSize="50" />
 }
 
-<style>
-    .collection-header {
-        background: var(--mud-palette-surface);
-        border-radius: 16px;
-        padding: 20px;
-        border: 1px solid var(--mud-palette-lines-default);
-    }
-
-    .collection-icon-large {
-        width: 64px;
-        height: 64px;
-        border-radius: 16px;
-        background: var(--mud-palette-info);
-        color: var(--mud-palette-info-text);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-</style>
-
 @code {
-    [Parameter] public string ShareCode { get; set; } = "";
+    [Parameter] public Guid CollectionId { get; set; }
 
     private CollectionDto? _collection;
     private bool _isLoading = true;
-    private string _returnUrl = "friends";
+    private string _returnUrl = "collections";
 
     protected override async Task OnInitializedAsync()
     {
         var uri = new Uri(Navigation.Uri);
-        var query = HttpUtility.ParseQueryString(uri.Query);
-
-        _returnUrl = query["returnUrl"] ?? "friends";
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        _returnUrl = query["returnUrl"] ?? $"collections/{CollectionId}";
 
         await LoadCollection();
     }
@@ -113,11 +84,11 @@ else
         _isLoading = true;
         try
         {
-            _collection = await ApiClient.GetCollectionByShareCodeAsync(ShareCode);
+            _collection = await ApiClient.GetCollectionAsync(CollectionId);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error loading collection: {ex.Message}");
+            Console.WriteLine(ex);
             Snackbar.Add("Kunne ikke laste samlingen", Severity.Error);
         }
         finally

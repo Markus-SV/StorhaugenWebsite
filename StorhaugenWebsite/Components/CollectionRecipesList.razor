@@ -1,0 +1,285 @@
+@using MudBlazor
+@using StorhaugenWebsite.ApiClient
+@using StorhaugenWebsite.Shared.DTOs
+@inject IApiClient ApiClient
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<div style="margin-bottom: 16px; border-top: 1px solid var(--mud-palette-divider); padding-top: 12px;">
+    <div class="d-flex justify-space-between align-center mb-3">
+        <p class="form-section-title" style="margin: 0;">
+            @Title
+            @if (_totalCount > 0)
+            {
+                <span>(@_totalCount)</span>
+            }
+        </p>
+    </div>
+
+    @* Search & Sort *@
+    <div class="d-flex gap-2 mb-3">
+        <MudTextField @bind-Value="_searchQuery"
+                      Placeholder="Søk i samlingen..."
+                      Variant="Variant.Outlined"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Rounded.Search"
+                      Immediate="true"
+                      DebounceInterval="300"
+                      OnDebounceIntervalElapsed="HandleSearchDebounce"
+                      Class="flex-grow-1 search-field"
+                      Margin="Margin.Dense" />
+
+        <MudSelect T="string"
+                   Value="_sortBy"
+                   ValueChanged="HandleSortChanged"
+                   AnchorOrigin="Origin.BottomRight"
+                   Variant="Variant.Outlined"
+                   Margin="Margin.Dense"
+                   Class="sort-select"
+                   Style="width: 160px;"
+                   AdornmentIcon="@Icons.Material.Rounded.Sort">
+            <MudSelectItem Value="@("added")">Sist lagt til</MudSelectItem>
+            <MudSelectItem Value="@("date")">Nyeste</MudSelectItem>
+            <MudSelectItem Value="@("rating")">Høyest snitt</MudSelectItem>
+            <MudSelectItem Value="@("name")">Navn (A-Å)</MudSelectItem>
+        </MudSelect>
+    </div>
+
+    @if (_isLoading && !_recipes.Any())
+    {
+        <div class="d-flex justify-center my-6">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+        </div>
+    }
+    else if (!_recipes.Any())
+    {
+        <div class="text-center pa-4">
+            <MudIcon Icon="@Icons.Material.Rounded.MenuBook" Size="Size.Large" Color="Color.Default" Style="opacity: 0.5;" />
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">
+                Ingen oppskrifter i denne samlingen
+            </MudText>
+        </div>
+    }
+    else
+    {
+        <div class="d-flex flex-column gap-3">
+            @foreach (var recipe in _recipes)
+            {
+                <div class="food-card animate-in" @onclick="() => OpenRecipe(recipe.Id)">
+                    @* Image Section (Right Side) *@
+                    @if (recipe.ImageUrls.Any())
+                    {
+                        <img src="@recipe.ImageUrls.First()" class="food-card-image" />
+                    }
+                    else
+                    {
+                        <div class="food-card-placeholder">
+                            <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" Style="opacity:0.3;" />
+                        </div>
+                    }
+
+                    @* Content Section (Left Side) *@
+                    <div class="food-card-content">
+
+                        @* Top Row: Title & Average Badge *@
+                        <div class="d-flex justify-space-between align-start">
+                            <div style="min-width: 0; padding-right: 8px;">
+                                <div class="d-flex align-center gap-1 mb-1">
+                                    @if (recipe.IsHellofresh)
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Rounded.LocalDining"
+                                                 Size="Size.Small"
+                                                 Color="Color.Success"
+                                                 Title="HelloFresh"
+                                                 Style="flex-shrink: 0; font-size: 14px;" />
+                                    }
+                                    <h3 class="food-card-title text-truncate">@recipe.Name</h3>
+                                </div>
+                                <div class="d-flex align-center gap-1">
+                                    <MudIcon Icon="@Icons.Material.Rounded.Person" Size="Size.Small" Style="font-size: 12px; opacity: 0.6;" />
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="text-truncate" Style="font-size: 0.75rem;">
+                                        @recipe.UserDisplayName
+                                    </MudText>
+                                </div>
+                            </div>
+
+                            @if (recipe.AverageRating > 0)
+                            {
+                                <div class="d-flex flex-column align-end" style="flex-shrink: 0;">
+                                    <span class="rating-badge" style="color: @GetScoreColor(recipe.AverageRating);">
+                                        <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" Style="font-size: 14px; margin-right:2px;" />
+                                        @recipe.AverageRating.ToString("0.0")
+                                    </span>
+                                </div>
+                            }
+                        </div>
+
+                        @* Metadata Row *@
+                        @if (recipe.PrepTimeMinutes.HasValue || !string.IsNullOrEmpty(recipe.Difficulty) || recipe.Servings.HasValue)
+                        {
+                            <div class="d-flex align-center flex-wrap mt-2 gap-2">
+                                @if (recipe.PrepTimeMinutes.HasValue)
+                                {
+                                    <span class="meta-chip">
+                                        <MudIcon Icon="@Icons.Material.Rounded.AccessTime" Size="Size.Small" />
+                                        @recipe.PrepTimeMinutes min
+                                    </span>
+                                }
+                                @if (!string.IsNullOrEmpty(recipe.Difficulty))
+                                {
+                                    <span class="meta-chip @GetDifficultyClass(recipe.Difficulty)">
+                                        <MudIcon Icon="@GetDifficultyIcon(recipe.Difficulty)" Size="Size.Small" />
+                                        @GetDifficultyLabel(recipe.Difficulty)
+                                    </span>
+                                }
+                                @if (recipe.Servings.HasValue)
+                                {
+                                    <span class="meta-chip">
+                                        <MudIcon Icon="@Icons.Material.Rounded.Group" Size="Size.Small" />
+                                        @recipe.Servings
+                                    </span>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        @if (_hasMore)
+        {
+            <div class="d-flex justify-center mt-4">
+                <MudButton Variant="Variant.Outlined" OnClick="LoadMore" Disabled="_isLoading">
+                    @if (_isLoading)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    }
+                    Vis flere
+                </MudButton>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public Guid CollectionId { get; set; }
+    [Parameter] public string Title { get; set; } = "Oppskrifter";
+    [Parameter] public int PageSize { get; set; } = 50;
+
+    private Guid _lastCollectionId;
+    private bool _isLoading;
+
+    private readonly List<UserRecipeDto> _recipes = new();
+    private int _page = 1;
+    private int _totalCount = 0;
+    private bool _hasMore = false;
+
+    private string _searchQuery = "";
+    private string _sortBy = "added";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (CollectionId != Guid.Empty && CollectionId != _lastCollectionId)
+        {
+            _lastCollectionId = CollectionId;
+            await ReloadAsync();
+        }
+    }
+
+    private async Task HandleSearchDebounce(string value)
+    {
+        _searchQuery = value;
+        await ReloadAsync();
+    }
+
+    private async Task HandleSortChanged(string value)
+    {
+        _sortBy = value;
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _page = 1;
+        _recipes.Clear();
+        await LoadPageAsync(append: false);
+    }
+
+    private async Task LoadMore()
+    {
+        if (!_hasMore) return;
+        _page++;
+        await LoadPageAsync(append: true);
+    }
+
+    private async Task LoadPageAsync(bool append)
+    {
+        _isLoading = true;
+        try
+        {
+            var query = new GetCollectionRecipesQuery
+            {
+                Page = _page,
+                PageSize = PageSize,
+                SortBy = _sortBy,
+                SortDescending = true,
+                Search = string.IsNullOrWhiteSpace(_searchQuery) ? null : _searchQuery.Trim()
+            };
+
+            var result = await ApiClient.GetCollectionRecipesAsync(CollectionId, query);
+
+            if (append) _recipes.AddRange(result.Recipes);
+            else
+            {
+                _recipes.Clear();
+                _recipes.AddRange(result.Recipes);
+            }
+
+            _totalCount = result.TotalCount;
+            _hasMore = _recipes.Count < _totalCount;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Kunne ikke laste oppskrifter", Severity.Error);
+            Console.WriteLine(ex);
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OpenRecipe(Guid recipeId) => Navigation.NavigateTo($"food/{recipeId}");
+
+    private string GetScoreColor(double score)
+    {
+        if (score >= 8) return "#4CAF50";
+        if (score >= 6) return "#FFC107";
+        return "#F44336";
+    }
+
+    private string GetDifficultyIcon(string? difficulty) => difficulty?.ToLower() switch
+    {
+        "easy" or "lett" => Icons.Material.Rounded.SentimentSatisfied,
+        "medium" or "middels" => Icons.Material.Rounded.Psychology,
+        "hard" or "vanskelig" => Icons.Material.Rounded.LocalFireDepartment,
+        _ => Icons.Material.Rounded.HelpOutline
+    };
+
+    private string GetDifficultyLabel(string? difficulty) => difficulty?.ToLower() switch
+    {
+        "easy" => "Lett",
+        "medium" => "Middels",
+        "hard" => "Vanskelig",
+        _ => difficulty ?? ""
+    };
+
+    private string GetDifficultyClass(string? difficulty) => difficulty?.ToLower() switch
+    {
+        "easy" or "lett" => "difficulty-easy",
+        "medium" or "middels" => "difficulty-medium",
+        "hard" or "vanskelig" => "difficulty-hard",
+        _ => ""
+    };
+}
