@@ -28,4 +28,7 @@ public interface ICollectionService
 
     // Visibility check for recipes
     Task<bool> CanUserViewRecipeViaCollectionAsync(Guid recipeId, Guid userId);
+
+    // Get collections shared by a friend that are visible to the current user
+    Task<List<CollectionDto>> GetFriendSharedCollectionsAsync(Guid friendUserId, Guid currentUserId);
 }

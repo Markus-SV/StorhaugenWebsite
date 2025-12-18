@@ -265,4 +265,15 @@ public class CollectionsController : ControllerBase
             return BadRequest(new { message = ex.Message });
         }
     }
+
+    /// <summary>
+    /// Get collections shared by a friend that are visible to the current user.
+    /// </summary>
+    [HttpGet("friend/{friendUserId}")]
+    public async Task<ActionResult<List<CollectionDto>>> GetFriendCollections(Guid friendUserId)
+    {
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
+        var collections = await _collectionService.GetFriendSharedCollectionsAsync(friendUserId, userId);
+        return Ok(collections);
+    }
 }

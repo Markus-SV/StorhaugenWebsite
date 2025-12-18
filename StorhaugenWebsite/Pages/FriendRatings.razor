@@ -76,9 +76,39 @@
             </MudButton>
         </div>
 
-        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-            Spør @_friend.DisplayName om å dele samlingskoden for å se oppskriftene deres.
-        </MudText>
+        @if (_friendCollections.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+                @_friend.DisplayName har ingen samlinger delt med deg.
+            </MudText>
+        }
+        else
+        {
+            <div class="d-flex flex-column gap-2 mb-4">
+                @foreach (var collection in _friendCollections)
+                {
+                    <MudPaper Class="pa-3" Elevation="0" Outlined="true" Style="cursor: pointer;"
+                              @onclick="() => OpenFriendCollection(collection)">
+                        <div class="d-flex align-center gap-3">
+                            <MudAvatar Size="Size.Medium" Color="@GetVisibilityColor(collection.Visibility)" Variant="Variant.Filled">
+                                <MudIcon Icon="@GetVisibilityIcon(collection.Visibility)" />
+                            </MudAvatar>
+                            <div class="flex-grow-1">
+                                <MudText Typo="Typo.subtitle2" Style="font-weight: 600;">@collection.Name</MudText>
+                                @if (!string.IsNullOrEmpty(collection.Description))
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="text-truncate">@collection.Description</MudText>
+                                }
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @collection.RecipeCount oppskrifter
+                                </MudText>
+                            </div>
+                            <MudIcon Icon="@Icons.Material.Rounded.ChevronRight" Color="Color.Default" />
+                        </div>
+                    </MudPaper>
+                }
+            </div>
+        }
 
         <MudDivider Class="my-4" />
 
@@ -166,6 +196,7 @@
 
     private FriendProfileDto? _friend;
     private List<UserRatingDto> _ratings = new();
+    private List<CollectionDto> _friendCollections = new();
     private bool _loaded;
     private bool _showShareCodeDialog = false;
     private string _shareCode = "";
@@ -177,6 +208,7 @@
         {
             _friend = await FriendshipService.GetUserProfileAsync(FriendUserId);
             _ratings = await ApiClient.GetUserRatingsAsync(FriendUserId, skip: 0, take: 100);
+            _friendCollections = await ApiClient.GetFriendCollectionsAsync(FriendUserId);
         }
         catch (Exception ex)
         {
@@ -187,6 +219,27 @@
             _loaded = true;
         }
     }
+
+    private void OpenFriendCollection(CollectionDto collection)
+    {
+        if (string.IsNullOrEmpty(collection.ShareCode)) return;
+        var returnUrl = Uri.EscapeDataString($"/friends/{FriendUserId}");
+        Navigation.NavigateTo($"/collections/shared/{collection.ShareCode}?returnUrl={returnUrl}");
+    }
+
+    private string GetVisibilityIcon(string visibility) => visibility switch
+    {
+        "public" => Icons.Material.Rounded.Public,
+        "friends" => Icons.Material.Rounded.People,
+        _ => Icons.Material.Rounded.Lock
+    };
+
+    private Color GetVisibilityColor(string visibility) => visibility switch
+    {
+        "public" => Color.Success,
+        "friends" => Color.Info,
+        _ => Color.Default
+    };
 
     private async Task OpenInviteDialog()
     {

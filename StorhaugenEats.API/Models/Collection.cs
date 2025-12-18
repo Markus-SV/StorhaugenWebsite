@@ -51,6 +51,13 @@ public class Collection
     public bool IsShared { get; set; } = false;
 
     /// <summary>
+    /// Visibility: "private", "friends", or "public"
+    /// </summary>
+    [Column("visibility")]
+    [MaxLength(20)]
+    public string Visibility { get; set; } = "private";
+
+    /// <summary>
     /// Unique share code for shared collections
     /// </summary>
     [Column("unique_share_id")]

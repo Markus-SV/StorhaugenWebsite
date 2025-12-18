@@ -22,6 +22,7 @@ public interface IApiClient
     Task AddCollectionMemberAsync(Guid collectionId, AddCollectionMemberDto dto);
     Task RemoveCollectionMemberAsync(Guid collectionId, Guid memberId);
     Task LeaveCollectionAsync(Guid collectionId);
+    Task<List<CollectionDto>> GetFriendCollectionsAsync(Guid friendUserId);
 
     // Global Recipes
     Task<GlobalRecipePagedResult> BrowseGlobalRecipesAsync(BrowseGlobalRecipesQuery query);

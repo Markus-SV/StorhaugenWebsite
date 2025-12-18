@@ -31,6 +31,8 @@ public class UserRecipeService : IUserRecipeService
             .Include(r => r.User)
             .Include(r => r.GlobalRecipe)
             .Include(r => r.Ratings)
+            .Include(r => r.RecipeTags)
+                .ThenInclude(rt => rt.Tag)
             .Where(r => r.UserId == userId);
 
         if (!query.IncludeArchived)
@@ -41,6 +43,22 @@ public class UserRecipeService : IUserRecipeService
         if (!string.IsNullOrEmpty(query.Visibility) && query.Visibility != "all")
         {
             queryable = queryable.Where(r => r.Visibility == query.Visibility);
+        }
+
+        // Search filter
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var searchLower = query.Search.ToLower();
+            queryable = queryable.Where(r =>
+                (r.LocalTitle != null && r.LocalTitle.ToLower().Contains(searchLower)) ||
+                (r.GlobalRecipe != null && r.GlobalRecipe.Title.ToLower().Contains(searchLower)) ||
+                (r.LocalDescription != null && r.LocalDescription.ToLower().Contains(searchLower)));
+        }
+
+        // Tag filter
+        if (query.TagIds != null && query.TagIds.Count > 0)
+        {
+            queryable = queryable.Where(r => r.RecipeTags.Any(rt => query.TagIds.Contains(rt.TagId)));
         }
 
         // Sorting

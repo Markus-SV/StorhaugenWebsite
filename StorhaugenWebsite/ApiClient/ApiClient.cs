@@ -163,6 +163,13 @@ public class ApiClient : IApiClient
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task<List<CollectionDto>> GetFriendCollectionsAsync(Guid friendUserId)
+    {
+        await AddAuthHeaderAsync();
+        return (await _httpClient.GetFromJsonAsync<List<CollectionDto>>($"/api/collections/friend/{friendUserId}", _jsonOptions))
+            ?? new List<CollectionDto>();
+    }
+
     // Global Recipe Methods
     public async Task<GlobalRecipePagedResult> BrowseGlobalRecipesAsync(BrowseGlobalRecipesQuery query)
     {

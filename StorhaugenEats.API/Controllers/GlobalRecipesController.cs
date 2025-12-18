@@ -93,6 +93,7 @@ public class GlobalRecipesController : ControllerBase
 
         // Pagination
         var recipes = await queryable
+            .Include(gr => gr.CreatedByUser)
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
             .ToListAsync();

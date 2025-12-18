@@ -80,7 +80,8 @@ public class CollectionService : ICollectionService
         if (string.IsNullOrWhiteSpace(dto.Name))
             throw new InvalidOperationException("Collection name is required");
 
-        var isShared = dto.Visibility != "private";
+        var visibility = dto.Visibility ?? "private";
+        var isShared = visibility != "private";
 
         var collection = new Collection
         {
@@ -89,6 +90,7 @@ public class CollectionService : ICollectionService
             Name = dto.Name.Trim(),
             Description = dto.Description?.Trim(),
             IsShared = isShared,
+            Visibility = visibility,
             UniqueShareId = isShared ? GenerateShareCode() : null,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -130,11 +132,13 @@ public class CollectionService : ICollectionService
 
         if (!string.IsNullOrWhiteSpace(dto.Visibility))
         {
-            var newIsShared = dto.Visibility != "private";
+            var newVisibility = dto.Visibility;
+            var newIsShared = newVisibility != "private";
             var wasPrivate = !collection.IsShared;
             var isNowPrivate = !newIsShared;
 
             collection.IsShared = newIsShared;
+            collection.Visibility = newVisibility;
 
             // Generate share code when becoming shared, clear when becoming private
             if (wasPrivate && !isNowPrivate && string.IsNullOrEmpty(collection.UniqueShareId))
@@ -421,6 +425,32 @@ public class CollectionService : ICollectionService
                 urc.Collection.Members.Any(m => m.UserId == userId));
     }
 
+    public async Task<List<CollectionDto>> GetFriendSharedCollectionsAsync(Guid friendUserId, Guid currentUserId)
+    {
+        // Check if they are actually friends
+        var areFriends = await _context.UserFriendships
+            .AnyAsync(f =>
+                f.Status == "accepted" &&
+                ((f.RequesterId == currentUserId && f.AddresseeId == friendUserId) ||
+                 (f.RequesterId == friendUserId && f.AddresseeId == currentUserId)));
+
+        if (!areFriends)
+            return new List<CollectionDto>();
+
+        // Get collections owned by the friend that are visible to friends or public
+        var collections = await _context.Collections
+            .Include(c => c.Owner)
+            .Include(c => c.Members)
+                .ThenInclude(m => m.User)
+            .Include(c => c.UserRecipeCollections)
+            .Where(c => c.OwnerUserId == friendUserId &&
+                       (c.Visibility == "friends" || c.Visibility == "public"))
+            .OrderBy(c => c.Name)
+            .ToListAsync();
+
+        return collections.Select(c => MapToDto(c, currentUserId)).ToList();
+    }
+
     #endregion
 
     #region Private Helpers
@@ -438,7 +468,7 @@ public class CollectionService : ICollectionService
             Id = collection.Id,
             Name = collection.Name,
             Description = collection.Description,
-            Visibility = collection.IsShared ? "shared" : "private",
+            Visibility = collection.Visibility ?? (collection.IsShared ? "friends" : "private"),
             ShareCode = collection.UniqueShareId,
             OwnerId = collection.OwnerUserId,
             OwnerDisplayName = collection.Owner?.DisplayName ?? "Unknown",
