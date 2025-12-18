@@ -281,7 +281,7 @@ else
                                 @if (recipe.AverageRating > 0)
                                 {
                                     <div class="d-flex flex-column align-end" style="flex-shrink: 0;">
-                                        <span class="rating-badge" style="color: @GetScoreColor(recipe.AverageRating);">
+                                        <span class="rating-badge" style="color: @GetScoreColor((decimal)recipe.AverageRating);">
                                             <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" Style="font-size: 14px; margin-right:2px;" />
                                             @recipe.AverageRating.ToString("0.0")
                                         </span>
@@ -492,7 +492,7 @@ else
         animation: fadeIn 0.3s ease-out;
     }
 
-    @keyframes fadeIn {
+    @@keyframes fadeIn {
         from {
             opacity: 0;
             transform: translateY(8px);
