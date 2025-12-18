@@ -31,7 +31,7 @@ public class UserRecipeService : IUserRecipeService
             .Include(r => r.User)
             .Include(r => r.GlobalRecipe)
             .Include(r => r.Ratings)
-            .Include(r => r.RecipeTags)
+            .Include(r => r.UserRecipeTags)
                 .ThenInclude(rt => rt.Tag)
             .Where(r => r.UserId == userId);
 
@@ -58,7 +58,7 @@ public class UserRecipeService : IUserRecipeService
         // Tag filter
         if (query.TagIds != null && query.TagIds.Count > 0)
         {
-            queryable = queryable.Where(r => r.RecipeTags.Any(rt => query.TagIds.Contains(rt.TagId)));
+            queryable = queryable.Where(r => r.UserRecipeTags.Any(rt => query.TagIds.Contains(rt.TagId)));
         }
 
         // Sorting

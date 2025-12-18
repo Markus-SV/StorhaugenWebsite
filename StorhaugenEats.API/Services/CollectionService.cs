@@ -431,8 +431,8 @@ public class CollectionService : ICollectionService
         var areFriends = await _context.UserFriendships
             .AnyAsync(f =>
                 f.Status == "accepted" &&
-                ((f.RequesterId == currentUserId && f.AddresseeId == friendUserId) ||
-                 (f.RequesterId == friendUserId && f.AddresseeId == currentUserId)));
+                ((f.RequesterUserId == currentUserId && f.TargetUserId == friendUserId) ||
+                 (f.RequesterUserId == friendUserId && f.TargetUserId == currentUserId)));
 
         if (!areFriends)
             return new List<CollectionDto>();
