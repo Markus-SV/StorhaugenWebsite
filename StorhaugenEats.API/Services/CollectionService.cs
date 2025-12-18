@@ -11,10 +11,12 @@ namespace StorhaugenEats.API.Services;
 public class CollectionService : ICollectionService
 {
     private readonly AppDbContext _context;
+    private readonly IUserFriendshipService _friendshipService;
 
-    public CollectionService(AppDbContext context)
+    public CollectionService(AppDbContext context, IUserFriendshipService friendshipService)
     {
         _context = context;
+        _friendshipService = friendshipService;
     }
 
     #region Collection CRUD
@@ -46,8 +48,8 @@ public class CollectionService : ICollectionService
         if (collection == null)
             return null;
 
-        // Check access
-        if (!IsMember(collection, userId))
+        // Check access - members, friends (for friend visibility), or public
+        if (!await CanUserViewCollectionAsync(collection, userId))
             return null;
 
         return MapToDto(collection, userId);
@@ -189,7 +191,7 @@ public class CollectionService : ICollectionService
         if (collection == null)
             throw new InvalidOperationException("Collection not found");
 
-        if (!IsMember(collection, userId))
+        if (!await CanUserViewCollectionAsync(collection, userId))
             throw new InvalidOperationException("You don't have access to this collection");
 
         var recipesQuery = _context.UserRecipeCollections
@@ -459,6 +461,25 @@ public class CollectionService : ICollectionService
     {
         return collection.OwnerUserId == userId ||
                collection.Members.Any(m => m.UserId == userId);
+    }
+
+    private async Task<bool> CanUserViewCollectionAsync(Collection collection, Guid userId)
+    {
+        // Members can always view
+        if (IsMember(collection, userId))
+            return true;
+
+        // Public collections can be viewed by anyone
+        if (collection.Visibility == "public")
+            return true;
+
+        // Friends visibility - check if user is a friend of the owner
+        if (collection.Visibility == "friends")
+        {
+            return await _friendshipService.AreFriendsAsync(collection.OwnerUserId, userId);
+        }
+
+        return false;
     }
 
     private CollectionDto MapToDto(Collection collection, Guid userId)

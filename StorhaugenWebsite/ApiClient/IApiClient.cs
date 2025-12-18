@@ -78,6 +78,8 @@ public interface IApiClient
     // HelloFresh
     Task<HelloFreshRawResponse?> GetHelloFreshTestRawAsync();
     Task<HelloFreshSyncResult> TriggerHelloFreshSyncAsync(bool force = false);
+    Task<HelloFreshSyncResult> SyncHelloFreshWeekAsync(string week);
     Task<HelloFreshSyncStatus?> GetHelloFreshSyncStatusAsync();
     Task<List<string>> GetAvailableHelloFreshWeeksAsync();
+    Task<List<string>> GetAvailableHelloFreshWeeksToFetchAsync();
 }

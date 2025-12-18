@@ -1,50 +1,319 @@
 @page "/hello-test"
+@using Microsoft.AspNetCore.Authorization
 @using StorhaugenWebsite.ApiClient
 @using StorhaugenWebsite.Shared.DTOs
+@using StorhaugenWebsite.Services
 @inject IApiClient ApiClient
+@inject IAuthService AuthService
 @inject ISnackbar Snackbar
+@attribute [Authorize]
 
 <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-4">
-    <MudText Typo="Typo.h4" Class="mb-4">HelloFresh API Test</MudText>
+    <MudText Typo="Typo.h4" Class="mb-4">HelloFresh Admin Panel</MudText>
 
-    <MudAlert Severity="Severity.Info" Class="mb-4">
-        This page tests fetching data from: <code>_next/data/7.98.24323/menus/2026-W01.json</code>
-    </MudAlert>
-
-    <MudButton Variant="Variant.Filled"
-               Color="Color.Success"
-               OnClick="FetchData"
-               Disabled="_isLoading"
-               StartIcon="@Icons.Material.Filled.CloudDownload">
-        @(_isLoading ? "Fetching..." : "Get HelloFresh Data")
-    </MudButton>
-
-    @if (_data != null && _data.PageProps?.SsrPayload?.Courses != null)
+    @if (!_isAdmin)
     {
-        <MudText Typo="Typo.h5" Class="mt-6 mb-2">
-            Found @_data.PageProps.SsrPayload.Courses.Count recipes
-        </MudText>
+        <MudAlert Severity="Severity.Error" Class="mb-4">
+            <MudIcon Icon="@Icons.Material.Rounded.Lock" Class="mr-2" />
+            Du har ikke tilgang til denne siden. Bare administratorer kan se denne siden.
+        </MudAlert>
+    }
+    else
+    {
+        @* Sync Status Card *@
+        <MudCard Class="mb-4">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Rounded.CloudSync" Color="Color.Primary" />
+                        <MudText Typo="Typo.h6">Synkroniseringsstatus</MudText>
+                    </div>
+                </CardHeaderContent>
+                <CardHeaderActions>
+                    <MudIconButton Icon="@Icons.Material.Rounded.Refresh" OnClick="LoadSyncStatus" Disabled="_isLoadingStatus" />
+                </CardHeaderActions>
+            </MudCardHeader>
+            <MudCardContent>
+                @if (_isLoadingStatus)
+                {
+                    <div class="d-flex justify-center pa-4">
+                        <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+                    </div>
+                }
+                else if (_syncStatus == null)
+                {
+                    <MudAlert Severity="Severity.Info">Ingen synkronisering er utfort enda.</MudAlert>
+                }
+                else
+                {
+                    <div class="d-flex flex-column gap-2">
+                        <div class="d-flex justify-space-between">
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Siste synkronisering:</MudText>
+                            <MudText Typo="Typo.body2" Style="font-weight: 600;">
+                                @(_syncStatus.LastSync?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "Aldri")
+                            </MudText>
+                        </div>
+                        <div class="d-flex justify-space-between">
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Status:</MudText>
+                            <MudChip T="string" Size="Size.Small" Color="@GetStatusColor(_syncStatus.Status)" Variant="Variant.Filled">
+                                @(_syncStatus.Status ?? "Ukjent")
+                            </MudChip>
+                        </div>
+                        <div class="d-flex justify-space-between">
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Oppskrifter lagt til:</MudText>
+                            <MudText Typo="Typo.body2" Style="font-weight: 600;">@_syncStatus.RecipesAdded</MudText>
+                        </div>
+                        <div class="d-flex justify-space-between">
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Oppskrifter oppdatert:</MudText>
+                            <MudText Typo="Typo.body2" Style="font-weight: 600;">@_syncStatus.RecipesUpdated</MudText>
+                        </div>
+                        <div class="d-flex justify-space-between">
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Build ID:</MudText>
+                            <MudText Typo="Typo.body2" Style="font-family: monospace;">@(_syncStatus.BuildId ?? "N/A")</MudText>
+                        </div>
+                        <div class="d-flex justify-space-between">
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Uker synkronisert:</MudText>
+                            <MudText Typo="Typo.body2" Style="font-weight: 600;">@(_syncStatus.WeeksSynced ?? "N/A")</MudText>
+                        </div>
+                        @if (!string.IsNullOrEmpty(_syncStatus.ErrorMessage))
+                        {
+                            <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2">
+                                @_syncStatus.ErrorMessage
+                            </MudAlert>
+                        }
+                    </div>
+                }
+            </MudCardContent>
+        </MudCard>
 
-        <div class="d-flex flex-wrap gap-4 mt-4">
-            @foreach (var item in _data.PageProps.SsrPayload.Courses)
-            {
-                var recipe = item.Recipe;
-                <MudCard Style="width: 300px;">
-                    <MudCardMedia Image="@recipe.ImageLink" Height="200" />
-                    <MudCardContent>
-                        <MudText Typo="Typo.h6">@recipe.Name</MudText>
-                        <MudText Typo="Typo.body2" Color="Color.Secondary">@recipe.Headline</MudText>
-                        <MudChip T="string" Size="Size.Small" Color="Color.Primary" Class="mt-2">@recipe.PrepTime</MudChip>
-                    </MudCardContent>
-                </MudCard>
-            }
-        </div>
+        @* Manual Sync Card *@
+        <MudCard Class="mb-4">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Rounded.CloudDownload" Color="Color.Success" />
+                        <MudText Typo="Typo.h6">Manuell synkronisering</MudText>
+                    </div>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-4">
+                    Manuell synkronisering vil overstyre 24-timers regelen og hente oppskrifter umiddelbart.
+                </MudAlert>
+
+                @* Full Sync Button *@
+                <div class="mb-4">
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">Full synkronisering (alle kommende uker)</MudText>
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               OnClick="TriggerFullSync"
+                               Disabled="_isSyncing"
+                               StartIcon="@Icons.Material.Rounded.Sync"
+                               FullWidth="true">
+                        @if (_isSyncing && _syncingAll)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" Color="Color.Surface" />
+                            <span>Synkroniserer...</span>
+                        }
+                        else
+                        {
+                            <span>Start full synkronisering (Force)</span>
+                        }
+                    </MudButton>
+                </div>
+
+                <MudDivider Class="my-4" />
+
+                @* Week-specific Sync *@
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Synkroniser spesifikk uke</MudText>
+                <div class="d-flex gap-2 mb-2">
+                    <MudSelect T="string"
+                               @bind-Value="_selectedWeek"
+                               Label="Velg uke"
+                               Variant="Variant.Outlined"
+                               Style="min-width: 200px;">
+                        @foreach (var week in _availableWeeks)
+                        {
+                            <MudSelectItem Value="@week">@week</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Success"
+                               OnClick="TriggerWeekSync"
+                               Disabled="_isSyncing || string.IsNullOrEmpty(_selectedWeek)"
+                               StartIcon="@Icons.Material.Rounded.CloudDownload">
+                        @if (_isSyncing && !_syncingAll)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" Color="Color.Surface" />
+                            <span>Synkroniserer...</span>
+                        }
+                        else
+                        {
+                            <span>Synkroniser uke</span>
+                        }
+                    </MudButton>
+                </div>
+            </MudCardContent>
+        </MudCard>
+
+        @* Test Data Card (existing functionality) *@
+        <MudCard Class="mb-4">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Rounded.Science" Color="Color.Info" />
+                        <MudText Typo="Typo.h6">Test HelloFresh API</MudText>
+                    </div>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudAlert Severity="Severity.Info" Class="mb-4">
+                    Dette tester direkte henting fra HelloFresh API uten a lagre data.
+                </MudAlert>
+
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Info"
+                           OnClick="FetchData"
+                           Disabled="_isLoading"
+                           StartIcon="@Icons.Material.Rounded.CloudDownload">
+                    @(_isLoading ? "Henter..." : "Test HelloFresh API")
+                </MudButton>
+
+                @if (_data != null && _data.PageProps?.SsrPayload?.Courses != null)
+                {
+                    <MudText Typo="Typo.h6" Class="mt-6 mb-2">
+                        Fant @_data.PageProps.SsrPayload.Courses.Count oppskrifter
+                    </MudText>
+
+                    <div class="d-flex flex-wrap gap-4 mt-4">
+                        @foreach (var item in _data.PageProps.SsrPayload.Courses.Take(6))
+                        {
+                            var recipe = item.Recipe;
+                            <MudCard Style="width: 280px;">
+                                <MudCardMedia Image="@recipe.ImageLink" Height="160" />
+                                <MudCardContent>
+                                    <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">@recipe.Name</MudText>
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="text-truncate">@recipe.Headline</MudText>
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Primary" Class="mt-2">@recipe.PrepTime</MudChip>
+                                </MudCardContent>
+                            </MudCard>
+                        }
+                    </div>
+                }
+            </MudCardContent>
+        </MudCard>
     }
 </MudContainer>
 
 @code {
     private bool _isLoading = false;
+    private bool _isLoadingStatus = false;
+    private bool _isSyncing = false;
+    private bool _syncingAll = false;
     private HelloFreshRawResponse? _data;
+    private HelloFreshSyncStatus? _syncStatus;
+    private List<string> _availableWeeks = new();
+    private string? _selectedWeek;
+    private bool _isAdmin = false;
+
+    // Admin email whitelist
+    private readonly HashSet<string> _adminEmails = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "markussvenoy@gmail.com",
+        "eliassvenoy@gmail.com"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Check if user is admin
+        var userEmail = AuthService.CurrentUserEmail;
+        _isAdmin = !string.IsNullOrEmpty(userEmail) && _adminEmails.Contains(userEmail);
+
+        if (_isAdmin)
+        {
+            await LoadSyncStatus();
+            await LoadAvailableWeeks();
+        }
+    }
+
+    private async Task LoadSyncStatus()
+    {
+        _isLoadingStatus = true;
+        try
+        {
+            _syncStatus = await ApiClient.GetHelloFreshSyncStatusAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading sync status: {ex.Message}");
+            Snackbar.Add("Kunne ikke laste synkroniseringsstatus", Severity.Error);
+        }
+        finally
+        {
+            _isLoadingStatus = false;
+        }
+    }
+
+    private async Task LoadAvailableWeeks()
+    {
+        try
+        {
+            _availableWeeks = await ApiClient.GetAvailableHelloFreshWeeksToFetchAsync();
+            if (_availableWeeks.Any())
+            {
+                _selectedWeek = _availableWeeks.First();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading available weeks: {ex.Message}");
+        }
+    }
+
+    private async Task TriggerFullSync()
+    {
+        _isSyncing = true;
+        _syncingAll = true;
+        try
+        {
+            var result = await ApiClient.TriggerHelloFreshSyncAsync(force: true);
+            Snackbar.Add($"Synkronisering fullfort! {result.RecipesAdded} nye, {result.RecipesUpdated} oppdatert", Severity.Success);
+            await LoadSyncStatus();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error syncing: {ex.Message}");
+            Snackbar.Add($"Synkronisering feilet: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSyncing = false;
+            _syncingAll = false;
+        }
+    }
+
+    private async Task TriggerWeekSync()
+    {
+        if (string.IsNullOrEmpty(_selectedWeek)) return;
+
+        _isSyncing = true;
+        _syncingAll = false;
+        try
+        {
+            var result = await ApiClient.SyncHelloFreshWeekAsync(_selectedWeek);
+            Snackbar.Add($"Uke {_selectedWeek} synkronisert! {result.RecipesAdded} nye, {result.RecipesUpdated} oppdatert", Severity.Success);
+            await LoadSyncStatus();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error syncing week: {ex.Message}");
+            Snackbar.Add($"Synkronisering feilet: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSyncing = false;
+        }
+    }
 
     private async Task FetchData()
     {
@@ -52,16 +321,26 @@
         try
         {
             _data = await ApiClient.GetHelloFreshTestRawAsync();
-            Snackbar.Add("Data fetched successfully!", Severity.Success);
+            Snackbar.Add("Data hentet!", Severity.Success);
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            Snackbar.Add($"Feil: {ex.Message}", Severity.Error);
             Console.WriteLine(ex);
         }
         finally
         {
             _isLoading = false;
         }
+    }
+
+    private Color GetStatusColor(string? status)
+    {
+        return status?.ToLower() switch
+        {
+            "success" => Color.Success,
+            "failed" => Color.Error,
+            _ => Color.Default
+        };
     }
 }

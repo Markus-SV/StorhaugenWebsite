@@ -44,8 +44,8 @@ else
     <div class="d-flex flex-column gap-3">
         @foreach (var collection in _collections)
         {
-            <div class="collection-card" @onclick="() => OpenCollection(collection.Id)">
-                <div class="d-flex align-center gap-3">
+            <div class="collection-card">
+                <div class="d-flex align-center gap-3" @onclick="() => OpenCollection(collection.Id)" style="cursor: pointer;">
                     <div class="collection-icon">
                         <MudIcon Icon="@GetVisibilityIcon(collection.Visibility)" Size="Size.Medium" />
                     </div>
@@ -61,16 +61,29 @@ else
                         </div>
                         <div class="d-flex align-center gap-3 mt-1">
                             <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small" Style="font-size: 14px; vertical-align: middle;" />
-                                @collection.RecipeCount oppskrifter
-                            </MudText>
-                            <MudText Typo="Typo.caption" Color="Color.Secondary">
                                 <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Small" Style="font-size: 14px; vertical-align: middle;" />
                                 @collection.MemberCount medlemmer
                             </MudText>
                         </div>
                     </div>
-                    <MudIcon Icon="@Icons.Material.Rounded.ChevronRight" Color="Color.Default" />
+                </div>
+
+                @* Recipe count with "se alle" link *@
+                <div class="collection-recipes-row">
+                    <div class="d-flex align-center gap-2">
+                        <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small" Style="font-size: 16px;" Color="Color.Primary" />
+                        <MudText Typo="Typo.body2" Style="font-weight: 600;">
+                            @collection.RecipeCount @(collection.RecipeCount == 1 ? "oppskrift" : "oppskrifter")
+                        </MudText>
+                    </div>
+                    <MudButton Variant="Variant.Text"
+                               Color="Color.Primary"
+                               Size="Size.Small"
+                               EndIcon="@Icons.Material.Rounded.ArrowForward"
+                               OnClick="() => OpenCollection(collection.Id)"
+                               Style="text-transform: none;">
+                        Se alle
+                    </MudButton>
                 </div>
             </div>
         }
@@ -147,6 +160,15 @@ else
         display: flex;
         align-items: center;
         justify-content: center;
+    }
+
+    .collection-recipes-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--mud-palette-divider);
     }
 </style>
 

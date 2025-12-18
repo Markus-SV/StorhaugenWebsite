@@ -387,7 +387,7 @@ else
 
         @* My Rating *@
         <div class="d-flex align-center gap-3 mb-3">
-            <MudSlider T="decimal" Value="_myRating" ValueChanged="OnRatingChanged" Min="0" Max="10" Step="0.5M" Color="Color.Primary" Style="flex: 1;" />
+            <MudSlider T="decimal" Value="_myRating" ValueChanged="OnRatingChanged" Min="0" Max="10" Step="0.1M" Color="Color.Primary" Style="flex: 1;" />
             <span class="rating-badge @GetRatingClass((double)_myRating)" style="font-size: 1rem; padding: 8px 14px; min-width: 50px; text-align: center;">
                 @(_myRating > 0 ? _myRating.ToString("0.0") : "-")
             </span>
@@ -606,6 +606,8 @@ else
     }
 </style>
 
+@implements IDisposable
+
 @code {
     [Parameter] public Guid Id { get; set; }
 
@@ -617,6 +619,10 @@ else
     private decimal _myRating = 0;
     private Guid _currentUserId;
     private List<CollectionDto> _recipeCollections = new();
+
+    // Debounce for rating slider
+    private CancellationTokenSource? _ratingDebounceTimer;
+    private const int RatingDebounceMs = 500;
 
     private bool IsOwner => _recipe?.UserId == _currentUserId;
 
@@ -755,12 +761,34 @@ else
     {
         if (_recipe == null) return;
         _myRating = rating;
+
+        // Cancel any pending save
+        _ratingDebounceTimer?.Cancel();
+        _ratingDebounceTimer = new CancellationTokenSource();
+
         try
         {
+            // Wait for debounce period (user stops dragging)
+            await Task.Delay(RatingDebounceMs, _ratingDebounceTimer.Token);
+
+            // Save the rating
             await RecipeService.RateRecipeAsync(_recipe.Id, rating);
             Snackbar.Add("Vurdering lagret", Severity.Success);
         }
-        catch { Snackbar.Add("Kunne ikke lagre vurdering", Severity.Error); }
+        catch (TaskCanceledException)
+        {
+            // Debounce cancelled - user still dragging, do nothing
+        }
+        catch
+        {
+            Snackbar.Add("Kunne ikke lagre vurdering", Severity.Error);
+        }
+    }
+
+    public void Dispose()
+    {
+        _ratingDebounceTimer?.Cancel();
+        _ratingDebounceTimer?.Dispose();
     }
 
     // --- Collection Management ---

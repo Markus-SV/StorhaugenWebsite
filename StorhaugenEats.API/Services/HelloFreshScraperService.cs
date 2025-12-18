@@ -433,6 +433,29 @@ public class HelloFreshScraperService : IHelloFreshScraperService
         }
     }
 
+    public List<string> GenerateAvailableWeeks(int count = 8)
+    {
+        var weeks = new List<string>();
+        var currentDate = DateTime.UtcNow;
+
+        // Generate weeks starting from 2 weeks ago to include past weeks
+        for (int i = -2; i < count; i++)
+        {
+            var targetDate = currentDate.AddDays(i * 7);
+            var calendar = CultureInfo.CurrentCulture.Calendar;
+            var weekNumber = calendar.GetWeekOfYear(
+                targetDate,
+                CalendarWeekRule.FirstFourDayWeek,
+                DayOfWeek.Monday
+            );
+
+            var weekString = $"{targetDate.Year}-W{weekNumber:D2}";
+            weeks.Add(weekString);
+        }
+
+        return weeks.Distinct().ToList();
+    }
+
     private List<string> GenerateWeeks(int count)
     {
         var weeks = new List<string>();
@@ -453,6 +476,78 @@ public class HelloFreshScraperService : IHelloFreshScraperService
         }
 
         return weeks;
+    }
+
+    public async Task<(int added, int updated)> SyncWeekAsync(string week)
+    {
+        var syncLog = new EtlSyncLog
+        {
+            Id = Guid.NewGuid(),
+            SyncType = "hellofresh",
+            StartedAt = DateTime.UtcNow
+        };
+
+        try
+        {
+            // Step 1: Get Build ID
+            var buildId = await GetBuildIdAsync();
+            syncLog.BuildId = buildId;
+            syncLog.WeeksSynced = week;
+
+            // Step 2: Fetch data for the specific week
+            var allRecipes = new List<GlobalRecipe>();
+            var url = $"{BaseUrl}/_next/data/{buildId}/menus/{week}.json";
+
+            try
+            {
+                var json = await _httpClient.GetStringAsync(url);
+                var weekRecipes = await ParseWeekDataAsync(json, week);
+                allRecipes.AddRange(weekRecipes);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fetching week {week}: {ex.Message}");
+                throw;
+            }
+
+            // Step 3: Batch upsert all recipes in one operation
+            int recipesAdded = 0;
+            int recipesUpdated = 0;
+
+            if (allRecipes.Any())
+            {
+                // Get existing recipes to count adds vs updates
+                var uuids = allRecipes.Select(r => r.HellofreshUuid!).ToList();
+                var existing = await _globalRecipeService.GetHellofreshRecipesByUuidsAsync(uuids);
+
+                recipesAdded = allRecipes.Count(r => !existing.ContainsKey(r.HellofreshUuid!));
+                recipesUpdated = allRecipes.Count(r => existing.ContainsKey(r.HellofreshUuid!));
+
+                // Batch upsert
+                await _globalRecipeService.BatchUpsertHellofreshRecipesAsync(allRecipes);
+            }
+
+            syncLog.RecipesAdded = recipesAdded;
+            syncLog.RecipesUpdated = recipesUpdated;
+            syncLog.Status = "success";
+            syncLog.CompletedAt = DateTime.UtcNow;
+
+            _context.EtlSyncLogs.Add(syncLog);
+            await _context.SaveChangesAsync();
+
+            return (recipesAdded, recipesUpdated);
+        }
+        catch (Exception ex)
+        {
+            syncLog.Status = "failed";
+            syncLog.ErrorMessage = ex.Message;
+            syncLog.CompletedAt = DateTime.UtcNow;
+
+            _context.EtlSyncLogs.Add(syncLog);
+            await _context.SaveChangesAsync();
+
+            throw;
+        }
     }
 
     /// <summary>

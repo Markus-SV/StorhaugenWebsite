@@ -127,4 +127,40 @@ public class HelloFreshController : ControllerBase
 
         return Ok(weeks);
     }
+
+    [HttpGet("available-weeks")]
+    [AllowAnonymous]
+    public IActionResult GetAvailableWeeksToFetch()
+    {
+        // Get weeks that can be fetched (current and upcoming weeks)
+        var weeks = _scraperService.GenerateAvailableWeeks(10);
+        return Ok(weeks);
+    }
+
+    [HttpPost("sync-week")]
+    [AllowAnonymous]
+    public async Task<IActionResult> SyncSpecificWeek([FromQuery] string week)
+    {
+        if (string.IsNullOrWhiteSpace(week))
+        {
+            return BadRequest(new { message = "Week parameter is required (e.g., 2025-W01)" });
+        }
+
+        try
+        {
+            var (added, updated) = await _scraperService.SyncWeekAsync(week);
+
+            return Ok(new
+            {
+                message = $"Sync for week {week} completed successfully",
+                week,
+                recipesAdded = added,
+                recipesUpdated = updated
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = $"Sync for week {week} failed", error = ex.Message });
+        }
+    }
 }

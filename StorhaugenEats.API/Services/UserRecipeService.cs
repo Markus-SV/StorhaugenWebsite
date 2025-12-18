@@ -640,8 +640,9 @@ public class UserRecipeService : IUserRecipeService
 
         var myRating = recipe.Ratings?.FirstOrDefault(r => r.UserId == requestingUserId);
 
+        // Exclude the requesting user's rating from memberRatings to avoid duplicates
         var memberRatings = recipe.Ratings?
-            .Where(r => r.User != null)
+            .Where(r => r.User != null && r.UserId != requestingUserId)
             .ToDictionary(r => r.User!.DisplayName, r => (decimal?)r.Score)
             ?? new Dictionary<string, decimal?>();
 

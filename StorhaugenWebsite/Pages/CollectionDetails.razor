@@ -202,52 +202,164 @@ else
             <p class="form-section-title" style="margin: 0;">Oppskrifter (@_recipes.Count)</p>
         </div>
 
-        @if (!_recipes.Any())
+        @* Search & Sort *@
+        <div class="d-flex gap-2 mb-3">
+            <MudTextField @bind-Value="_searchQuery"
+                          Placeholder="Søk i samlingen..."
+                          Variant="Variant.Outlined"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Rounded.Search"
+                          Immediate="true"
+                          DebounceInterval="300"
+                          OnDebounceIntervalElapsed="OnSearchChanged"
+                          Class="flex-grow-1 search-field"
+                          Margin="Margin.Dense" />
+
+            <MudSelect T="string"
+                       @bind-Value="_sortBy"
+                       AnchorOrigin="Origin.BottomRight"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Class="sort-select"
+                       Style="width: 140px;"
+                       AdornmentIcon="@Icons.Material.Rounded.Sort">
+                <MudSelectItem Value="@("date")">Nyeste</MudSelectItem>
+                <MudSelectItem Value="@("rating")">Høyest snitt</MudSelectItem>
+                <MudSelectItem Value="@("name")">Navn (A-Å)</MudSelectItem>
+            </MudSelect>
+        </div>
+
+        @if (!_filteredRecipes.Any())
         {
             <div class="text-center pa-4">
                 <MudIcon Icon="@Icons.Material.Rounded.MenuBook" Size="Size.Large" Color="Color.Default" Style="opacity: 0.5;" />
                 <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">
-                    Ingen oppskrifter i denne samlingen enda
+                    @(string.IsNullOrEmpty(_searchQuery) ? "Ingen oppskrifter i denne samlingen enda" : "Ingen oppskrifter funnet")
                 </MudText>
             </div>
         }
         else
         {
-            <div class="d-flex flex-column gap-2">
-                @foreach (var recipe in _recipes.Take(10))
+            <div class="d-flex flex-column gap-3">
+                @foreach (var recipe in _filteredRecipes)
                 {
-                    <div class="recipe-row" @onclick="() => OpenRecipe(recipe.Id)">
+                    <div class="food-card animate-in" @onclick="() => OpenRecipe(recipe.Id)">
+                        @* Image Section (Right Side) *@
                         @if (recipe.ImageUrls.Any())
                         {
-                            <img src="@recipe.ImageUrls.First()" class="recipe-thumbnail" />
+                            <img src="@recipe.ImageUrls.First()" class="food-card-image" />
                         }
                         else
                         {
-                            <div class="recipe-thumbnail-placeholder">
-                                <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small" />
+                            <div class="food-card-placeholder">
+                                <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" Style="opacity:0.3;" />
                             </div>
                         }
-                        <div class="flex-grow-1" style="min-width: 0;">
-                            <MudText Typo="Typo.body1" Class="text-truncate" Style="font-weight: 500;">@recipe.Name</MudText>
-                            <MudText Typo="Typo.caption" Color="Color.Secondary">@recipe.UserDisplayName</MudText>
+
+                        @* Content Section (Left Side) *@
+                        <div class="food-card-content">
+                            @* Top Row: Title, Source Indicators & Average Badge *@
+                            <div class="d-flex justify-space-between align-start">
+                                @* Left: Title & Source Indicators *@
+                                <div style="min-width: 0; padding-right: 8px;">
+                                    <div class="d-flex align-center gap-1 mb-1">
+                                        @if (recipe.IsHellofresh)
+                                        {
+                                            <MudIcon Icon="@Icons.Material.Rounded.LocalDining" Size="Size.Small" Color="Color.Success" Title="HelloFresh" Style="flex-shrink: 0; font-size: 14px;" />
+                                        }
+                                        <h3 class="food-card-title text-truncate">@recipe.Name</h3>
+                                    </div>
+                                    <div class="d-flex align-center gap-1">
+                                        <MudIcon Icon="@Icons.Material.Rounded.Person" Size="Size.Small" Style="font-size: 12px; opacity: 0.6;" />
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="text-truncate" Style="font-size: 0.75rem;">
+                                            @recipe.UserDisplayName
+                                        </MudText>
+                                    </div>
+                                </div>
+
+                                @* Right: Average Badge *@
+                                @if (recipe.AverageRating > 0)
+                                {
+                                    <div class="d-flex flex-column align-end" style="flex-shrink: 0;">
+                                        <span class="rating-badge" style="color: @GetScoreColor(recipe.AverageRating);">
+                                            <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" Style="font-size: 14px; margin-right:2px;" />
+                                            @recipe.AverageRating.ToString("0.0")
+                                        </span>
+                                        @if (recipe.RatingCount > 0)
+                                        {
+                                            <span class="rating-count-badge">
+                                                <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Small" Style="font-size: 10px;" />
+                                                @recipe.RatingCount
+                                            </span>
+                                        }
+                                    </div>
+                                }
+                            </div>
+
+                            @* Metadata Row (prep time, difficulty, servings) *@
+                            @if (recipe.PrepTimeMinutes.HasValue || !string.IsNullOrEmpty(recipe.Difficulty) || recipe.Servings.HasValue)
+                            {
+                                <div class="d-flex align-center flex-wrap mt-2 gap-2">
+                                    @if (recipe.PrepTimeMinutes.HasValue)
+                                    {
+                                        <span class="meta-chip">
+                                            <MudIcon Icon="@Icons.Material.Rounded.AccessTime" Size="Size.Small" />
+                                            @recipe.PrepTimeMinutes min
+                                        </span>
+                                    }
+                                    @if (!string.IsNullOrEmpty(recipe.Difficulty))
+                                    {
+                                        <span class="meta-chip @GetDifficultyClass(recipe.Difficulty)">
+                                            <MudIcon Icon="@GetDifficultyIcon(recipe.Difficulty)" Size="Size.Small" />
+                                            @GetDifficultyLabel(recipe.Difficulty)
+                                        </span>
+                                    }
+                                    @if (recipe.Servings.HasValue)
+                                    {
+                                        <span class="meta-chip">
+                                            <MudIcon Icon="@Icons.Material.Rounded.Group" Size="Size.Small" />
+                                            @recipe.Servings
+                                        </span>
+                                    }
+                                </div>
+                            }
+
+                            @* Ratings Section (Bottom) *@
+                            <div class="d-flex align-center flex-wrap mt-2 gap-2">
+                                @if (recipe.MyRating.HasValue)
+                                {
+                                    <div class="rating-pill mine">
+                                        <div class="rating-circle" style="background-color: var(--mud-palette-primary); color: var(--mud-palette-primary-text);">
+                                            D
+                                        </div>
+                                        <span class="rating-score">@recipe.MyRating?.ToString("0.0")</span>
+                                    </div>
+                                }
+
+                                @{
+                                    var otherRatings = (recipe.MemberRatings ?? new Dictionary<string, decimal?>())
+                                        .Where(r => r.Value.HasValue)
+                                        .DistinctBy(r => r.Key)
+                                        .Take(4);
+                                }
+
+                                @foreach (var rating in otherRatings)
+                                {
+                                    var initial = !string.IsNullOrEmpty(rating.Key) ? rating.Key.Substring(0, 1).ToUpper() : "?";
+                                    var color = GetUserColor(rating.Key);
+
+                                    <div class="rating-pill">
+                                        <div class="rating-circle" style="background-color: @color; color: white;">
+                                            @initial
+                                        </div>
+                                        <span class="rating-score">@rating.Value?.ToString("0.0")</span>
+                                    </div>
+                                }
+                            </div>
                         </div>
-                        @if (recipe.AverageRating > 0)
-                        {
-                            <div class="d-flex align-center gap-1">
-                                <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" Color="Color.Warning" />
-                                <MudText Typo="Typo.body2">@recipe.AverageRating.ToString("0.0")</MudText>
-                            </div>
-                        }
                     </div>
                 }
             </div>
-
-            @if (_recipes.Count > 10)
-            {
-                <MudButton Variant="Variant.Text" Color="Color.Primary" FullWidth="true" Class="mt-2">
-                    Vis alle @_recipes.Count oppskrifter
-                </MudButton>
-            }
         }
     </div>
 
@@ -357,36 +469,46 @@ else
         border-radius: 12px;
     }
 
-    .recipe-row {
-        display: flex;
+    .meta-chip {
+        display: inline-flex;
         align-items: center;
-        gap: 12px;
-        padding: 12px;
-        background: var(--mud-palette-background-grey);
-        border-radius: 12px;
-        cursor: pointer;
-        transition: background 0.15s ease;
-    }
-
-    .recipe-row:hover {
-        background: var(--mud-palette-action-default-hover);
-    }
-
-    .recipe-thumbnail {
-        width: 48px;
-        height: 48px;
+        gap: 4px;
+        padding: 4px 8px;
         border-radius: 8px;
-        object-fit: cover;
+        background: var(--mud-palette-background);
+        font-size: 0.7rem;
+        color: var(--mud-palette-text-secondary);
     }
 
-    .recipe-thumbnail-placeholder {
-        width: 48px;
-        height: 48px;
-        border-radius: 8px;
-        background: var(--mud-palette-divider);
-        display: flex;
-        align-items: center;
-        justify-content: center;
+    .meta-chip .mud-icon-root {
+        font-size: 12px !important;
+    }
+
+    .difficulty-easy { color: #2D5A45 !important; }
+    .difficulty-medium { color: #A17D00 !important; }
+    .difficulty-hard { color: #C44536 !important; }
+
+    .animate-in {
+        animation: fadeIn 0.3s ease-out;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(8px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .search-field .mud-input-slot {
+        font-size: 0.875rem;
+    }
+
+    .sort-select .mud-input-slot {
+        font-size: 0.875rem;
     }
 </style>
 
@@ -396,6 +518,8 @@ else
     private CollectionDto? _collection;
     private List<UserRecipeDto> _recipes = new();
     private bool _isLoading = true;
+    private string _searchQuery = "";
+    private string _sortBy = "date";
 
     private bool _showEditDialog = false;
     private string _editName = "";
@@ -403,6 +527,37 @@ else
 
     private bool _showInviteDialog = false;
     private string _inviteIdentifier = "";
+
+    private IEnumerable<UserRecipeDto> _filteredRecipes => GetFilteredAndSortedRecipes();
+
+    private IEnumerable<UserRecipeDto> GetFilteredAndSortedRecipes()
+    {
+        var filtered = _recipes.AsEnumerable();
+
+        // Apply search filter
+        if (!string.IsNullOrWhiteSpace(_searchQuery))
+        {
+            var searchLower = _searchQuery.ToLower();
+            filtered = filtered.Where(r =>
+                r.Name.ToLower().Contains(searchLower) ||
+                (r.Description?.ToLower().Contains(searchLower) ?? false) ||
+                (r.UserDisplayName?.ToLower().Contains(searchLower) ?? false));
+        }
+
+        // Apply sorting
+        return _sortBy switch
+        {
+            "name" => filtered.OrderBy(r => r.Name),
+            "rating" => filtered.OrderByDescending(r => r.AverageRating),
+            _ => filtered.OrderByDescending(r => r.CreatedAt)
+        };
+    }
+
+    private void OnSearchChanged(string value)
+    {
+        _searchQuery = value;
+        StateHasChanged();
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -645,5 +800,55 @@ else
         var hash = name.GetHashCode();
         var hue = Math.Abs(hash % 360);
         return $"hsl({hue}, 45%, 45%)";
+    }
+
+    private string GetScoreColor(decimal rating)
+    {
+        return rating switch
+        {
+            >= 8m => "#2D5A45",
+            >= 5m => "#A17D00",
+            _ => "#C44536"
+        };
+    }
+
+    private string GetUserColor(string? name)
+    {
+        if (string.IsNullOrEmpty(name)) return "#888";
+        var hue = Math.Abs(name.GetHashCode() % 360);
+        return $"hsl({hue}, 50%, 45%)";
+    }
+
+    private string GetDifficultyClass(string? difficulty)
+    {
+        return difficulty?.ToLower() switch
+        {
+            "easy" or "lett" => "difficulty-easy",
+            "medium" or "middels" => "difficulty-medium",
+            "hard" or "vanskelig" => "difficulty-hard",
+            _ => ""
+        };
+    }
+
+    private string GetDifficultyIcon(string? difficulty)
+    {
+        return difficulty?.ToLower() switch
+        {
+            "easy" or "lett" => Icons.Material.Rounded.SentimentSatisfiedAlt,
+            "medium" or "middels" => Icons.Material.Rounded.SentimentNeutral,
+            "hard" or "vanskelig" => Icons.Material.Rounded.SentimentVeryDissatisfied,
+            _ => Icons.Material.Rounded.Help
+        };
+    }
+
+    private string GetDifficultyLabel(string? difficulty)
+    {
+        return difficulty?.ToLower() switch
+        {
+            "easy" or "lett" => "Lett",
+            "medium" or "middels" => "Middels",
+            "hard" or "vanskelig" => "Vanskelig",
+            _ => difficulty ?? ""
+        };
     }
 }

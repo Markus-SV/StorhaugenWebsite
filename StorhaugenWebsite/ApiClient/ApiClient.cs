@@ -567,4 +567,19 @@ public class ApiClient : IApiClient
         return (await _httpClient.GetFromJsonAsync<List<string>>("/api/hellofresh/weeks", _jsonOptions))
             ?? new List<string>();
     }
+
+    public async Task<List<string>> GetAvailableHelloFreshWeeksToFetchAsync()
+    {
+        return (await _httpClient.GetFromJsonAsync<List<string>>("/api/hellofresh/available-weeks", _jsonOptions))
+            ?? new List<string>();
+    }
+
+    public async Task<HelloFreshSyncResult> SyncHelloFreshWeekAsync(string week)
+    {
+        var url = $"/api/hellofresh/sync-week?week={Uri.EscapeDataString(week)}";
+        var response = await _httpClient.PostAsync(url, null);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<HelloFreshSyncResult>(_jsonOptions))
+            ?? new HelloFreshSyncResult { Message = "Unknown result" };
+    }
 }
