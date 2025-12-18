@@ -1,6 +1,6 @@
 ================================================================================
 PROJECT CONTEXT FILE
-Generated on: 12/18/2025 12:33:35
+Generated on: 12/18/2025 17:38:21
 ================================================================================
 PROJECT STRUCTURE:
 ==================
@@ -1095,6 +1095,17 @@ public class CollectionsController : ControllerBase
             return BadRequest(new { message = ex.Message });
         }
     }
+
+    /// <summary>
+    /// Get collections shared by a friend that are visible to the current user.
+    /// </summary>
+    [HttpGet("friend/{friendUserId}")]
+    public async Task<ActionResult<List<CollectionDto>>> GetFriendCollections(Guid friendUserId)
+    {
+        var userId = await _currentUserService.GetOrCreateUserIdAsync();
+        var collections = await _collectionService.GetFriendSharedCollectionsAsync(friendUserId, userId);
+        return Ok(collections);
+    }
 }
 
 
@@ -1420,6 +1431,7 @@ public class GlobalRecipesController : ControllerBase
 
         // Pagination
         var recipes = await queryable
+            .Include(gr => gr.CreatedByUser)
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
             .ToListAsync();
@@ -3426,6 +3438,13 @@ public class Collection
     public bool IsShared { get; set; } = false;
 
     /// <summary>
+    /// Visibility: "private", "friends", or "public"
+    /// </summary>
+    [Column("visibility")]
+    [MaxLength(20)]
+    public string Visibility { get; set; } = "private";
+
+    /// <summary>
     /// Unique share code for shared collections
     /// </summary>
     [Column("unique_share_id")]
@@ -4481,7 +4500,8 @@ public class CollectionService : ICollectionService
         if (string.IsNullOrWhiteSpace(dto.Name))
             throw new InvalidOperationException("Collection name is required");
 
-        var isShared = dto.Visibility != "private";
+        var visibility = dto.Visibility ?? "private";
+        var isShared = visibility != "private";
 
         var collection = new Collection
         {
@@ -4490,6 +4510,7 @@ public class CollectionService : ICollectionService
             Name = dto.Name.Trim(),
             Description = dto.Description?.Trim(),
             IsShared = isShared,
+            Visibility = visibility,
             UniqueShareId = isShared ? GenerateShareCode() : null,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -4531,11 +4552,13 @@ public class CollectionService : ICollectionService
 
         if (!string.IsNullOrWhiteSpace(dto.Visibility))
         {
-            var newIsShared = dto.Visibility != "private";
+            var newVisibility = dto.Visibility;
+            var newIsShared = newVisibility != "private";
             var wasPrivate = !collection.IsShared;
             var isNowPrivate = !newIsShared;
 
             collection.IsShared = newIsShared;
+            collection.Visibility = newVisibility;
 
             // Generate share code when becoming shared, clear when becoming private
             if (wasPrivate && !isNowPrivate && string.IsNullOrEmpty(collection.UniqueShareId))
@@ -4822,6 +4845,32 @@ public class CollectionService : ICollectionService
                 urc.Collection.Members.Any(m => m.UserId == userId));
     }
 
+    public async Task<List<CollectionDto>> GetFriendSharedCollectionsAsync(Guid friendUserId, Guid currentUserId)
+    {
+        // Check if they are actually friends
+        var areFriends = await _context.UserFriendships
+            .AnyAsync(f =>
+                f.Status == "accepted" &&
+                ((f.RequesterUserId == currentUserId && f.TargetUserId == friendUserId) ||
+                 (f.RequesterUserId == friendUserId && f.TargetUserId == currentUserId)));
+
+        if (!areFriends)
+            return new List<CollectionDto>();
+
+        // Get collections owned by the friend that are visible to friends or public
+        var collections = await _context.Collections
+            .Include(c => c.Owner)
+            .Include(c => c.Members)
+                .ThenInclude(m => m.User)
+            .Include(c => c.UserRecipeCollections)
+            .Where(c => c.OwnerUserId == friendUserId &&
+                       (c.Visibility == "friends" || c.Visibility == "public"))
+            .OrderBy(c => c.Name)
+            .ToListAsync();
+
+        return collections.Select(c => MapToDto(c, currentUserId)).ToList();
+    }
+
     #endregion
 
     #region Private Helpers
@@ -4839,7 +4888,7 @@ public class CollectionService : ICollectionService
             Id = collection.Id,
             Name = collection.Name,
             Description = collection.Description,
-            Visibility = collection.IsShared ? "shared" : "private",
+            Visibility = collection.Visibility ?? (collection.IsShared ? "friends" : "private"),
             ShareCode = collection.UniqueShareId,
             OwnerId = collection.OwnerUserId,
             OwnerDisplayName = collection.Owner?.DisplayName ?? "Unknown",
@@ -5844,6 +5893,9 @@ public interface ICollectionService
 
     // Visibility check for recipes
     Task<bool> CanUserViewRecipeViaCollectionAsync(Guid recipeId, Guid userId);
+
+    // Get collections shared by a friend that are visible to the current user
+    Task<List<CollectionDto>> GetFriendSharedCollectionsAsync(Guid friendUserId, Guid currentUserId);
 }
 
 
@@ -6951,6 +7003,8 @@ public class UserRecipeService : IUserRecipeService
             .Include(r => r.User)
             .Include(r => r.GlobalRecipe)
             .Include(r => r.Ratings)
+            .Include(r => r.UserRecipeTags)
+                .ThenInclude(rt => rt.Tag)
             .Where(r => r.UserId == userId);
 
         if (!query.IncludeArchived)
@@ -6961,6 +7015,22 @@ public class UserRecipeService : IUserRecipeService
         if (!string.IsNullOrEmpty(query.Visibility) && query.Visibility != "all")
         {
             queryable = queryable.Where(r => r.Visibility == query.Visibility);
+        }
+
+        // Search filter
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var searchLower = query.Search.ToLower();
+            queryable = queryable.Where(r =>
+                (r.LocalTitle != null && r.LocalTitle.ToLower().Contains(searchLower)) ||
+                (r.GlobalRecipe != null && r.GlobalRecipe.Title.ToLower().Contains(searchLower)) ||
+                (r.LocalDescription != null && r.LocalDescription.ToLower().Contains(searchLower)));
+        }
+
+        // Tag filter
+        if (query.TagIds != null && query.TagIds.Count > 0)
+        {
+            queryable = queryable.Where(r => r.UserRecipeTags.Any(rt => query.TagIds.Contains(rt.TagId)));
         }
 
         // Sorting
@@ -8145,6 +8215,13 @@ public class ApiClient : IApiClient
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task<List<CollectionDto>> GetFriendCollectionsAsync(Guid friendUserId)
+    {
+        await AddAuthHeaderAsync();
+        return (await _httpClient.GetFromJsonAsync<List<CollectionDto>>($"/api/collections/friend/{friendUserId}", _jsonOptions))
+            ?? new List<CollectionDto>();
+    }
+
     // Global Recipe Methods
     public async Task<GlobalRecipePagedResult> BrowseGlobalRecipesAsync(BrowseGlobalRecipesQuery query)
     {
@@ -8577,6 +8654,7 @@ public interface IApiClient
     Task AddCollectionMemberAsync(Guid collectionId, AddCollectionMemberDto dto);
     Task RemoveCollectionMemberAsync(Guid collectionId, Guid memberId);
     Task LeaveCollectionAsync(Guid collectionId);
+    Task<List<CollectionDto>> GetFriendCollectionsAsync(Guid friendUserId);
 
     // Global Recipes
     Task<GlobalRecipePagedResult> BrowseGlobalRecipesAsync(BrowseGlobalRecipesQuery query);
@@ -8670,7 +8748,7 @@ FILE START: \StorhaugenWebsite\Components\ActivityFeed.razor
             <MudText Typo="Typo.body2" Color="Color.Secondary">
                 Legg til venner for å se hva de lager!
             </MudText>
-            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Href="/friends" Class="mt-3">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Href="friends" Class="mt-3">
                 Finn venner
             </MudButton>
         </div>
@@ -10457,7 +10535,7 @@ FILE START: \StorhaugenWebsite\Components\MyRecipes.razor
 
     private void NavigateToRecipe(UserRecipeDto recipe)
     {
-        Navigation.NavigateTo($"/food/{recipe.Id}");
+        Navigation.NavigateTo($"food/{recipe.Id}");
     }
 
     private async Task PublishRecipe(UserRecipeDto recipe)
@@ -13294,7 +13372,7 @@ else if (_collection == null)
     <div class="empty-state pa-8 text-center">
         <MudIcon Icon="@Icons.Material.Rounded.SearchOff" Size="Size.Large" Color="Color.Default" />
         <MudText Typo="Typo.h6" Class="mt-3">Fant ikke samlingen</MudText>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/collections">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="collections">
             Tilbake til samlinger
         </MudButton>
     </div>
@@ -13880,7 +13958,7 @@ else
 
     private void OpenRecipe(Guid id)
     {
-        Navigation.NavigateTo($"/food/{id}");
+        Navigation.NavigateTo($"food/{id}");
     }
 
     private string GetVisibilityIcon(string visibility) => visibility switch
@@ -14139,7 +14217,7 @@ else
 
     private void OpenCollection(Guid id)
     {
-        Navigation.NavigateTo($"/collections/{id}");
+        Navigation.NavigateTo($"collections/{id}");
     }
 
     private string GetVisibilityIcon(string visibility) => visibility switch
@@ -14722,7 +14800,7 @@ else if (_recipe == null)
         <p class="empty-state-text">
             Denne oppskriften er enten slettet, eller du har mistet tilgangen til den.
         </p>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="">
             Tilbake til start
         </MudButton>
     </div>
@@ -15753,9 +15831,39 @@ FILE START: \StorhaugenWebsite\Pages\FriendRatings.razor
             </MudButton>
         </div>
 
-        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-            Spør @_friend.DisplayName om å dele samlingskoden for å se oppskriftene deres.
-        </MudText>
+        @if (_friendCollections.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+                @_friend.DisplayName har ingen samlinger delt med deg.
+            </MudText>
+        }
+        else
+        {
+            <div class="d-flex flex-column gap-2 mb-4">
+                @foreach (var collection in _friendCollections)
+                {
+                    <MudPaper Class="pa-3" Elevation="0" Outlined="true" Style="cursor: pointer;"
+                              @onclick="() => OpenFriendCollection(collection)">
+                        <div class="d-flex align-center gap-3">
+                            <MudAvatar Size="Size.Medium" Color="@GetVisibilityColor(collection.Visibility)" Variant="Variant.Filled">
+                                <MudIcon Icon="@GetVisibilityIcon(collection.Visibility)" />
+                            </MudAvatar>
+                            <div class="flex-grow-1">
+                                <MudText Typo="Typo.subtitle2" Style="font-weight: 600;">@collection.Name</MudText>
+                                @if (!string.IsNullOrEmpty(collection.Description))
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="text-truncate">@collection.Description</MudText>
+                                }
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @collection.RecipeCount oppskrifter
+                                </MudText>
+                            </div>
+                            <MudIcon Icon="@Icons.Material.Rounded.ChevronRight" Color="Color.Default" />
+                        </div>
+                    </MudPaper>
+                }
+            </div>
+        }
 
         <MudDivider Class="my-4" />
 
@@ -15843,6 +15951,7 @@ FILE START: \StorhaugenWebsite\Pages\FriendRatings.razor
 
     private FriendProfileDto? _friend;
     private List<UserRatingDto> _ratings = new();
+    private List<CollectionDto> _friendCollections = new();
     private bool _loaded;
     private bool _showShareCodeDialog = false;
     private string _shareCode = "";
@@ -15854,6 +15963,7 @@ FILE START: \StorhaugenWebsite\Pages\FriendRatings.razor
         {
             _friend = await FriendshipService.GetUserProfileAsync(FriendUserId);
             _ratings = await ApiClient.GetUserRatingsAsync(FriendUserId, skip: 0, take: 100);
+            _friendCollections = await ApiClient.GetFriendCollectionsAsync(FriendUserId);
         }
         catch (Exception ex)
         {
@@ -15864,6 +15974,27 @@ FILE START: \StorhaugenWebsite\Pages\FriendRatings.razor
             _loaded = true;
         }
     }
+
+    private void OpenFriendCollection(CollectionDto collection)
+    {
+        if (string.IsNullOrEmpty(collection.ShareCode)) return;
+        var returnUrl = Uri.EscapeDataString($"/friends/{FriendUserId}");
+        Navigation.NavigateTo($"collections/shared/{collection.ShareCode}?returnUrl={returnUrl}");
+    }
+
+    private string GetVisibilityIcon(string visibility) => visibility switch
+    {
+        "public" => Icons.Material.Rounded.Public,
+        "friends" => Icons.Material.Rounded.People,
+        _ => Icons.Material.Rounded.Lock
+    };
+
+    private Color GetVisibilityColor(string visibility) => visibility switch
+    {
+        "public" => Color.Success,
+        "friends" => Color.Info,
+        _ => Color.Default
+    };
 
     private async Task OpenInviteDialog()
     {
@@ -15952,7 +16083,7 @@ FILE START: \StorhaugenWebsite\Pages\FriendRatings.razor
 
         _showShareCodeDialog = false;
         var returnUrl = Uri.EscapeDataString($"/friends/{FriendUserId}");
-        Navigation.NavigateTo($"/collections/shared/{_shareCode.Trim()}?returnUrl={returnUrl}");
+        Navigation.NavigateTo($"collections/shared/{_shareCode.Trim()}?returnUrl={returnUrl}");
     }
 }
 
@@ -17147,7 +17278,7 @@ FILE START: \StorhaugenWebsite\Pages\Settings.razor
                        Color="Color.Primary"
                        Size="Size.Small"
                        StartIcon="@Icons.Material.Rounded.Settings"
-                       Href="/collections">
+                       Href="collections">
                 Administrer
             </MudButton>
         </div>

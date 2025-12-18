@@ -224,7 +224,7 @@
     {
         if (string.IsNullOrEmpty(collection.ShareCode)) return;
         var returnUrl = Uri.EscapeDataString($"/friends/{FriendUserId}");
-        Navigation.NavigateTo($"/collections/shared/{collection.ShareCode}?returnUrl={returnUrl}");
+        Navigation.NavigateTo($"collections/shared/{collection.ShareCode}?returnUrl={returnUrl}");
     }
 
     private string GetVisibilityIcon(string visibility) => visibility switch
@@ -328,6 +328,6 @@
 
         _showShareCodeDialog = false;
         var returnUrl = Uri.EscapeDataString($"/friends/{FriendUserId}");
-        Navigation.NavigateTo($"/collections/shared/{_shareCode.Trim()}?returnUrl={returnUrl}");
+        Navigation.NavigateTo($"collections/shared/{_shareCode.Trim()}?returnUrl={returnUrl}");
     }
 }

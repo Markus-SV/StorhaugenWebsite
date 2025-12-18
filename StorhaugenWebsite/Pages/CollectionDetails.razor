@@ -30,7 +30,7 @@ else if (_collection == null)
     <div class="empty-state pa-8 text-center">
         <MudIcon Icon="@Icons.Material.Rounded.SearchOff" Size="Size.Large" Color="Color.Default" />
         <MudText Typo="Typo.h6" Class="mt-3">Fant ikke samlingen</MudText>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/collections">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="collections">
             Tilbake til samlinger
         </MudButton>
     </div>
@@ -616,7 +616,7 @@ else
 
     private void OpenRecipe(Guid id)
     {
-        Navigation.NavigateTo($"/food/{id}");
+        Navigation.NavigateTo($"food/{id}");
     }
 
     private string GetVisibilityIcon(string visibility) => visibility switch
