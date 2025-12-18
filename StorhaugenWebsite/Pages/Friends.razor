@@ -6,6 +6,7 @@
 @using StorhaugenWebsite.ApiClient
 @inject IUserFriendshipService FriendshipService
 @inject ICollectionStateService CollectionState
+@inject IUserColorService UserColorService
 @inject IApiClient ApiClient
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
@@ -58,7 +59,7 @@
                 {
                     <MudPaper Class="pa-3 friend-card" Elevation="0" Outlined="true">
                         <div class="d-flex align-center gap-3">
-                            <MudAvatar Color="Color.Info" Size="Size.Medium">
+                            <MudAvatar Size="Size.Medium" Style="@($"background-color: {UserColorService.GetUserColor(user.DisplayName)}; color: white;")">
                                 @(user.DisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
                             </MudAvatar>
                             <div class="flex-grow-1">
@@ -116,7 +117,7 @@
                 {
                     <MudPaper Class="pa-3 friend-card request-card" Elevation="0">
                         <div class="d-flex align-center gap-3">
-                            <MudAvatar Color="Color.Secondary" Size="Size.Medium">
+                            <MudAvatar Size="Size.Medium" Style="@($"background-color: {UserColorService.GetUserColor(request.FriendDisplayName)}; color: white;")">
                                 @(request.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
                             </MudAvatar>
                             <div class="flex-grow-1">
@@ -141,7 +142,7 @@
                 {
                     <MudPaper Class="pa-3 friend-card" Elevation="0" @onclick="@(() => OpenFriendProfile(friend))">
                         <div class="d-flex align-center gap-3">
-                            <MudAvatar Color="Color.Primary" Size="Size.Medium" Variant="Variant.Filled">
+                            <MudAvatar Size="Size.Medium" Variant="Variant.Filled" Style="@($"background-color: {UserColorService.GetUserColor(friend.FriendDisplayName)}; color: white;")">
                                 @(friend.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
                             </MudAvatar>
                             <div class="flex-grow-1">
@@ -176,7 +177,7 @@
                     {
                         <MudPaper Class="pa-3 friend-card" Elevation="0" Outlined="true" Style="opacity: 0.8;">
                             <div class="d-flex align-center gap-3">
-                                <MudAvatar Color="Color.Default" Size="Size.Small">
+                                <MudAvatar Size="Size.Small" Style="@($"background-color: {UserColorService.GetUserColor(request.FriendDisplayName)}; color: white;")">
                                     @(request.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
                                 </MudAvatar>
                                 <div class="flex-grow-1">
@@ -193,44 +194,6 @@
     }
 </div>
 
-<style>
-    .friend-card {
-        background: var(--mud-palette-surface);
-        border-radius: 16px;
-        transition: transform 0.2s, background-color 0.2s;
-        cursor: pointer;
-    }
-
-        .friend-card:hover {
-            background-color: var(--mud-palette-background-grey);
-        }
-
-        .friend-card:active {
-            transform: scale(0.98);
-        }
-
-    .request-card {
-        background: rgba(var(--mud-palette-primary-rgb), 0.05);
-        border-color: rgba(var(--mud-palette-primary-rgb), 0.2);
-    }
-
-    .section-header {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 8px;
-        padding-left: 4px;
-    }
-
-    .empty-state {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        text-align: center;
-        opacity: 0.7;
-        padding: 40px 20px;
-    }
-</style>
 
 @code {
     private List<UserFriendshipDto> _friends = new();

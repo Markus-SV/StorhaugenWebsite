@@ -6,7 +6,9 @@
 @using StorhaugenWebsite.Models
 @inject IUserRecipeService RecipeService
 @inject ICollectionStateService CollectionState
+@inject IUserFriendshipService FriendshipService
 @inject IAuthService AuthService
+@inject IUserColorService UserColorService
 @inject NavigationManager Navigation
 @inject IApiClient ApiClient
 @attribute [Authorize]
@@ -225,10 +227,12 @@ else
                             </div>
                         }
 
-                        @* 2. Other Member Ratings *@
+                        @* 2. Other Member Ratings (only from friends and collection members) *@
                         @{
                             var otherRatings = (recipe.MemberRatings ?? new Dictionary<string, decimal?>())
-                                .Where(r => r.Value.HasValue && !string.Equals(r.Key, AuthService.CurrentUserName, StringComparison.OrdinalIgnoreCase))
+                                .Where(r => r.Value.HasValue
+                                    && !string.Equals(r.Key, AuthService.CurrentUserName, StringComparison.OrdinalIgnoreCase)
+                                    && _allowedRaterNames.Contains(r.Key)) // Only show ratings from friends/collection members
                                 .DistinctBy(r => r.Key)
                                 .Take(4);
                         }
@@ -236,10 +240,9 @@ else
                         @foreach (var rating in otherRatings)
                         {
                             var initial = !string.IsNullOrEmpty(rating.Key) ? rating.Key.Substring(0, 1).ToUpper() : "?";
-                            var color = GetUserColor(rating.Key);
 
                             <div class="rating-pill">
-                                <div class="rating-circle" style="background-color: @color; color: white;">
+                                <div class="rating-circle" style="background-color: @UserColorService.GetUserColor(rating.Key); color: white;">
                                     @initial
                                 </div>
                                 <span class="rating-score">@rating.Value?.ToString("0.0")</span>
@@ -261,6 +264,7 @@ else
     private List<TagDto> _tags = new();
     private List<Guid> _activeTagIds = new();
     private bool _personalActive = false;
+    private HashSet<string> _allowedRaterNames = new(); // Friends + collection members
 
     private async Task TogglePersonal()
     {
@@ -268,18 +272,6 @@ else
         await LoadRecipes();
     }
 
-
-    // Generates a stable color based on the username string
-    private string GetUserColor(string username)
-    {
-        if (string.IsNullOrEmpty(username)) return "#9E9E9E";
-        int hash = Math.Abs(username.GetHashCode());
-        string[] palette = {
-            "#2E7D32", "#00695C", "#0277BD", "#1565C0", "#283593",
-            "#4527A0", "#6A1B9A", "#AD1457", "#C62828", "#D84315"
-        };
-        return palette[hash % palette.Length];
-    }
 
     // Returns Green/Yellow/Red for the average score star
     private string GetScoreColor(double score)
@@ -293,8 +285,52 @@ else
     {
         CollectionState.OnActiveFiltersChanged += OnFiltersChanged;
         await CollectionState.InitializeAsync();
+        await LoadAllowedRaters();
         await LoadTags();
         await LoadRecipes();
+    }
+
+    /// <summary>
+    /// Loads the list of allowed raters (friends + collection members).
+    /// Ratings from users not in this list will be hidden.
+    /// </summary>
+    private async Task LoadAllowedRaters()
+    {
+        _allowedRaterNames.Clear();
+
+        try
+        {
+            // 1. Add all friends
+            var friendships = await FriendshipService.GetFriendshipsAsync();
+            foreach (var friend in friendships.Friends)
+            {
+                if (!string.IsNullOrEmpty(friend.FriendDisplayName))
+                {
+                    _allowedRaterNames.Add(friend.FriendDisplayName);
+                }
+            }
+
+            // 2. Add all collection members from user's collections
+            foreach (var collection in CollectionState.UserCollections)
+            {
+                try
+                {
+                    var members = await ApiClient.GetCollectionMembersAsync(collection.Id);
+                    foreach (var member in members)
+                    {
+                        if (!string.IsNullOrEmpty(member.DisplayName))
+                        {
+                            _allowedRaterNames.Add(member.DisplayName);
+                        }
+                    }
+                }
+                catch { /* Continue to next collection */ }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading allowed raters: {ex.Message}");
+        }
     }
 
     private IEnumerable<UserRecipeDto> GetSortedRecipes()

@@ -8,6 +8,7 @@
 @inject IApiClient ApiClient
 @inject IUserFriendshipService FriendshipService
 @inject ICollectionStateService CollectionState
+@inject IUserColorService UserColorService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -41,7 +42,7 @@
     {
         @* --- PROFILE HEADER --- *@
         <div class="d-flex flex-column align-center mb-6">
-            <MudAvatar Style="width:80px; height:80px; font-size: 2rem;" Color="Color.Primary" Variant="Variant.Filled" Class="mb-3">
+            <MudAvatar Style="@($"width:80px; height:80px; font-size: 2rem; background-color: {UserColorService.GetUserColor(_friend.DisplayName)}; color: white;")" Variant="Variant.Filled" Class="mb-3">
                 @(_friend.DisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
             </MudAvatar>
 

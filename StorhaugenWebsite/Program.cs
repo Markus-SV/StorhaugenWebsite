@@ -52,6 +52,7 @@ builder.Services.AddScoped<IUserRecipeService, UserRecipeService>();
 builder.Services.AddScoped<IUserFriendshipService, UserFriendshipService>();
 builder.Services.AddScoped<IActivityFeedService, ActivityFeedService>();
 builder.Services.AddScoped<ICollectionStateService, CollectionStateService>();
+builder.Services.AddSingleton<IUserColorService, UserColorService>();
 
 // HelloFresh sync service (triggers background sync on login)
 builder.Services.AddScoped<IHelloFreshSyncService, HelloFreshSyncService>();
