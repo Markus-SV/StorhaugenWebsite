@@ -496,7 +496,7 @@ public class CollectionService : ICollectionService
             CreatedAt = recipe.CreatedAt,
             UpdatedAt = recipe.UpdatedAt,
             MyRating = myRating?.Score,
-            AverageRating = avgRating,
+            AverageRating = (double)avgRating,
             RatingCount = recipe.Ratings?.Count ?? 0,
             IsHellofresh = recipe.GlobalRecipe?.IsHellofresh ?? false,
             HellofreshWeek = recipe.GlobalRecipe?.HellofreshWeek

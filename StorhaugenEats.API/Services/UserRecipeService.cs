@@ -678,7 +678,7 @@ public class UserRecipeService : IUserRecipeService
             CreatedAt = recipe.CreatedAt,
             UpdatedAt = recipe.UpdatedAt,
             MyRating = myRating?.Score,
-            AverageRating = recipe.Ratings?.Any() == true ? recipe.Ratings.Average(r => r.Score) : 0,
+            AverageRating = recipe.Ratings?.Any() == true ? (double)recipe.Ratings.Average(r => r.Score) : 0,
             RatingCount = recipe.Ratings?.Count ?? 0,
             MemberRatings = memberRatings
         };

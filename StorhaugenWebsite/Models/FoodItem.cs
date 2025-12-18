@@ -38,7 +38,7 @@
             get
             {
                 var validRatings = Ratings.Values.Where(r => r.HasValue).Select(r => r!.Value).ToList();
-                return validRatings.Count > 0 ? validRatings.Average() : 0;
+                return validRatings.Count > 0 ? (double)validRatings.Average() : 0;
             }
         }
 
