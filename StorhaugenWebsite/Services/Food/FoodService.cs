@@ -123,11 +123,11 @@ namespace StorhaugenWebsite.Services
             await _apiClient.RestoreUserRecipeAsync(recipeId);
         }
 
-        public async Task UpdateRatingAsync(string foodId, string personName, int rating)
+        public async Task UpdateRatingAsync(string foodId, string personName, decimal rating)
         {
             ValidateAuthorization();
 
-            if (rating < 0 || rating > 10) throw new ArgumentException("Invalid rating.");
+            if (rating < 0m || rating > 10m) throw new ArgumentException("Invalid rating.");
 
             if (!Guid.TryParse(foodId, out var recipeId))
                 throw new ArgumentException("Invalid ID format.");
@@ -181,7 +181,7 @@ namespace StorhaugenWebsite.Services
                 Name = recipe.Name,
                 Description = recipe.Description,
                 ImageUrls = recipe.ImageUrls,
-                Ratings = recipe.MemberRatings ?? new Dictionary<string, int?>(),
+                Ratings = recipe.MemberRatings ?? new Dictionary<string, decimal?>(),
                 DateAdded = recipe.CreatedAt,
                 AddedBy = recipe.UserDisplayName ?? "Unknown",
                 IsArchived = recipe.IsArchived,

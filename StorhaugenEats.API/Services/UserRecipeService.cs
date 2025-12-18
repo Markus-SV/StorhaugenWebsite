@@ -187,7 +187,7 @@ public class UserRecipeService : IUserRecipeService
                         UserRecipeId = recipe.Id,
                         GlobalRecipeId = recipe.GlobalRecipeId,
                         UserId = kvp.Key,
-                        Score = Math.Clamp(kvp.Value, 1, 10),
+                        Score = Math.Clamp(kvp.Value, 0m, 10m),
                         CreatedAt = now,
                         UpdatedAt = now
                     })

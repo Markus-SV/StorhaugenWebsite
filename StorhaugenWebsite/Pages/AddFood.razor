@@ -347,7 +347,7 @@
                 {
                     var isMe = member.DisplayName == _currentUserName;
                     bool included = IsMemberIncluded(member.UserId);
-                    int rating = GetMemberRating(member.UserId);
+                    decimal rating = GetMemberRating(member.UserId);
 
                     <div class="d-flex align-center gap-2 pa-2" style="background: var(--mud-palette-background); border-radius: 12px; transition: opacity 0.2s; opacity: @(included ? 1 : 0.6);">
 
@@ -362,14 +362,14 @@
                                 <MudText Typo="Typo.body2" Style="font-weight: 600;">@member.DisplayName</MudText>
                                 @if (included)
                                 {
-                                    <span style="font-size: 0.8rem; font-weight: 700; color: @GetRatingTextColor(rating);">@rating/10</span>
+                                    <span style="font-size: 0.8rem; font-weight: 700; color: @GetRatingTextColor((int)rating);">@rating.ToString("0.0")/10</span>
                                 }
                             </div>
 
-                            <MudSlider T="int"
+                            <MudSlider T="decimal"
                                        Value="rating"
-                                       ValueChanged="@((int v) => SetMemberRating(member.UserId, v))"
-                                       Min="1" Max="10" Step="1"
+                                       ValueChanged="@((decimal v) => SetMemberRating(member.UserId, v))"
+                                       Min="0" Max="10" Step="0.5M"
                                        Color="Color.Primary"
                                        Disabled="@(!included)"
                                        Class="my-0" />
@@ -452,7 +452,7 @@
     #endregion
 
     #region Ratings State
-    private Dictionary<Guid, int> _memberRatings = new();
+    private Dictionary<Guid, decimal> _memberRatings = new();
     private Dictionary<Guid, bool> _memberIncluded = new();
     #endregion
 
@@ -538,7 +538,7 @@
         foreach (var member in _currentRatingMembers)
         {
             if (!_memberIncluded.ContainsKey(member.UserId)) _memberIncluded[member.UserId] = true;
-            if (!_memberRatings.ContainsKey(member.UserId)) _memberRatings[member.UserId] = 5;
+            if (!_memberRatings.ContainsKey(member.UserId)) _memberRatings[member.UserId] = 5m;
         }
     }
 
@@ -568,9 +568,9 @@
 
     #region Dictionary Helpers
     private bool IsMemberIncluded(Guid userId) => _memberIncluded.ContainsKey(userId) && _memberIncluded[userId];
-    private int GetMemberRating(Guid userId) => _memberRatings.ContainsKey(userId) ? _memberRatings[userId] : 5;
+    private decimal GetMemberRating(Guid userId) => _memberRatings.ContainsKey(userId) ? _memberRatings[userId] : 5m;
     private void SetMemberIncluded(Guid userId, bool value) => _memberIncluded[userId] = value;
-    private void SetMemberRating(Guid userId, int value) => _memberRatings[userId] = value;
+    private void SetMemberRating(Guid userId, decimal value) => _memberRatings[userId] = value;
     #endregion
 
     #region Submission Logic
@@ -588,7 +588,7 @@
             for (int i = 0; i < _imageData.Count; i++)
                 urls.Add(await FoodService.UploadImageAsync(_imageData[i], _imageNames[i]));
 
-            var ratingsToSend = new Dictionary<Guid, int>();
+            var ratingsToSend = new Dictionary<Guid, decimal>();
             if (_ratingEnabled)
             {
                 foreach (var member in _currentRatingMembers)

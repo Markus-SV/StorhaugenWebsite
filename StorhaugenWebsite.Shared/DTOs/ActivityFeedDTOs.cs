@@ -31,7 +31,7 @@ public class ActivityFeedItemDto
     // Denormalized data for display
     public string? RecipeName { get; set; }
     public string? RecipeImageUrl { get; set; }
-    public int? RatingScore { get; set; }
+    public decimal? RatingScore { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
@@ -45,7 +45,7 @@ public class ActivityFeedItemDto
     {
         return ActivityType switch
         {
-            "rated" => $"{UserDisplayName} rated {RecipeName ?? "a recipe"} {RatingScore}/10",
+            "rated" => $"{UserDisplayName} rated {RecipeName ?? "a recipe"} {RatingScore?.ToString("0.0")}/10",
             "added" => $"{UserDisplayName} added {RecipeName ?? "a new recipe"}",
             "published" => $"{UserDisplayName} published {RecipeName ?? "a recipe"} to the community",
             _ => $"{UserDisplayName} did something"

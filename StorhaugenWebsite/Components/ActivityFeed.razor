@@ -76,7 +76,7 @@
                                         @if (item.RatingScore.HasValue)
                                         {
                                             <span class="rating-dot" style="background-color: @GetRatingColorHex(item.RatingScore.Value)"></span>
-                                            <span class="rating-val">@item.RatingScore.Value</span>
+                                            <span class="rating-val">@item.RatingScore.Value.ToString("0.0")</span>
                                         }
                                     </div>
                                 }
@@ -315,13 +315,13 @@
         };
     }
 
-    private string GetRatingColorHex(int rating)
+    private string GetRatingColorHex(decimal rating)
     {
         return rating switch
         {
-            >= 8 => "#2D5A45", // Green
-            >= 5 => "#D4A017", // Yellow
-            _ => "#C44536"     // Red
+            >= 8m => "#2D5A45", // Green
+            >= 5m => "#D4A017", // Yellow
+            _ => "#C44536"      // Red
         };
     }
 

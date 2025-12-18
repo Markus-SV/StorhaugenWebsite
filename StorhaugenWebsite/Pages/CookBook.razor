@@ -227,13 +227,13 @@ else
                                 <div class="rating-circle" style="background-color: var(--mud-palette-primary); color: var(--mud-palette-primary-text);">
                                     D
                                 </div>
-                                <span class="rating-score">@recipe.MyRating</span>
+                                <span class="rating-score">@recipe.MyRating?.ToString("0.0")</span>
                             </div>
                         }
 
                         @* 2. Other Member Ratings *@
                         @{
-                            var otherRatings = (recipe.MemberRatings ?? new Dictionary<string, int?>())
+                            var otherRatings = (recipe.MemberRatings ?? new Dictionary<string, decimal?>())
                                 .Where(r => r.Value.HasValue && !string.Equals(r.Key, AuthService.CurrentUserName, StringComparison.OrdinalIgnoreCase))
                                 .DistinctBy(r => r.Key)
                                 .Take(4);
@@ -248,7 +248,7 @@ else
                                 <div class="rating-circle" style="background-color: @color; color: white;">
                                     @initial
                                 </div>
-                                <span class="rating-score">@rating.Value</span>
+                                <span class="rating-score">@rating.Value?.ToString("0.0")</span>
                             </div>
                         }
                     </div>

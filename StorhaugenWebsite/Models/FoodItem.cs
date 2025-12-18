@@ -9,7 +9,7 @@
 
         public string? Description { get; set; }
         public List<string> ImageUrls { get; set; } = new();
-        public Dictionary<string, int?> Ratings { get; set; } = new();
+        public Dictionary<string, decimal?> Ratings { get; set; } = new();
         public DateTime DateAdded { get; set; } = DateTime.UtcNow;
         public string AddedBy { get; set; } = string.Empty;
         public bool IsArchived { get; set; } = false;
@@ -42,9 +42,9 @@
             }
         }
 
-        public int GetRatingForPerson(string person)
+        public decimal GetRatingForPerson(string person)
         {
-            return Ratings.TryGetValue(person, out var rating) ? rating ?? 0 : 0;
+            return Ratings.TryGetValue(person, out var rating) ? rating ?? 0m : 0m;
         }
 
         // Helper property to check if this recipe is linked to a global recipe

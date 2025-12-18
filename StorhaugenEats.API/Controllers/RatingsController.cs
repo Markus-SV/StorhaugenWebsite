@@ -167,4 +167,4 @@ public class RatingsController : ControllerBase
 
 }
 
-public record UpsertRatingRequest(Guid GlobalRecipeId, int Score, string? Comment);
+public record UpsertRatingRequest(Guid GlobalRecipeId, decimal Score, string? Comment);

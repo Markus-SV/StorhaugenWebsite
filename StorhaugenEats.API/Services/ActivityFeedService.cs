@@ -156,7 +156,7 @@ public class ActivityFeedService : IActivityFeedService
             RecipeName = metadata.GetValueOrDefault("recipeName")?.ToString(),
             RecipeImageUrl = metadata.GetValueOrDefault("imageUrl")?.ToString(),
             RatingScore = metadata.TryGetValue("rating", out var ratingObj) && ratingObj is JsonElement elem
-                ? elem.TryGetInt32(out var rating) ? rating : null
+                ? elem.TryGetDecimal(out var rating) ? rating : null
                 : null,
             CreatedAt = activity.CreatedAt
         };
