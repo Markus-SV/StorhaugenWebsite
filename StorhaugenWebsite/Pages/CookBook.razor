@@ -190,7 +190,7 @@ else
                     </div>
 
                     @* Metadata Row (prep time, difficulty, servings) *@
-                    @if (recipe.PrepTimeMinutes.HasValue || !string.IsNullOrEmpty(recipe.Difficulty) || recipe.Servings.HasValue)
+                    @if (recipe.PrepTimeMinutes.HasValue || !string.IsNullOrEmpty(recipe.Difficulty))
                     {
                         <div class="d-flex align-center flex-wrap mt-2 gap-2">
                             @if (recipe.PrepTimeMinutes.HasValue)
