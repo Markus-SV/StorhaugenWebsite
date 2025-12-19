@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
+using Newtonsoft.Json;
 using Supabase;
 using Supabase.Gotrue;
+using System.IdentityModel.Tokens.Jwt;
 using static Supabase.Gotrue.Constants;
 using Client = Supabase.Client;
 
@@ -13,6 +15,7 @@ public class SupabaseAuthService : IAuthService, IAsyncDisposable
     private readonly IJSRuntime _jsRuntime;
     private readonly NavigationManager _navigationManager;
     private Session? _session;
+    private const string AuthCacheKey = "supa_auth_session";
 
     public event Action? OnAuthStateChanged;
 
@@ -190,9 +193,51 @@ public class SupabaseAuthService : IAuthService, IAsyncDisposable
         }
     }
 
-    public Task<string?> GetAccessTokenAsync()
+    public async Task<string?> GetAccessTokenAsync()
     {
-        return Task.FromResult(_session?.AccessToken);
+        // If we lost the in-memory session, try restore from localStorage.
+        if (_session?.AccessToken == null)
+        {
+            var cachedJson = await _jsRuntime.InvokeAsync<string>("localStorage.getItem", AuthCacheKey);
+            if (!string.IsNullOrWhiteSpace(cachedJson))
+            {
+                var cached = JsonConvert.DeserializeObject<Session>(cachedJson);
+                if (cached?.AccessToken != null)
+                {
+                    // Rehydrate Supabase client session
+                    await _supabaseClient.Auth.SetSession(cached.AccessToken, cached.RefreshToken);
+                    _session = _supabaseClient.Auth.CurrentSession;
+                }
+            }
+        }
+
+        if (_session?.AccessToken == null)
+            return null;
+
+        // If token is expired/near-expiry, force a refresh using refresh token.
+        if (IsExpiredOrNearExpiry(_session.AccessToken, skewSeconds: 60))
+        {
+            await _supabaseClient.Auth.SetSession(_session.AccessToken, _session.RefreshToken);
+            _session = _supabaseClient.Auth.CurrentSession;
+            OnAuthStateChanged?.Invoke();
+        }
+
+        return _session?.AccessToken;
+    }
+
+    private static bool IsExpiredOrNearExpiry(string jwt, int skewSeconds)
+    {
+        try
+        {
+            var handler = new JwtSecurityTokenHandler();
+            var token = handler.ReadJwtToken(jwt);
+            return token.ValidTo <= DateTime.UtcNow.AddSeconds(skewSeconds);
+        }
+        catch
+        {
+            // If we can't parse it, treat it as invalid and force renewal path.
+            return true;
+        }
     }
 
     private Task<string> GetRedirectUrlAsync()

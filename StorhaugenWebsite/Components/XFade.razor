@@ -1,0 +1,103 @@
+<div class="xfade @(_isLoadedClass ? "loaded" : "loading")">
+    @if (_showSkeleton && Skeleton is not null)
+    {
+        <div class="xfade-skeleton" aria-hidden="true">
+            @Skeleton
+        </div>
+    }
+
+    <div class="xfade-content" aria-busy="@IsLoading">
+        @if (_renderContent)
+        {
+            @ChildContent
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public bool IsLoading { get; set; }
+
+    // Default behavior:
+    // - show skeleton + crossfade only for the FIRST load
+    // - on later reloads: keep content visible (no fade-out)
+    [Parameter] public bool FirstLoadOnly { get; set; } = true;
+
+    // If true: also crossfade on later reloads (content fades out)
+    [Parameter] public bool CrossfadeOnReload { get; set; } = false;
+
+    // Must match your CSS duration (the “loaded” transition)
+    [Parameter] public int FadeMs { get; set; } = 220;
+
+    [Parameter] public RenderFragment? Skeleton { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private bool _renderContent;
+    private bool _showSkeleton = true;
+    private bool _isLoadedClass;
+    private bool _hasLoadedOnce;
+
+    // guards so "FirstLoadOnly" doesn't accidentally flicker skeleton on reload
+    private bool _ignoreThisCycle;
+    private bool _armedForTransition;
+    private int _token;
+
+    protected override void OnParametersSet()
+    {
+        if (IsLoading)
+        {
+            // If we already have content and we only want skeleton on first load,
+            // ignore this cycle entirely (no fade out / no skeleton).
+            if (_hasLoadedOnce && FirstLoadOnly && !CrossfadeOnReload && _renderContent)
+            {
+                _ignoreThisCycle = true;
+                return;
+            }
+
+            _ignoreThisCycle = false;
+            _armedForTransition = true;
+            _token++;
+
+            _showSkeleton = true;
+            _isLoadedClass = false; // "loading"
+            return;
+        }
+
+        // IsLoading == false
+        if (_ignoreThisCycle)
+        {
+            _ignoreThisCycle = false;
+            return;
+        }
+
+        // If we never entered a loading state that we manage, do nothing.
+        if (!_armedForTransition && _hasLoadedOnce)
+            return;
+
+        _armedForTransition = false;
+        _hasLoadedOnce = true;
+
+        // Ensure content is mounted, then flip to loaded on next tick so transitions fire
+        _renderContent = true;
+        _showSkeleton = true;
+        _isLoadedClass = false;
+
+        var t = ++_token;
+        _ = RunTransitionAsync(t);
+    }
+
+    private async Task RunTransitionAsync(int t)
+    {
+        // Let the browser paint "loading + content present" once
+        await Task.Delay(1);
+        if (t != _token) return;
+
+        _isLoadedClass = true; // -> "loaded"
+        await InvokeAsync(StateHasChanged);
+
+        await Task.Delay(FadeMs);
+        if (t != _token) return;
+
+        _showSkeleton = false; // remove after fade
+        await InvokeAsync(StateHasChanged);
+    }
+}

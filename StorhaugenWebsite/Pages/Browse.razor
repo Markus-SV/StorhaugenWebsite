@@ -1,6 +1,7 @@
 @page "/browse"
 @using Microsoft.AspNetCore.Authorization
 @using StorhaugenWebsite.ApiClient
+@using StorhaugenWebsite.Components
 @using StorhaugenWebsite.Services
 @using StorhaugenWebsite.Shared.DTOs
 @inject IApiClient ApiClient
@@ -50,6 +51,7 @@
                                OnClick="PreviousWeek"
                                Disabled="_weekOffset <= -4"
                                Class="week-nav-btn" />
+
                 <div class="week-chips-compact">
                     @foreach (var weekOption in GetWeekOptions())
                     {
@@ -63,11 +65,13 @@
                         </MudChip>
                     }
                 </div>
+
                 <MudIconButton Icon="@Icons.Material.Rounded.ChevronRight"
                                Size="Size.Small"
                                OnClick="NextWeek"
                                Disabled="_weekOffset >= 4"
                                Class="week-nav-btn" />
+
                 @if (!string.IsNullOrEmpty(_selectedWeek))
                 {
                     <MudIconButton Icon="@Icons.Material.Rounded.FilterAltOff"
@@ -90,150 +94,138 @@
     }
 </div>
 
-@* --- Content --- *@
-@if (_isLoading)
-{
-    <div class="d-flex flex-column gap-4">
-        @for (int i = 0; i < 3; i++)
-        {
-            <div class="skeleton-card">
-                <div class="skeleton-image"></div>
-                <div class="skeleton-content">
-                    <div class="skeleton-text title"></div>
-                    <div class="skeleton-text subtitle"></div>
+@* --- Content (XFade) ---
+   This page should "instantly" switch content on filter changes:
+   - We DO want skeleton on reloads (CrossfadeOnReload)
+   - We make entering loading state instant via .browse-xfade overrides (no fade-out linger)
+*@
+<div class="browse-xfade">
+    <XFade IsLoading="@_isLoading"
+           FirstLoadOnly="false"
+           CrossfadeOnReload="true"
+           FadeMs="220">
+        <Skeleton>
+            <RecipeSkeleton Amount="6" Height="109.11px" />
+        </Skeleton>
+
+        <ChildContent>
+            @if (!_recipes.Any())
+            {
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <MudIcon Icon="@(_sourceMode == "community" ? Icons.Material.Rounded.People : Icons.Material.Rounded.SearchOff)" Size="Size.Large" />
+                    </div>
+                    <h2 class="empty-state-title">Ingen oppskrifter funnet</h2>
+                    <p class="empty-state-text">
+                        @(_sourceMode == "community" ? "Bli den første til å dele en oppskrift!" : "Prøv et annet søk eller velg en annen uke.")
+                    </p>
                 </div>
-            </div>
-        }
-    </div>
-}
-else if (!_recipes.Any())
-{
-    <div class="empty-state">
-        <div class="empty-state-icon">
-            <MudIcon Icon="@(_sourceMode == "community" ? Icons.Material.Rounded.People : Icons.Material.Rounded.SearchOff)" Size="Size.Large" />
-        </div>
-        <h2 class="empty-state-title">Ingen oppskrifter funnet</h2>
-        <p class="empty-state-text">
-            @(_sourceMode == "community" ? "Bli den første til å dele en oppskrift!" : "Prøv et annet søk eller velg en annen uke.")
-        </p>
-    </div>
-}
-else
-{
-    <div class="d-flex flex-column gap-4">
-        @foreach (var recipe in _recipes)
-        {
-            <div class="food-card animate-in" @onclick="() => OpenRecipeDetail(recipe)">
-
-                @* --- Image section - HelloFresh recipes don't show images (images are broken), community recipes show their images --- *@
-                @if (!recipe.IsHellofresh)
-                {
-                    @if (GetImageUrl(recipe) != null)
+            }
+            else
+            {
+                <div class="d-flex flex-column gap-4">
+                    @foreach (var recipe in _recipes)
                     {
-                        <img src="@GetImageUrl(recipe)" alt="@recipe.Name" class="food-card-image" />
-                    }
-                    else
-                    {
-                        <div class="food-card-placeholder">
-                            <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" />
-                        </div>
-                    }
-                }
+                        <div class="food-card" @onclick="() => OpenRecipeDetail(recipe)">
 
-                @* --- Text Content --- *@
-                <div class="food-card-content">
-                    <div class="d-flex justify-space-between align-start gap-3">
-                        <div class="d-flex align-center gap-2" style="min-width: 0;">
-                            @* Source indicator icons *@
-                            @if (recipe.IsHellofresh)
+                            @* --- Image section - HelloFresh recipes don't show images (images are broken), community recipes show their images --- *@
+                            @if (!recipe.IsHellofresh)
                             {
-                                <MudIcon Icon="@Icons.Material.Rounded.LocalDining" Size="Size.Small" Color="Color.Success" Title="HelloFresh" Style="flex-shrink: 0;" />
-                            }
-                            else
-                            {
-                                <MudIcon Icon="@Icons.Material.Rounded.Cloud" Size="Size.Small" Color="Color.Info" Title="Fellesskapet" Style="flex-shrink: 0;" />
-                            }
-                            <h3 class="food-card-title">@recipe.Name</h3>
-                            
-                        </div>
-                       
-                        @if (recipe.AverageRating > 0)
-                        {
-                            <div class="d-flex flex-column align-end" style="flex-shrink: 0;">
-                                <span class="rating-badge @(recipe.IsHellofresh ? "rating-hellofresh" : "rating-high")">
-                                    <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
-                                    @recipe.AverageRating.ToString("0.0")
-                                </span>
-                                @if (recipe.TotalRatings > 0)
+                                @if (GetImageUrl(recipe) != null)
                                 {
-                                    <span class="rating-count-badge">
-                                        <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Small" Style="font-size: 10px;" />
-                                        @recipe.TotalRatings
-                                    </span>
+                                    <img src="@GetImageUrl(recipe)" alt="@recipe.Name" class="food-card-image" />
                                 }
-                            </div>
-                        }
-                    </div>
+                                else
+                                {
+                                    <div class="food-card-placeholder">
+                                        <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" />
+                                    </div>
+                                }
+                            }
 
-                    @if (!recipe.IsHellofresh && !string.IsNullOrEmpty(recipe.CreatedByUserName))
-                    {
-                        <div class="d-flex align-center gap-1">
-                            <MudIcon Icon="@Icons.Material.Rounded.Person" Size="Size.Small" Style="font-size: 12px; opacity: 0.6;" />
-                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="text-truncate" Style="font-size: 0.75rem;">
-                                @recipe.CreatedByUserName
-                            </MudText>
+                            @* --- Text Content --- *@
+                            <div class="food-card-content">
+                                <div class="d-flex justify-space-between align-start gap-3">
+                                    <div class="d-flex align-center gap-2" style="min-width: 0;">
+                                        @if (recipe.IsHellofresh)
+                                        {
+                                            <MudIcon Icon="@Icons.Material.Rounded.LocalDining" Size="Size.Small" Color="Color.Success" Title="HelloFresh" Style="flex-shrink: 0;" />
+                                        }
+                                        else
+                                        {
+                                            <MudIcon Icon="@Icons.Material.Rounded.Cloud" Size="Size.Small" Color="Color.Info" Title="Fellesskapet" Style="flex-shrink: 0;" />
+                                        }
+                                        <h3 class="food-card-title">@recipe.Name</h3>
+                                    </div>
+
+                                    @if (recipe.AverageRating > 0)
+                                    {
+                                        <div class="d-flex flex-column align-end" style="flex-shrink: 0;">
+                                            <span class="rating-badge @(recipe.IsHellofresh ? "rating-hellofresh" : "rating-high")">
+                                                <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
+                                                @recipe.AverageRating.ToString("0.0")
+                                            </span>
+                                            @if (recipe.TotalRatings > 0)
+                                            {
+                                                <span class="rating-count-badge">
+                                                    <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Small" Style="font-size: 10px;" />
+                                                    @recipe.TotalRatings
+                                                </span>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+
+                                @if (!recipe.IsHellofresh && !string.IsNullOrEmpty(recipe.CreatedByUserName))
+                                {
+                                    <div class="d-flex align-center gap-1">
+                                        <MudIcon Icon="@Icons.Material.Rounded.Person" Size="Size.Small" Style="font-size: 12px; opacity: 0.6;" />
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="text-truncate" Style="font-size: 0.75rem;">
+                                            @recipe.CreatedByUserName
+                                        </MudText>
+                                    </div>
+                                }
+
+                                @* Recipe metadata chips - Show for both HelloFresh and Community *@
+                                <div class="food-card-meta mt-2 d-flex gap-2 align-center flex-wrap">
+                                    @if (recipe.PrepTimeMinutes.HasValue)
+                                    {
+                                        <span class="meta-chip">
+                                            <MudIcon Icon="@Icons.Material.Rounded.AccessTime" Size="Size.Small" />
+                                            @recipe.PrepTimeMinutes min
+                                        </span>
+                                    }
+                                    @if (!string.IsNullOrEmpty(recipe.Difficulty))
+                                    {
+                                        <span class="meta-chip @GetDifficultyClass(recipe.Difficulty)">
+                                            <MudIcon Icon="@GetDifficultyIcon(recipe.Difficulty)" Size="Size.Small" />
+                                            @GetDifficultyLabel(recipe.Difficulty)
+                                        </span>
+                                    }
+                                </div>
+                            </div>
                         </div>
                     }
-
-                    @* Recipe metadata chips - Show for both HelloFresh and Community *@
-                    <div class="food-card-meta mt-2 d-flex gap-2 align-center flex-wrap">
-                        @if (recipe.PrepTimeMinutes.HasValue)
-                        {
-                            <span class="meta-chip">
-                                <MudIcon Icon="@Icons.Material.Rounded.AccessTime" Size="Size.Small" />
-                                @recipe.PrepTimeMinutes min
-                            </span>
-                        }
-                        @if (!string.IsNullOrEmpty(recipe.Difficulty))
-                        {
-                            <span class="meta-chip @GetDifficultyClass(recipe.Difficulty)">
-                                <MudIcon Icon="@GetDifficultyIcon(recipe.Difficulty)" Size="Size.Small" />
-                                @GetDifficultyLabel(recipe.Difficulty)
-                            </span>
-                        }
-                        @if (recipe.Servings.HasValue)
-                        {
-                            <span class="meta-chip">
-                                <MudIcon Icon="@Icons.Material.Rounded.Group" Size="Size.Small" />
-                                @recipe.Servings
-                            </span>
-                        }
-                    </div>
-
                 </div>
-            </div>
-        }
-    </div>
 
-    @* --- Pagination --- *@
-    @if (_totalPages > 1)
-    {
-        <div class="d-flex justify-center align-center gap-2 mt-4">
-            <MudIconButton Icon="@Icons.Material.Rounded.ChevronLeft" OnClick="PreviousPage" Disabled="@(_currentPage <= 1)" Size="Size.Small" />
-            <MudText Typo="Typo.body2">Side @_currentPage av @_totalPages</MudText>
-            <MudIconButton Icon="@Icons.Material.Rounded.ChevronRight" OnClick="NextPage" Disabled="@(_currentPage >= _totalPages)" Size="Size.Small" />
-        </div>
-    }
-}
+                @* --- Pagination --- *@
+                @if (_totalPages > 1)
+                {
+                    <div class="d-flex justify-center align-center gap-2 mt-4">
+                        <MudIconButton Icon="@Icons.Material.Rounded.ChevronLeft" OnClick="PreviousPage" Disabled="@(_currentPage <= 1)" Size="Size.Small" />
+                        <MudText Typo="Typo.body2">Side @_currentPage av @_totalPages</MudText>
+                        <MudIconButton Icon="@Icons.Material.Rounded.ChevronRight" OnClick="NextPage" Disabled="@(_currentPage >= _totalPages)" Size="Size.Small" />
+                    </div>
+                }
+            }
+        </ChildContent>
+    </XFade>
+</div>
 
 <style>
-    .search-field {
-        max-width: 100%;
-    }
+    .search-field { max-width: 100%; }
 
-    .food-card-content {
-        padding: 16px;
-    }
+    .food-card-content { padding: 16px; }
 
     .rating-badge {
         display: inline-flex;
@@ -256,39 +248,6 @@ else
         color: #6B8E23;
     }
 
-    .rating-count {
-        font-size: 0.65rem;
-        color: var(--mud-palette-text-secondary);
-        margin-top: 2px;
-    }
-
-    /* Meta chips for card info */
-    .meta-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 4px 8px;
-        background: var(--mud-palette-background-grey);
-        border-radius: 8px;
-        font-size: 0.75rem;
-        color: var(--mud-palette-text-secondary);
-    }
-
-    .meta-chip.difficulty-easy {
-        background: rgba(76, 175, 80, 0.1);
-        color: #2e7d32;
-    }
-
-    .meta-chip.difficulty-medium {
-        background: rgba(255, 152, 0, 0.1);
-        color: #e65100;
-    }
-
-    .meta-chip.difficulty-hard {
-        background: rgba(244, 67, 54, 0.1);
-        color: #c62828;
-    }
-
     .empty-state {
         text-align: center;
         padding: 60px 20px;
@@ -298,19 +257,6 @@ else
         font-size: 4rem;
         color: var(--mud-palette-text-secondary);
         margin-bottom: 16px;
-    }
-
-    .animate-in {
-        animation: fadeIn 0.4s ease-out forwards;
-        opacity: 0;
-        transform: translateY(10px);
-    }
-
-    @@keyframes fadeIn {
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
     }
 
     .skeleton-card {
@@ -328,9 +274,7 @@ else
         animation: shimmer 1.5s infinite;
     }
 
-    .skeleton-content {
-        padding: 16px;
-    }
+    .skeleton-content { padding: 16px; }
 
     .skeleton-text {
         background: linear-gradient(90deg, var(--mud-palette-background-grey) 25%, var(--mud-palette-divider) 50%, var(--mud-palette-background-grey) 75%);
@@ -340,15 +284,8 @@ else
         margin-bottom: 10px;
     }
 
-    .skeleton-text.title {
-        height: 20px;
-        width: 60%;
-    }
-
-    .skeleton-text.subtitle {
-        height: 14px;
-        width: 40%;
-    }
+    .skeleton-text.title { height: 20px; width: 60%; }
+    .skeleton-text.subtitle { height: 14px; width: 40%; }
 
     @@keyframes shimmer {
         0% { background-position: 200% 0; }
@@ -366,10 +303,7 @@ else
         border: 1px solid var(--mud-palette-lines-default);
     }
 
-    .week-chips-compact {
-        display: flex;
-        gap: 4px;
-    }
+    .week-chips-compact { display: flex; gap: 4px; }
 
     .week-chip-compact {
         font-size: 0.7rem !important;
@@ -393,30 +327,32 @@ else
         color: var(--mud-palette-text-secondary);
     }
 
+    /* Make filter switches feel instant:
+       when entering loading state, don't let old content fade out / skeleton fade in. */
+    .browse-xfade .xfade.loading .xfade-content,
+    .browse-xfade .xfade.loading .xfade-skeleton {
+        transition-duration: 0ms !important;
+        transition-delay: 0ms !important;
+    }
+
     /* Responsive improvements */
     @@media (max-width: 600px) {
-        .food-card-content {
-            padding: 12px;
-        }
-
-        .food-card-title {
-            font-size: 1rem;
-        }
-
-        .meta-chip {
-            font-size: 0.7rem;
-            padding: 3px 6px;
-        }
+        .food-card-content { padding: 12px; }
+        .food-card-title { font-size: 1rem; }
+        .meta-chip { font-size: 0.7rem; padding: 3px 6px; }
     }
 </style>
 
 @code {
     private List<GlobalRecipeDto> _recipes = new();
+
     private bool _isLoading = true;
     private bool _isProcessing = false;
+
     private string _searchQuery = "";
     private string _sourceMode = "hellofresh"; // Default to HelloFresh
     private string _sortBy = "popular";
+
     private int _currentPage = 1;
     private int _pageSize = 20;
     private int _totalPages = 0;
@@ -424,6 +360,9 @@ else
     // HelloFresh week selection
     private string? _selectedWeek;
     private int _weekOffset = 0; // 0 = current week, -1 = last week, 1 = next week
+
+    // prevents out-of-order renders if user clicks filters quickly
+    private int _loadVersion;
 
     protected override async Task OnInitializedAsync()
     {
@@ -433,11 +372,13 @@ else
     private async Task SetSourceMode(string mode)
     {
         if (_sourceMode == mode) return;
+
         _sourceMode = mode;
         _currentPage = 1;
         _selectedWeek = null;
         _weekOffset = 0;
         _sortBy = mode == "hellofresh" ? "popular" : "newest";
+
         await LoadRecipes();
     }
 
@@ -462,18 +403,15 @@ else
         return options;
     }
 
-    private string GetWeekLabel(int offsetFromCurrent)
+    private string GetWeekLabel(int offsetFromCurrent) => offsetFromCurrent switch
     {
-        return offsetFromCurrent switch
-        {
-            -2 => "2 uker siden",
-            -1 => "Forrige uke",
-            0 => "Denne uken",
-            1 => "Neste uke",
-            2 => "Om 2 uker",
-            _ => offsetFromCurrent < 0 ? $"{Math.Abs(offsetFromCurrent)} uker siden" : $"Om {offsetFromCurrent} uker"
-        };
-    }
+        -2 => "2 uker siden",
+        -1 => "Forrige uke",
+        0 => "Denne uken",
+        1 => "Neste uke",
+        2 => "Om 2 uker",
+        _ => offsetFromCurrent < 0 ? $"{Math.Abs(offsetFromCurrent)} uker siden" : $"Om {offsetFromCurrent} uker"
+    };
 
     private string GetWeekShortLabel(int offsetFromCurrent, DateTime date)
     {
@@ -485,13 +423,6 @@ else
             1 => "Neste",
             _ => $"Uke {weekNum}"
         };
-    }
-
-    private string GetCurrentWeekLabel()
-    {
-        var baseDate = DateTime.UtcNow.AddDays(_weekOffset * 7);
-        var weekNum = GetWeekNumber(baseDate);
-        return $"Uke {weekNum}, {baseDate.Year}";
     }
 
     private int GetWeekNumber(DateTime date)
@@ -535,30 +466,32 @@ else
 
     private async Task LoadRecipes()
     {
+        var v = ++_loadVersion;
+
         _isLoading = true;
+        await InvokeAsync(StateHasChanged); // show skeleton immediately
+
         try
         {
             if (_sourceMode == "community")
             {
-                // For community mode, fetch community-only recipes (non-HelloFresh)
-                // We need to fetch enough and filter, then calculate pagination properly
                 var query = new BrowseGlobalRecipesQuery
                 {
                     Search = string.IsNullOrWhiteSpace(_searchQuery) ? null : _searchQuery,
                     SortBy = _sortBy,
                     Page = 1,
-                    PageSize = 200, // Fetch more to filter
+                    PageSize = 200,
                     HellofreshOnly = false
                 };
 
                 var result = await ApiClient.BrowseGlobalRecipesAsync(query);
+                if (v != _loadVersion) return;
+
                 var communityRecipes = result.Recipes.Where(r => !r.IsHellofresh).ToList();
 
-                // Calculate proper pagination for community recipes
                 var totalCommunityCount = communityRecipes.Count;
                 _totalPages = (int)Math.Ceiling(totalCommunityCount / (double)_pageSize);
 
-                // Apply pagination to filtered results
                 _recipes = communityRecipes
                     .Skip((_currentPage - 1) * _pageSize)
                     .Take(_pageSize)
@@ -566,7 +499,6 @@ else
             }
             else
             {
-                // HelloFresh mode - API handles filtering and pagination
                 var query = new BrowseGlobalRecipesQuery
                 {
                     Search = string.IsNullOrWhiteSpace(_searchQuery) ? null : _searchQuery,
@@ -578,6 +510,8 @@ else
                 };
 
                 var result = await ApiClient.BrowseGlobalRecipesAsync(query);
+                if (v != _loadVersion) return;
+
                 _recipes = result.Recipes;
                 _totalPages = result.TotalPages;
             }
@@ -589,7 +523,11 @@ else
         }
         finally
         {
-            _isLoading = false;
+            if (v == _loadVersion)
+            {
+                _isLoading = false;
+                await InvokeAsync(StateHasChanged);
+            }
         }
     }
 
@@ -631,7 +569,6 @@ else
         return recipe.ImageUrls?.FirstOrDefault();
     }
 
-    // Add to my list using UserRecipes API (not HouseholdRecipes)
     private async Task AddToMyList(GlobalRecipeDto recipe)
     {
         _isProcessing = true;
@@ -666,37 +603,27 @@ else
         }
     }
 
-    // Difficulty helpers
-    private string GetDifficultyIcon(string? difficulty)
+    private string GetDifficultyIcon(string? difficulty) => difficulty?.ToLower() switch
     {
-        return difficulty?.ToLower() switch
-        {
-            "easy" or "lett" => Icons.Material.Rounded.SentimentSatisfied,
-            "medium" or "middels" => Icons.Material.Rounded.Psychology,
-            "hard" or "vanskelig" => Icons.Material.Rounded.LocalFireDepartment,
-            _ => Icons.Material.Rounded.HelpOutline
-        };
-    }
+        "easy" or "lett" => Icons.Material.Rounded.SentimentSatisfied,
+        "medium" or "middels" => Icons.Material.Rounded.Psychology,
+        "hard" or "vanskelig" => Icons.Material.Rounded.LocalFireDepartment,
+        _ => Icons.Material.Rounded.HelpOutline
+    };
 
-    private string GetDifficultyLabel(string? difficulty)
+    private string GetDifficultyLabel(string? difficulty) => difficulty?.ToLower() switch
     {
-        return difficulty?.ToLower() switch
-        {
-            "easy" => "Lett",
-            "medium" => "Middels",
-            "hard" => "Vanskelig",
-            _ => difficulty ?? ""
-        };
-    }
+        "easy" => "Lett",
+        "medium" => "Middels",
+        "hard" => "Vanskelig",
+        _ => difficulty ?? ""
+    };
 
-    private string GetDifficultyClass(string? difficulty)
+    private string GetDifficultyClass(string? difficulty) => difficulty?.ToLower() switch
     {
-        return difficulty?.ToLower() switch
-        {
-            "easy" or "lett" => "difficulty-easy",
-            "medium" or "middels" => "difficulty-medium",
-            "hard" or "vanskelig" => "difficulty-hard",
-            _ => ""
-        };
-    }
+        "easy" or "lett" => "difficulty-easy",
+        "medium" or "middels" => "difficulty-medium",
+        "hard" or "vanskelig" => "difficulty-hard",
+        _ => ""
+    };
 }

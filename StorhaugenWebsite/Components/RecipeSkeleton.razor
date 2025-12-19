@@ -1,0 +1,61 @@
+@using MudBlazor
+
+<div class="@OuterClass" style="@OuterStyle">
+    @for (var i = 0; i < Amount; i++)
+    {
+        <div class="skeleton-card d-flex justify-space-between @Class" style="height: @Height; @Style">
+
+            @* Left Side: Content *@
+            <div class="d-flex flex-column justify-start flex-grow-1 py-1 pr-2" style="min-width: 0;">
+
+                @* Line 1: Title *@
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="16px" Width="65%" Class="mb-2 rounded" />
+
+                @* Line 2: Metadata *@
+                <div class="d-flex gap-2 @(LineAmount > 0 ? "mb-2" : "")">
+                    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="12px" Width="40px" Class="rounded" />
+                    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="12px" Width="50px" Class="rounded" />
+                </div>
+
+                @* Line 3+: Dynamic Lines based on LineAmount *@
+                @for (int line = 0; line < LineAmount; line++)
+                {
+                    var width = line % 2 == 0 ? "30%" : "45%";
+                    var margin = line < LineAmount - 1 ? "mb-2" : "";
+
+                    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="10px" Width="@width" Class="@($"rounded {margin}")" />
+                }
+            </div>
+
+            @* Right Side: Image (Hidden if DisableImage is true) *@
+            @if (!DisableImage)
+            {
+                <div style="flex-shrink: 0; height: 100%; aspect-ratio: 1/1;">
+                    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="100%" Width="100%" Class="rounded" />
+                </div>
+            }
+
+        </div>
+    }
+</div>
+
+<style>
+    .skeleton-card {
+        background-color: var(--mud-palette-surface);
+        border-radius: 16px;
+        padding: 12px;
+        overflow: hidden;
+    }
+</style>
+
+@code {
+    [Parameter] public int Amount { get; set; } = 5;
+    [Parameter] public int LineAmount { get; set; } = 1;
+    [Parameter] public bool DisableImage { get; set; } = true;
+
+    [Parameter] public string OuterClass { get; set; } = "d-flex flex-column gap-3";
+    [Parameter] public string OuterStyle { get; set; } = "";
+    [Parameter] public string Height { get; set; } = "96px";
+    [Parameter] public string Class { get; set; } = "";
+    [Parameter] public string Style { get; set; } = "";
+}

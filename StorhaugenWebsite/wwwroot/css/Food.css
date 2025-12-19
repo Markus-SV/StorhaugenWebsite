@@ -821,6 +821,10 @@
 .detail-description {
     color: var(--mud-palette-text-secondary);
     line-height: 1.6;
+    background-color: var(--mud-palette-background);
+    padding: 16px;
+    border-radius: 16px;
+    margin-bottom: 16px;
 }
 
 /* Visibility Card */

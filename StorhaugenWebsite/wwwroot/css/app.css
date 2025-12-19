@@ -28,187 +28,6 @@ body {
     overscroll-behavior: none;
 }
 
-/* SHARED: Food Cards (Used in Home & Archive) */
-
-.food-card-content {
-    padding: 16px;
-}
-
-.food-card-title {
-    font-family: 'Fraunces', Georgia, serif;
-    font-size: 1.1rem;
-    font-weight: 600;
-    margin-bottom: 8px;
-    color: var(--mud-palette-text-primary);
-}
-
-.food-card-meta {
-    font-size: 0.8rem;
-    color: var(--mud-palette-text-secondary);
-    margin-top: 12px;
-}
-
-/* SHARED: List View Items */
-.food-list-item {
-    display: flex;
-    gap: 14px;
-    padding: 14px;
-    background: var(--mud-palette-surface);
-    border-radius: 16px;
-    border: 1px solid var(--mud-palette-divider);
-    cursor: pointer;
-    transition: var(--transition-smooth);
-}
-
-    .food-list-item:hover {
-        border-color: transparent;
-        box-shadow: 0 8px 24px rgba(44, 36, 22, 0.1);
-    }
-
-    .food-list-item:active {
-        transform: scale(0.99);
-    }
-
-.food-list-content {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-}
-
-.food-list-date {
-    font-size: 0.75rem;
-    color: var(--mud-palette-text-secondary);
-    margin-top: 6px;
-}
-
-.food-list-rating {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-}
-
-/* SHARED: Rating Badges */
-.rating-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 6px 12px;
-    border-radius: 20px;
-    font-weight: 600;
-    font-size: 0.9rem;
-}
-
-    .rating-badge.rating-high {
-        background: rgba(45, 90, 69, 0.12);
-        color: var(--color-siv);
-    }
-
-    .rating-badge.rating-medium {
-        background: rgba(212, 160, 23, 0.12);
-        color: #B38600;
-    }
-
-    .rating-badge.rating-low {
-        background: rgba(196, 69, 54, 0.12);
-        color: #C44536;
-    }
-
-/* SHARED: Member Ratings (Avatars) */
-.member-ratings {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.member-rating {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 10px 4px 4px;
-    background: var(--mud-palette-divider-light);
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: 500;
-}
-
-.member-rating-avatar {
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 0.7rem;
-    font-weight: 600;
-}
-
-.member-rating.markus .member-rating-avatar {
-    background: var(--color-markus);
-}
-
-.member-rating.siv .member-rating-avatar {
-    background: var(--color-siv);
-}
-
-.member-rating.elias .member-rating-avatar {
-    background: var(--color-elias);
-}
-
-.member-rating-value {
-    color: var(--mud-palette-text-primary);
-}
-
-.member-rating-empty {
-    color: var(--mud-palette-text-secondary);
-    opacity: 0.6;
-}
-
-/* SHARED: Animations */
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(16px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.animate-in {
-    animation: fadeInUp 0.4s ease forwards;
-}
-
-.animate-delay-1 {
-    animation-delay: 0.05s;
-}
-
-.animate-delay-2 {
-    animation-delay: 0.1s;
-}
-
-.animate-delay-3 {
-    animation-delay: 0.15s;
-}
-
-.animate-delay-4 {
-    animation-delay: 0.2s;
-}
-
-@keyframes shimmer {
-    0% {
-        background-position: -200% 0;
-    }
-
-    100% {
-        background-position: 200% 0;
-    }
-}
-
 /* MudBlazor Overrides */
 .mud-input-outlined .mud-input-slot-input {
     font-size: 16px !important;
@@ -228,10 +47,9 @@ body {
 }
 
 /* ============================================
-   SHARED CARD STYLES
+   GENERIC SHARED CARD STYLES (non-food specific)
    ============================================ */
 
-/* Base Card - used for recipe cards, friend cards, etc. */
 .card-base {
     background: var(--mud-palette-surface);
     border-radius: 16px;
@@ -240,72 +58,15 @@ body {
     cursor: pointer;
 }
 
-.card-base:hover {
-    border-color: transparent;
-    box-shadow: 0 8px 24px rgba(44, 36, 22, 0.1);
-    background-color: var(--mud-palette-background-grey);
-}
+    .card-base:hover {
+        border-color: transparent;
+        box-shadow: 0 8px 24px rgba(44, 36, 22, 0.1);
+        background-color: var(--mud-palette-background-grey);
+    }
 
-.card-base:active {
-    transform: scale(0.98);
-}
-
-/* Food Card - Full recipe card with image */
-.food-card {
-    display: flex;
-    gap: 0;
-    background: var(--mud-palette-surface);
-    border-radius: 16px;
-    border: 1px solid var(--mud-palette-divider);
-    overflow: hidden;
-    cursor: pointer;
-    transition: var(--transition-smooth);
-    flex-direction: row-reverse;
-}
-
-.food-card:hover {
-    border-color: transparent;
-    box-shadow: 0 8px 24px rgba(44, 36, 22, 0.1);
-}
-
-.food-card:active {
-    transform: scale(0.98);
-}
-
-.food-card-image {
-    width: 100px;
-    height: 100px;
-    object-fit: cover;
-    flex-shrink: 0;
-}
-
-.food-card-placeholder {
-    width: 100px;
-    height: 100px;
-    background: var(--mud-palette-background-grey);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.food-card-content {
-    flex: 1;
-    padding: 12px 16px;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-}
-
-.food-card-title {
-    font-family: 'Fraunces', Georgia, serif;
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--mud-palette-text-primary);
-    margin: 0;
-    line-height: 1.3;
-}
+    .card-base:active {
+        transform: scale(0.98);
+    }
 
 /* Friend Card */
 .friend-card {
@@ -315,13 +76,13 @@ body {
     cursor: pointer;
 }
 
-.friend-card:hover {
-    background-color: var(--mud-palette-background-grey);
-}
+    .friend-card:hover {
+        background-color: var(--mud-palette-background-grey);
+    }
 
-.friend-card:active {
-    transform: scale(0.98);
-}
+    .friend-card:active {
+        transform: scale(0.98);
+    }
 
 .request-card {
     background: rgba(var(--mud-palette-primary-rgb), 0.05);
@@ -337,219 +98,42 @@ body {
     padding-left: 4px;
 }
 
-/* ============================================
-   RATING PILLS (User ratings with avatar)
-   ============================================ */
-.rating-pill {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    background: var(--mud-palette-background-grey);
-    border-radius: 20px;
-    padding: 4px 10px 4px 4px;
-}
-
-.rating-circle {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.75rem;
-    font-weight: 600;
-}
-
-.rating-score {
-    font-weight: 600;
-    font-size: 0.9rem;
-}
-
-.rating-name {
-    font-size: 0.75rem;
-    color: var(--mud-palette-text-secondary);
-    max-width: 60px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-/* Rating count badge */
-.rating-count-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 8px;
-    border-radius: 12px;
-    background: var(--mud-palette-background-grey);
-    font-size: 0.75rem;
-    color: var(--mud-palette-text-secondary);
-    margin-top: 4px;
-}
-
-/* ============================================
-   META CHIPS (Time, Difficulty, Servings)
-   ============================================ */
 .meta-chip {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
+    gap: 3px;
+    padding: 2px 6px;
     background: var(--mud-palette-background-grey);
-    border-radius: 12px;
-    font-size: 0.75rem;
+    border-radius: 6px;
+    font-size: 0.7rem;
     color: var(--mud-palette-text-secondary);
 }
 
-.meta-chip.difficulty-easy {
-    background: rgba(76, 175, 80, 0.1);
-    color: #2E7D32;
-}
+    .meta-chip.difficulty-easy {
+        background: rgba(76, 175, 80, 0.1);
+        color: #2e7d32;
+    }
 
-.meta-chip.difficulty-medium {
-    background: rgba(255, 193, 7, 0.1);
-    color: #F57C00;
-}
+    .meta-chip.difficulty-medium {
+        background: rgba(255, 152, 0, 0.1);
+        color: #e65100;
+    }
 
-.meta-chip.difficulty-hard {
-    background: rgba(244, 67, 54, 0.1);
-    color: #D32F2F;
-}
+    .meta-chip.difficulty-hard {
+        background: rgba(244, 67, 54, 0.1);
+        color: #c62828;
+    }
 
-/* ============================================
-   EMPTY STATES
-   ============================================ */
-.empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    opacity: 0.7;
-    padding: 40px 20px;
-}
-
-.empty-state-icon {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    background: var(--mud-palette-background-grey);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 16px;
-}
-
-.empty-state-title {
-    font-family: 'Fraunces', Georgia, serif;
-    font-size: 1.25rem;
-    font-weight: 600;
-    margin-bottom: 8px;
-}
-
-.empty-state-text {
+.rating-count {
+    font-size: 0.6rem;
     color: var(--mud-palette-text-secondary);
-    max-width: 280px;
+    margin-top: 1px;
 }
 
 /* ============================================
-   PAGE HEADERS & TITLES
+   ACTIVITY FEED STYLES (kept)
    ============================================ */
-.page-title {
-    font-family: 'Fraunces', Georgia, serif;
-    font-size: 1.5rem;
-    font-weight: 600;
-    margin: 0;
-    color: var(--mud-palette-text-primary);
-}
 
-/* ============================================
-   FORM SECTIONS
-   ============================================ */
-.form-section {
-    background: var(--mud-palette-surface);
-    border-radius: 16px;
-    padding: 16px;
-    margin-bottom: 16px;
-    border: 1px solid var(--mud-palette-lines-default);
-}
-
-.form-section-title {
-    font-family: 'Fraunces', Georgia, serif;
-    font-size: 1rem;
-    font-weight: 600;
-    margin-bottom: 12px;
-    color: var(--mud-palette-text-primary);
-}
-
-/* ============================================
-   DETAIL PAGE STYLES
-   ============================================ */
-.detail-header {
-    margin-bottom: 16px;
-}
-
-.detail-back-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 12px;
-    background: var(--mud-palette-background-grey);
-    border: none;
-    border-radius: 12px;
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: var(--mud-palette-text-primary);
-    cursor: pointer;
-    transition: var(--transition-fast);
-}
-
-.detail-back-btn:hover {
-    background: var(--mud-palette-divider);
-}
-
-.detail-info-card {
-    background: var(--mud-palette-surface);
-    border-radius: 20px;
-    padding: 20px;
-    border: 1px solid var(--mud-palette-lines-default);
-    margin-bottom: 16px;
-}
-
-.detail-title {
-    font-family: 'Fraunces', Georgia, serif;
-    font-size: 1.5rem;
-    font-weight: 700;
-    margin: 0;
-    line-height: 1.2;
-}
-
-.detail-description {
-    color: var(--mud-palette-text-secondary);
-    font-size: 0.95rem;
-    line-height: 1.5;
-    margin: 0;
-}
-
-.detail-image-carousel {
-    margin-bottom: 16px;
-    border-radius: 20px;
-    overflow: hidden;
-}
-
-/* ============================================
-   SEARCH FIELD STYLING
-   ============================================ */
-.search-field .mud-input-slot-input {
-    font-size: 16px !important;
-}
-
-.search-field .mud-input-outlined-border {
-    border-radius: 12px !important;
-}
-
-/* ============================================
-   ACTIVITY FEED STYLES
-   ============================================ */
 .activity-feed {
     display: flex;
     flex-direction: column;
@@ -565,10 +149,10 @@ body {
     min-height: 80px;
 }
 
-.activity-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(44, 36, 22, 0.1);
-}
+    .activity-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(44, 36, 22, 0.1);
+    }
 
 .activity-image-layer {
     position: absolute;
@@ -582,52 +166,6 @@ body {
     -webkit-mask-image: linear-gradient(to left, rgba(0,0,0,0.7) 0%, transparent 100%);
 }
 
-.activity-content-layer {
-    position: relative;
-    padding: 12px 16px;
-    background: linear-gradient(to right, var(--mud-palette-surface) 60%, transparent 100%);
-}
-
-.activity-text-container {
-    flex: 1;
-    min-width: 0;
-}
-
-.activity-user-name {
-    font-weight: 600;
-    font-size: 0.95rem;
-    color: var(--mud-palette-text-primary);
-}
-
-.activity-description {
-    font-size: 0.85rem;
-    color: var(--mud-palette-text-secondary);
-}
-
-.activity-recipe-name {
-    font-family: 'Fraunces', Georgia, serif;
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: var(--mud-palette-text-primary);
-    display: -webkit-box;
-    -webkit-line-clamp: 1;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-
-.activity-time {
-    font-size: 0.75rem;
-    color: var(--mud-palette-text-secondary);
-    white-space: nowrap;
-}
-
-.activity-rating-chip {
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-weight: 600;
-    font-size: 0.8rem;
-    color: white;
-}
 
 /* Error UI */
 #blazor-error-ui {
@@ -649,3 +187,61 @@ body {
         right: 0.75rem;
         top: 0.5rem;
     }
+
+
+/* ============================================
+   GENERIC CROSSFADE STACK (Skeleton -> Content)
+   Usage:
+     <div class="xfade @(isLoading ? "loading" : "loaded")">
+        <div class="xfade-skeleton">...</div>
+        <div class="xfade-content">...</div>
+     </div>
+   ============================================ */
+
+.xfade {
+    display: grid;
+}
+
+    .xfade > .xfade-skeleton,
+    .xfade > .xfade-content {
+        grid-area: 1 / 1;
+    }
+
+    .xfade .xfade-skeleton,
+    .xfade .xfade-content {
+        will-change: opacity, transform;
+        transition: opacity 180ms ease, transform 220ms ease;
+        min-width: 0;
+    }
+
+    /* Loading: skeleton visible, content hidden */
+    .xfade.loading .xfade-skeleton {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    .xfade.loading .xfade-content {
+        opacity: 0;
+        transform: translateY(8px);
+        pointer-events: none;
+    }
+
+    /* Loaded: skeleton fades out, content fades in */
+    .xfade.loaded .xfade-skeleton {
+        opacity: 0;
+        transform: translateY(-4px);
+        pointer-events: none;
+    }
+
+    .xfade.loaded .xfade-content {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+@media (prefers-reduced-motion: reduce) {
+    .xfade .xfade-skeleton,
+    .xfade .xfade-content {
+        transition: none;
+        transform: none;
+    }
+}

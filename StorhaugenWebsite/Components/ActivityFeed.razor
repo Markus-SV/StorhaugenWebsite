@@ -7,68 +7,64 @@
 @inject ISnackbar Snackbar
 
 <div class="activity-feed">
-    @if (_isLoading)
-    {
-        <div class="d-flex flex-column gap-3">
-            @for (int i = 0; i < 5; i++)
+    <XFade IsLoading="@_isLoading" FirstLoadOnly="true" FadeMs="220">
+        <Skeleton>
+            <RecipeSkeleton Amount="5" Height="84px" DisableImage LineAmount="0" />
+        </Skeleton>
+        <ChildContent>
+
+            @if (!_feedItems.Any())
             {
-                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="80px" Class="rounded-xl" />
+                <div class="empty-state">
+                    <MudIcon Icon="@Icons.Material.Rounded.RssFeed" Size="Size.Large" Color="Color.Default" />
+                    <MudText Typo="Typo.h6" Class="mt-2">Ingen aktivitet ennå</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        Legg til venner for å se hva de lager!
+                    </MudText>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" Href="friends" Class="mt-3">
+                        Finn venner
+                    </MudButton>
+                </div>
             }
-        </div>
-    }
-    else if (!_feedItems.Any())
-    {
-        <div class="empty-state">
-            <MudIcon Icon="@Icons.Material.Rounded.RssFeed" Size="Size.Large" Color="Color.Default" />
-            <MudText Typo="Typo.h6" Class="mt-2">Ingen aktivitet ennå</MudText>
-            <MudText Typo="Typo.body2" Color="Color.Secondary">
-                Legg til venner for å se hva de lager!
-            </MudText>
-            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Href="friends" Class="mt-3">
-                Finn venner
-            </MudButton>
-        </div>
-    }
-    else
-    {
-        <div class="d-flex flex-column gap-3">
-            @foreach (var item in _feedItems)
+            else
             {
-                <MudPaper Class="@(IsItemClickable(item) ? "activity-card " : "activity-card non-clickable")" Elevation="0" @onclick="() => NavigateToRecipe(item)">
-
-                    @* --- 1. Background Image Layer (Absolute) --- *@
-                    @if (!string.IsNullOrEmpty(item.RecipeImageUrl))
+                <div class="d-flex flex-column gap-3">
+                    @foreach (var item in _feedItems)
                     {
-                        <div class="activity-image-layer">
-                            <img src="@item.RecipeImageUrl" alt="@item.RecipeName" loading="lazy" />
-                        </div>
-                    }
+                        <MudPaper Class="@(IsItemClickable(item) ? "activity-card" : "activity-card non-clickable")"
+                                  Elevation="0"
+                                  @onclick="() => NavigateToRecipe(item)">
 
-                    @* --- 2. Content Layer (Relative) --- *@
-                    <div class="activity-content-layer">
-                        <div class="d-flex gap-3 align-start">
-                            @* Avatar (Left) *@
-                            <MudAvatar Size="Size.Medium" Variant="Variant.Filled" Class="flex-shrink-0" Style="@($"background-color: {UserColorService.GetUserColor(item.UserDisplayName)}; color: white;")">
-                                @(item.UserDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
-                            </MudAvatar>
+                            @if (!string.IsNullOrEmpty(item.RecipeImageUrl))
+                            {
+                                <div class="activity-image-layer">
+                                    <img src="@item.RecipeImageUrl" alt="@item.RecipeName" loading="lazy" />
+                                </div>
+                            }
 
-                            @* Text (Fills remaining space) *@
-                            <div class="activity-text-container">
-                                <div class="d-flex align-center gap-2 flex-wrap mb-0">
-                                    <MudText Typo="Typo.body2" Class="font-weight-bold user-name-text">
-                                        @item.UserDisplayName
-                                    </MudText>
-                                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="time-text">
-                                        @GetTimeAgo(item.CreatedAt)
-                                    </MudText>
+                            <div class="activity-content-layer">
+                                <div class="d-flex gap-3 align-start">
+                                    <MudAvatar Size="Size.Medium" Variant="Variant.Filled" Class="flex-shrink-0"
+                                               Style="@($"background-color: {UserColorService.GetUserColor(item.UserDisplayName)}; color: white;")">
+                                        @(item.UserDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                                    </MudAvatar>
+
+                                    <div class="activity-text-container">
+                                        <div class="d-flex align-center gap-2 flex-wrap mb-0">
+                                            <MudText Typo="Typo.body2" Class="font-weight-bold user-name-text">
+                                                @item.UserDisplayName
+                                            </MudText>
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="time-text">
+                                                @GetTimeAgo(item.CreatedAt)
+                                            </MudText>
+                                        </div>
+
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="action-text mb-1 d-block">
+                                            @GetActivityDescription(item)
+                                        </MudText>
+                                    </div>
                                 </div>
 
-                                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="action-text mb-1 d-block">
-                                    @GetActivityDescription(item)
-                                </MudText>
-
-                            </div>
-                        </div>
                                 @if (!string.IsNullOrEmpty(item.RecipeName))
                                 {
                                     <div class="recipe-row">
@@ -81,181 +77,81 @@
                                         }
                                     </div>
                                 }
-                    </div>
-                </MudPaper>
-            }
-        </div>
-
-        @if (_hasMorePages)
-        {
-            <div class="d-flex justify-center mt-4">
-                <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="LoadMore" Disabled="_isLoadingMore">
-                    @if (_isLoadingMore)
-                    {
-                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                            </div>
+                        </MudPaper>
                     }
-                    Last inn mer
-                </MudButton>
-            </div>
-        }
-    }
+                </div>
+
+                @if (_hasMorePages)
+                {
+                    <div class="d-flex justify-center mt-4">
+                        <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="LoadMore" Disabled="_isLoadingMore">
+                            @if (_isLoadingMore)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                            }
+                            Last inn mer
+                        </MudButton>
+                    </div>
+                }
+            }
+        </ChildContent>
+    </XFade>
 </div>
 
 <style>
-    .activity-card {
-        position: relative;
-        background: var(--mud-palette-surface);
-        border-radius: 20px;
-        overflow: hidden; /* Clips the image */
-        cursor: pointer;
-        transition: transform 0.2s, box-shadow 0.2s;
-        min-height: 84px;
-    }
+    .user-name-text { font-size: 0.95rem; line-height: 1.2; }
+    .time-text { font-size: 0.75rem; opacity: 0.8; }
+    .action-text { font-size: 0.8rem; line-height: 1.2; }
 
-        .activity-card:active {
-            transform: scale(0.98);
-            background: var(--mud-palette-background-grey);
-        }
+    .recipe-row { display:flex; align-items:center; gap:6px; margin-top:8px; color: var(--mud-palette-text-primary); }
+    .recipe-icon { font-size:14px; opacity:0.7; flex-shrink:0; }
+    .recipe-name { font-weight:600; font-size:0.9rem; }
+    .text-truncate { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
-        .activity-card.non-clickable {
-            cursor: default;
-        }
+    .rating-dot { width:6px; height:6px; border-radius:50%; margin-left:2px; flex-shrink:0; }
+    .rating-val { font-weight:700; font-size:0.8rem; flex-shrink:0; }
 
-            .activity-card.non-clickable:active {
-                transform: none;
-            }
-
-    /* --- Image Layer ---
-           Positioned absolutely to the right, sitting behind content */
-    .activity-image-layer {
-        position: absolute;
-        top: 0;
-        right: 0;
-        bottom: 0;
-        width: 55%; /* Covers ~half the card */
-        z-index: 1;
-        pointer-events: none;
-        /* The Mask: Fades from Opaque (Right) to Transparent (Left) */
-        -webkit-mask-image: linear-gradient(to left, rgba(0,0,0,1) 20%, rgba(0,0,0,0) 100%);
-        mask-image: linear-gradient(to left, rgba(0,0,0,1) 20%, rgba(0,0,0,0) 100%);
-    }
-
-        .activity-image-layer img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-    /* --- Content Layer ---
-           Sits on top of image, background transparent */
-    .activity-content-layer {
-        position: relative;
-        z-index: 2;
-        padding: 14px 16px;
-    }
-
-    .activity-text-container {
-        flex: 1;
-        min-width: 0; /* Enables text-truncate inside flex */
-        padding-right: 20px; /* Space so text doesn't hit right edge hard */
-        text-shadow: 0 1px 4px rgba(var(--mud-palette-surface-rgb), 0.8); /* Optional: makes text readable over image */
-    }
-
-    .user-name-text {
-        font-size: 0.95rem;
-        line-height: 1.2;
-    }
-
-    .time-text {
-        font-size: 0.75rem;
-        opacity: 0.8;
-    }
-
-    .action-text {
-        font-size: 0.8rem;
-        line-height: 1.2;
-    }
-
-    .recipe-row {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        margin-top: 8px;
-        color: var(--mud-palette-text-primary);
-    }
-
-    .recipe-icon {
-        font-size: 14px;
-        opacity: 0.7;
-        flex-shrink: 0;
-    }
-
-    .recipe-name {
-        font-weight: 600;
-        font-size: 0.9rem;
-    }
-
-    .text-truncate {
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .rating-dot {
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        margin-left: 2px;
-        flex-shrink: 0;
-    }
-
-    .rating-val {
-        font-weight: 700;
-        font-size: 0.8rem;
-        flex-shrink: 0;
-    }
+    .activity-text-container { flex:1; min-width:0; }
+    .activity-content-layer { position:relative; padding:12px 16px; background: linear-gradient(to right, var(--mud-palette-surface) 60%, transparent 100%); }
 </style>
 
 @code {
-    [Parameter]
-    public bool ShowOnlyMyActivity { get; set; } = false;
+    [Parameter] public bool ShowOnlyMyActivity { get; set; } = false;
+    [Parameter] public int PageSize { get; set; } = 20;
 
-    [Parameter]
-    public int PageSize { get; set; } = 20;
-
-    private List<ActivityFeedItemDto> _feedItems = new();
+    private readonly List<ActivityFeedItemDto> _feedItems = new();
     private bool _isLoading = true;
-    private bool _isLoadingMore = false;
-    private bool _hasMorePages = false;
+
+    private bool _isLoadingMore;
+    private bool _hasMorePages;
     private int _currentPage = 1;
 
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadFeed();
-    }
+    private int _loadVersion;
 
-    private async Task LoadFeed()
+    protected override Task OnInitializedAsync() => ReloadFeed(resetPage: true);
+
+    private async Task ReloadFeed(bool resetPage)
     {
+        var v = ++_loadVersion;
+
+        if (resetPage)
+            _currentPage = 1;
+
         _isLoading = true;
-        StateHasChanged();
+        await InvokeAsync(StateHasChanged);
 
         try
         {
-            ActivityFeedPagedResult result;
-            if (ShowOnlyMyActivity)
-            {
-                result = await FeedService.GetMyActivityAsync(_currentPage, PageSize);
-            }
-            else
-            {
-                result = await FeedService.GetFeedAsync(new ActivityFeedQuery
-                {
-                    Page = _currentPage,
-                    PageSize = PageSize
-                });
-            }
+            ActivityFeedPagedResult result =
+                ShowOnlyMyActivity
+                    ? await FeedService.GetMyActivityAsync(_currentPage, PageSize)
+                    : await FeedService.GetFeedAsync(new ActivityFeedQuery { Page = _currentPage, PageSize = PageSize });
 
-            _feedItems = DeduplicateRatings(result.Items);
+            if (v != _loadVersion) return;
+
+            _feedItems.Clear();
+            _feedItems.AddRange(DeduplicateRatings(result.Items));
             _hasMorePages = result.HasMore;
         }
         catch (Exception ex)
@@ -264,36 +160,35 @@
         }
         finally
         {
-            _isLoading = false;
-            StateHasChanged();
+            if (v == _loadVersion)
+            {
+                _isLoading = false;
+                await InvokeAsync(StateHasChanged);
+            }
         }
     }
 
     private async Task LoadMore()
     {
+        if (_isLoadingMore) return;
+
         _isLoadingMore = true;
         _currentPage++;
         StateHasChanged();
 
         try
         {
-            ActivityFeedPagedResult result;
-            if (ShowOnlyMyActivity)
-            {
-                result = await FeedService.GetMyActivityAsync(_currentPage, PageSize);
-            }
-            else
-            {
-                result = await FeedService.GetFeedAsync(new ActivityFeedQuery
-                {
-                    Page = _currentPage,
-                    PageSize = PageSize
-                });
-            }
+            ActivityFeedPagedResult result =
+                ShowOnlyMyActivity
+                    ? await FeedService.GetMyActivityAsync(_currentPage, PageSize)
+                    : await FeedService.GetFeedAsync(new ActivityFeedQuery { Page = _currentPage, PageSize = PageSize });
 
-            // Add new items and re-deduplicate the full list
             _feedItems.AddRange(result.Items);
-            _feedItems = DeduplicateRatings(_feedItems);
+            var deduped = DeduplicateRatings(_feedItems.ToList());
+
+            _feedItems.Clear();
+            _feedItems.AddRange(deduped);
+
             _hasMorePages = result.HasMore;
         }
         catch (Exception ex)
@@ -308,58 +203,36 @@
         }
     }
 
-    /// <summary>
-    /// Checks if an activity item is clickable (can be navigated to).
-    /// Only global_recipe items are publicly viewable, user_recipe items require ownership/access.
-    /// </summary>
-    private bool IsItemClickable(ActivityFeedItemDto item)
-    {
-        // Global recipes are always viewable
-        return item.TargetType == "global_recipe";
-    }
+    private bool IsItemClickable(ActivityFeedItemDto item) => item.TargetType == "global_recipe";
 
     private void NavigateToRecipe(ActivityFeedItemDto item)
     {
-        // Only allow navigation to global_recipe items (publicly viewable)
         if (item.TargetType == "global_recipe")
-        {
             Navigation.NavigateTo($"browse/{item.TargetId}");
-        }
         else
-        {
-            // user_recipe items are not directly viewable from the feed
-            // The user would need to have the recipe in their own collection
             Snackbar.Add("Oppskriften er ikke tilgjengelig for visning", Severity.Info);
-        }
     }
 
-    private string GetRatingColorHex(decimal rating)
+    private string GetRatingColorHex(decimal rating) => rating switch
     {
-        return rating switch
-        {
-            >= 8m => "#2D5A45", // Green
-            >= 5m => "#D4A017", // Yellow
-            _ => "#C44536"      // Red
-        };
-    }
+        >= 8m => "#2D5A45",
+        >= 5m => "#D4A017",
+        _ => "#C44536"
+    };
 
-    private string GetActivityDescription(ActivityFeedItemDto item)
+    private string GetActivityDescription(ActivityFeedItemDto item) => item.ActivityType switch
     {
-        return item.ActivityType switch
-        {
-            "rated" => "ga en vurdering",
-            "added" => "la til en ny oppskrift",
-            "published" => "publiserte en oppskrift",
-            "joined_collection" => "ble med i en samling",
-            "friend_added" => $"ble venn med {item.UserDisplayName}",
-            _ => item.ActivityType
-        };
-    }
+        "rated" => "ga en vurdering",
+        "added" => "la til en ny oppskrift",
+        "published" => "publiserte en oppskrift",
+        "joined_collection" => "ble med i en samling",
+        "friend_added" => $"ble venn med {item.UserDisplayName}",
+        _ => item.ActivityType
+    };
 
     private string GetTimeAgo(DateTime dateTime)
     {
         var diff = DateTime.UtcNow - dateTime;
-
         if (diff.TotalMinutes < 1) return "akkurat nå";
         if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes}m";
         if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}t";
@@ -367,34 +240,20 @@
         return dateTime.ToString("dd.MM");
     }
 
-    /// <summary>
-    /// Deduplicates rating activities - keeps only the latest rating per user+recipe combination.
-    /// Other activity types are preserved as-is.
-    /// </summary>
     private List<ActivityFeedItemDto> DeduplicateRatings(List<ActivityFeedItemDto> items)
     {
         var result = new List<ActivityFeedItemDto>();
-        var seenRatings = new HashSet<string>();
+        var seen = new HashSet<string>();
 
-        // Process items in order (newest first since API returns newest first)
         foreach (var item in items)
         {
             if (item.ActivityType == "rated")
             {
-                // Create a unique key for this user+recipe rating
                 var key = $"{item.UserId}_{item.TargetId}";
-
-                // Only add if we haven't seen this rating combination yet
-                if (!seenRatings.Contains(key))
-                {
-                    seenRatings.Add(key);
-                    result.Add(item);
-                }
-                // Skip duplicate ratings (older ratings for the same user+recipe)
+                if (seen.Add(key)) result.Add(item);
             }
             else
             {
-                // Keep all non-rating activities
                 result.Add(item);
             }
         }
