@@ -27,11 +27,17 @@ public class ApiClient : IApiClient
     private async Task AddAuthHeaderAsync()
     {
         var token = await _authService.GetAccessTokenAsync();
-        if (!string.IsNullOrEmpty(token))
+
+        if (string.IsNullOrWhiteSpace(token))
         {
-            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            _httpClient.DefaultRequestHeaders.Authorization = null;
+            return;
         }
+
+        _httpClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", token);
     }
+
 
     // User Methods
     public async Task<UserDto?> GetMyProfileAsync()

@@ -41,8 +41,12 @@ public class SupabaseAuthService : IAuthService, IAsyncDisposable
     private void OnAuthStateChange(object? sender, Constants.AuthState state)
     {
         _session = _supabaseClient.Auth.CurrentSession;
-        OnAuthStateChanged?.Invoke();
+
+        // Prevent refresh storms (TokenRefreshed / SetSession should not cause the whole app to refetch)
+        if (state is Constants.AuthState.SignedIn or Constants.AuthState.SignedOut)
+            OnAuthStateChanged?.Invoke();
     }
+
 
     public void UpdateCachedDisplayName(string? displayName)
     {
@@ -193,37 +197,46 @@ public class SupabaseAuthService : IAuthService, IAsyncDisposable
         }
     }
 
+    private readonly SemaphoreSlim _refreshLock = new(1, 1);
+
     public async Task<string?> GetAccessTokenAsync()
     {
-        // If we lost the in-memory session, try restore from localStorage.
-        if (_session?.AccessToken == null)
-        {
-            var cachedJson = await _jsRuntime.InvokeAsync<string>("localStorage.getItem", AuthCacheKey);
-            if (!string.IsNullOrWhiteSpace(cachedJson))
-            {
-                var cached = JsonConvert.DeserializeObject<Session>(cachedJson);
-                if (cached?.AccessToken != null)
-                {
-                    // Rehydrate Supabase client session
-                    await _supabaseClient.Auth.SetSession(cached.AccessToken, cached.RefreshToken);
-                    _session = _supabaseClient.Auth.CurrentSession;
-                }
-            }
-        }
+        _session ??= _supabaseClient.Auth.CurrentSession
+                 ?? await _supabaseClient.Auth.RetrieveSessionAsync();
 
-        if (_session?.AccessToken == null)
+        if (_session?.AccessToken is null)
             return null;
 
-        // If token is expired/near-expiry, force a refresh using refresh token.
-        if (IsExpiredOrNearExpiry(_session.AccessToken, skewSeconds: 60))
-        {
-            await _supabaseClient.Auth.SetSession(_session.AccessToken, _session.RefreshToken);
-            _session = _supabaseClient.Auth.CurrentSession;
-            OnAuthStateChanged?.Invoke();
-        }
+        // Refresh earlier than 60s if your backend uses strict lifetime validation (yours does)
+        if (!IsExpiredOrNearExpiry(_session.AccessToken, skewSeconds: 180))
+            return _session.AccessToken;
 
-        return _session?.AccessToken;
+        await _refreshLock.WaitAsync();
+        try
+        {
+            // Re-check after waiting: another caller may have refreshed already
+            _session = _supabaseClient.Auth.CurrentSession ?? _session;
+            if (_session?.AccessToken is null)
+                return null;
+
+            if (!IsExpiredOrNearExpiry(_session.AccessToken, skewSeconds: 180))
+                return _session.AccessToken;
+
+            //  Do an actual refresh (method name may be RefreshSession / RefreshSessionAsync depending on your SDK)
+            var refreshed = await _supabaseClient.Auth.RefreshSession();
+            if (refreshed != null)
+                _session = refreshed;
+            else
+                _session = _supabaseClient.Auth.CurrentSession;
+
+            return _session?.AccessToken;
+        }
+        finally
+        {
+            _refreshLock.Release();
+        }
     }
+
 
     private static bool IsExpiredOrNearExpiry(string jwt, int skewSeconds)
     {

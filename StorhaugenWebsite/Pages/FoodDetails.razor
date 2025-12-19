@@ -391,9 +391,8 @@ else
         @* My Rating - Only show if user can rate *@
         @if (CanRate)
         {
-            @{
-                var myRatingColor = ((double)_myRating).ToRatingColorHex();
-            }
+            var myRatingColor = ((double)_myRating).ToRatingColorHex();
+            
             <div class="d-flex align-center gap-3 mb-3">
                 <MudSlider T="decimal" Value="_myRating" ValueChanged="OnRatingChanged" Min="0" Max="10" Step="0.1M" Color="Color.Primary" Style="flex: 1;" Class="rating-slider" />
                 <span class="rating-badge-colored" style="--rating-color: @myRatingColor;">

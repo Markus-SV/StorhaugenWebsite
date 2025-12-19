@@ -73,8 +73,8 @@
                                         <span class="recipe-name text-truncate">@item.RecipeName</span>
                                         @if (item.RatingScore.HasValue)
                                         {
-                                            <span class="rating-dot" style="background-color: @((double)item.RatingScore.Value).ToRatingColorHex()"></span>
-                                            <span class="rating-val" style="color: @((double)item.RatingScore.Value).ToRatingColorHex()">@item.RatingScore.Value.ToString("0.0")</span>
+                                            <span class="rating-dot" style="background-color: @(((double)item.RatingScore.Value).ToRatingColorHex())"></span>
+                                            <span class="rating-val" style="color: @(((double)item.RatingScore.Value).ToRatingColorHex())">@item.RatingScore.Value.ToString("0.0")</span>
                                         }
                                     </div>
                                 }
