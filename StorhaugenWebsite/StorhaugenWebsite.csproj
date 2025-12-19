@@ -11,10 +11,18 @@
 		<Copy SourceFiles="$(PublishDir)wwwroot\index.html" DestinationFiles="$(PublishDir)wwwroot\404.html" />
 	</Target>
 
+	<ItemGroup>
+	  <Compile Remove="Shared\RatingColorExtensions.cs" />
+	</ItemGroup>
+
   <ItemGroup>
     <Content Remove="Components\AddFood.razor" />
     <Content Remove="Components\Archived.razor" />
     <Content Remove="Components\FoodDetail.razor" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Shared\Extensions\RatingColorExtensions.cs" />
   </ItemGroup>
 
   <ItemGroup>

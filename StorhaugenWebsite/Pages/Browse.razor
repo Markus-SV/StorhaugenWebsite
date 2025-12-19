@@ -4,6 +4,7 @@
 @using StorhaugenWebsite.Components
 @using StorhaugenWebsite.Services
 @using StorhaugenWebsite.Shared.DTOs
+@using StorhaugenWebsite.Shared.Extensions
 @inject IApiClient ApiClient
 @inject IUserRecipeService RecipeService
 @inject NavigationManager Navigation
@@ -161,7 +162,7 @@
                                     @if (recipe.AverageRating > 0)
                                     {
                                         <div class="d-flex flex-column align-end" style="flex-shrink: 0;">
-                                            <span class="rating-badge @(recipe.IsHellofresh ? "rating-hellofresh" : "rating-high")">
+                                            <span class="rating-badge" style="color:@recipe.AverageRating.ToRatingColorHex();">
                                                 <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
                                                 @recipe.AverageRating.ToString("0.0")
                                             </span>
