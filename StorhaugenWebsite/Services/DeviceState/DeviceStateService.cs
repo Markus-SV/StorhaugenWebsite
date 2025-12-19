@@ -70,6 +70,14 @@ namespace StorhaugenWebsite.Services
             }
         }
 
+        public async Task SetCookbookFiltersAsync(List<Guid> collectionIds, bool personalActive)
+        {
+            Settings.CookbookCollectionFilters = collectionIds;
+            Settings.CookbookPersonalFilterActive = personalActive;
+            await SaveSettingsAsync();
+            OnSettingsChanged?.Invoke();
+        }
+
         private async Task SaveSettingsAsync()
         {
             try

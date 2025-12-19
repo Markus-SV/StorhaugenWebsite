@@ -202,6 +202,7 @@ public class CollectionService : ICollectionService
                 .ThenInclude(ur => ur.GlobalRecipe)
             .Include(urc => urc.UserRecipe)
                 .ThenInclude(ur => ur.Ratings)
+                    .ThenInclude(r => r.User)
             .AsQueryable();
 
         // Search filter
@@ -565,6 +566,12 @@ public class CollectionService : ICollectionService
         var myRating = recipe.Ratings?.FirstOrDefault(r => r.UserId == userId);
         var avgRating = recipe.Ratings?.Any() == true ? recipe.Ratings.Average(r => r.Score) : 0;
 
+        // Build member ratings dictionary (excluding requesting user's own rating)
+        var memberRatings = recipe.Ratings?
+            .Where(r => r.User != null && r.UserId != userId)
+            .ToDictionary(r => r.User!.DisplayName, r => (decimal?)r.Score)
+            ?? new Dictionary<string, decimal?>();
+
         return new UserRecipeDto
         {
             Id = recipe.Id,
@@ -584,6 +591,7 @@ public class CollectionService : ICollectionService
             MyRating = myRating?.Score,
             AverageRating = (double)avgRating,
             RatingCount = recipe.Ratings?.Count ?? 0,
+            MemberRatings = memberRatings,
             IsHellofresh = recipe.GlobalRecipe?.IsHellofresh ?? false,
             HellofreshWeek = recipe.GlobalRecipe?.HellofreshWeek
         };

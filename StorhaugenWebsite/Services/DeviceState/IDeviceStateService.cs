@@ -11,7 +11,7 @@ namespace StorhaugenWebsite.Services
         Task SetThemeAsync(string theme);
         Task SetViewModeAsync(string viewMode);
         Task<string> GetSystemThemePreferenceAsync();
-        Task SetSortAsync(string sortBy, bool descending); // New method
-
+        Task SetSortAsync(string sortBy, bool descending);
+        Task SetCookbookFiltersAsync(List<Guid> collectionIds, bool personalActive);
     }
 }

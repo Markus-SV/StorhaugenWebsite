@@ -174,6 +174,21 @@ namespace StorhaugenWebsite.Services
             OnActiveFiltersChanged?.Invoke();
         }
 
+        public void SetCollectionFilter(Guid collectionId, bool active)
+        {
+            var isCurrentlyActive = ActiveCollectionFilters.Contains(collectionId);
+            if (active && !isCurrentlyActive)
+            {
+                ActiveCollectionFilters.Add(collectionId);
+                OnActiveFiltersChanged?.Invoke();
+            }
+            else if (!active && isCurrentlyActive)
+            {
+                ActiveCollectionFilters.Remove(collectionId);
+                OnActiveFiltersChanged?.Invoke();
+            }
+        }
+
         public void ClearState()
         {
             UserCollections = new();

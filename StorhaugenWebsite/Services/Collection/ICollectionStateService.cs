@@ -90,6 +90,11 @@ namespace StorhaugenWebsite.Services
         void ToggleCollectionFilter(Guid collectionId);
 
         /// <summary>
+        /// Set a specific collection filter to active/inactive.
+        /// </summary>
+        void SetCollectionFilter(Guid collectionId, bool active);
+
+        /// <summary>
         /// Clear state (e.g., on logout).
         /// </summary>
         void ClearState();

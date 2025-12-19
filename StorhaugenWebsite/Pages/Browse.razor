@@ -44,17 +44,11 @@
     @* --- Compact controls row for HelloFresh: Week selector + Sort --- *@
     @if (_sourceMode == "hellofresh")
     {
-        <div class="d-flex align-center gap-2 flex-wrap">
-            @* Compact Week Selector *@
-            <div class="week-selector-compact">
-                <MudIconButton Icon="@Icons.Material.Rounded.ChevronLeft"
-                               Size="Size.Small"
-                               OnClick="PreviousWeek"
-                               Disabled="_weekOffset <= -4"
-                               Class="week-nav-btn" />
-
-                <div class="week-chips-compact">
-                    @foreach (var weekOption in GetWeekOptions())
+        <div class="hellofresh-controls-row">
+            @* Swipeable Week Selector *@
+            <div class="week-selector-swipeable">
+                <div class="week-chips-scroll" @ref="_weekScrollContainer">
+                    @foreach (var weekOption in GetAllWeekOptions())
                     {
                         <MudChip T="string"
                                  Size="Size.Small"
@@ -67,12 +61,6 @@
                     }
                 </div>
 
-                <MudIconButton Icon="@Icons.Material.Rounded.ChevronRight"
-                               Size="Size.Small"
-                               OnClick="NextWeek"
-                               Disabled="_weekOffset >= 4"
-                               Class="week-nav-btn" />
-
                 @if (!string.IsNullOrEmpty(_selectedWeek))
                 {
                     <MudIconButton Icon="@Icons.Material.Rounded.FilterAltOff"
@@ -83,9 +71,9 @@
                 }
             </div>
 
-            @* Sorting dropdown *@
+            @* Sorting dropdown - always inline *@
             <MudSelect T="string" @bind-Value="_sortBy" Variant="Variant.Outlined" Margin="Margin.Dense"
-                       Style="min-width: 130px; font-size: 0.8rem;" Dense="true">
+                       Class="sort-select-inline" Dense="true">
                 <MudSelectItem Value="@("popular")">Populære</MudSelectItem>
                 <MudSelectItem Value="@("preptime")">Tid</MudSelectItem>
                 <MudSelectItem Value="@("difficulty")">Nivå</MudSelectItem>
@@ -293,30 +281,48 @@
         100% { background-position: -200% 0; }
     }
 
-    /* Compact Week Selector - Inline with sort */
-    .week-selector-compact {
+    /* HelloFresh controls row - always inline */
+    .hellofresh-controls-row {
         display: flex;
         align-items: center;
-        gap: 2px;
+        gap: 8px;
+        width: 100%;
+    }
+
+    /* Swipeable Week Selector */
+    .week-selector-swipeable {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex: 1;
+        min-width: 0;
         background: var(--mud-palette-surface);
         padding: 4px 6px;
         border-radius: 8px;
         border: 1px solid var(--mud-palette-lines-default);
     }
 
-    .week-chips-compact { display: flex; gap: 4px; }
+    .week-chips-scroll {
+        display: flex;
+        gap: 4px;
+        overflow-x: auto;
+        scroll-behavior: smooth;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        flex: 1;
+        min-width: 0;
+    }
+
+    .week-chips-scroll::-webkit-scrollbar {
+        display: none;
+    }
 
     .week-chip-compact {
         font-size: 0.7rem !important;
         height: 24px !important;
         padding: 0 8px !important;
-    }
-
-    .week-nav-btn {
-        padding: 4px !important;
-        min-width: 28px !important;
-        width: 28px !important;
-        height: 28px !important;
+        flex-shrink: 0;
     }
 
     .week-clear-btn {
@@ -324,8 +330,15 @@
         min-width: 28px !important;
         width: 28px !important;
         height: 28px !important;
-        margin-left: 4px;
+        flex-shrink: 0;
         color: var(--mud-palette-text-secondary);
+    }
+
+    .sort-select-inline {
+        min-width: 100px !important;
+        max-width: 130px;
+        flex-shrink: 0;
+        font-size: 0.8rem;
     }
 
     /* Make filter switches feel instant:
@@ -360,7 +373,7 @@
 
     // HelloFresh week selection
     private string? _selectedWeek;
-    private int _weekOffset = 0; // 0 = current week, -1 = last week, 1 = next week
+    private ElementReference _weekScrollContainer;
 
     // prevents out-of-order renders if user clicks filters quickly
     private int _loadVersion;
@@ -377,7 +390,6 @@
         _sourceMode = mode;
         _currentPage = 1;
         _selectedWeek = null;
-        _weekOffset = 0;
         _sortBy = mode == "hellofresh" ? "popular" : "newest";
 
         await LoadRecipes();
@@ -386,33 +398,22 @@
     // Week selector methods
     private record WeekOption(string Week, string Label, string ShortLabel);
 
-    private List<WeekOption> GetWeekOptions()
+    private List<WeekOption> GetAllWeekOptions()
     {
         var options = new List<WeekOption>();
-        var baseDate = DateTime.UtcNow.AddDays(_weekOffset * 7);
+        var today = DateTime.UtcNow;
 
-        for (int i = -1; i <= 1; i++)
+        // Generate weeks from -4 to +4 (9 weeks total)
+        for (int offset = -4; offset <= 4; offset++)
         {
-            var targetDate = baseDate.AddDays(i * 7);
+            var targetDate = today.AddDays(offset * 7);
             var week = GetIsoWeekString(targetDate);
-            var offsetFromCurrent = i + _weekOffset;
-            var label = GetWeekLabel(offsetFromCurrent);
-            var shortLabel = GetWeekShortLabel(offsetFromCurrent, targetDate);
-            options.Add(new WeekOption(week, label, shortLabel));
+            var shortLabel = GetWeekShortLabel(offset, targetDate);
+            options.Add(new WeekOption(week, shortLabel, shortLabel));
         }
 
         return options;
     }
-
-    private string GetWeekLabel(int offsetFromCurrent) => offsetFromCurrent switch
-    {
-        -2 => "2 uker siden",
-        -1 => "Forrige uke",
-        0 => "Denne uken",
-        1 => "Neste uke",
-        2 => "Om 2 uker",
-        _ => offsetFromCurrent < 0 ? $"{Math.Abs(offsetFromCurrent)} uker siden" : $"Om {offsetFromCurrent} uker"
-    };
 
     private string GetWeekShortLabel(int offsetFromCurrent, DateTime date)
     {
@@ -453,16 +454,6 @@
         _selectedWeek = null;
         _currentPage = 1;
         await LoadRecipes();
-    }
-
-    private void PreviousWeek()
-    {
-        if (_weekOffset > -4) _weekOffset--;
-    }
-
-    private void NextWeek()
-    {
-        if (_weekOffset < 4) _weekOffset++;
     }
 
     private async Task LoadRecipes()
@@ -575,11 +566,14 @@
         _isProcessing = true;
         try
         {
+            // Don't copy images for HelloFresh recipes (they're broken/copyrighted)
+            var imageUrls = recipe.IsHellofresh ? new List<string>() : (recipe.ImageUrls ?? new List<string>());
+
             var dto = new CreateUserRecipeDto
             {
                 Name = recipe.Name,
                 Description = recipe.Description,
-                ImageUrls = recipe.ImageUrls ?? new List<string>(),
+                ImageUrls = imageUrls,
                 GlobalRecipeId = recipe.Id,
                 PrepTimeMinutes = recipe.PrepTimeMinutes,
                 Servings = recipe.Servings,

@@ -11,6 +11,7 @@
 @inject IUserFriendshipService FriendshipService
 @inject IAuthService AuthService
 @inject IUserColorService UserColorService
+@inject IDeviceStateService DeviceState
 @inject NavigationManager Navigation
 @inject IApiClient ApiClient
 @attribute [Authorize]
@@ -268,6 +269,19 @@
         CollectionState.OnActiveFiltersChanged += OnFiltersChanged;
 
         await CollectionState.InitializeAsync();
+        await DeviceState.InitializeAsync();
+
+        // Restore saved filter state from device settings
+        _personalActive = DeviceState.Settings.CookbookPersonalFilterActive;
+        foreach (var collectionId in DeviceState.Settings.CookbookCollectionFilters)
+        {
+            // Only activate if user still has access to this collection
+            if (CollectionState.UserCollections.Any(c => c.Id == collectionId))
+            {
+                CollectionState.SetCollectionFilter(collectionId, true);
+            }
+        }
+
         await LoadAllowedRaters();
         await LoadTags();
 
@@ -277,10 +291,21 @@
     private async Task TogglePersonal()
     {
         _personalActive = !_personalActive;
+        await SaveFiltersToDevice();
         await LoadRecipes();
     }
 
-    private void ToggleCollection(Guid collectionId) => CollectionState.ToggleCollectionFilter(collectionId);
+    private void ToggleCollection(Guid collectionId)
+    {
+        CollectionState.ToggleCollectionFilter(collectionId);
+        _ = SaveFiltersToDevice();
+    }
+
+    private async Task SaveFiltersToDevice()
+    {
+        var activeCollections = CollectionState.ActiveCollectionFilters.ToList();
+        await DeviceState.SetCookbookFiltersAsync(activeCollections, _personalActive);
+    }
 
     private void OnFiltersChanged()
     {

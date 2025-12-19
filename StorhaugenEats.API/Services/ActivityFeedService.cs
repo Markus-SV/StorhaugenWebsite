@@ -106,8 +106,32 @@ public class ActivityFeedService : IActivityFeedService
 
     public async Task RecordRatingActivityAsync(Guid userId, Guid recipeId, string recipeName, decimal rating, string? imageUrl = null)
     {
-        var activity = ActivityFeedItem.CreateRatingActivity(userId, recipeId, recipeName, rating, imageUrl);
-        _context.ActivityFeedItems.Add(activity);
+        // Check if there's already a rating activity for this user+recipe combo
+        // If so, update it instead of creating a new one (prevents duplicate activities)
+        var existingActivity = await _context.ActivityFeedItems
+            .FirstOrDefaultAsync(a =>
+                a.UserId == userId &&
+                a.TargetId == recipeId &&
+                a.ActivityType == "rated");
+
+        if (existingActivity != null)
+        {
+            // Update existing activity with new rating
+            existingActivity.Metadata = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                recipeName = recipeName,
+                rating = rating,
+                imageUrl = imageUrl
+            });
+            existingActivity.CreatedAt = DateTime.UtcNow; // Move to top of feed
+        }
+        else
+        {
+            // Create new activity
+            var activity = ActivityFeedItem.CreateRatingActivity(userId, recipeId, recipeName, rating, imageUrl);
+            _context.ActivityFeedItems.Add(activity);
+        }
+
         await _context.SaveChangesAsync();
     }
 

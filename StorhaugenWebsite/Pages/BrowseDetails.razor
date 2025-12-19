@@ -7,6 +7,8 @@
 @inject IApiClient ApiClient
 @inject IUserRecipeService RecipeService
 @inject IFoodService FoodService
+@inject IAuthService AuthService
+@inject IDialogService DialogService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @inject IJSRuntime JSRuntime
@@ -62,7 +64,7 @@ else
         </div>
 
         @* --- Source Badge --- *@
-        <div class="d-flex gap-2 mt-2 flex-wrap">
+        <div class="d-flex gap-2 mt-2 flex-wrap align-center">
             @if (_recipe.IsHellofresh)
             {
                 <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Rounded.LocalDining" Color="Color.Success">
@@ -76,6 +78,18 @@ else
                 </MudChip>
             }
             <MudText Typo="Typo.caption" Color="Color.Secondary" Class="align-self-center">• @_recipe.CreatedAt.ToString("dd. MMM yyyy")</MudText>
+
+            @* --- Owner Actions Menu --- *@
+            @if (IsOwner)
+            {
+                <div class="ml-auto">
+                    <MudMenu Icon="@Icons.Material.Rounded.MoreVert" Size="Size.Small" AnchorOrigin="Origin.BottomRight">
+                        <MudMenuItem Icon="@Icons.Material.Rounded.Delete" IconColor="Color.Error" OnClick="DeletePublishedRecipe">
+                            Slett fra fellesskapet
+                        </MudMenuItem>
+                    </MudMenu>
+                </div>
+            }
         </div>
 
         @* --- Quick Info Row --- *@
@@ -336,6 +350,9 @@ else
     private GlobalRecipeDto? _recipe;
     private bool _isLoading = true;
     private bool _isProcessing = false;
+    private Guid _currentUserId;
+
+    private bool IsOwner => _recipe?.CreatedByUserId == _currentUserId && _currentUserId != Guid.Empty;
 
     private async Task GoBack()
     {
@@ -344,7 +361,45 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        try
+        {
+            var user = await ApiClient.GetMyProfileAsync();
+            if (user != null) _currentUserId = user.Id;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading user profile: {ex.Message}");
+        }
         await LoadData();
+    }
+
+    private async Task DeletePublishedRecipe()
+    {
+        if (_recipe == null) return;
+
+        var confirm = await DialogService.ShowMessageBox(
+            "Slett fra fellesskapet?",
+            "Dette fjerner oppskriften fra fellesskapet. Din lokale kopi beholdes.",
+            yesText: "Slett", cancelText: "Avbryt");
+
+        if (confirm == true)
+        {
+            _isProcessing = true;
+            try
+            {
+                await ApiClient.DeleteGlobalRecipeAsync(_recipe.Id);
+                Snackbar.Add("Oppskrift slettet fra fellesskapet", Severity.Success);
+                Navigation.NavigateTo("browse");
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Feil: {ex.Message}", Severity.Error);
+            }
+            finally
+            {
+                _isProcessing = false;
+            }
+        }
     }
 
     private async Task LoadData()
@@ -380,11 +435,14 @@ else
         _isProcessing = true;
         try
         {
+            // Don't copy images for HelloFresh recipes (they're broken/copyrighted)
+            var imageUrls = _recipe.IsHellofresh ? new List<string>() : (_recipe.ImageUrls ?? new List<string>());
+
             var dto = new CreateUserRecipeDto
             {
                 Name = _recipe.Name,
                 Description = _recipe.Description,
-                ImageUrls = _recipe.ImageUrls ?? new List<string>(),
+                ImageUrls = imageUrls,
                 GlobalRecipeId = _recipe.Id,
                 PrepTimeMinutes = _recipe.PrepTimeMinutes,
                 Servings = _recipe.Servings,
@@ -415,11 +473,14 @@ else
     {
         if (_recipe == null) return;
 
+        // Don't copy images for HelloFresh recipes (they're broken/copyrighted)
+        var imageUrls = _recipe.IsHellofresh ? new List<string>() : (_recipe.ImageUrls ?? new List<string>());
+
         FoodService.DraftRecipe = new StorhaugenWebsite.Models.FoodItem
         {
             Name = _recipe.Name,
             Description = _recipe.Description,
-            ImageUrls = _recipe.ImageUrls ?? new List<string>(),
+            ImageUrls = imageUrls,
             // Don't link to GlobalRecipe so it's fully editable
             GlobalRecipeId = null,
             // Not a HelloFresh recipe - it's a personal copy

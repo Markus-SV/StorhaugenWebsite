@@ -391,9 +391,12 @@ else
         @* My Rating - Only show if user can rate *@
         @if (CanRate)
         {
+            @{
+                var myRatingColor = ((double)_myRating).ToRatingColorHex();
+            }
             <div class="d-flex align-center gap-3 mb-3">
-                <MudSlider T="decimal" Value="_myRating" ValueChanged="OnRatingChanged" Min="0" Max="10" Step="0.1M" Color="Color.Primary" Style="flex: 1;" />
-                <span class="rating-badge @GetRatingClass((double)_myRating)" style="font-size: 1rem; padding: 8px 14px; min-width: 50px; text-align: center; color:@_recipe.AverageRating.ToRatingColorHex();">
+                <MudSlider T="decimal" Value="_myRating" ValueChanged="OnRatingChanged" Min="0" Max="10" Step="0.1M" Color="Color.Primary" Style="flex: 1;" Class="rating-slider" />
+                <span class="rating-badge-colored" style="--rating-color: @myRatingColor;">
                     @(_myRating > 0 ? _myRating.ToString("0.0") : "-")
                 </span>
             </div>
@@ -549,6 +552,34 @@ else
         background: var(--mud-palette-background-grey);
         border-radius: 12px;
         padding: 12px;
+    }
+
+    .rating-badge-colored {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        font-size: 1rem;
+        padding: 8px 14px;
+        min-width: 50px;
+        text-align: center;
+        border-radius: 12px;
+        font-weight: 600;
+        color: var(--rating-color);
+        background: color-mix(in srgb, var(--rating-color) 15%, transparent);
+    }
+
+    /* Fix MudSlider touch issues on mobile */
+    .rating-slider {
+        touch-action: none;
+    }
+
+    .rating-slider .mud-slider-track {
+        cursor: pointer;
+    }
+
+    .rating-slider .mud-slider-filled {
+        pointer-events: none;
     }
 
     @@media (max-width: 600px) {

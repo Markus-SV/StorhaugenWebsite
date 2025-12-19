@@ -1,6 +1,7 @@
 @using MudBlazor
 @using StorhaugenWebsite.Shared.DTOs
 @using StorhaugenWebsite.Services
+@using StorhaugenWebsite.Shared.Extensions
 @inject IActivityFeedService FeedService
 @inject IUserColorService UserColorService
 @inject NavigationManager Navigation
@@ -72,8 +73,8 @@
                                         <span class="recipe-name text-truncate">@item.RecipeName</span>
                                         @if (item.RatingScore.HasValue)
                                         {
-                                            <span class="rating-dot" style="background-color: @GetRatingColorHex(item.RatingScore.Value)"></span>
-                                            <span class="rating-val">@item.RatingScore.Value.ToString("0.0")</span>
+                                            <span class="rating-dot" style="background-color: @((double)item.RatingScore.Value).ToRatingColorHex()"></span>
+                                            <span class="rating-val" style="color: @((double)item.RatingScore.Value).ToRatingColorHex()">@item.RatingScore.Value.ToString("0.0")</span>
                                         }
                                     </div>
                                 }
@@ -212,13 +213,6 @@
         else
             Snackbar.Add("Oppskriften er ikke tilgjengelig for visning", Severity.Info);
     }
-
-    private string GetRatingColorHex(decimal rating) => rating switch
-    {
-        >= 8m => "#2D5A45",
-        >= 5m => "#D4A017",
-        _ => "#C44536"
-    };
 
     private string GetActivityDescription(ActivityFeedItemDto item) => item.ActivityType switch
     {
