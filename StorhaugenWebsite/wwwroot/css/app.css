@@ -261,7 +261,6 @@ body {
     cursor: pointer;
     transition: var(--transition-smooth);
     flex-direction: row-reverse;
-    min-height: 100px;
 }
 
 .food-card:hover {

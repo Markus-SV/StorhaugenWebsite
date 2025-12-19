@@ -100,15 +100,15 @@
 @if (_isLoading)
 {
     <div class="d-flex flex-column gap-3">
-        @for (int i = 0; i < 4; i++)
+        @for (int i = 0; i < 5; i++)
         {
-            <div class="skeleton-card">
+            <div class="skeleton-card" style="height:80px">
                 <div class="skeleton-content d-flex align-center">
                     <div style="width:100%">
                         <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="14px" Width="60%" Class="mb-2 rounded" />
-                        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="10px" Width="40%" Class="rounded" />
+                        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="10px" Width="40%" Class="mb-2 rounded" />
+                        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="10px" Width="20%" Class="rounded" />
                     </div>
-                    <MudSkeleton SkeletonType="SkeletonType.Circle" Width="40px" Height="40px" Class="ml-3" />
                 </div>
             </div>
         }
@@ -164,12 +164,37 @@ else
                                 }
                                 <h3 class="food-card-title text-truncate">@recipe.Name</h3>
                             </div>
-                            <div class="d-flex align-center gap-1">
-                                <MudIcon Icon="@Icons.Material.Rounded.Person" Size="Size.Small" Style="font-size: 12px; opacity: 0.6;" />
-                                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="text-truncate" Style="font-size: 0.75rem;">
-                                    @(recipe.UserDisplayName == AuthService.CurrentUserName ? "Meg" : recipe.UserDisplayName)
-                                </MudText>
+                            <div style="display: flex; gap: 4px">
+                                
+                            @if (recipe.PrepTimeMinutes.HasValue || !string.IsNullOrEmpty(recipe.Difficulty))
+                            {
+                                <div class="d-flex align-center flex-wrap gap-1">
+                                    @if (!string.IsNullOrEmpty(recipe.Difficulty))
+                                    {
+                                        <span class="meta-chip @GetDifficultyClass(recipe.Difficulty)">
+                                            <MudIcon Icon="@GetDifficultyIcon(recipe.Difficulty)"  Size="Size.Small" />
+                                            @GetDifficultyLabel(recipe.Difficulty)
+                                        </span>
+                                    }
+                                    @if (recipe.PrepTimeMinutes.HasValue)
+                                    {
+                                        <span class="meta-chip">
+                                            <MudIcon Icon="@Icons.Material.Rounded.AccessTime" Size="Size.Small" />
+                                            @recipe.PrepTimeMinutes min
+                                        </span>
+                                    }
+
+                                </div>
+                            }
+                                <div class="d-flex align-center gap-1">
+                                    <MudIcon Icon="@Icons.Material.Rounded.Person" Size="Size.Small" Color=Color.Default />
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="text-truncate" Style="font-size: 0.7rem;">
+                                        @(recipe.UserDisplayName == AuthService.CurrentUserName ? "Meg" : recipe.UserDisplayName)
+                                    </MudText>
+                                </div>
+
                             </div>
+                            @* Metadata Row (prep time, difficulty, servings) *@
                         </div>
 
                         @* Right: Average Badge *@
@@ -191,27 +216,7 @@ else
                         }
                     </div>
 
-                    @* Metadata Row (prep time, difficulty, servings) *@
-                    @if (recipe.PrepTimeMinutes.HasValue || !string.IsNullOrEmpty(recipe.Difficulty))
-                    {
-                        <div class="d-flex align-center flex-wrap mt-2 gap-2">
-                            @if (recipe.PrepTimeMinutes.HasValue)
-                            {
-                                <span class="meta-chip">
-                                    <MudIcon Icon="@Icons.Material.Rounded.AccessTime" Size="Size.Small" />
-                                    @recipe.PrepTimeMinutes min
-                                </span>
-                            }
-                            @if (!string.IsNullOrEmpty(recipe.Difficulty))
-                            {
-                                <span class="meta-chip @GetDifficultyClass(recipe.Difficulty)">
-                                    <MudIcon Icon="@GetDifficultyIcon(recipe.Difficulty)" Size="Size.Small" />
-                                    @GetDifficultyLabel(recipe.Difficulty)
-                                </span>
-                            }
-
-                        </div>
-                    }
+                  
 
                     @* Ratings Section (Bottom) *@
                     <div class="d-flex align-center flex-wrap mt-2 gap-2">
