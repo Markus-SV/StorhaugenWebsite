@@ -34,7 +34,7 @@
         <div class="d-flex flex-column gap-3">
             @foreach (var item in _feedItems)
             {
-                <MudPaper Class="activity-card @(IsItemClickable(item) ? "" : "non-clickable")" Elevation="0" @onclick="() => NavigateToRecipe(item)">
+                <MudPaper Class="@(IsItemClickable(item) ? "activity-card " : "activity-card non-clickable")" Elevation="0" @onclick="() => NavigateToRecipe(item)">
 
                     @* --- 1. Background Image Layer (Absolute) --- *@
                     @if (!string.IsNullOrEmpty(item.RecipeImageUrl))
