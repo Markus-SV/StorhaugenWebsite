@@ -472,7 +472,6 @@
     display: flex;
     gap: 8px;
     overflow-x: auto;
-    padding-bottom: 4px;
     white-space: nowrap;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
@@ -521,8 +520,8 @@
     bottom: 0;
     z-index: 0;
     /* Flip mask to fade from Right to Left */
-    -webkit-mask-image: linear-gradient(to left, black 20%, transparent 100%);
-    mask-image: linear-gradient(to left, black 20%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to left, black 0%, transparent 100%);
+    mask-image: linear-gradient(to left, black 0%, transparent 100%);
 }
 
 .food-card-image {
@@ -531,13 +530,13 @@
     position: absolute;
     right: 0; /* Changed from left: 0 */
     top: 0;
-    opacity: 0.5;
+    opacity: 0.35;
     bottom: 0;
     z-index: 0;
     object-fit: cover;
     /* Flip mask to fade from Right to Left */
-    -webkit-mask-image: linear-gradient(to left, black 0%, black 30%, transparent 100%);
-    mask-image: linear-gradient(to left, black 0%, black 30%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to left, black 0%, black 0%, transparent 100%);
+    mask-image: linear-gradient(to left, black 0%, black 0%, transparent 100%);
 }
 
 .food-card-placeholder {
