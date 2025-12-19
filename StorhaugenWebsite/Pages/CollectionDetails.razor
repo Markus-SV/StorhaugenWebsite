@@ -2,6 +2,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using StorhaugenWebsite.ApiClient
 @using StorhaugenWebsite.Shared.DTOs
+@using StorhaugenWebsite.Components
 @using StorhaugenWebsite.Services
 @inject IApiClient ApiClient
 @inject ICollectionStateService CollectionState
@@ -9,6 +10,7 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject IJSRuntime JSRuntime
+@inject IUserColorService UserColorService
 @attribute [Authorize]
 
 <div class="detail-header">
@@ -73,46 +75,6 @@ else
         </div>
     </div>
 
-    @* Share Section *@
-    @if (_collection.IsOwner && _collection.Visibility != "private" && !string.IsNullOrEmpty(_collection.ShareCode))
-    {
-        <div class="form-section">
-            <p class="form-section-title">Del samlingen</p>
-
-            <div class="share-link-box">
-                <div class="d-flex align-center justify-space-between">
-                    <div>
-                        <MudText Typo="Typo.caption" Color="Color.Secondary">Delekode</MudText>
-                        <MudText Typo="Typo.h6" Style="font-family: monospace; letter-spacing: 2px;">
-                            @_collection.ShareCode
-                        </MudText>
-                    </div>
-
-                    <div class="d-flex gap-2">
-                        <MudIconButton Icon="@Icons.Material.Rounded.ContentCopy"
-                                       Color="Color.Primary"
-                                       OnClick="CopyShareCode"
-                                       Title="Kopier kode" />
-                        <MudIconButton Icon="@Icons.Material.Rounded.Share"
-                                       Color="Color.Primary"
-                                       OnClick="CopyShareLink"
-                                       Title="Kopier lenke" />
-                    </div>
-                </div>
-            </div>
-
-            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
-                @if (_collection.Visibility == "public")
-                {
-                    <span>Alle med denne lenken kan se samlingen</span>
-                }
-                else
-                {
-                    <span>Kun dine venner kan se samlingen med denne lenken</span>
-                }
-            </MudText>
-        </div>
-    }
 
     @* Visibility Settings *@
     @if (_collection.IsOwner)
@@ -165,7 +127,7 @@ else
         <div class="d-flex justify-space-between align-center mb-3">
             <p class="form-section-title" style="margin: 0;">Medlemmer (@_collection.MemberCount)</p>
 
-            @if (_collection.IsOwner)
+            @if (_collection.IsMember)
             {
                 <MudButton Variant="Variant.Text"
                            Color="Color.Primary"
@@ -177,12 +139,13 @@ else
             }
         </div>
 
-        <div class="d-flex flex-column gap-2">
+        <div class="d-flex flex-column">
             @foreach (var member in _collection.Members.OrderByDescending(m => m.IsOwner))
             {
                 <div class="member-row">
-                    <MudAvatar Size="Size.Medium" Style="@($"background: {GetMemberColor(member.DisplayName)}")">
-                        @(string.IsNullOrEmpty(member.DisplayName) ? '?' : member.DisplayName[0])
+                    <MudAvatar Size="Size.Medium"
+                               Style="@($"background-color: {UserColorService.GetUserColor(member.DisplayName)}; color: white;")">
+                        @(string.IsNullOrWhiteSpace(member.DisplayName) ? "?" : member.DisplayName[..1].ToUpper())
                     </MudAvatar>
 
                     <div class="flex-grow-1">
@@ -281,26 +244,6 @@ else
     </DialogActions>
 </MudDialog>
 
-@* Invite Dialog *@
-<MudDialog @bind-Visible="_showInviteDialog" Options="@(new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true })">
-    <TitleContent>
-        <MudText Typo="Typo.h6">Inviter medlem</MudText>
-    </TitleContent>
-    <DialogContent>
-        <MudTextField @bind-Value="_inviteIdentifier"
-                      Label="E-post eller Dele-ID"
-                      Variant="Variant.Outlined"
-                      Placeholder="navn@eksempel.no eller ABC123"
-                      HelperText="Skriv inn personens e-post eller deres unike Dele-ID" />
-    </DialogContent>
-    <DialogActions>
-        <MudButton OnClick="() => _showInviteDialog = false">Avbryt</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="InviteMember" Disabled="@(string.IsNullOrWhiteSpace(_inviteIdentifier))">
-            Inviter
-        </MudButton>
-    </DialogActions>
-</MudDialog>
-
 <style>
     .collection-header {
         background: var(--mud-palette-surface);
@@ -348,9 +291,6 @@ else
     private bool _showEditDialog;
     private string _editName = "";
     private string _editDescription = "";
-
-    private bool _showInviteDialog;
-    private string _inviteIdentifier = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -437,35 +377,40 @@ else
         }
     }
 
-    private void ShowInviteDialog()
+    private async Task ShowInviteDialog()
     {
-        _inviteIdentifier = "";
-        _showInviteDialog = true;
-    }
+        if (_collection is null) return;
 
-    private async Task InviteMember()
-    {
-        if (_collection == null || string.IsNullOrWhiteSpace(_inviteIdentifier)) return;
-
-        try
+        var parameters = new DialogParameters
         {
-            await ApiClient.AddCollectionMemberAsync(_collection.Id, new AddCollectionMemberDto
-            {
-                UserIdentifier = _inviteIdentifier.Trim()
-            });
+            ["CollectionId"] = _collection.Id,
+            ["CollectionName"] = _collection.Name,
 
-            _showInviteDialog = false;
-            Snackbar.Add("Medlem lagt til!", Severity.Success);
+            // IMPORTANT: this must be user ids
+            ["ExistingMemberIds"] = _collection.Members.Select(m => m.UserId).ToHashSet()
+        };
 
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
+
+        // MudBlazor 8.x: ShowAsync returns Task<IDialogReference>
+        var dialogRef = await DialogService.ShowAsync<InviteMemberDialog>("", parameters, options);
+
+        var result = await dialogRef.Result;
+
+        // MudBlazor DialogResult: use Canceled + Data (not result.Result)
+        if (!result.Canceled && result.Data is bool didChange && didChange)
+        {
             await LoadCollection();
             await CollectionState.RefreshCollectionsAsync();
         }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error inviting member: {ex.Message}");
-            Snackbar.Add("Kunne ikke legge til medlem. Sjekk at ID/e-post er riktig.", Severity.Error);
-        }
     }
+
+
 
     private async Task RemoveMember(CollectionMemberDto member)
     {
@@ -602,9 +547,4 @@ else
         _ => Color.Default
     };
 
-    private string GetMemberColor(string name)
-    {
-        var hue = Math.Abs(name.GetHashCode() % 360);
-        return $"hsl({hue}, 45%, 45%)";
-    }
 }

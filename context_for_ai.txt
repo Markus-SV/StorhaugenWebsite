@@ -1,6 +1,6 @@
 ================================================================================
 PROJECT CONTEXT FILE
-Generated on: 12/19/2025 17:12:18
+Generated on: 12/19/2025 21:13:35
 ================================================================================
 PROJECT STRUCTURE:
 ==================
@@ -109,6 +109,7 @@ PROJECT STRUCTURE:
 \StorhaugenWebsite\Services\User\UserFriendshipService.cs
 \StorhaugenWebsite\Services\User\UserRecipeService.cs
 \StorhaugenWebsite\Services\HelloFreshSyncService.cs
+\StorhaugenWebsite\Shared\Extensions\RatingColorExtensions.cs
 \StorhaugenWebsite\Shared\Authorization.razor
 \StorhaugenWebsite\Shared\Authorization.razor.css
 \StorhaugenWebsite\Shared\MainLayout.razor
@@ -4379,8 +4380,32 @@ public class ActivityFeedService : IActivityFeedService
 
     public async Task RecordRatingActivityAsync(Guid userId, Guid recipeId, string recipeName, decimal rating, string? imageUrl = null)
     {
-        var activity = ActivityFeedItem.CreateRatingActivity(userId, recipeId, recipeName, rating, imageUrl);
-        _context.ActivityFeedItems.Add(activity);
+        // Check if there's already a rating activity for this user+recipe combo
+        // If so, update it instead of creating a new one (prevents duplicate activities)
+        var existingActivity = await _context.ActivityFeedItems
+            .FirstOrDefaultAsync(a =>
+                a.UserId == userId &&
+                a.TargetId == recipeId &&
+                a.ActivityType == "rated");
+
+        if (existingActivity != null)
+        {
+            // Update existing activity with new rating
+            existingActivity.Metadata = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                recipeName = recipeName,
+                rating = rating,
+                imageUrl = imageUrl
+            });
+            existingActivity.CreatedAt = DateTime.UtcNow; // Move to top of feed
+        }
+        else
+        {
+            // Create new activity
+            var activity = ActivityFeedItem.CreateRatingActivity(userId, recipeId, recipeName, rating, imageUrl);
+            _context.ActivityFeedItems.Add(activity);
+        }
+
         await _context.SaveChangesAsync();
     }
 
@@ -4461,6 +4486,7 @@ using Microsoft.EntityFrameworkCore;
 using StorhaugenEats.API.Data;
 using StorhaugenEats.API.Models;
 using StorhaugenWebsite.Shared.DTOs;
+using System.Text.Json;
 
 namespace StorhaugenEats.API.Services;
 
@@ -4661,6 +4687,7 @@ public class CollectionService : ICollectionService
                 .ThenInclude(ur => ur.GlobalRecipe)
             .Include(urc => urc.UserRecipe)
                 .ThenInclude(ur => ur.Ratings)
+                    .ThenInclude(r => r.User)
             .AsQueryable();
 
         // Search filter
@@ -5024,6 +5051,12 @@ public class CollectionService : ICollectionService
         var myRating = recipe.Ratings?.FirstOrDefault(r => r.UserId == userId);
         var avgRating = recipe.Ratings?.Any() == true ? recipe.Ratings.Average(r => r.Score) : 0;
 
+        // Build member ratings dictionary (excluding requesting user's own rating)
+        var memberRatings = recipe.Ratings?
+            .Where(r => r.User != null && r.UserId != userId)
+            .ToDictionary(r => r.User!.DisplayName, r => (decimal?)r.Score)
+            ?? new Dictionary<string, decimal?>();
+
         return new UserRecipeDto
         {
             Id = recipe.Id,
@@ -5043,33 +5076,49 @@ public class CollectionService : ICollectionService
             MyRating = myRating?.Score,
             AverageRating = (double)avgRating,
             RatingCount = recipe.Ratings?.Count ?? 0,
+            MemberRatings = memberRatings,
             IsHellofresh = recipe.GlobalRecipe?.IsHellofresh ?? false,
             HellofreshWeek = recipe.GlobalRecipe?.HellofreshWeek
         };
     }
 
-    private List<string> GetImageUrls(UserRecipe recipe)
+    private static List<string> GetImageUrls(UserRecipe recipe)
     {
-        if (!string.IsNullOrEmpty(recipe.LocalImageUrl))
+        // 1) Local single
+        if (!string.IsNullOrWhiteSpace(recipe.LocalImageUrl) && recipe.LocalImageUrl != "null")
             return new List<string> { recipe.LocalImageUrl };
 
-        if (!string.IsNullOrEmpty(recipe.LocalImageUrls) && recipe.LocalImageUrls != "[]")
+        // 2) Local list
+        if (!string.IsNullOrWhiteSpace(recipe.LocalImageUrls) &&
+            recipe.LocalImageUrls != "[]" &&
+            recipe.LocalImageUrls != "null")
         {
             try
             {
-                return System.Text.Json.JsonSerializer.Deserialize<List<string>>(recipe.LocalImageUrls) ?? new List<string>();
+                return JsonSerializer.Deserialize<List<string>>(recipe.LocalImageUrls) ?? new();
             }
-            catch
-            {
-                return new List<string>();
-            }
+            catch { /* ignore */ }
         }
 
-        if (!string.IsNullOrEmpty(recipe.GlobalRecipe?.ImageUrl))
+        // 3) Global list (this is the important fix for HF cases)
+        if (!string.IsNullOrWhiteSpace(recipe.GlobalRecipe?.ImageUrls) &&
+            recipe.GlobalRecipe.ImageUrls != "[]" &&
+            recipe.GlobalRecipe.ImageUrls != "null")
+        {
+            try
+            {
+                return JsonSerializer.Deserialize<List<string>>(recipe.GlobalRecipe.ImageUrls) ?? new();
+            }
+            catch { /* ignore */ }
+        }
+
+        // 4) Global single fallback
+        if (!string.IsNullOrWhiteSpace(recipe.GlobalRecipe?.ImageUrl) && recipe.GlobalRecipe.ImageUrl != "null")
             return new List<string> { recipe.GlobalRecipe.ImageUrl };
 
-        return new List<string>();
+        return new();
     }
+
 
     #endregion
 }
@@ -8270,11 +8319,17 @@ public class ApiClient : IApiClient
     private async Task AddAuthHeaderAsync()
     {
         var token = await _authService.GetAccessTokenAsync();
-        if (!string.IsNullOrEmpty(token))
+
+        if (string.IsNullOrWhiteSpace(token))
         {
-            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            _httpClient.DefaultRequestHeaders.Authorization = null;
+            return;
         }
+
+        _httpClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", token);
     }
+
 
     // User Methods
     public async Task<UserDto?> GetMyProfileAsync()
@@ -8934,6 +8989,7 @@ FILE START: \StorhaugenWebsite\Components\ActivityFeed.razor
 @using MudBlazor
 @using StorhaugenWebsite.Shared.DTOs
 @using StorhaugenWebsite.Services
+@using StorhaugenWebsite.Shared.Extensions
 @inject IActivityFeedService FeedService
 @inject IUserColorService UserColorService
 @inject NavigationManager Navigation
@@ -9005,8 +9061,8 @@ FILE START: \StorhaugenWebsite\Components\ActivityFeed.razor
                                         <span class="recipe-name text-truncate">@item.RecipeName</span>
                                         @if (item.RatingScore.HasValue)
                                         {
-                                            <span class="rating-dot" style="background-color: @GetRatingColorHex(item.RatingScore.Value)"></span>
-                                            <span class="rating-val">@item.RatingScore.Value.ToString("0.0")</span>
+                                            <span class="rating-dot" style="background-color: @(((double)item.RatingScore.Value).ToRatingColorHex())"></span>
+                                            <span class="rating-val" style="color: @(((double)item.RatingScore.Value).ToRatingColorHex())">@item.RatingScore.Value.ToString("0.0")</span>
                                         }
                                     </div>
                                 }
@@ -9145,13 +9201,6 @@ FILE START: \StorhaugenWebsite\Components\ActivityFeed.razor
         else
             Snackbar.Add("Oppskriften er ikke tilgjengelig for visning", Severity.Info);
     }
-
-    private string GetRatingColorHex(decimal rating) => rating switch
-    {
-        >= 8m => "#2D5A45",
-        >= 5m => "#D4A017",
-        _ => "#C44536"
-    };
 
     private string GetActivityDescription(ActivityFeedItemDto item) => item.ActivityType switch
     {
@@ -10474,8 +10523,11 @@ FILE START: \StorhaugenWebsite\Components\InviteMemberDialog.razor
 *@
 @using StorhaugenWebsite.ApiClient
 @using StorhaugenWebsite.Shared.DTOs
+@using StorhaugenWebsite.Services
 @using System.ComponentModel.DataAnnotations
 @inject IApiClient ApiClient
+@inject IUserFriendshipService FriendshipService
+@inject IUserColorService UserColorService
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -10483,39 +10535,145 @@ FILE START: \StorhaugenWebsite\Components\InviteMemberDialog.razor
         <div class="invite-dialog">
             <MudText Typo="Typo.h6" Class="mb-2">Inviter medlem til @CollectionName</MudText>
             <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-                Inviter noen ved hjelp av e-postadresse eller unik Dele-ID.
+                Velg en venn eller søk etter brukere.
             </MudText>
 
-            <MudTabs Rounded="true" Centered="true" Class="mb-4" @bind-ActivePanelIndex="_activeTab">
-                <MudTabPanel Text="E-post" Icon="@Icons.Material.Rounded.Email">
-                    <MudForm @ref="_emailForm" @bind-IsValid="_emailIsValid" Class="mt-3">
-                        <MudTextField @bind-Value="_email"
-                                      Label="E-postadresse"
-                                      Variant="Variant.Outlined"
-                                      Required="true"
-                                      RequiredError="E-post er påkrevd"
-                                      Validation="@(new EmailAddressAttribute() { ErrorMessage = "Vennligst skriv inn en gyldig e-postadresse" })"
-                                      Adornment="Adornment.Start"
-                                      AdornmentIcon="@Icons.Material.Rounded.Email"
-                                      HelperText="f.eks. venn@example.com"
-                                      Immediate="true" />
-                    </MudForm>
-                </MudTabPanel>
-                <MudTabPanel Text="Dele-ID" Icon="@Icons.Material.Rounded.Tag">
-                    <MudForm @ref="_shareIdForm" @bind-IsValid="_shareIdIsValid" Class="mt-3">
-                        <MudTextField @bind-Value="_shareId"
-                                      Label="Dele-ID"
-                                      Variant="Variant.Outlined"
-                                      Required="true"
-                                      RequiredError="Dele-ID er påkrevd"
-                                      Adornment="Adornment.Start"
-                                      AdornmentIcon="@Icons.Material.Rounded.Tag"
-                                      HelperText="f.eks. ABC123XYZ"
-                                      Immediate="true"
-                                      Style="text-transform: uppercase; font-family: monospace; letter-spacing: 1px;" />
-                    </MudForm>
-                </MudTabPanel>
-            </MudTabs>
+            @* --- Search Bar --- *@
+            <MudTextField @bind-Value="_searchQuery"
+                          Placeholder="Søk etter navn eller ID..."
+                          Variant="Variant.Outlined"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Rounded.Search"
+                          Immediate="true"
+                          DebounceInterval="400"
+                          OnDebounceIntervalElapsed="PerformSearch"
+                          Class="mb-3"
+                          Margin="Margin.Dense"
+                          Clearable="true"
+                          OnClearButtonClick="@(() => { _searchQuery = string.Empty; _searchResults.Clear(); })" />
+
+            @* --- Search Results --- *@
+            @if (!string.IsNullOrWhiteSpace(_searchQuery))
+            {
+                @if (_isSearching)
+                {
+                    <div class="d-flex justify-center py-3">
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                    </div>
+                }
+                else if (_searchResults.Any())
+                {
+                    <div class="friend-list mb-3">
+                        @foreach (var user in _searchResults)
+                        {
+                            <div class="friend-item" @onclick="@(() => InviteUser(user.Id, user.DisplayName))">
+                                <MudAvatar Size="Size.Small" Style="@($"background-color: {UserColorService.GetUserColor(user.DisplayName)}; color: white;")">
+                                    @(user.DisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                                </MudAvatar>
+                                <div class="friend-info">
+                                    <span class="friend-name">@user.DisplayName</span>
+                                    <span class="friend-id">ID: @user.ShareId</span>
+                                </div>
+                                <MudIcon Icon="@Icons.Material.Rounded.PersonAdd" Size="Size.Small" Color="Color.Primary" />
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="text-center py-2">
+                        Ingen brukere funnet
+                    </MudText>
+                }
+            }
+            else
+            {
+                @* --- Friends List --- *@
+                @if (_isLoadingFriends)
+                {
+                    <div class="d-flex justify-center py-3">
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                    </div>
+                }
+                else if (_friends.Any())
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">Venner</MudText>
+                    <div class="friend-list mb-3">
+                        @foreach (var friend in _friends)
+                        {
+                            <div class="friend-item" @onclick="@(() => InviteUser(friend.FriendUserId, friend.FriendDisplayName))">
+                                <MudAvatar Size="Size.Small" Style="@($"background-color: {UserColorService.GetUserColor(friend.FriendDisplayName)}; color: white;")">
+                                    @(friend.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                                </MudAvatar>
+                                <div class="friend-info">
+                                    <span class="friend-name">@friend.FriendDisplayName</span>
+                                </div>
+                                <MudIcon Icon="@Icons.Material.Rounded.PersonAdd" Size="Size.Small" Color="Color.Primary" />
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="text-center py-2 mb-2">
+                        Du har ingen venner ennå
+                    </MudText>
+                }
+
+                @* --- Manual Entry Fallback --- *@
+                <MudExpansionPanels Class="mt-2" Elevation="0">
+                    <MudExpansionPanel Text="Inviter med e-post eller Dele-ID" Dense="true" Style="background: transparent;">
+                        <MudTabs Rounded="true" Centered="true" Class="mb-3" @bind-ActivePanelIndex="_activeTab">
+                            <MudTabPanel Text="E-post" Icon="@Icons.Material.Rounded.Email">
+                                <MudForm @ref="_emailForm" @bind-IsValid="_emailIsValid" Class="mt-3">
+                                    <MudTextField @bind-Value="_email"
+                                                  Label="E-postadresse"
+                                                  Variant="Variant.Outlined"
+                                                  Required="true"
+                                                  RequiredError="E-post er påkrevd"
+                                                  Validation="@(new EmailAddressAttribute() { ErrorMessage = "Vennligst skriv inn en gyldig e-postadresse" })"
+                                                  Adornment="Adornment.Start"
+                                                  AdornmentIcon="@Icons.Material.Rounded.Email"
+                                                  HelperText="f.eks. venn@example.com"
+                                                  Immediate="true"
+                                                  Margin="Margin.Dense" />
+                                </MudForm>
+                            </MudTabPanel>
+                            <MudTabPanel Text="Dele-ID" Icon="@Icons.Material.Rounded.Tag">
+                                <MudForm @ref="_shareIdForm" @bind-IsValid="_shareIdIsValid" Class="mt-3">
+                                    <MudTextField @bind-Value="_shareId"
+                                                  Label="Dele-ID"
+                                                  Variant="Variant.Outlined"
+                                                  Required="true"
+                                                  RequiredError="Dele-ID er påkrevd"
+                                                  Adornment="Adornment.Start"
+                                                  AdornmentIcon="@Icons.Material.Rounded.Tag"
+                                                  HelperText="f.eks. ABC123XYZ"
+                                                  Immediate="true"
+                                                  Margin="Margin.Dense"
+                                                  Style="text-transform: uppercase; font-family: monospace; letter-spacing: 1px;" />
+                                </MudForm>
+                            </MudTabPanel>
+                        </MudTabs>
+
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   FullWidth="true"
+                                   OnClick="SendInvite"
+                                   Disabled="_isSending || !IsCurrentFormValid()">
+                            @if (_isSending)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                <span>Sender...</span>
+                            }
+                            else
+                            {
+                                <span>Send invitasjon</span>
+                            }
+                        </MudButton>
+                    </MudExpansionPanel>
+                </MudExpansionPanels>
+            }
 
             @if (!string.IsNullOrEmpty(_errorMessage))
             {
@@ -10530,36 +10688,61 @@ FILE START: \StorhaugenWebsite\Components\InviteMemberDialog.razor
                     @_successMessage
                 </MudAlert>
             }
-
-            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-3">
-                <strong>Merk:</strong> Den inviterte må ha en konto. De finner sin Dele-ID i Innstillinger.
-            </MudText>
         </div>
     </DialogContent>
 
     <DialogActions>
-        <MudButton OnClick="Cancel" Disabled="_isSending">Avbryt</MudButton>
-        <MudButton Variant="Variant.Filled"
-                   Color="Color.Primary"
-                   OnClick="SendInvite"
-                   Disabled="_isSending || !IsCurrentFormValid()">
-            @if (_isSending)
-            {
-                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                <span>Sender...</span>
-            }
-            else
-            {
-                <MudIcon Icon="@Icons.Material.Rounded.Send" Class="mr-2" Size="Size.Small" />
-                <span>Send invitasjon</span>
-            }
-        </MudButton>
+        <MudButton OnClick="Cancel" Disabled="_isSending">Lukk</MudButton>
     </DialogActions>
 </MudDialog>
 
 <style>
     .invite-dialog {
         padding: 8px 0;
+        min-width: 300px;
+    }
+
+    .friend-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        max-height: 250px;
+        overflow-y: auto;
+    }
+
+    .friend-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        background: var(--mud-palette-background-grey);
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.15s ease;
+    }
+
+    .friend-item:hover {
+        background: var(--mud-palette-action-default-hover);
+    }
+
+    .friend-info {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    .friend-name {
+        font-weight: 500;
+        font-size: 0.9rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .friend-id {
+        font-size: 0.75rem;
+        color: var(--mud-palette-text-secondary);
     }
 </style>
 
@@ -10583,6 +10766,110 @@ FILE START: \StorhaugenWebsite\Components\InviteMemberDialog.razor
     private string _shareId = "";
     private string? _errorMessage;
     private string? _successMessage;
+
+    // Friend search
+    private string _searchQuery = "";
+    private List<UserFriendshipDto> _friends = new();
+    private List<UserSearchResultDto> _searchResults = new();
+    private bool _isLoadingFriends = true;
+    private bool _isSearching = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFriends();
+    }
+
+    private async Task LoadFriends()
+    {
+        _isLoadingFriends = true;
+        try
+        {
+            var friendships = await FriendshipService.GetFriendshipsAsync();
+            _friends = friendships.Friends ?? new();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading friends: {ex.Message}");
+        }
+        finally
+        {
+            _isLoadingFriends = false;
+        }
+    }
+
+    private async Task PerformSearch()
+    {
+        if (string.IsNullOrWhiteSpace(_searchQuery))
+        {
+            _searchResults.Clear();
+            return;
+        }
+
+        _isSearching = true;
+        StateHasChanged();
+
+        try
+        {
+            _searchResults = await FriendshipService.SearchUsersAsync(_searchQuery);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Search error: {ex.Message}");
+        }
+        finally
+        {
+            _isSearching = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task InviteUser(Guid userId, string? displayName)
+    {
+        _errorMessage = null;
+        _successMessage = null;
+        _isSending = true;
+        StateHasChanged();
+
+        try
+        {
+            // Use userId directly to add member
+            var dto = new AddCollectionMemberDto { UserIdentifier = userId.ToString() };
+            await ApiClient.AddCollectionMemberAsync(CollectionId, dto);
+
+            _successMessage = $"{displayName ?? "Bruker"} lagt til!";
+            Snackbar.Add("Medlem lagt til!", Severity.Success);
+
+            // Remove from lists to prevent re-inviting
+            _friends.RemoveAll(f => f.FriendUserId == userId);
+            _searchResults.RemoveAll(s => s.Id == userId);
+
+            StateHasChanged();
+        }
+        catch (HttpRequestException ex)
+        {
+            if (ex.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            {
+                _errorMessage = "Denne brukeren er allerede medlem av samlingen";
+            }
+            else if (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                _errorMessage = "Bruker ikke funnet";
+            }
+            else
+            {
+                _errorMessage = $"Kunne ikke legge til medlem: {ex.Message}";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"En uventet feil oppstod: {ex.Message}";
+        }
+        finally
+        {
+            _isSending = false;
+            StateHasChanged();
+        }
+    }
 
     private bool IsCurrentFormValid()
     {
@@ -11120,6 +11407,8 @@ namespace StorhaugenWebsite.Models
         public string ViewMode { get; set; } = "list";
         public string SortBy { get; set; } = "date";
         public bool SortDescending { get; set; } = true;
+        public List<Guid> CookbookCollectionFilters { get; set; } = new();
+        public bool CookbookPersonalFilterActive { get; set; } = false;
     }
 }
 
@@ -11470,8 +11759,7 @@ FILE START: \StorhaugenWebsite\Pages\AddFood.razor
                                Label="Velg samling"
                                Value="@_selectedCollectionId"
                                ValueChanged="OnCollectionSelectionChanged"
-                               Variant="Variant.Outlined"
-                               AnchorOrigin="Origin.BottomCenter">
+                               Variant="Variant.Outlined">
                         @foreach (var collection in CollectionState.UserCollections)
                         {
                             <MudSelectItem Value="@((Guid?)collection.Id)">@collection.Name</MudSelectItem>
@@ -11543,7 +11831,7 @@ FILE START: \StorhaugenWebsite\Pages\AddFood.razor
         }
 
         <div class="mt-4 d-flex justify-space-between align-center">
-            <MudText Typo="Typo.body2">Gjør offentlig (Synlig for alle)</MudText>
+            <MudText Typo="Typo.body2">Gjør offentlig (Publiser)</MudText>
             <MudSwitch @bind-Value="_isPublic" Color="Color.Tertiary" />
         </div>
         @if (_isPublic)
@@ -12306,6 +12594,7 @@ FILE START: \StorhaugenWebsite\Pages\Browse.razor
 @using StorhaugenWebsite.Components
 @using StorhaugenWebsite.Services
 @using StorhaugenWebsite.Shared.DTOs
+@using StorhaugenWebsite.Shared.Extensions
 @inject IApiClient ApiClient
 @inject IUserRecipeService RecipeService
 @inject NavigationManager Navigation
@@ -12345,17 +12634,11 @@ FILE START: \StorhaugenWebsite\Pages\Browse.razor
     @* --- Compact controls row for HelloFresh: Week selector + Sort --- *@
     @if (_sourceMode == "hellofresh")
     {
-        <div class="d-flex align-center gap-2 flex-wrap">
-            @* Compact Week Selector *@
-            <div class="week-selector-compact">
-                <MudIconButton Icon="@Icons.Material.Rounded.ChevronLeft"
-                               Size="Size.Small"
-                               OnClick="PreviousWeek"
-                               Disabled="_weekOffset <= -4"
-                               Class="week-nav-btn" />
-
-                <div class="week-chips-compact">
-                    @foreach (var weekOption in GetWeekOptions())
+        <div class="hellofresh-controls-row">
+            @* Swipeable Week Selector *@
+            <div class="week-selector-swipeable">
+                <div class="week-chips-scroll" @ref="_weekScrollContainer">
+                    @foreach (var weekOption in GetAllWeekOptions())
                     {
                         <MudChip T="string"
                                  Size="Size.Small"
@@ -12368,12 +12651,6 @@ FILE START: \StorhaugenWebsite\Pages\Browse.razor
                     }
                 </div>
 
-                <MudIconButton Icon="@Icons.Material.Rounded.ChevronRight"
-                               Size="Size.Small"
-                               OnClick="NextWeek"
-                               Disabled="_weekOffset >= 4"
-                               Class="week-nav-btn" />
-
                 @if (!string.IsNullOrEmpty(_selectedWeek))
                 {
                     <MudIconButton Icon="@Icons.Material.Rounded.FilterAltOff"
@@ -12384,9 +12661,9 @@ FILE START: \StorhaugenWebsite\Pages\Browse.razor
                 }
             </div>
 
-            @* Sorting dropdown *@
+            @* Sorting dropdown - always inline *@
             <MudSelect T="string" @bind-Value="_sortBy" Variant="Variant.Outlined" Margin="Margin.Dense"
-                       Style="min-width: 130px; font-size: 0.8rem;" Dense="true">
+                       Class="sort-select-inline" Dense="true">
                 <MudSelectItem Value="@("popular")">Populære</MudSelectItem>
                 <MudSelectItem Value="@("preptime")">Tid</MudSelectItem>
                 <MudSelectItem Value="@("difficulty")">Nivå</MudSelectItem>
@@ -12463,7 +12740,7 @@ FILE START: \StorhaugenWebsite\Pages\Browse.razor
                                     @if (recipe.AverageRating > 0)
                                     {
                                         <div class="d-flex flex-column align-end" style="flex-shrink: 0;">
-                                            <span class="rating-badge @(recipe.IsHellofresh ? "rating-hellofresh" : "rating-high")">
+                                            <span class="rating-badge" style="color:@recipe.AverageRating.ToRatingColorHex();">
                                                 <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
                                                 @recipe.AverageRating.ToString("0.0")
                                             </span>
@@ -12594,30 +12871,48 @@ FILE START: \StorhaugenWebsite\Pages\Browse.razor
         100% { background-position: -200% 0; }
     }
 
-    /* Compact Week Selector - Inline with sort */
-    .week-selector-compact {
+    /* HelloFresh controls row - always inline */
+    .hellofresh-controls-row {
         display: flex;
         align-items: center;
-        gap: 2px;
+        gap: 8px;
+        width: 100%;
+    }
+
+    /* Swipeable Week Selector */
+    .week-selector-swipeable {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex: 1;
+        min-width: 0;
         background: var(--mud-palette-surface);
         padding: 4px 6px;
         border-radius: 8px;
         border: 1px solid var(--mud-palette-lines-default);
     }
 
-    .week-chips-compact { display: flex; gap: 4px; }
+    .week-chips-scroll {
+        display: flex;
+        gap: 4px;
+        overflow-x: auto;
+        scroll-behavior: smooth;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        flex: 1;
+        min-width: 0;
+    }
+
+    .week-chips-scroll::-webkit-scrollbar {
+        display: none;
+    }
 
     .week-chip-compact {
         font-size: 0.7rem !important;
         height: 24px !important;
         padding: 0 8px !important;
-    }
-
-    .week-nav-btn {
-        padding: 4px !important;
-        min-width: 28px !important;
-        width: 28px !important;
-        height: 28px !important;
+        flex-shrink: 0;
     }
 
     .week-clear-btn {
@@ -12625,8 +12920,15 @@ FILE START: \StorhaugenWebsite\Pages\Browse.razor
         min-width: 28px !important;
         width: 28px !important;
         height: 28px !important;
-        margin-left: 4px;
+        flex-shrink: 0;
         color: var(--mud-palette-text-secondary);
+    }
+
+    .sort-select-inline {
+        min-width: 100px !important;
+        max-width: 130px;
+        flex-shrink: 0;
+        font-size: 0.8rem;
     }
 
     /* Make filter switches feel instant:
@@ -12661,7 +12963,7 @@ FILE START: \StorhaugenWebsite\Pages\Browse.razor
 
     // HelloFresh week selection
     private string? _selectedWeek;
-    private int _weekOffset = 0; // 0 = current week, -1 = last week, 1 = next week
+    private ElementReference _weekScrollContainer;
 
     // prevents out-of-order renders if user clicks filters quickly
     private int _loadVersion;
@@ -12678,7 +12980,6 @@ FILE START: \StorhaugenWebsite\Pages\Browse.razor
         _sourceMode = mode;
         _currentPage = 1;
         _selectedWeek = null;
-        _weekOffset = 0;
         _sortBy = mode == "hellofresh" ? "popular" : "newest";
 
         await LoadRecipes();
@@ -12687,33 +12988,22 @@ FILE START: \StorhaugenWebsite\Pages\Browse.razor
     // Week selector methods
     private record WeekOption(string Week, string Label, string ShortLabel);
 
-    private List<WeekOption> GetWeekOptions()
+    private List<WeekOption> GetAllWeekOptions()
     {
         var options = new List<WeekOption>();
-        var baseDate = DateTime.UtcNow.AddDays(_weekOffset * 7);
+        var today = DateTime.UtcNow;
 
-        for (int i = -1; i <= 1; i++)
+        // Generate weeks from -4 to +4 (9 weeks total)
+        for (int offset = -4; offset <= 4; offset++)
         {
-            var targetDate = baseDate.AddDays(i * 7);
+            var targetDate = today.AddDays(offset * 7);
             var week = GetIsoWeekString(targetDate);
-            var offsetFromCurrent = i + _weekOffset;
-            var label = GetWeekLabel(offsetFromCurrent);
-            var shortLabel = GetWeekShortLabel(offsetFromCurrent, targetDate);
-            options.Add(new WeekOption(week, label, shortLabel));
+            var shortLabel = GetWeekShortLabel(offset, targetDate);
+            options.Add(new WeekOption(week, shortLabel, shortLabel));
         }
 
         return options;
     }
-
-    private string GetWeekLabel(int offsetFromCurrent) => offsetFromCurrent switch
-    {
-        -2 => "2 uker siden",
-        -1 => "Forrige uke",
-        0 => "Denne uken",
-        1 => "Neste uke",
-        2 => "Om 2 uker",
-        _ => offsetFromCurrent < 0 ? $"{Math.Abs(offsetFromCurrent)} uker siden" : $"Om {offsetFromCurrent} uker"
-    };
 
     private string GetWeekShortLabel(int offsetFromCurrent, DateTime date)
     {
@@ -12754,16 +13044,6 @@ FILE START: \StorhaugenWebsite\Pages\Browse.razor
         _selectedWeek = null;
         _currentPage = 1;
         await LoadRecipes();
-    }
-
-    private void PreviousWeek()
-    {
-        if (_weekOffset > -4) _weekOffset--;
-    }
-
-    private void NextWeek()
-    {
-        if (_weekOffset < 4) _weekOffset++;
     }
 
     private async Task LoadRecipes()
@@ -12876,11 +13156,14 @@ FILE START: \StorhaugenWebsite\Pages\Browse.razor
         _isProcessing = true;
         try
         {
+            // Don't copy images for HelloFresh recipes (they're broken/copyrighted)
+            var imageUrls = recipe.IsHellofresh ? new List<string>() : (recipe.ImageUrls ?? new List<string>());
+
             var dto = new CreateUserRecipeDto
             {
                 Name = recipe.Name,
                 Description = recipe.Description,
-                ImageUrls = recipe.ImageUrls ?? new List<string>(),
+                ImageUrls = imageUrls,
                 GlobalRecipeId = recipe.Id,
                 PrepTimeMinutes = recipe.PrepTimeMinutes,
                 Servings = recipe.Servings,
@@ -12948,6 +13231,8 @@ FILE START: \StorhaugenWebsite\Pages\BrowseDetails.razor
 @inject IApiClient ApiClient
 @inject IUserRecipeService RecipeService
 @inject IFoodService FoodService
+@inject IAuthService AuthService
+@inject IDialogService DialogService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @inject IJSRuntime JSRuntime
@@ -13003,7 +13288,7 @@ else
         </div>
 
         @* --- Source Badge --- *@
-        <div class="d-flex gap-2 mt-2 flex-wrap">
+        <div class="d-flex gap-2 mt-2 flex-wrap align-center">
             @if (_recipe.IsHellofresh)
             {
                 <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Rounded.LocalDining" Color="Color.Success">
@@ -13017,6 +13302,18 @@ else
                 </MudChip>
             }
             <MudText Typo="Typo.caption" Color="Color.Secondary" Class="align-self-center">• @_recipe.CreatedAt.ToString("dd. MMM yyyy")</MudText>
+
+            @* --- Owner Actions Menu --- *@
+            @if (IsOwner)
+            {
+                <div class="ml-auto">
+                    <MudMenu Icon="@Icons.Material.Rounded.MoreVert" Size="Size.Small" AnchorOrigin="Origin.BottomRight">
+                        <MudMenuItem Icon="@Icons.Material.Rounded.Delete" IconColor="Color.Error" OnClick="DeletePublishedRecipe">
+                            Slett fra fellesskapet
+                        </MudMenuItem>
+                    </MudMenu>
+                </div>
+            }
         </div>
 
         @* --- Quick Info Row --- *@
@@ -13277,6 +13574,9 @@ else
     private GlobalRecipeDto? _recipe;
     private bool _isLoading = true;
     private bool _isProcessing = false;
+    private Guid _currentUserId;
+
+    private bool IsOwner => _recipe?.CreatedByUserId == _currentUserId && _currentUserId != Guid.Empty;
 
     private async Task GoBack()
     {
@@ -13285,7 +13585,45 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        try
+        {
+            var user = await ApiClient.GetMyProfileAsync();
+            if (user != null) _currentUserId = user.Id;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading user profile: {ex.Message}");
+        }
         await LoadData();
+    }
+
+    private async Task DeletePublishedRecipe()
+    {
+        if (_recipe == null) return;
+
+        var confirm = await DialogService.ShowMessageBox(
+            "Slett fra fellesskapet?",
+            "Dette fjerner oppskriften fra fellesskapet. Din lokale kopi beholdes.",
+            yesText: "Slett", cancelText: "Avbryt");
+
+        if (confirm == true)
+        {
+            _isProcessing = true;
+            try
+            {
+                await ApiClient.DeleteGlobalRecipeAsync(_recipe.Id);
+                Snackbar.Add("Oppskrift slettet fra fellesskapet", Severity.Success);
+                Navigation.NavigateTo("browse");
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Feil: {ex.Message}", Severity.Error);
+            }
+            finally
+            {
+                _isProcessing = false;
+            }
+        }
     }
 
     private async Task LoadData()
@@ -13321,11 +13659,14 @@ else
         _isProcessing = true;
         try
         {
+            // Don't copy images for HelloFresh recipes (they're broken/copyrighted)
+            var imageUrls = _recipe.IsHellofresh ? new List<string>() : (_recipe.ImageUrls ?? new List<string>());
+
             var dto = new CreateUserRecipeDto
             {
                 Name = _recipe.Name,
                 Description = _recipe.Description,
-                ImageUrls = _recipe.ImageUrls ?? new List<string>(),
+                ImageUrls = imageUrls,
                 GlobalRecipeId = _recipe.Id,
                 PrepTimeMinutes = _recipe.PrepTimeMinutes,
                 Servings = _recipe.Servings,
@@ -13356,11 +13697,14 @@ else
     {
         if (_recipe == null) return;
 
+        // Don't copy images for HelloFresh recipes (they're broken/copyrighted)
+        var imageUrls = _recipe.IsHellofresh ? new List<string>() : (_recipe.ImageUrls ?? new List<string>());
+
         FoodService.DraftRecipe = new StorhaugenWebsite.Models.FoodItem
         {
             Name = _recipe.Name,
             Description = _recipe.Description,
-            ImageUrls = _recipe.ImageUrls ?? new List<string>(),
+            ImageUrls = imageUrls,
             // Don't link to GlobalRecipe so it's fully editable
             GlobalRecipeId = null,
             // Not a HelloFresh recipe - it's a personal copy
@@ -14507,12 +14851,14 @@ FILE START: \StorhaugenWebsite\Pages\CookBook.razor
 @using StorhaugenWebsite.Components
 @using StorhaugenWebsite.Shared.DTOs
 @using StorhaugenWebsite.Services
+@using StorhaugenWebsite.Shared.Extensions
 @using StorhaugenWebsite.Models
 @inject IUserRecipeService RecipeService
 @inject ICollectionStateService CollectionState
 @inject IUserFriendshipService FriendshipService
 @inject IAuthService AuthService
 @inject IUserColorService UserColorService
+@inject IDeviceStateService DeviceState
 @inject NavigationManager Navigation
 @inject IApiClient ApiClient
 @attribute [Authorize]
@@ -14619,12 +14965,13 @@ FILE START: \StorhaugenWebsite\Pages\CookBook.razor
             <div class="d-flex flex-column gap-3">
                 @foreach (var recipe in _sortedRecipes)
                 {
-                    <div class="food-card" @key="recipe.Id" @onclick="() => OpenRecipe(recipe.Id)">
+                    var imgUrl = recipe.ImageUrls?.FirstOrDefault(u => !string.IsNullOrWhiteSpace(u));
 
+                    <div class="food-card" @key="recipe.Id" @onclick="() => OpenRecipe(recipe.Id)">
                         @* Image Section (Right Side) *@
-                        @if (recipe.ImageUrls.Any())
+                        @if (!string.IsNullOrEmpty(imgUrl))
                         {
-                            <img src="@recipe.ImageUrls.First()" class="food-card-image" />
+                            <img src="@imgUrl" class="food-card-image" loading="lazy" />
                         }
                         else
                         {
@@ -14690,7 +15037,7 @@ FILE START: \StorhaugenWebsite\Pages\CookBook.razor
                                 @if (recipe.AverageRating > 0)
                                 {
                                     <div class="d-flex flex-column align-end" style="flex-shrink:0;">
-                                        <span class="rating-badge" style="color:@GetScoreColor(recipe.AverageRating);">
+                                        <span class="rating-badge" style="color:@recipe.AverageRating.ToRatingColorHex();">
                                             <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" Style="font-size:14px; margin-right:2px;" />
                                             @recipe.AverageRating.ToString("0.0")
                                         </span>
@@ -14770,6 +15117,19 @@ FILE START: \StorhaugenWebsite\Pages\CookBook.razor
         CollectionState.OnActiveFiltersChanged += OnFiltersChanged;
 
         await CollectionState.InitializeAsync();
+        await DeviceState.InitializeAsync();
+
+        // Restore saved filter state from device settings
+        _personalActive = DeviceState.Settings.CookbookPersonalFilterActive;
+        foreach (var collectionId in DeviceState.Settings.CookbookCollectionFilters)
+        {
+            // Only activate if user still has access to this collection
+            if (CollectionState.UserCollections.Any(c => c.Id == collectionId))
+            {
+                CollectionState.SetCollectionFilter(collectionId, true);
+            }
+        }
+
         await LoadAllowedRaters();
         await LoadTags();
 
@@ -14779,10 +15139,21 @@ FILE START: \StorhaugenWebsite\Pages\CookBook.razor
     private async Task TogglePersonal()
     {
         _personalActive = !_personalActive;
+        await SaveFiltersToDevice();
         await LoadRecipes();
     }
 
-    private void ToggleCollection(Guid collectionId) => CollectionState.ToggleCollectionFilter(collectionId);
+    private void ToggleCollection(Guid collectionId)
+    {
+        CollectionState.ToggleCollectionFilter(collectionId);
+        _ = SaveFiltersToDevice();
+    }
+
+    private async Task SaveFiltersToDevice()
+    {
+        var activeCollections = CollectionState.ActiveCollectionFilters.ToList();
+        await DeviceState.SetCookbookFiltersAsync(activeCollections, _personalActive);
+    }
 
     private void OnFiltersChanged()
     {
@@ -14863,37 +15234,27 @@ FILE START: \StorhaugenWebsite\Pages\CookBook.razor
 
     private async Task LoadRecipes()
     {
-        var v = ++_loadVersion;
+        var requestVersion = ++_loadVersion;
 
-        _isLoading = true;
-        await InvokeAsync(StateHasChanged);
+        SetLoading(true);
 
         try
         {
-            var combined = new List<UserRecipeDto>();
+            var hasSelectedCollections = HasSelectedCollections();
+            var shouldLoadPersonal = ShouldLoadPersonal(hasSelectedCollections);
+            var showOnlyUncategorized = ShowOnlyUncategorized(hasSelectedCollections);
 
-            var hasSelectedCollections =
-                CollectionState.HasCollections && CollectionState.ActiveCollectionFilters.Any();
+            var combined = await LoadCombinedRecipesAsync(
+                hasSelectedCollections,
+                shouldLoadPersonal,
+                showOnlyUncategorized);
 
-            var showOnlyUncategorized = _personalActive && !hasSelectedCollections;
-            var shouldLoadPersonal = !hasSelectedCollections || _personalActive;
-
-            if (hasSelectedCollections)
-            {
-                combined.AddRange(await LoadSelectedCollectionRecipesAsync());
-            }
-
-            if (shouldLoadPersonal)
-            {
-                combined.AddRange(await LoadPersonalRecipesAsync(showOnlyUncategorized));
-            }
-
-            var deduped = combined.DistinctBy(r => r.Id);
+            var deduped = Deduplicate(combined);
 
             if (_activeTagIds.Any())
-                deduped = deduped.Where(r => r.Tags.Any(t => _activeTagIds.Contains(t.Id)));
+                deduped = FilterByTags(deduped);
 
-            if (v != _loadVersion) return;
+            if (requestVersion != _loadVersion) return;
 
             _recipes = deduped.ToList();
         }
@@ -14903,13 +15264,51 @@ FILE START: \StorhaugenWebsite\Pages\CookBook.razor
         }
         finally
         {
-            if (v == _loadVersion)
-            {
-                _isLoading = false;
-                await InvokeAsync(StateHasChanged);
-            }
+            if (requestVersion == _loadVersion)
+                SetLoading(false);
         }
     }
+
+    private void SetLoading(bool isLoading)
+    {
+        _isLoading = isLoading;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private bool HasSelectedCollections() =>
+        CollectionState.HasCollections && CollectionState.ActiveCollectionFilters.Any();
+
+    private bool ShouldLoadPersonal(bool hasSelectedCollections) =>
+        !hasSelectedCollections || _personalActive;
+
+    private bool ShowOnlyUncategorized(bool hasSelectedCollections) =>
+        _personalActive && !hasSelectedCollections;
+
+    private async Task<List<UserRecipeDto>> LoadCombinedRecipesAsync(
+        bool hasSelectedCollections,
+        bool shouldLoadPersonal,
+        bool showOnlyUncategorized)
+    {
+        var combined = new List<UserRecipeDto>();
+
+        // IMPORTANT:
+        // If you want the richer "personal" DTO to win over the "collection" DTO,
+        // load personal first, then collections. (See note below.)
+        if (shouldLoadPersonal)
+            combined.AddRange(await LoadPersonalRecipesAsync(showOnlyUncategorized));
+
+        if (hasSelectedCollections)
+            combined.AddRange(await LoadSelectedCollectionRecipesAsync());
+
+        return combined;
+    }
+
+    private IEnumerable<UserRecipeDto> Deduplicate(List<UserRecipeDto> recipes) =>
+        recipes.DistinctBy(r => r.Id);
+
+    private IEnumerable<UserRecipeDto> FilterByTags(IEnumerable<UserRecipeDto> recipes) =>
+        recipes.Where(r => r.Tags.Any(t => _activeTagIds.Contains(t.Id)));
+
 
     private async Task<List<UserRecipeDto>> LoadSelectedCollectionRecipesAsync()
     {
@@ -15013,6 +15412,7 @@ FILE START: \StorhaugenWebsite\Pages\FoodDetails.razor
 @using StorhaugenWebsite.Shared.DTOs
 @using StorhaugenWebsite.Services
 @using StorhaugenWebsite.Components
+@using StorhaugenWebsite.Shared.Extensions
 @using System.Text.Json
 @inject IUserRecipeService RecipeService
 @inject IAuthService AuthService
@@ -15107,7 +15507,7 @@ else
             @if (_recipe.AverageRating > 0)
             {
                 <div class="d-flex flex-column align-end">
-                    <span class="rating-badge @GetRatingClass(_recipe.AverageRating)" style="font-size: 1rem; padding: 8px 14px;">
+                    <span class="rating-badge @GetRatingClass(_recipe.AverageRating)" style="font-size: 1rem; padding: 8px 14px; color:@_recipe.AverageRating.ToRatingColorHex();">
                         <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
                         @_recipe.AverageRating.ToString("0.0")
                     </span>
@@ -15399,15 +15799,14 @@ else
         @* My Rating - Only show if user can rate *@
         @if (CanRate)
         {
+            var myRatingColor = ((double)_myRating).ToRatingColorHex();
+            
             <div class="d-flex align-center gap-3 mb-3">
-                <MudSlider T="decimal" Value="_myRating" ValueChanged="OnRatingChanged" Min="0" Max="10" Step="0.1M" Color="Color.Primary" Style="flex: 1;" />
-                <span class="rating-badge @GetRatingClass((double)_myRating)" style="font-size: 1rem; padding: 8px 14px; min-width: 50px; text-align: center;">
+                <MudSlider T="decimal" Value="_myRating" ValueChanged="OnRatingChanged" Min="0" Max="10" Step="0.1M" Color="Color.Primary" Style="flex: 1;" Class="rating-slider" />
+                <span class="rating-badge-colored" style="--rating-color: @myRatingColor;">
                     @(_myRating > 0 ? _myRating.ToString("0.0") : "-")
                 </span>
             </div>
-            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
-                Din vurdering er personlig og lagres p� din bruker. (0.0 - 10.0)
-            </MudText>
         }
         else
         {
@@ -15560,6 +15959,34 @@ else
         background: var(--mud-palette-background-grey);
         border-radius: 12px;
         padding: 12px;
+    }
+
+    .rating-badge-colored {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        font-size: 1rem;
+        padding: 8px 14px;
+        min-width: 50px;
+        text-align: center;
+        border-radius: 12px;
+        font-weight: 600;
+        color: var(--rating-color);
+        background: color-mix(in srgb, var(--rating-color) 15%, transparent);
+    }
+
+    /* Fix MudSlider touch issues on mobile */
+    .rating-slider {
+        touch-action: none;
+    }
+
+    .rating-slider .mud-slider-track {
+        cursor: pointer;
+    }
+
+    .rating-slider .mud-slider-filled {
+        pointer-events: none;
     }
 
     @@media (max-width: 600px) {
@@ -18322,8 +18749,12 @@ public class SupabaseAuthService : IAuthService, IAsyncDisposable
     private void OnAuthStateChange(object? sender, Constants.AuthState state)
     {
         _session = _supabaseClient.Auth.CurrentSession;
-        OnAuthStateChanged?.Invoke();
+
+        // Prevent refresh storms (TokenRefreshed / SetSession should not cause the whole app to refetch)
+        if (state is Constants.AuthState.SignedIn or Constants.AuthState.SignedOut)
+            OnAuthStateChanged?.Invoke();
     }
+
 
     public void UpdateCachedDisplayName(string? displayName)
     {
@@ -18474,37 +18905,46 @@ public class SupabaseAuthService : IAuthService, IAsyncDisposable
         }
     }
 
+    private readonly SemaphoreSlim _refreshLock = new(1, 1);
+
     public async Task<string?> GetAccessTokenAsync()
     {
-        // If we lost the in-memory session, try restore from localStorage.
-        if (_session?.AccessToken == null)
-        {
-            var cachedJson = await _jsRuntime.InvokeAsync<string>("localStorage.getItem", AuthCacheKey);
-            if (!string.IsNullOrWhiteSpace(cachedJson))
-            {
-                var cached = JsonConvert.DeserializeObject<Session>(cachedJson);
-                if (cached?.AccessToken != null)
-                {
-                    // Rehydrate Supabase client session
-                    await _supabaseClient.Auth.SetSession(cached.AccessToken, cached.RefreshToken);
-                    _session = _supabaseClient.Auth.CurrentSession;
-                }
-            }
-        }
+        _session ??= _supabaseClient.Auth.CurrentSession
+                 ?? await _supabaseClient.Auth.RetrieveSessionAsync();
 
-        if (_session?.AccessToken == null)
+        if (_session?.AccessToken is null)
             return null;
 
-        // If token is expired/near-expiry, force a refresh using refresh token.
-        if (IsExpiredOrNearExpiry(_session.AccessToken, skewSeconds: 60))
-        {
-            await _supabaseClient.Auth.SetSession(_session.AccessToken, _session.RefreshToken);
-            _session = _supabaseClient.Auth.CurrentSession;
-            OnAuthStateChanged?.Invoke();
-        }
+        // Refresh earlier than 60s if your backend uses strict lifetime validation (yours does)
+        if (!IsExpiredOrNearExpiry(_session.AccessToken, skewSeconds: 180))
+            return _session.AccessToken;
 
-        return _session?.AccessToken;
+        await _refreshLock.WaitAsync();
+        try
+        {
+            // Re-check after waiting: another caller may have refreshed already
+            _session = _supabaseClient.Auth.CurrentSession ?? _session;
+            if (_session?.AccessToken is null)
+                return null;
+
+            if (!IsExpiredOrNearExpiry(_session.AccessToken, skewSeconds: 180))
+                return _session.AccessToken;
+
+            //  Do an actual refresh (method name may be RefreshSession / RefreshSessionAsync depending on your SDK)
+            var refreshed = await _supabaseClient.Auth.RefreshSession();
+            if (refreshed != null)
+                _session = refreshed;
+            else
+                _session = _supabaseClient.Auth.CurrentSession;
+
+            return _session?.AccessToken;
+        }
+        finally
+        {
+            _refreshLock.Release();
+        }
     }
+
 
     private static bool IsExpiredOrNearExpiry(string jwt, int skewSeconds)
     {
@@ -18874,6 +19314,21 @@ namespace StorhaugenWebsite.Services
             OnActiveFiltersChanged?.Invoke();
         }
 
+        public void SetCollectionFilter(Guid collectionId, bool active)
+        {
+            var isCurrentlyActive = ActiveCollectionFilters.Contains(collectionId);
+            if (active && !isCurrentlyActive)
+            {
+                ActiveCollectionFilters.Add(collectionId);
+                OnActiveFiltersChanged?.Invoke();
+            }
+            else if (!active && isCurrentlyActive)
+            {
+                ActiveCollectionFilters.Remove(collectionId);
+                OnActiveFiltersChanged?.Invoke();
+            }
+        }
+
         public void ClearState()
         {
             UserCollections = new();
@@ -18987,6 +19442,11 @@ namespace StorhaugenWebsite.Services
         void ToggleCollectionFilter(Guid collectionId);
 
         /// <summary>
+        /// Set a specific collection filter to active/inactive.
+        /// </summary>
+        void SetCollectionFilter(Guid collectionId, bool active);
+
+        /// <summary>
         /// Clear state (e.g., on logout).
         /// </summary>
         void ClearState();
@@ -19074,6 +19534,14 @@ namespace StorhaugenWebsite.Services
             }
         }
 
+        public async Task SetCookbookFiltersAsync(List<Guid> collectionIds, bool personalActive)
+        {
+            Settings.CookbookCollectionFilters = collectionIds;
+            Settings.CookbookPersonalFilterActive = personalActive;
+            await SaveSettingsAsync();
+            OnSettingsChanged?.Invoke();
+        }
+
         private async Task SaveSettingsAsync()
         {
             try
@@ -19110,8 +19578,8 @@ namespace StorhaugenWebsite.Services
         Task SetThemeAsync(string theme);
         Task SetViewModeAsync(string viewMode);
         Task<string> GetSystemThemePreferenceAsync();
-        Task SetSortAsync(string sortBy, bool descending); // New method
-
+        Task SetSortAsync(string sortBy, bool descending);
+        Task SetCookbookFiltersAsync(List<Guid> collectionIds, bool personalActive);
     }
 }
 
@@ -20508,6 +20976,88 @@ FILE END: \StorhaugenWebsite\Services\HelloFreshSyncService.cs
 
 
 ================================================================================
+FILE START: \StorhaugenWebsite\Shared\Extensions\RatingColorExtensions.cs
+================================================================================
+using System;
+
+namespace StorhaugenWebsite.Shared.Extensions
+{
+    public static class RatingColorExtensions
+    {
+        // Default 0..10 rating scale
+        public static string ToRatingColorHex(this double score, double min = 0, double max = 10)
+        {
+            // Clamp to range
+            var x = Clamp(score, min, max);
+
+            // Color stops (position, hex)
+            // Tune these if you want different "where green starts" etc.
+            var stops = new (double pos, string hex)[]
+            {
+                (0.0,  "#6A1B9A"), // purple (worst)
+                (5.0,  "#F44336"), // red (below 5 fades to purple)
+                (8.2,  "#4CAF50"), // green (good)
+                (9.4,  "#4CAF50"), // keep green until "near 10"
+                (10.0, "#2196F3"), // blue (best)
+            };
+
+            // Normalize x to 0..10 if min/max differ
+            var t = (x - min) / (max - min);
+            var v = t * 10.0;
+
+            // Find segment
+            for (int i = 0; i < stops.Length - 1; i++)
+            {
+                var (p0, c0) = stops[i];
+                var (p1, c1) = stops[i + 1];
+
+                if (v <= p1)
+                {
+                    var segT = (v - p0) / (p1 - p0);
+                    segT = Clamp(segT, 0, 1);
+                    return LerpHex(c0, c1, segT);
+                }
+            }
+
+            return stops[^1].hex;
+        }
+
+        private static string LerpHex(string a, string b, double t)
+        {
+            var (ar, ag, ab) = ParseHex(a);
+            var (br, bg, bb) = ParseHex(b);
+
+            int r = (int)Math.Round(ar + (br - ar) * t);
+            int g = (int)Math.Round(ag + (bg - ag) * t);
+            int bl = (int)Math.Round(ab + (bb - ab) * t);
+
+            return $"#{r:X2}{g:X2}{bl:X2}";
+        }
+
+        private static (int r, int g, int b) ParseHex(string hex)
+        {
+            if (string.IsNullOrWhiteSpace(hex)) throw new ArgumentException("Hex color is null/empty");
+            if (hex[0] == '#') hex = hex[1..];
+            if (hex.Length != 6) throw new ArgumentException("Hex color must be 6 digits (RRGGBB)");
+
+            return (
+                Convert.ToInt32(hex.Substring(0, 2), 16),
+                Convert.ToInt32(hex.Substring(2, 2), 16),
+                Convert.ToInt32(hex.Substring(4, 2), 16)
+            );
+        }
+
+        private static double Clamp(double v, double min, double max) => v < min ? min : (v > max ? max : v);
+    }
+}
+
+
+================================================================================
+FILE END: \StorhaugenWebsite\Shared\Extensions\RatingColorExtensions.cs
+================================================================================
+
+
+================================================================================
 FILE START: \StorhaugenWebsite\Shared\Authorization.razor
 ================================================================================
 <div class="login-required-container">
@@ -21724,6 +22274,7 @@ FILE START: \StorhaugenWebsite\wwwroot\css\Food.css
     padding: 3px 10px 3px 3px;
     margin-right: 6px;
     transition: all 0.2s ease;
+    gap:4px;
 }
 
     .rating-pill:hover {
@@ -21743,7 +22294,6 @@ FILE START: \StorhaugenWebsite\wwwroot\css\Food.css
     font-weight: 800;
     color: #1a1a1a; /* Dark text for contrast inside colored circle */
     text-transform: uppercase;
-    margin-right: 8px; /* Space between circle and number */
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
@@ -22963,10 +23513,18 @@ FILE START: \StorhaugenWebsite\StorhaugenWebsite.csproj
 		<Copy SourceFiles="$(PublishDir)wwwroot\index.html" DestinationFiles="$(PublishDir)wwwroot\404.html" />
 	</Target>
 
+	<ItemGroup>
+	  <Compile Remove="Shared\RatingColorExtensions.cs" />
+	</ItemGroup>
+
   <ItemGroup>
     <Content Remove="Components\AddFood.razor" />
     <Content Remove="Components\Archived.razor" />
     <Content Remove="Components\FoodDetail.razor" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Shared\Extensions\RatingColorExtensions.cs" />
   </ItemGroup>
 
   <ItemGroup>

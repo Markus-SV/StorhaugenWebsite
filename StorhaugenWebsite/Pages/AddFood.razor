@@ -251,8 +251,7 @@
                                Label="Velg samling"
                                Value="@_selectedCollectionId"
                                ValueChanged="OnCollectionSelectionChanged"
-                               Variant="Variant.Outlined"
-                               AnchorOrigin="Origin.BottomCenter">
+                               Variant="Variant.Outlined">
                         @foreach (var collection in CollectionState.UserCollections)
                         {
                             <MudSelectItem Value="@((Guid?)collection.Id)">@collection.Name</MudSelectItem>
@@ -324,7 +323,7 @@
         }
 
         <div class="mt-4 d-flex justify-space-between align-center">
-            <MudText Typo="Typo.body2">Gjør offentlig (Synlig for alle)</MudText>
+            <MudText Typo="Typo.body2">Gjør offentlig (Publiser)</MudText>
             <MudSwitch @bind-Value="_isPublic" Color="Color.Tertiary" />
         </div>
         @if (_isPublic)

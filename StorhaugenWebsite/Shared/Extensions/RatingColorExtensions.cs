@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Globalization;
 
 namespace StorhaugenWebsite.Shared.Extensions
 {
@@ -7,25 +8,20 @@ namespace StorhaugenWebsite.Shared.Extensions
         // Default 0..10 rating scale
         public static string ToRatingColorHex(this double score, double min = 0, double max = 10)
         {
-            // Clamp to range
             var x = Clamp(score, min, max);
 
-            // Color stops (position, hex)
-            // Tune these if you want different "where green starts" etc.
             var stops = new (double pos, string hex)[]
             {
-                (0.0,  "#6A1B9A"), // purple (worst)
-                (5.0,  "#F44336"), // red (below 5 fades to purple)
-                (8.2,  "#4CAF50"), // green (good)
-                (9.4,  "#4CAF50"), // keep green until "near 10"
-                (10.0, "#2196F3"), // blue (best)
+                (0.0,  "#6A1B9A"),
+                (5.0,  "#F44336"),
+                (8.2,  "#4CAF50"),
+                (9.4,  "#4CAF50"),
+                (10.0, "#2196F3"),
             };
 
-            // Normalize x to 0..10 if min/max differ
             var t = (x - min) / (max - min);
             var v = t * 10.0;
 
-            // Find segment
             for (int i = 0; i < stops.Length - 1; i++)
             {
                 var (p0, c0) = stops[i];
@@ -41,6 +37,25 @@ namespace StorhaugenWebsite.Shared.Extensions
 
             return stops[^1].hex;
         }
+
+        // NEW: semi-transparent background color for pills/cards etc.
+        public static string ToRatingBgRgba(this double score, double alpha = 0.14, double min = 0, double max = 10)
+        {
+            alpha = Clamp(alpha, 0, 1);
+            var hex = score.ToRatingColorHex(min, max);
+            var (r, g, b) = ParseHex(hex);
+
+            // InvariantCulture so you don’t get "0,14" on Norwegian locales
+            var a = alpha.ToString(CultureInfo.InvariantCulture);
+            return $"rgba({r}, {g}, {b}, {a})";
+        }
+
+        // Convenience overloads for decimal scores (your MemberRatings are decimal?)
+        public static string ToRatingColorHex(this decimal score, double min = 0, double max = 10)
+            => ((double)score).ToRatingColorHex(min, max);
+
+        public static string ToRatingBgRgba(this decimal score, double alpha = 0.14, double min = 0, double max = 10)
+            => ((double)score).ToRatingBgRgba(alpha, min, max);
 
         private static string LerpHex(string a, string b, double t)
         {

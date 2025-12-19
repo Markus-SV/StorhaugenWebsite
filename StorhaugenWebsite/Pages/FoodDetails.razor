@@ -152,9 +152,11 @@ else
         @* HelloFresh Week Info *@
         @if (_recipe.IsHellofresh && !string.IsNullOrEmpty(_recipe.HellofreshWeek))
         {
+            var weekNumber = int.Parse(_recipe.HellofreshWeek.Split("-W")[1]);
+
             <div class="d-flex align-center gap-2 mt-2">
                 <MudIcon Icon="@Icons.Material.Rounded.CalendarMonth" Size="Size.Small" Color="Color.Success" />
-                <MudText Typo="Typo.caption" Color="Color.Secondary">HelloFresh uke @_recipe.HellofreshWeek</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">HelloFresh uke @weekNumber</MudText>
             </div>
         }
 
@@ -188,58 +190,67 @@ else
         }
     </div>
 
-    @* --- COLLAPSIBLE SECTIONS --- *@
-    @if (HasNutritionData || HasIngredients)
+    @* --- NUTRITION + INGREDIENTS (normal sections) --- *@
+    @if (HasNutritionData)
     {
-        <MudExpansionPanels Class="mt-4" Style="margin-bottom: 16px" MultiExpansion="true">
-            @* Nutrition Info *@
-            @if (HasNutritionData)
-            {
-                <MudExpansionPanel Text="Næringsinformasjon" Icon="@Icons.Material.Rounded.LocalFireDepartment">
-                    <div class="nutrition-grid">
-                        @foreach (var item in ParseNutrition())
-                        {
-                            <div class="nutrition-item">
-                                <span class="nutrition-value">@item.Amount</span>
-                                <span class="nutrition-label">@item.Name</span>
-                            </div>
-                        }
-                    </div>
-                </MudExpansionPanel>
-            }
+        <div class="form-section">
+            <div class="section-title-row">
+                <MudIcon Icon="@Icons.Material.Rounded.LocalFireDepartment" Size="Size.Small" Color="Color.Primary" />
+                <p class="form-section-title" style="margin:0;">Næringsinformasjon</p>
+            </div>
 
-            @* Ingredients *@
-            @if (HasIngredients)
-            {
-                <MudExpansionPanel Text="Ingredienser" Icon="@Icons.Material.Rounded.ShoppingCart" IsInitiallyExpanded="true">
-                    <div class="ingredients-list">
-                        @foreach (var ingredient in ParseIngredients())
+            <div class="nutrition-grid mt-2">
+                @foreach (var item in ParseNutrition())
+                {
+                    <div class="nutrition-item">
+                        <span class="nutrition-value">@item.Amount</span>
+                        <span class="nutrition-label">@item.Name</span>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    @if (HasIngredients)
+    {
+        <div class="form-section">
+            <div class="section-title-row">
+                <MudIcon Icon="@Icons.Material.Rounded.ShoppingCart" Size="Size.Small" Color="Color.Primary" />
+                <p class="form-section-title" style="margin:0;">
+                    Ingredienser (@ParseIngredients().Count)
+                </p>
+            </div>
+
+            <div class="ingredients-list mt-2">
+                @foreach (var ingredient in ParseIngredients())
+                {
+                    <div class="ingredient-item">
+                        @if (!string.IsNullOrEmpty(ingredient.Image))
                         {
-                            <div class="ingredient-item">
-                                @if (!string.IsNullOrEmpty(ingredient.Image))
-                                {
-                                    <img src="@GetIngredientImageUrl(ingredient.Image)" alt="@ingredient.Name" class="ingredient-image" />
-                                }
-                                else
-                                {
-                                    <div class="ingredient-placeholder">
-                                        <MudIcon Icon="@Icons.Material.Rounded.Egg" Size="Size.Small" />
-                                    </div>
-                                }
-                                <div class="ingredient-info">
-                                    <span class="ingredient-name">@ingredient.Name</span>
-                                    @if (!string.IsNullOrEmpty(ingredient.Amount) || !string.IsNullOrEmpty(ingredient.Unit))
-                                    {
-                                        <span class="ingredient-amount">@ingredient.Amount @ingredient.Unit</span>
-                                    }
-                                </div>
+                            <img src="@GetIngredientImageUrl(ingredient.Image)"
+                                 alt="@ingredient.Name"
+                                 class="ingredient-image" />
+                        }
+                        else
+                        {
+                            <div class="ingredient-placeholder">
+                                <MudIcon Icon="@Icons.Material.Rounded.Egg" Size="Size.Small" />
                             </div>
                         }
+
+                        <div class="ingredient-info">
+                            <span class="ingredient-name">@ingredient.Name</span>
+                            @if (!string.IsNullOrEmpty(ingredient.Amount) || !string.IsNullOrEmpty(ingredient.Unit))
+                            {
+                                <span class="ingredient-amount">@ingredient.Amount @ingredient.Unit</span>
+                            }
+                        </div>
                     </div>
-                </MudExpansionPanel>
-            }
-        </MudExpansionPanels>
+                }
+            </div>
+        </div>
     }
+
 
     @* --- ACTIONS SECTION --- *@
     <div class="form-section">
@@ -423,18 +434,27 @@ else
             <div class="d-flex flex-wrap gap-2">
                 @foreach (var rating in otherRatings)
                 {
-                    var initial = !string.IsNullOrEmpty(rating.Key) ? rating.Key.Substring(0, 1).ToUpper() : "?";
+                    var name = rating.Key;
+                    var score = rating.Value!.Value;
+                    var initial = string.IsNullOrWhiteSpace(name) ? "?" : name[..1].ToUpperInvariant();
 
-                    <div class="rating-pill">
-                        <div class="rating-circle" style="background-color: @UserColorService.GetUserColor(rating.Key); color: white;">
+                    <div class="rating-pill" style="background-color:@score.ToRatingBgRgba(0.18);">
+                        <div class="rating-circle"
+                             style="background-color:@UserColorService.GetUserColor(name); color:white;">
                             @initial
                         </div>
-                        <span class="rating-score">@rating.Value?.ToString("0.0")</span>
-                        <MudTooltip Text="@rating.Key" Placement="Placement.Top">
-                            <span class="rating-name">@rating.Key</span>
+
+                        <MudTooltip Text="@name" Placement="Placement.Top">
+                            <span class="rating-name">@name</span>
                         </MudTooltip>
+
+                        <span class="rating-score" style="color:@score.ToRatingColorHex()">
+                            @score.ToString("0.0")
+                        </span>
+
                     </div>
                 }
+
             </div>
         }
 
@@ -453,6 +473,20 @@ else
 }
 
 <style>
+    .section-title-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 6px;
+    }
+
+    /* Make nutrition grid responsive */
+    .nutrition-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+    }
+
     .quick-info-row {
         display: flex;
         gap: 16px;
@@ -582,9 +616,6 @@ else
     }
 
     @@media (max-width: 600px) {
-        .nutrition-grid {
-            grid-template-columns: repeat(2, 1fr);
-        }
 
         .quick-info-row {
             gap: 8px;
@@ -958,7 +989,11 @@ else
     private record IngredientInfo(string Name, string? Amount, string? Unit, string? Image);
 
     private bool HasNutritionData => _recipe?.NutritionData != null;
-    private bool HasIngredients => _recipe?.Ingredients != null;
+    private bool HasIngredients =>
+    _recipe?.Ingredients is JsonElement je &&
+    je.ValueKind == JsonValueKind.Array &&
+    je.GetArrayLength() > 0;
+
 
     private List<NutritionInfo> ParseNutrition()
     {

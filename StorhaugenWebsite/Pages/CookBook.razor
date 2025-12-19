@@ -101,7 +101,7 @@
 @* XFade wrapper (same behavior as Home/ActivityFeed: first-load-only crossfade) *@
 <XFade IsLoading="@_isLoading" FirstLoadOnly="true" FadeMs="220">
     <Skeleton>
-        <RecipeSkeleton Amount="6" Height="109.11px" />
+        <RecipeSkeleton Amount="6" Height="103.11px" />
     </Skeleton>
 
     <ChildContent>
@@ -118,12 +118,13 @@
             <div class="d-flex flex-column gap-3">
                 @foreach (var recipe in _sortedRecipes)
                 {
-                    <div class="food-card" @key="recipe.Id" @onclick="() => OpenRecipe(recipe.Id)">
+                    var imgUrl = recipe.ImageUrls?.FirstOrDefault(u => !string.IsNullOrWhiteSpace(u));
 
+                    <div class="food-card" @key="recipe.Id" @onclick="() => OpenRecipe(recipe.Id)">
                         @* Image Section (Right Side) *@
-                        @if (recipe.ImageUrls.Any())
+                        @if (!string.IsNullOrEmpty(imgUrl))
                         {
-                            <img src="@recipe.ImageUrls.First()" class="food-card-image" />
+                            <img src="@imgUrl" class="food-card-image" loading="lazy" />
                         }
                         else
                         {
@@ -206,37 +207,43 @@
                             </div>
 
                             @* Ratings Section *@
-                            <div class="d-flex align-center flex-wrap mt-2 gap-2">
-                                @if (recipe.MyRating.HasValue)
+                            <div class="ratings-wrap mt-2">
+                                @* Me (from MyRating) *@
+                                @if (recipe.MyRating is decimal myScore)
                                 {
-                                    <div class="rating-pill mine">
-                                        <div class="rating-circle" style="background-color:var(--mud-palette-primary); color:var(--mud-palette-primary-text);">
-                                            D
+                                    var me = AuthService.CurrentUserName ?? "Meg";
+
+                                    <div class="rating-pill" style="background-color:@myScore.ToRatingBgRgba(0.18);">
+                                        <div class="rating-circle"
+                                             style="background-color:@UserColorService.GetUserColor(me); color:white;">
+                                            @(string.IsNullOrWhiteSpace(me) ? "?" : me[..1].ToUpper())
                                         </div>
-                                        <span class="rating-score">@recipe.MyRating?.ToString("0.0")</span>
+                                        <span class="rating-score" style="color:@myScore.ToRatingColorHex()">
+                                            @myScore.ToString("0.0")
+                                        </span>
                                     </div>
                                 }
 
-                                @{
-                                    var otherRatings = (recipe.MemberRatings ?? new Dictionary<string, decimal?>())
-                                    .Where(r => r.Value.HasValue
-                                    && !string.Equals(r.Key, AuthService.CurrentUserName, StringComparison.OrdinalIgnoreCase)
-                                    && _allowedRaterNames.Contains(r.Key))
-                                    .DistinctBy(r => r.Key)
-                                    .Take(4);
-                                }
-
-                                @foreach (var rating in otherRatings)
+                                @* Others (from MemberRatings) *@
+                                @foreach (var r in (recipe.MemberRatings ?? new Dictionary<string, decimal?>())
+                                                        .Where(x => x.Value.HasValue)
+                                                        .Where(x => _allowedRaterNames.Contains(x.Key)))
                                 {
-                                    var initial = !string.IsNullOrEmpty(rating.Key) ? rating.Key.Substring(0, 1).ToUpper() : "?";
-                                    <div class="rating-pill">
-                                        <div class="rating-circle" style="background-color:@UserColorService.GetUserColor(rating.Key); color:white;">
-                                            @initial
+                                    var name = r.Key;
+                                    var score = r.Value!.Value;
+
+                                    <div class="rating-pill" style="background-color:@score.ToRatingBgRgba(0.18);">
+                                        <div class="rating-circle"
+                                             style="background-color:@UserColorService.GetUserColor(name); color:white;">
+                                            @(string.IsNullOrWhiteSpace(name) ? "?" : name[..1].ToUpper())
                                         </div>
-                                        <span class="rating-score">@rating.Value?.ToString("0.0")</span>
+                                        <span class="rating-score" style="color:@score.ToRatingColorHex()">
+                                            @score.ToString("0.0")
+                                        </span>
                                     </div>
                                 }
                             </div>
+
                         </div>
                     </div>
                 }
@@ -244,6 +251,36 @@
         }
     </ChildContent>
 </XFade>
+
+<style>
+    .ratings-fade {
+        position: relative;
+        min-width: 0;
+    }
+
+    .ratings-scroll {
+        overflow-x: auto;
+        overflow-y: hidden;
+        display: flex;
+        flex-wrap: nowrap;
+        min-width: 0;
+        --fade: 18px;
+        -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - var(--fade)), transparent 100%);
+        mask-image: linear-gradient(to right, #000 0, #000 calc(100% - var(--fade)), transparent 100%);
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+    }
+
+        .ratings-scroll::-webkit-scrollbar {
+            display: none; /* Chrome/Safari */
+        }
+
+        /* make sure each pill keeps its size */
+        .ratings-scroll .rating-pill {
+            flex: 0 0 auto;
+        }
+
+</style>
 
 @code {
     private const int PersonalPageSize = 100;
@@ -386,37 +423,27 @@
 
     private async Task LoadRecipes()
     {
-        var v = ++_loadVersion;
+        var requestVersion = ++_loadVersion;
 
-        _isLoading = true;
-        await InvokeAsync(StateHasChanged);
+        SetLoading(true);
 
         try
         {
-            var combined = new List<UserRecipeDto>();
+            var hasSelectedCollections = HasSelectedCollections();
+            var shouldLoadPersonal = ShouldLoadPersonal(hasSelectedCollections);
+            var showOnlyUncategorized = ShowOnlyUncategorized(hasSelectedCollections);
 
-            var hasSelectedCollections =
-                CollectionState.HasCollections && CollectionState.ActiveCollectionFilters.Any();
+            var combined = await LoadCombinedRecipesAsync(
+                hasSelectedCollections,
+                shouldLoadPersonal,
+                showOnlyUncategorized);
 
-            var showOnlyUncategorized = _personalActive && !hasSelectedCollections;
-            var shouldLoadPersonal = !hasSelectedCollections || _personalActive;
-
-            if (hasSelectedCollections)
-            {
-                combined.AddRange(await LoadSelectedCollectionRecipesAsync());
-            }
-
-            if (shouldLoadPersonal)
-            {
-                combined.AddRange(await LoadPersonalRecipesAsync(showOnlyUncategorized));
-            }
-
-            var deduped = combined.DistinctBy(r => r.Id);
+            var deduped = Deduplicate(combined);
 
             if (_activeTagIds.Any())
-                deduped = deduped.Where(r => r.Tags.Any(t => _activeTagIds.Contains(t.Id)));
+                deduped = FilterByTags(deduped);
 
-            if (v != _loadVersion) return;
+            if (requestVersion != _loadVersion) return;
 
             _recipes = deduped.ToList();
         }
@@ -426,13 +453,51 @@
         }
         finally
         {
-            if (v == _loadVersion)
-            {
-                _isLoading = false;
-                await InvokeAsync(StateHasChanged);
-            }
+            if (requestVersion == _loadVersion)
+                SetLoading(false);
         }
     }
+
+    private void SetLoading(bool isLoading)
+    {
+        _isLoading = isLoading;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private bool HasSelectedCollections() =>
+        CollectionState.HasCollections && CollectionState.ActiveCollectionFilters.Any();
+
+    private bool ShouldLoadPersonal(bool hasSelectedCollections) =>
+        !hasSelectedCollections || _personalActive;
+
+    private bool ShowOnlyUncategorized(bool hasSelectedCollections) =>
+        _personalActive && !hasSelectedCollections;
+
+    private async Task<List<UserRecipeDto>> LoadCombinedRecipesAsync(
+        bool hasSelectedCollections,
+        bool shouldLoadPersonal,
+        bool showOnlyUncategorized)
+    {
+        var combined = new List<UserRecipeDto>();
+
+        // IMPORTANT:
+        // If you want the richer "personal" DTO to win over the "collection" DTO,
+        // load personal first, then collections. (See note below.)
+        if (shouldLoadPersonal)
+            combined.AddRange(await LoadPersonalRecipesAsync(showOnlyUncategorized));
+
+        if (hasSelectedCollections)
+            combined.AddRange(await LoadSelectedCollectionRecipesAsync());
+
+        return combined;
+    }
+
+    private IEnumerable<UserRecipeDto> Deduplicate(List<UserRecipeDto> recipes) =>
+        recipes.DistinctBy(r => r.Id);
+
+    private IEnumerable<UserRecipeDto> FilterByTags(IEnumerable<UserRecipeDto> recipes) =>
+        recipes.Where(r => r.Tags.Any(t => _activeTagIds.Contains(t.Id)));
+
 
     private async Task<List<UserRecipeDto>> LoadSelectedCollectionRecipesAsync()
     {

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using StorhaugenEats.API.Data;
 using StorhaugenEats.API.Models;
 using StorhaugenWebsite.Shared.DTOs;
+using System.Text.Json;
 
 namespace StorhaugenEats.API.Services;
 
@@ -343,38 +344,64 @@ public class CollectionService : ICollectionService
     public async Task AddMemberAsync(Guid collectionId, Guid userId, AddCollectionMemberDto dto)
     {
         var collection = await _context.Collections
-            .Include(c => c.Members)
             .FirstOrDefaultAsync(c => c.Id == collectionId);
 
         if (collection == null)
             throw new InvalidOperationException("Collection not found");
 
-        if (collection.OwnerUserId != userId)
-            throw new InvalidOperationException("Only the owner can add members");
+        // ? Allow any existing member (owner is also stored in collection_members)
+        var inviterIsMember = await _context.CollectionMembers
+            .AnyAsync(cm => cm.CollectionId == collectionId && cm.UserId == userId);
 
-        // Find user by share ID or email
-        var targetUser = await _context.Users
-            .FirstOrDefaultAsync(u => u.UniqueShareId == dto.UserIdentifier || u.Email == dto.UserIdentifier);
+        if (!inviterIsMember)
+            throw new InvalidOperationException("Only collection members can add members");
 
-        if (targetUser == null)
-            throw new InvalidOperationException("User not found");
+        if (string.IsNullOrWhiteSpace(dto.UserIdentifier))
+            throw new InvalidOperationException("User identifier is required");
 
-        // Check if already a member
-        if (collection.Members.Any(m => m.UserId == targetUser.Id))
+        var identifier = dto.UserIdentifier.Trim();
+
+        // 1) Try GUID -> user.Id
+        User? userToAdd = null;
+        if (Guid.TryParse(identifier, out var parsedUserId))
+        {
+            userToAdd = await _context.Users.FirstOrDefaultAsync(u => u.Id == parsedUserId);
+        }
+
+        // 2) Otherwise: match ShareId or Email (case-insensitive)
+        var identLower = identifier.ToLower();
+        userToAdd ??= await _context.Users.FirstOrDefaultAsync(u =>
+            u.UniqueShareId.ToLower() == identLower ||
+            u.Email.ToLower() == identLower
+        );
+
+        if (userToAdd == null)
+            throw new InvalidOperationException("User not found with that identifier");
+
+        // (Optional) prevent adding yourself
+        if (userToAdd.Id == userId)
+            throw new InvalidOperationException("You are already a member of this collection");
+
+        var alreadyMember = await _context.CollectionMembers
+            .AnyAsync(cm => cm.CollectionId == collectionId && cm.UserId == userToAdd.Id);
+
+        if (alreadyMember)
             throw new InvalidOperationException("User is already a member of this collection");
 
         _context.CollectionMembers.Add(new CollectionMember
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.NewGuid(),               // important since your model has Guid Id without DB generation
             CollectionId = collectionId,
-            UserId = targetUser.Id,
-            Role = "member",
+            UserId = userToAdd.Id,
+            Role = "member",                   //  matches your entity model
             JoinedAt = DateTime.UtcNow,
-            InvitedByUserId = userId
+            InvitedByUserId = userId           //  track who invited
         });
 
         await _context.SaveChangesAsync();
     }
+
+
 
     public async Task RemoveMemberAsync(Guid collectionId, Guid memberId, Guid userId)
     {
@@ -597,28 +624,43 @@ public class CollectionService : ICollectionService
         };
     }
 
-    private List<string> GetImageUrls(UserRecipe recipe)
+    private static List<string> GetImageUrls(UserRecipe recipe)
     {
-        if (!string.IsNullOrEmpty(recipe.LocalImageUrl))
+        // 1) Local single
+        if (!string.IsNullOrWhiteSpace(recipe.LocalImageUrl) && recipe.LocalImageUrl != "null")
             return new List<string> { recipe.LocalImageUrl };
 
-        if (!string.IsNullOrEmpty(recipe.LocalImageUrls) && recipe.LocalImageUrls != "[]")
+        // 2) Local list
+        if (!string.IsNullOrWhiteSpace(recipe.LocalImageUrls) &&
+            recipe.LocalImageUrls != "[]" &&
+            recipe.LocalImageUrls != "null")
         {
             try
             {
-                return System.Text.Json.JsonSerializer.Deserialize<List<string>>(recipe.LocalImageUrls) ?? new List<string>();
+                return JsonSerializer.Deserialize<List<string>>(recipe.LocalImageUrls) ?? new();
             }
-            catch
-            {
-                return new List<string>();
-            }
+            catch { /* ignore */ }
         }
 
-        if (!string.IsNullOrEmpty(recipe.GlobalRecipe?.ImageUrl))
+        // 3) Global list (this is the important fix for HF cases)
+        if (!string.IsNullOrWhiteSpace(recipe.GlobalRecipe?.ImageUrls) &&
+            recipe.GlobalRecipe.ImageUrls != "[]" &&
+            recipe.GlobalRecipe.ImageUrls != "null")
+        {
+            try
+            {
+                return JsonSerializer.Deserialize<List<string>>(recipe.GlobalRecipe.ImageUrls) ?? new();
+            }
+            catch { /* ignore */ }
+        }
+
+        // 4) Global single fallback
+        if (!string.IsNullOrWhiteSpace(recipe.GlobalRecipe?.ImageUrl) && recipe.GlobalRecipe.ImageUrl != "null")
             return new List<string> { recipe.GlobalRecipe.ImageUrl };
 
-        return new List<string>();
+        return new();
     }
+
 
     #endregion
 }

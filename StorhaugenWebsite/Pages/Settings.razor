@@ -11,6 +11,7 @@
 @inject ISnackbar Snackbar
 @inject IJSRuntime JSRuntime
 @inject IThemeService ThemeService
+@inject IUserColorService UserColorService
 @attribute [Authorize]
 
 
@@ -23,8 +24,8 @@
 
     <div class="setting-row">
         <div class="d-flex align-center gap-3">
-            <MudAvatar Size="Size.Medium" Style="@($"background: {GetMemberColor(AuthService.CurrentUserName ?? "")}")">
-                @(string.IsNullOrEmpty(AuthService.CurrentUserName) ? '?' : AuthService.CurrentUserName[0])
+            <MudAvatar Style="@($"background: {UserColorService.GetUserColor(_userProfile?.DisplayName ?? AuthService.CurrentUserName)}")">
+                @((_userProfile?.DisplayName ?? AuthService.CurrentUserName ?? "?")[0])
             </MudAvatar>
             <div>
                 <MudText Typo="Typo.body1" Style="font-weight: 500;">@AuthService.CurrentUserName</MudText>

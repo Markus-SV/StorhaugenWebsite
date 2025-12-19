@@ -10,253 +10,256 @@
 @inject IUserColorService UserColorService
 @inject ISnackbar Snackbar
 
-<MudDialog>
+<MudDialog Class="invite-dialog">
     <DialogContent>
-        <div class="invite-dialog">
-            <MudText Typo="Typo.h6" Class="mb-2">Inviter medlem til @CollectionName</MudText>
-            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-                Velg en venn eller søk etter brukere.
-            </MudText>
+        <MudStack Spacing="2">
+            <div>
+                <MudText Typo="Typo.h6">Inviter medlem til @CollectionName</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                    Velg en venn eller søk etter brukere.
+                </MudText>
+            </div>
 
-            @* --- Search Bar --- *@
+            @* Search *@
             <MudTextField @bind-Value="_searchQuery"
-                          Placeholder="Søk etter navn eller ID..."
+                          Placeholder="Søk etter navn, e-post eller ID..."
                           Variant="Variant.Outlined"
                           Adornment="Adornment.Start"
                           AdornmentIcon="@Icons.Material.Rounded.Search"
                           Immediate="true"
                           DebounceInterval="400"
                           OnDebounceIntervalElapsed="PerformSearch"
-                          Class="mb-3"
                           Margin="Margin.Dense"
                           Clearable="true"
-                          OnClearButtonClick="@(() => { _searchQuery = string.Empty; _searchResults.Clear(); })" />
+                          OnClearButtonClick="@ClearSearch" />
 
-            @* --- Search Results --- *@
             @if (!string.IsNullOrWhiteSpace(_searchQuery))
             {
+                <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Resultater</MudText>
+
                 @if (_isSearching)
                 {
-                    <div class="d-flex justify-center py-3">
+                    <div class="d-flex justify-center py-2">
                         <MudProgressCircular Size="Size.Small" Indeterminate="true" />
                     </div>
                 }
                 else if (_searchResults.Any())
                 {
-                    <div class="friend-list mb-3">
+                    <MudStack Spacing="1">
                         @foreach (var user in _searchResults)
                         {
-                            <div class="friend-item" @onclick="@(() => InviteUser(user.Id, user.DisplayName))">
-                                <MudAvatar Size="Size.Small" Style="@($"background-color: {UserColorService.GetUserColor(user.DisplayName)}; color: white;")">
-                                    @(user.DisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
-                                </MudAvatar>
-                                <div class="friend-info">
-                                    <span class="friend-name">@user.DisplayName</span>
-                                    <span class="friend-id">ID: @user.ShareId</span>
+                            <MudPaper Class="pa-3 friend-card" Elevation="0" Outlined="true">
+                                <div class="d-flex align-center gap-3">
+                                    <MudAvatar Size="Size.Medium"
+                                               Style="@($"background-color: {UserColorService.GetUserColor(user.DisplayName)}; color: white;")">
+                                        @(user.DisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                                    </MudAvatar>
+
+                                    <div class="flex-grow-1">
+                                        <MudText Typo="Typo.body1" Style="font-weight:600;">@user.DisplayName</MudText>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">ID: @user.ShareId</MudText>
+                                    </div>
+
+                                    <MudIconButton Icon="@Icons.Material.Rounded.PersonAdd"
+                                                   Color="Color.Primary"
+                                                   Variant="Variant.Filled"
+                                                   Size="Size.Small"
+                                                   Disabled="@(_isSending || _invitingIds.Contains(user.Id))"
+                                                   OnClick="@(() => InviteUser(user.Id, user.DisplayName))" />
                                 </div>
-                                <MudIcon Icon="@Icons.Material.Rounded.PersonAdd" Size="Size.Small" Color="Color.Primary" />
-                            </div>
+                            </MudPaper>
                         }
-                    </div>
+                    </MudStack>
                 }
                 else
                 {
-                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="text-center py-2">
-                        Ingen brukere funnet
-                    </MudText>
+                    <div class="empty-state">
+                        <MudIcon Icon="@Icons.Material.Rounded.SearchOff" Size="Size.Large" Color="Color.Default" />
+                        <MudText Typo="Typo.body1" Class="mt-2">Ingen brukere funnet</MudText>
+                    </div>
                 }
             }
             else
             {
-                @* --- Friends List --- *@
+                @* Friends *@
+                <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Venner</MudText>
+
                 @if (_isLoadingFriends)
                 {
-                    <div class="d-flex justify-center py-3">
+                    <div class="d-flex justify-center py-2">
                         <MudProgressCircular Size="Size.Small" Indeterminate="true" />
                     </div>
                 }
                 else if (_friends.Any())
                 {
-                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">Venner</MudText>
-                    <div class="friend-list mb-3">
+                    <MudStack Spacing="1">
                         @foreach (var friend in _friends)
                         {
-                            <div class="friend-item" @onclick="@(() => InviteUser(friend.FriendUserId, friend.FriendDisplayName))">
-                                <MudAvatar Size="Size.Small" Style="@($"background-color: {UserColorService.GetUserColor(friend.FriendDisplayName)}; color: white;")">
-                                    @(friend.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
-                                </MudAvatar>
-                                <div class="friend-info">
-                                    <span class="friend-name">@friend.FriendDisplayName</span>
+                            <MudPaper Class="pa-3 friend-card" Elevation="0" Outlined="true">
+                                <div class="d-flex align-center gap-3">
+                                    <MudAvatar Size="Size.Medium"
+                                               Style="@($"background-color: {UserColorService.GetUserColor(friend.FriendDisplayName)}; color: white;")">
+                                        @(friend.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                                    </MudAvatar>
+
+                                    <div class="flex-grow-1">
+                                        <MudText Typo="Typo.body1" Style="font-weight:600;">@friend.FriendDisplayName</MudText>
+                                    </div>
+
+                                    <MudIconButton Icon="@Icons.Material.Rounded.PersonAdd"
+                                                   Color="Color.Primary"
+                                                   Variant="Variant.Filled"
+                                                   Size="Size.Small"
+                                                   Disabled="@(_isSending || _invitingIds.Contains(friend.FriendUserId))"
+                                                   OnClick="@(() => InviteUser(friend.FriendUserId, friend.FriendDisplayName))" />
                                 </div>
-                                <MudIcon Icon="@Icons.Material.Rounded.PersonAdd" Size="Size.Small" Color="Color.Primary" />
-                            </div>
+                            </MudPaper>
                         }
-                    </div>
+                    </MudStack>
                 }
                 else
                 {
-                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="text-center py-2 mb-2">
-                        Du har ingen venner ennå
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="text-center py-2">
+                        Du har ingen venner å invitere (eller alle er allerede i samlingen).
                     </MudText>
                 }
 
-                @* --- Manual Entry Fallback --- *@
-                <MudExpansionPanels Class="mt-2" Elevation="0">
-                    <MudExpansionPanel Text="Inviter med e-post eller Dele-ID" Dense="true" Style="background: transparent;">
-                        <MudTabs Rounded="true" Centered="true" Class="mb-3" @bind-ActivePanelIndex="_activeTab">
-                            <MudTabPanel Text="E-post" Icon="@Icons.Material.Rounded.Email">
-                                <MudForm @ref="_emailForm" @bind-IsValid="_emailIsValid" Class="mt-3">
-                                    <MudTextField @bind-Value="_email"
-                                                  Label="E-postadresse"
-                                                  Variant="Variant.Outlined"
-                                                  Required="true"
-                                                  RequiredError="E-post er påkrevd"
-                                                  Validation="@(new EmailAddressAttribute() { ErrorMessage = "Vennligst skriv inn en gyldig e-postadresse" })"
-                                                  Adornment="Adornment.Start"
-                                                  AdornmentIcon="@Icons.Material.Rounded.Email"
-                                                  HelperText="f.eks. venn@example.com"
-                                                  Immediate="true"
-                                                  Margin="Margin.Dense" />
-                                </MudForm>
-                            </MudTabPanel>
-                            <MudTabPanel Text="Dele-ID" Icon="@Icons.Material.Rounded.Tag">
-                                <MudForm @ref="_shareIdForm" @bind-IsValid="_shareIdIsValid" Class="mt-3">
-                                    <MudTextField @bind-Value="_shareId"
-                                                  Label="Dele-ID"
-                                                  Variant="Variant.Outlined"
-                                                  Required="true"
-                                                  RequiredError="Dele-ID er påkrevd"
-                                                  Adornment="Adornment.Start"
-                                                  AdornmentIcon="@Icons.Material.Rounded.Tag"
-                                                  HelperText="f.eks. ABC123XYZ"
-                                                  Immediate="true"
-                                                  Margin="Margin.Dense"
-                                                  Style="text-transform: uppercase; font-family: monospace; letter-spacing: 1px;" />
-                                </MudForm>
-                            </MudTabPanel>
-                        </MudTabs>
+                <MudDivider Class="my-2" />
 
-                        <MudButton Variant="Variant.Filled"
-                                   Color="Color.Primary"
-                                   FullWidth="true"
-                                   OnClick="SendInvite"
-                                   Disabled="_isSending || !IsCurrentFormValid()">
-                            @if (_isSending)
-                            {
-                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                                <span>Sender...</span>
-                            }
-                            else
-                            {
-                                <span>Send invitasjon</span>
-                            }
-                        </MudButton>
-                    </MudExpansionPanel>
-                </MudExpansionPanels>
+                @* Manual entry - no tabs *@
+                <MudPaper Class="pa-3" Outlined="true" Elevation="0" Style="border-radius:12px;">
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">Inviter med e-post eller Dele-ID</MudText>
+
+                    <MudSelect T="InviteMode"
+                               Label="Type"
+                               Dense="true"
+                               Variant="Variant.Outlined"
+                               Value="_inviteMode"
+                               ValueChanged="OnInviteModeChanged">
+                        <MudSelectItem Value="InviteMode.Email">E-post</MudSelectItem>
+                        <MudSelectItem Value="InviteMode.ShareId">Dele-ID</MudSelectItem>
+                    </MudSelect>
+
+                    <MudTextField Class="mt-2"
+                                  @bind-Value="_manualIdentifier"
+                                  Label="@(_inviteMode == InviteMode.Email ? "E-postadresse" : "Dele-ID")"
+                                  Variant="Variant.Outlined"
+                                  Dense="true"
+                                  Immediate="true"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@(_inviteMode == InviteMode.Email ? Icons.Material.Rounded.Email : Icons.Material.Rounded.Tag)"
+                                  HelperText="@(_inviteMode == InviteMode.Email ? "f.eks. venn@example.com" : "f.eks. ABC123XYZ")"
+                                  Style="@(_inviteMode == InviteMode.ShareId ? "text-transform:uppercase; font-family:monospace; letter-spacing:1px;" : null)" />
+
+                    <MudButton Class="mt-3"
+                               Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               FullWidth="true"
+                               Disabled="@(_isSending || string.IsNullOrWhiteSpace(_manualIdentifier))"
+                               OnClick="SendManualInvite">
+                        @if (_isSending)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                            <span>Sender...</span>
+                        }
+                        else
+                        {
+                            <span>Send invitasjon</span>
+                        }
+                    </MudButton>
+                </MudPaper>
             }
 
             @if (!string.IsNullOrEmpty(_errorMessage))
             {
-                <MudAlert Severity="Severity.Error" Class="mt-3" Dense="true" ShowCloseIcon="true" CloseIconClicked="@(() => _errorMessage = null)">
+                <MudAlert Severity="Severity.Error" Dense="true" ShowCloseIcon="true"
+                          CloseIconClicked="@(_ => _errorMessage = null)">
                     @_errorMessage
                 </MudAlert>
             }
 
             @if (!string.IsNullOrEmpty(_successMessage))
             {
-                <MudAlert Severity="Severity.Success" Class="mt-3" Dense="true">
+                <MudAlert Severity="Severity.Success" Dense="true">
                     @_successMessage
                 </MudAlert>
             }
-        </div>
+        </MudStack>
     </DialogContent>
 
     <DialogActions>
-        <MudButton OnClick="Cancel" Disabled="_isSending">Lukk</MudButton>
+        <MudButton OnClick="Close">Lukk</MudButton>
     </DialogActions>
 </MudDialog>
 
 <style>
-    .invite-dialog {
-        padding: 8px 0;
-        min-width: 300px;
+    .friend-card {
+        border-radius: 12px;
     }
 
-    .friend-list {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        max-height: 250px;
-        overflow-y: auto;
-    }
+    /* Mobile: make dialog use screen height & allow content scroll */
+    @@media (max-width: 600px) {
+        .invite-dialog.mud-dialog {
+            width: 100vw;
+            max-width: 100vw;
+            height: 100dvh;
+            max-height: 100dvh;
+            margin: 0;
+            border-radius: 0;
 
-    .friend-item {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 8px 12px;
-        background: var(--mud-palette-background-grey);
-        border-radius: 8px;
-        cursor: pointer;
-        transition: background 0.15s ease;
-    }
+        }
 
-    .friend-item:hover {
-        background: var(--mud-palette-action-default-hover);
-    }
-
-    .friend-info {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        min-width: 0;
-    }
-
-    .friend-name {
-        font-weight: 500;
-        font-size: 0.9rem;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .friend-id {
-        font-size: 0.75rem;
-        color: var(--mud-palette-text-secondary);
+        .invite-dialog .mud-dialog-content {
+            overflow-y: auto;
+            max-height: calc(100dvh - 72px); /* leaves room for header/actions */
+        }
     }
 </style>
 
 @code {
-    [CascadingParameter]
-    IMudDialogInstance? MudDialog { get; set; }
+    [CascadingParameter] IMudDialogInstance? MudDialog { get; set; }
 
-    [Parameter]
-    public Guid CollectionId { get; set; }
+    [Parameter] public Guid CollectionId { get; set; }
+    [Parameter] public string CollectionName { get; set; } = "";
+    [Parameter] public HashSet<Guid> ExistingMemberIds { get; set; } = new();
 
-    [Parameter]
-    public string CollectionName { get; set; } = "";
+    private enum InviteMode { Email, ShareId }
+    private InviteMode _inviteMode = InviteMode.Email;
+    private string _manualIdentifier = "";
 
-    private MudForm? _emailForm;
-    private MudForm? _shareIdForm;
-    private bool _emailIsValid = false;
-    private bool _shareIdIsValid = false;
-    private bool _isSending = false;
-    private int _activeTab = 0;
-    private string _email = "";
-    private string _shareId = "";
+    private bool _didChange;
+
     private string? _errorMessage;
     private string? _successMessage;
 
-    // Friend search
     private string _searchQuery = "";
     private List<UserFriendshipDto> _friends = new();
     private List<UserSearchResultDto> _searchResults = new();
     private bool _isLoadingFriends = true;
-    private bool _isSearching = false;
+    private bool _isSearching;
+    private bool _isSending;
+
+    private readonly HashSet<Guid> _invitingIds = new();
 
     protected override async Task OnInitializedAsync()
     {
         await LoadFriends();
+    }
+
+    private void OnInviteModeChanged(InviteMode mode)
+    {
+        _inviteMode = mode;
+        _manualIdentifier = "";
+        _errorMessage = null;
+        _successMessage = null;
+    }
+
+    private void ClearSearch()
+    {
+        _searchQuery = "";
+        _searchResults.Clear();
+        _errorMessage = null;
+        _successMessage = null;
     }
 
     private async Task LoadFriends()
@@ -265,7 +268,9 @@
         try
         {
             var friendships = await FriendshipService.GetFriendshipsAsync();
-            _friends = friendships.Friends ?? new();
+            _friends = (friendships.Friends ?? new())
+                .Where(f => !ExistingMemberIds.Contains(f.FriendUserId))
+                .ToList();
         }
         catch (Exception ex)
         {
@@ -276,6 +281,7 @@
             _isLoadingFriends = false;
         }
     }
+
 
     private async Task PerformSearch()
     {
@@ -290,11 +296,15 @@
 
         try
         {
-            _searchResults = await FriendshipService.SearchUsersAsync(_searchQuery);
+            var results = await FriendshipService.SearchUsersAsync(_searchQuery);
+
+            _searchResults = (results ?? new())
+                .Where(u => !ExistingMemberIds.Contains(u.Id))
+                .ToList();
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Search error: {ex.Message}");
+            _errorMessage = $"Søk feilet: {ex.Message}";
         }
         finally
         {
@@ -303,42 +313,40 @@
         }
     }
 
+
     private async Task InviteUser(Guid userId, string? displayName)
     {
+        if (ExistingMemberIds.Contains(userId) || _invitingIds.Contains(userId))
+            return;
+
         _errorMessage = null;
         _successMessage = null;
+
+        _invitingIds.Add(userId);
         _isSending = true;
         StateHasChanged();
 
         try
         {
-            // Use userId directly to add member
-            var dto = new AddCollectionMemberDto { UserIdentifier = userId.ToString() };
-            await ApiClient.AddCollectionMemberAsync(CollectionId, dto);
+            await ApiClient.AddCollectionMemberAsync(CollectionId, new AddCollectionMemberDto
+            {
+                UserIdentifier = userId.ToString()
+            });
 
-            _successMessage = $"{displayName ?? "Bruker"} lagt til!";
+            ExistingMemberIds.Add(userId);
+            _didChange = true;
+
             Snackbar.Add("Medlem lagt til!", Severity.Success);
 
-            // Remove from lists to prevent re-inviting
             _friends.RemoveAll(f => f.FriendUserId == userId);
             _searchResults.RemoveAll(s => s.Id == userId);
-
-            StateHasChanged();
         }
         catch (HttpRequestException ex)
         {
-            if (ex.StatusCode == System.Net.HttpStatusCode.BadRequest)
-            {
-                _errorMessage = "Denne brukeren er allerede medlem av samlingen";
-            }
-            else if (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
-            {
-                _errorMessage = "Bruker ikke funnet";
-            }
-            else
-            {
-                _errorMessage = $"Kunne ikke legge til medlem: {ex.Message}";
-            }
+            _errorMessage =
+                ex.StatusCode == System.Net.HttpStatusCode.BadRequest ? "Denne brukeren er allerede medlem av samlingen" :
+                ex.StatusCode == System.Net.HttpStatusCode.NotFound ? "Bruker ikke funnet" :
+                $"Kunne ikke legge til medlem: {ex.Message}";
         }
         catch (Exception ex)
         {
@@ -346,26 +354,29 @@
         }
         finally
         {
+            _invitingIds.Remove(userId);
             _isSending = false;
             StateHasChanged();
         }
     }
 
-    private bool IsCurrentFormValid()
-    {
-        return _activeTab == 0 ? _emailIsValid : _shareIdIsValid;
-    }
-
-    private async Task SendInvite()
+    private async Task SendManualInvite()
     {
         _errorMessage = null;
         _successMessage = null;
 
-        // Validate the active form
-        if (_activeTab == 0)
+        var raw = _manualIdentifier?.Trim();
+        if (string.IsNullOrWhiteSpace(raw))
         {
-            await _emailForm!.Validate();
-            if (!_emailIsValid || string.IsNullOrWhiteSpace(_email))
+            _errorMessage = "Feltet kan ikke være tomt.";
+            return;
+        }
+
+        // Basic validation without MudTabs/MudForms
+        if (_inviteMode == InviteMode.Email)
+        {
+            var emailAttr = new EmailAddressAttribute();
+            if (!emailAttr.IsValid(raw))
             {
                 _errorMessage = "Vennligst skriv inn en gyldig e-postadresse";
                 return;
@@ -373,12 +384,7 @@
         }
         else
         {
-            await _shareIdForm!.Validate();
-            if (!_shareIdIsValid || string.IsNullOrWhiteSpace(_shareId))
-            {
-                _errorMessage = "Vennligst skriv inn en Dele-ID";
-                return;
-            }
+            raw = raw.ToUpperInvariant();
         }
 
         _isSending = true;
@@ -386,47 +392,27 @@
 
         try
         {
-            var userIdentifier = _activeTab == 0 ? _email.Trim() : _shareId.Trim().ToUpperInvariant();
-            var dto = new AddCollectionMemberDto
+            await ApiClient.AddCollectionMemberAsync(CollectionId, new AddCollectionMemberDto
             {
-                UserIdentifier = userIdentifier
-            };
-            await ApiClient.AddCollectionMemberAsync(CollectionId, dto);
+                UserIdentifier = raw
+            });
 
-            var inviteTarget = _activeTab == 0 ? _email : $"bruker med ID {_shareId.ToUpperInvariant()}";
-            _successMessage = $"Medlem lagt til: {inviteTarget}!";
+            _didChange = true;
+            _successMessage = "Medlem lagt til!";
             Snackbar.Add("Medlem lagt til!", Severity.Success);
 
-            // Clear the form for another invite
-            _email = "";
-            _shareId = "";
-            _emailForm?.ResetAsync();
-            _shareIdForm?.ResetAsync();
-
-            // Close dialog after a short delay
-            await Task.Delay(1500);
-            MudDialog?.Close(DialogResult.Ok(true));
+            _manualIdentifier = "";
         }
         catch (HttpRequestException ex)
         {
-            if (ex.StatusCode == System.Net.HttpStatusCode.BadRequest)
-            {
-                _errorMessage = "Denne brukeren er allerede medlem av samlingen";
-            }
-            else if (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
-            {
-                _errorMessage = _activeTab == 1 ? "Bruker med denne Dele-ID ble ikke funnet" : "Samling ikke funnet";
-            }
-            else
-            {
-                _errorMessage = $"Kunne ikke legge til medlem: {ex.Message}";
-            }
-            Console.WriteLine($"Error adding member: {ex}");
+            _errorMessage =
+                ex.StatusCode == System.Net.HttpStatusCode.BadRequest ? "Denne brukeren er allerede medlem av samlingen" :
+                ex.StatusCode == System.Net.HttpStatusCode.NotFound ? (_inviteMode == InviteMode.ShareId ? "Bruker med denne Dele-ID ble ikke funnet" : "Samling ikke funnet") :
+                $"Kunne ikke legge til medlem: {ex.Message}";
         }
         catch (Exception ex)
         {
             _errorMessage = $"En uventet feil oppstod: {ex.Message}";
-            Console.WriteLine($"Error adding member: {ex}");
         }
         finally
         {
@@ -435,8 +421,8 @@
         }
     }
 
-    private void Cancel()
+    private void Close()
     {
-        MudDialog?.Close(DialogResult.Cancel());
+        MudDialog?.Close(_didChange); // returns bool in result.Data
     }
 }

@@ -294,6 +294,7 @@
         display: flex;
         align-items: center;
         gap: 4px;
+        flex-grow: 99;
         flex: 1;
         min-width: 0;
         background: var(--mud-palette-surface);
@@ -312,6 +313,13 @@
         -ms-overflow-style: none;
         flex: 1;
         min-width: 0;
+        overflow-y: hidden;
+        --fade: 18px;
+        -webkit-mask-image: linear-gradient( to right, transparent 0, #000 var(--fade), #000 calc(100% - var(--fade)), transparent 100% );
+        mask-image: linear-gradient( to right, transparent 0, #000 var(--fade), #000 calc(100% - var(--fade)), transparent 100% );
+        /* optional: avoid hard cutoff on some browsers */
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
     }
 
     .week-chips-scroll::-webkit-scrollbar {

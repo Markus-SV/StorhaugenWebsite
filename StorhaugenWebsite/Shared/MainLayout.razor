@@ -1,9 +1,14 @@
-﻿@inherits LayoutComponentBase
+﻿@using StorhaugenWebsite.ApiClient
+@using StorhaugenWebsite.Shared
+@using StorhaugenWebsite.Components
+@using Microsoft.AspNetCore.Components.Routing
+@inherits LayoutComponentBase
+@implements IDisposable
 @inject IAuthService AuthService
 @inject IHelloFreshSyncService HelloFreshSyncService
 @inject NavigationManager Navigation
-@using StorhaugenWebsite.Shared
-@using StorhaugenWebsite.Components
+@inject IApiClient ApiClient
+
 
 <MudLayout>
     <MudAppBar Elevation="0" Class="app-header">
@@ -72,26 +77,71 @@
 </MudLayout>
 
 @code {
-    protected override void OnInitialized()
+    private bool _helloFreshSyncTriggered;
+    private bool _isHydratingName;
+    private bool _displayNameHydrated;
+
+    protected override async Task OnInitializedAsync()
     {
         AuthService.OnAuthStateChanged += OnAuthStateChanged;
         Navigation.LocationChanged += OnLocationChanged;
 
-        // If already authenticated, trigger sync check
-        if (AuthService.IsAuthorized)
-        {
-            _ = TriggerHelloFreshSyncAsync();
-        }
+        // If we load already-authenticated, do the same work immediately.
+        await HandleAuthStateAsync();
     }
 
     private void OnAuthStateChanged()
     {
-        StateHasChanged();
-
-        // Trigger HelloFresh sync when user becomes authenticated
-        if (AuthService.IsAuthorized)
+        _ = InvokeAsync(async () =>
         {
-            _ = TriggerHelloFreshSyncAsync();
+            await HandleAuthStateAsync();
+            StateHasChanged();
+        });
+    }
+
+    private async Task HandleAuthStateAsync()
+    {
+        if (!AuthService.IsAuthorized)
+        {
+            // Reset per-login flags on logout
+            _helloFreshSyncTriggered = false;
+            _displayNameHydrated = false;
+            return;
+        }
+
+        // 1) Hydrate display name once per login
+        if (!_displayNameHydrated)
+            await HydrateDisplayNameAsync();
+
+        // 2) Trigger HelloFresh sync once per login
+        if (!_helloFreshSyncTriggered)
+        {
+            _helloFreshSyncTriggered = true;
+            await TriggerHelloFreshSyncAsync();
+        }
+    }
+
+    private async Task HydrateDisplayNameAsync()
+    {
+        if (_isHydratingName) return;
+        _isHydratingName = true;
+
+        try
+        {
+            var profile = await ApiClient.GetMyProfileAsync();
+            if (!string.IsNullOrWhiteSpace(profile?.DisplayName))
+            {
+                AuthService.UpdateCachedDisplayName(profile.DisplayName);
+                _displayNameHydrated = true;
+            }
+        }
+        catch
+        {
+            // ignore (don’t break layout if API is down)
+        }
+        finally
+        {
+            _isHydratingName = false;
         }
     }
 
@@ -103,45 +153,32 @@
         }
         catch
         {
-            // Silently ignore errors - this is a background operation
+            // Silently ignore errors - background operation
         }
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
-    {
-        StateHasChanged();
-    }
+        => StateHasChanged();
 
     private bool IsAccessAllowed()
     {
         if (AuthService.IsAuthorized) return true;
 
-        var currentPath = Navigation.ToBaseRelativePath(Navigation.Uri).ToLower();
-
-        if (string.IsNullOrEmpty(currentPath) || currentPath.StartsWith("login"))
-        {
-            return true;
-        }
-
-        return false;
+        var currentPath = Navigation.ToBaseRelativePath(Navigation.Uri).ToLowerInvariant();
+        return string.IsNullOrEmpty(currentPath) || currentPath.StartsWith("login");
     }
 
     private bool IsActive(string path)
     {
         var currentPath = Navigation.ToBaseRelativePath(Navigation.Uri);
 
-        // Exact match for Home ("")
         if (string.IsNullOrEmpty(path))
             return string.IsNullOrEmpty(currentPath);
 
-        // Starts with match for others (e.g. "browse" matches "browse/123")
         return currentPath.StartsWith(path, StringComparison.OrdinalIgnoreCase);
     }
 
-    private void Navigate(string path)
-    {
-        Navigation.NavigateTo(path);
-    }
+    private void Navigate(string path) => Navigation.NavigateTo(path);
 
     public void Dispose()
     {
