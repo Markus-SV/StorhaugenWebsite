@@ -596,6 +596,7 @@
     padding: 3px 10px 3px 3px;
     margin-right: 6px;
     transition: all 0.2s ease;
+    gap:4px;
 }
 
     .rating-pill:hover {
@@ -615,7 +616,6 @@
     font-weight: 800;
     color: #1a1a1a; /* Dark text for contrast inside colored circle */
     text-transform: uppercase;
-    margin-right: 8px; /* Space between circle and number */
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
