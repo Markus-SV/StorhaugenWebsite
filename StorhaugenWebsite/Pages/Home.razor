@@ -41,7 +41,16 @@
     </div>
 
     @* --- ACTIVITY FEED --- *@
-    <ActivityFeed PageSize="10" />
+    <div class="feed-section">
+        <div class="d-flex align-center gap-2 mb-3">
+            <MudIcon Icon="@Icons.Material.Rounded.History" Color="Color.Secondary" Size="Size.Small" />
+            <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Style="text-transform: uppercase; letter-spacing: 1px; font-weight: 700;">
+                Siste Nytt
+            </MudText>
+        </div>
+
+        <ActivityFeed PageSize="10" />
+    </div>
 </div>
 
 <style>
