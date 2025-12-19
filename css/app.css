@@ -149,10 +149,13 @@ body {
     min-height: 80px;
 }
 
+@media (hover: hover) and (pointer: fine) {
     .activity-card:hover {
         transform: translateY(-2px);
         box-shadow: 0 6px 16px rgba(44, 36, 22, 0.1);
     }
+}
+
 
 .activity-image-layer {
     position: absolute;
