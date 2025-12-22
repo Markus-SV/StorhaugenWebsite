@@ -77,8 +77,8 @@ else
             var delay = index++;
             <div class="food-list-item animate-in animate-delay-@Math.Min(delay, 4) @(IsSelected(currentFood) ? "selected" : "")" style="opacity: 0.85; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
                 <div class="d-flex align-center gap-3 flex-grow-1">
-                    <MudCheckBox Checked="IsSelected(currentFood)"
-                                 CheckedChanged="isChecked => ToggleSelection(currentFood.Id, isChecked)"
+                    <MudCheckBox Value="IsSelected(currentFood)"
+                                 ValueChanged="@((bool isChecked) => ToggleSelection(currentFood.Id, isChecked))"
                                  Disabled="_isProcessing"
                                  Class="ml-1" />
 
