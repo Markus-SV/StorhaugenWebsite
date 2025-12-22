@@ -546,8 +546,14 @@ public class UserRecipeService : IUserRecipeService
         var recipe = await _context.UserRecipes
             .Include(r => r.User)
             .Include(r => r.GlobalRecipe)
-            .FirstOrDefaultAsync(r => r.Id == recipeId && r.UserId == userId)
+            .FirstOrDefaultAsync(r => r.Id == recipeId)
             ?? throw new InvalidOperationException("Recipe not found");
+
+        if (recipe.UserId != userId)
+            throw new InvalidOperationException("Only the owner can archive this recipe");
+
+        if (recipe.IsArchived)
+            throw new InvalidOperationException("Recipe is already archived");
 
         recipe.IsArchived = true;
         recipe.ArchivedDate = DateTime.UtcNow;
@@ -562,8 +568,11 @@ public class UserRecipeService : IUserRecipeService
         var recipe = await _context.UserRecipes
             .Include(r => r.User)
             .Include(r => r.GlobalRecipe)
-            .FirstOrDefaultAsync(r => r.Id == recipeId && r.UserId == userId)
+            .FirstOrDefaultAsync(r => r.Id == recipeId)
             ?? throw new InvalidOperationException("Recipe not found");
+
+        if (recipe.UserId != userId)
+            throw new InvalidOperationException("Only the owner can restore this recipe");
 
         recipe.IsArchived = false;
         recipe.ArchivedDate = null;

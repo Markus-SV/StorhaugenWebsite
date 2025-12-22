@@ -198,6 +198,57 @@
     transition: var(--transition-fast, 0.2s ease);
 }
 
+/* ==========================================================================
+   5. Archived list
+   ========================================================================== */
+
+.food-list-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: var(--mud-palette-surface);
+    border: 1px solid var(--mud-palette-divider);
+}
+
+.food-list-image {
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.food-list-placeholder {
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
+    border: 1px dashed var(--mud-palette-divider);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--mud-palette-text-secondary);
+    flex-shrink: 0;
+}
+
+.food-list-content {
+    flex: 1;
+    cursor: pointer;
+}
+
+.food-list-title {
+    margin: 0 0 4px 0;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.food-list-date {
+    margin: 0;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.9rem;
+}
+
     .image-preview-remove:hover {
         background: var(--mud-palette-error);
     }
@@ -540,7 +591,7 @@
 
 .food-card-placeholder {
     position: absolute; /* you already set this in the shared rule */
-    overflow: hidden; /* so the pseudo-element doesn’t spill */
+    overflow: hidden; /* so the pseudo-element doesnâ€™t spill */
     display: flex;
     align-items: center;
     justify-content: center;

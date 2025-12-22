@@ -5,6 +5,7 @@
 @inject IFoodService FoodService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 @attribute [Authorize]
 
 <div class="d-flex align-center gap-3 mb-6">
@@ -44,6 +45,28 @@ else if (!_archivedItems.Any())
 }
 else
 {
+    <MudPaper Class="pa-3 mb-3" Elevation="0" Outlined="true">
+        <div class="d-flex align-center justify-space-between flex-wrap gap-3">
+            <MudCheckBox T="bool?" TriState="true" Value="SelectAllChecked" ValueChanged="ToggleSelectAll" Label="Velg alle" />
+
+            <div class="d-flex gap-2">
+                <MudButton Variant="Variant.Outlined"
+                           Disabled="!HasSelection || _isProcessing"
+                           StartIcon="@Icons.Material.Rounded.Restore"
+                           OnClick="RestoreSelected">
+                    Gjenopprett
+                </MudButton>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Error"
+                           Disabled="!HasSelection || _isProcessing"
+                           StartIcon="@Icons.Material.Rounded.Delete"
+                           OnClick="DeleteSelected">
+                    Slett
+                </MudButton>
+            </div>
+        </div>
+    </MudPaper>
+
     <div class="d-flex flex-column gap-2">
         @{
             var index = 0;
@@ -52,47 +75,70 @@ else
         {
             var currentFood = food;
             var delay = index++;
-            <div class="food-list-item animate-in animate-delay-@Math.Min(delay, 4)" style="opacity: 0.85;">
-                @if (currentFood.ImageUrls.Any())
-                {
-                    <img src="@currentFood.ImageUrls.First()"
-                         alt="@currentFood.Name"
-                         class="food-list-image"
-                         style="filter: grayscale(40%);" />
-                }
-                else
-                {
-                    <div class="food-list-placeholder">
-                        <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small" />
+            <div class="food-list-item animate-in animate-delay-@Math.Min(delay, 4) @(IsSelected(currentFood) ? "selected" : "")" style="opacity: 0.85; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                <div class="d-flex align-center gap-3 flex-grow-1">
+                    <MudCheckBox T="bool?" Value="IsSelected(currentFood)"
+                                 ValueChanged="isChecked => ToggleSelection(currentFood.Id, isChecked)"
+                                 Disabled="_isProcessing"
+                                 Class="ml-1" />
+
+                    @if (currentFood.ImageUrls.Any())
+                    {
+                        <img src="@currentFood.ImageUrls.First()"
+                             alt="@currentFood.Name"
+                             class="food-list-image"
+                             style="filter: grayscale(40%);" />
+                    }
+                    else
+                    {
+                        <div class="food-list-placeholder">
+                            <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small" />
+                        </div>
+                    }
+
+                    <div class="food-list-content" @onclick="@(() => ViewFood(currentFood))">
+                        <h3 class="food-list-title">@currentFood.Name</h3>
+                        <p class="food-list-date">
+                            Arkivert @(currentFood.ArchivedDate?.ToString("dd. MMM yyyy") ?? "")
+                            @if (!string.IsNullOrEmpty(currentFood.ArchivedBy))
+                            {
+                                <span> av @currentFood.ArchivedBy</span>
+                            }
+                        </p>
                     </div>
-                }
-                <div class="food-list-content" @onclick="@(() => ViewFood(currentFood))">
-                    <h3 class="food-list-title">@currentFood.Name</h3>
-                    <p class="food-list-date">
-                        Arkivert @(currentFood.ArchivedDate?.ToString("dd. MMM yyyy") ?? "")
-                        @if (!string.IsNullOrEmpty(currentFood.ArchivedBy))
-                        {
-                            <span> av @currentFood.ArchivedBy</span>
-                        }
-                    </p>
                 </div>
-                <div class="d-flex gap-1 align-center">
+                <div class="d-flex gap-1 align-center ml-2">
                     <MudIconButton Icon="@Icons.Material.Rounded.Visibility"
                                    Size="Size.Small"
                                    OnClick="@(() => ViewFood(currentFood))" />
                     <MudIconButton Icon="@Icons.Material.Rounded.Restore"
                                    Size="Size.Small"
                                    Color="Color.Primary"
+                                   Disabled="_isProcessing"
                                    OnClick="@(() => RestoreFood(currentFood))" />
+                    <MudIconButton Icon="@Icons.Material.Rounded.Delete"
+                                   Size="Size.Small"
+                                   Color="Color.Error"
+                                   Disabled="_isProcessing"
+                                   OnClick="@(() => DeleteFood(currentFood))" />
                 </div>
             </div>
         }
     </div>
 }
 
+<style>
+    .food-list-item.selected {
+        border: 1px solid var(--mud-palette-primary);
+        background-color: rgba(var(--mud-palette-primary-rgb), 0.04);
+    }
+</style>
+
 @code {
     private List<FoodItem> _archivedItems = new();
+    private HashSet<string> _selectedIds = new();
     private bool _isLoading = false; // Default to false, let logic handle it
+    private bool _isProcessing = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -106,6 +152,7 @@ else
         {
             var allItems = await FoodService.GetAllFoodsAsync(includeArchived: true);
             _archivedItems = allItems.Where(f => f.IsArchived).ToList();
+            _selectedIds.Clear();
         }
         catch (Exception ex)
         {
@@ -129,11 +176,149 @@ else
         {
             await FoodService.RestoreFoodAsync(food.Id);
             _archivedItems.Remove(food);
+            _selectedIds.Remove(food.Id);
             Snackbar.Add($"'{food.Name}' gjenopprettet!", Severity.Success);
         }
         catch (Exception ex)
         {
             Snackbar.Add($"Feil: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteFood(FoodItem food)
+    {
+        var confirm = await DialogService.ShowMessageBox(
+            "Slett måltid",
+            $"Vil du slette '{food.Name}' permanent?",
+            yesText: "Slett", cancelText: "Avbryt");
+
+        if (confirm != true) return;
+
+        try
+        {
+            _isProcessing = true;
+            await FoodService.DeleteFoodAsync(food.Id);
+            _archivedItems.Remove(food);
+            _selectedIds.Remove(food.Id);
+            Snackbar.Add($"'{food.Name}' ble slettet.", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Feil: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isProcessing = false;
+        }
+    }
+
+    private bool? SelectAllChecked =>
+        !_archivedItems.Any()
+            ? false
+            : _selectedIds.Count == _archivedItems.Count
+                ? true
+                : _selectedIds.Count == 0 ? false : (bool?)null;
+
+    private bool HasSelection => _selectedIds.Count > 0;
+
+    private bool IsSelected(FoodItem food) => _selectedIds.Contains(food.Id);
+
+    private void ToggleSelection(string foodId, bool? isChecked)
+    {
+        if (isChecked == true)
+            _selectedIds.Add(foodId);
+        else
+            _selectedIds.Remove(foodId);
+
+        StateHasChanged();
+    }
+
+    private void ToggleSelectAll(bool? isChecked)
+    {
+        if (isChecked == true)
+        {
+            _selectedIds = _archivedItems.Select(f => f.Id).ToHashSet();
+        }
+        else
+        {
+            _selectedIds.Clear();
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task RestoreSelected()
+    {
+        if (!HasSelection || _isProcessing) return;
+
+        var selected = _archivedItems.Where(f => _selectedIds.Contains(f.Id)).ToList();
+        if (!selected.Any()) return;
+
+        _isProcessing = true;
+        try
+        {
+            foreach (var food in selected)
+            {
+                await FoodService.RestoreFoodAsync(food.Id);
+            }
+
+            foreach (var food in selected)
+            {
+                _archivedItems.Remove(food);
+                _selectedIds.Remove(food.Id);
+            }
+
+            Snackbar.Add($"{selected.Count} måltid(er) gjenopprettet.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Feil: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _selectedIds.Clear();
+            _isProcessing = false;
+        }
+    }
+
+    private async Task DeleteSelected()
+    {
+        if (!HasSelection || _isProcessing) return;
+
+        var selected = _archivedItems.Where(f => _selectedIds.Contains(f.Id)).ToList();
+        if (!selected.Any()) return;
+
+        var confirm = await DialogService.ShowMessageBox(
+            "Slett arkiverte",
+            $"Slett {selected.Count} arkiverte måltid(er)?",
+            yesText: "Slett", cancelText: "Avbryt");
+
+        if (confirm != true) return;
+
+        _isProcessing = true;
+        try
+        {
+            foreach (var food in selected)
+            {
+                await FoodService.DeleteFoodAsync(food.Id);
+            }
+
+            foreach (var food in selected)
+            {
+                _archivedItems.Remove(food);
+                _selectedIds.Remove(food.Id);
+            }
+
+            Snackbar.Add($"{selected.Count} måltid(er) slettet.", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Feil: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _selectedIds.Clear();
+            _isProcessing = false;
         }
     }
 }

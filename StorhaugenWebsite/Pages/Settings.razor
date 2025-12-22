@@ -7,6 +7,7 @@
 @inject IAuthService AuthService
 @inject IDeviceStateService DeviceState
 @inject ICollectionStateService CollectionState
+@inject IFoodService FoodService
 @inject IApiClient ApiClient
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
@@ -62,6 +63,26 @@
             </div>
         </div>
     }
+</div>
+
+<div class="form-section">
+    <div class="d-flex justify-space-between align-center mb-2">
+        <p class="form-section-title" style="margin-bottom: 0;">Arkiv</p>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   Size="Size.Small"
+                   StartIcon="@Icons.Material.Rounded.Inventory2"
+                   OnClick="NavigateToArchived">
+            Åpne arkiv
+        </MudButton>
+    </div>
+    <MudText Typo="Typo.caption" Color="Color.Secondary">
+        Administrer arkiverte måltider dine. @(_loadingArchivedCount ? "" : _archivedCount > 0 ? $"{_archivedCount} arkiverte oppskrifter" : "Ingen arkiverte oppskrifter")
+        @if (_loadingArchivedCount)
+        {
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="ml-2" />
+        }
+    </MudText>
 </div>
 
 <div class="form-section">
@@ -259,6 +280,8 @@
     private string? _editDisplayName;
     private string _currentTheme = "Light";
     private string _viewMode = "card";
+    private int _archivedCount;
+    private bool _loadingArchivedCount;
 
     // NEW
     private bool _useCustomThemeColors;
@@ -277,6 +300,8 @@
 
         _currentTheme = ThemeService.GetCurrentThemeName();
         _viewMode = DeviceState.Settings.ViewMode;
+
+        await LoadArchivedCountAsync();
     }
 
     private async Task UpdateDisplayName()
@@ -345,6 +370,24 @@
             await ThemeService.SetThemeAsync(_currentTheme);
     }
 
+    private async Task LoadArchivedCountAsync()
+    {
+        try
+        {
+            _loadingArchivedCount = true;
+            var items = await FoodService.GetAllFoodsAsync(includeArchived: true);
+            _archivedCount = items.Count(f => f.IsArchived);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to load archived count: {ex.Message}");
+        }
+        finally
+        {
+            _loadingArchivedCount = false;
+        }
+    }
+
     private string GetThemeDisplayName(string themeName)
     {
         return themeName switch
@@ -362,6 +405,11 @@
             "Ink" => "Dark Ink",
             _ => themeName
         };
+    }
+
+    private void NavigateToArchived()
+    {
+        Navigation.NavigateTo("archived");
     }
 
     private async Task Logout()

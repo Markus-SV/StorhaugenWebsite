@@ -349,9 +349,18 @@ else
                     <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth="true" StartIcon="@Icons.Material.Rounded.Edit" OnClick="EditRecipe">
                         Rediger
                     </MudButton>
-                    <MudButton Variant="Variant.Outlined" Color="Color.Error" FullWidth="true" StartIcon="@Icons.Material.Rounded.Archive" OnClick="ArchiveRecipe">
-                        Arkiver
-                    </MudButton>
+                    @if (_recipe.IsArchived)
+                    {
+                        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" Disabled="true" FullWidth="true" StartIcon="@Icons.Material.Rounded.Inventory2">
+                            Allerede arkivert
+                        </MudButton>
+                    }
+                    else
+                    {
+                        <MudButton Variant="Variant.Outlined" Color="Color.Error" FullWidth="true" StartIcon="@Icons.Material.Rounded.Archive" OnClick="ArchiveRecipe">
+                            Arkiver
+                        </MudButton>
+                    }
                 </div>
             </div>
         }
@@ -807,7 +816,7 @@ else
 
     private async Task ArchiveRecipe()
     {
-        if (_recipe == null) return;
+        if (_recipe == null || _recipe.IsArchived) return;
         var confirm = await DialogService.ShowMessageBox("Arkiver", "Er du sikker?", yesText: "Arkiver", cancelText: "Avbryt");
         if (confirm == true)
         {

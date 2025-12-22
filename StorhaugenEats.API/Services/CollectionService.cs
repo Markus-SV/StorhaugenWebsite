@@ -31,6 +31,7 @@ public class CollectionService : ICollectionService
             .Include(c => c.Members)
                 .ThenInclude(m => m.User)
             .Include(c => c.UserRecipeCollections)
+                .ThenInclude(urc => urc.UserRecipe)
             .Where(c => c.OwnerUserId == userId || c.Members.Any(m => m.UserId == userId))
             .OrderBy(c => c.Name)
             .ToListAsync();
@@ -45,6 +46,7 @@ public class CollectionService : ICollectionService
             .Include(c => c.Members)
                 .ThenInclude(m => m.User)
             .Include(c => c.UserRecipeCollections)
+                .ThenInclude(urc => urc.UserRecipe)
             .FirstOrDefaultAsync(c => c.Id == collectionId);
 
         if (collection == null)
@@ -67,6 +69,7 @@ public class CollectionService : ICollectionService
             .Include(c => c.Members)
                 .ThenInclude(m => m.User)
             .Include(c => c.UserRecipeCollections)
+                .ThenInclude(urc => urc.UserRecipe)
             .FirstOrDefaultAsync(c => c.UniqueShareId == shareCode.ToUpper());
 
         if (collection == null)
@@ -188,6 +191,8 @@ public class CollectionService : ICollectionService
         var collection = await _context.Collections
             .Include(c => c.Owner)
             .Include(c => c.Members)
+            .Include(c => c.UserRecipeCollections)
+                .ThenInclude(urc => urc.UserRecipe)
             .FirstOrDefaultAsync(c => c.Id == collectionId);
 
         if (collection == null)
@@ -209,6 +214,8 @@ public class CollectionService : ICollectionService
             .ThenInclude(ur => ur.UserRecipeTags)
                 .ThenInclude(rt => rt.Tag)
         .AsQueryable();
+
+        recipesQuery = recipesQuery.Where(urc => !urc.UserRecipe.IsArchived);
 
 
         // Search filter
@@ -277,6 +284,9 @@ public class CollectionService : ICollectionService
 
         if (recipe == null)
             throw new InvalidOperationException("Recipe not found");
+
+        if (recipe.IsArchived)
+            throw new InvalidOperationException("Cannot add an archived recipe to a collection");
 
         // Check if already in collection
         var exists = await _context.UserRecipeCollections
@@ -513,6 +523,7 @@ public class CollectionService : ICollectionService
             .Include(c => c.Members)
                 .ThenInclude(m => m.User)
             .Include(c => c.UserRecipeCollections)
+                .ThenInclude(urc => urc.UserRecipe)
             .Where(c => c.OwnerUserId == friendUserId &&
                        (c.Visibility == "friends" || c.Visibility == "public"))
             .OrderBy(c => c.Name)
@@ -562,7 +573,8 @@ public class CollectionService : ICollectionService
             OwnerId = collection.OwnerUserId,
             OwnerDisplayName = collection.Owner?.DisplayName ?? "Unknown",
             OwnerAvatarUrl = collection.Owner?.AvatarUrl,
-            RecipeCount = collection.UserRecipeCollections?.Count ?? 0,
+            RecipeCount = collection.UserRecipeCollections?
+                .Count(urc => urc.UserRecipe == null || !urc.UserRecipe.IsArchived) ?? 0,
             MemberCount = collection.Members?.Count ?? 0,
             IsOwner = collection.OwnerUserId == userId,
             IsMember = IsMember(collection, userId),
