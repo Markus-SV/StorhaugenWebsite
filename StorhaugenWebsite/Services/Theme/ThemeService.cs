@@ -1,13 +1,20 @@
 ﻿using MudBlazor;
+using MudBlazor.Utilities;
 using StorhaugenWebsite.Models;
 
 namespace StorhaugenWebsite.Services
 {
-    public class ThemeService : IThemeService
+    public class ThemeService : IThemeService, IDisposable
     {
         private readonly IDeviceStateService _deviceState;
+
         private Dictionary<string, MudTheme> _themes = new();
         private string? _systemPreference;
+
+        // track only theme-related settings so we don’t rebuild on every device setting change
+        private string _lastThemeName = "";
+        private bool _lastUseCustomPrimary;
+        private string? _lastCustomPrimaryHex;
 
         public bool IsDarkMode { get; private set; }
         public event Action? OnThemeChanged;
@@ -15,30 +22,19 @@ namespace StorhaugenWebsite.Services
         public ThemeService(IDeviceStateService deviceState)
         {
             _deviceState = deviceState;
+            _deviceState.OnSettingsChanged += HandleDeviceSettingsChanged;
         }
 
         public async Task InitializeAsync()
         {
             _systemPreference = await _deviceState.GetSystemThemePreferenceAsync();
 
-            _themes["System"] = _systemPreference == "dark" ? GenerateDarkTheme() : GenerateLightTheme();
-            _themes["Light"] = GenerateLightTheme();
+            RebuildThemesAndApplyOverrides();
 
-            // Your existing themes
-            _themes["Dark"] = GenerateDarkTheme(); // The original rustic brown
-            _themes["Black"] = GenerateBlackTheme();
-            _themes["Material"] = GenerateMaterialTheme();
-            _themes["Forest"] = GenerateForestTheme();
-
-            // --- NEW THEMES ---
-            // --- DARK VARIANTS (modern / sleek, not bleak) ---
-            _themes["Cafe"] = GenerateCafeDarkTheme();
-            _themes["Walnut"] = GenerateWalnutDarkTheme();
-            _themes["Clay"] = GenerateClayDarkTheme();
-            _themes["Moss"] = GenerateMossDarkTheme();
-            _themes["Ink"] = GenerateInkDarkTheme();
-
-
+            // remember last seen settings
+            _lastThemeName = _deviceState.Settings.Theme;
+            _lastUseCustomPrimary = _deviceState.Settings.IsUsingCustomThemeColors;
+            _lastCustomPrimaryHex = NormalizeHex(_deviceState.Settings.CustomThemeColor);
 
             UpdateDarkModeState();
         }
@@ -46,11 +42,11 @@ namespace StorhaugenWebsite.Services
         public MudTheme GetCurrentTheme()
         {
             var themeName = _deviceState.Settings.Theme;
+
             if (_themes.TryGetValue(themeName, out var theme))
-            {
                 return theme;
-            }
-            return _themes["Light"];
+
+            return _themes.TryGetValue("Light", out var light) ? light : new MudTheme();
         }
 
         public IEnumerable<string> GetAvailableThemes() => _themes.Keys;
@@ -59,19 +55,17 @@ namespace StorhaugenWebsite.Services
 
         public async Task SetThemeAsync(string themeName)
         {
-            if (!_themes.ContainsKey(themeName)) return;
+            if (!_themes.ContainsKey(themeName))
+                return;
 
+            // DeviceState event will trigger rebuild + OnThemeChanged
             await _deviceState.SetThemeAsync(themeName);
-            UpdateDarkModeState();
-            OnThemeChanged?.Invoke();
         }
 
         public ThemeColors GetThemeColors(string themeName)
         {
             if (!_themes.TryGetValue(themeName, out var theme))
-            {
-                theme = _themes["Light"];
-            }
+                theme = _themes.TryGetValue("Light", out var light) ? light : new MudTheme();
 
             var isDark = IsThemeDark(themeName);
 
@@ -79,24 +73,24 @@ namespace StorhaugenWebsite.Services
 
             return new ThemeColors
             {
-                Primary = palette.Primary.ToString(),
-                Info = palette.Info.ToString(),
-                AppbarBackground = palette.AppbarBackground.ToString(),
-                Surface = palette.Surface.ToString(),
-                Background = palette.Background.ToString(),
-                BackgroundGrey = palette.BackgroundGray.ToString(), // Note: MudBlazor v7 uses 'BackgroundGray'
-                Divider = palette.Divider.ToString(),
-                TextPrimary = palette.TextPrimary.ToString(),
-                TextSecondary = palette.TextSecondary.ToString()
+                Primary = palette.Primary?.ToString() ?? "",
+                Info = palette.Info?.ToString() ?? "",
+                AppbarBackground = palette.AppbarBackground?.ToString() ?? "",
+                Surface = palette.Surface?.ToString() ?? "",
+                Background = palette.Background?.ToString() ?? "",
+                BackgroundGrey = palette.BackgroundGray?.ToString() ?? "",
+                Divider = palette.Divider?.ToString() ?? "",
+                TextPrimary = palette.TextPrimary?.ToString() ?? "",
+                TextSecondary = palette.TextSecondary?.ToString() ?? ""
             };
         }
 
         public bool IsThemeDark(string themeName)
         {
             if (themeName == "System")
-            {
                 return _systemPreference == "dark";
-            }
+
+            // your convention: Light is the only light theme
             return themeName != "Light";
         }
 
@@ -105,7 +99,113 @@ namespace StorhaugenWebsite.Services
             IsDarkMode = IsThemeDark(_deviceState.Settings.Theme);
         }
 
-        // ========== LIGHT THEME (Warm Amber) ==========
+        private void HandleDeviceSettingsChanged()
+        {
+            // only react to theme-related settings
+            var themeName = _deviceState.Settings.Theme;
+            var useCustom = _deviceState.Settings.IsUsingCustomThemeColors;
+            var customHex = NormalizeHex(_deviceState.Settings.CustomThemeColor);
+
+            var themeRelatedChanged =
+                themeName != _lastThemeName ||
+                useCustom != _lastUseCustomPrimary ||
+                customHex != _lastCustomPrimaryHex;
+
+            if (!themeRelatedChanged)
+                return;
+
+            _lastThemeName = themeName;
+            _lastUseCustomPrimary = useCustom;
+            _lastCustomPrimaryHex = customHex;
+
+            RebuildThemesAndApplyOverrides();
+            UpdateDarkModeState();
+
+            OnThemeChanged?.Invoke();
+        }
+
+        private void RebuildThemesAndApplyOverrides()
+        {
+            BuildThemes();
+
+            if (_deviceState.Settings.IsUsingCustomThemeColors)
+            {
+                var hex = NormalizeHex(_deviceState.Settings.CustomThemeColor);
+                if (!string.IsNullOrWhiteSpace(hex))
+                    ApplyCustomPrimaryToThemes(hex!);
+            }
+        }
+
+        private void BuildThemes()
+        {
+            var dict = new Dictionary<string, MudTheme>();
+
+            dict["System"] = _systemPreference == "dark" ? GenerateDarkTheme() : GenerateLightTheme();
+            dict["Light"] = GenerateLightTheme();
+
+            dict["Dark"] = GenerateDarkTheme();
+            dict["Black"] = GenerateBlackTheme();
+            dict["Material"] = GenerateMaterialTheme();
+            dict["Forest"] = GenerateForestTheme();
+
+            dict["Cafe"] = GenerateCafeDarkTheme();
+            dict["Walnut"] = GenerateWalnutDarkTheme();
+            dict["Clay"] = GenerateClayDarkTheme();
+            dict["Moss"] = GenerateMossDarkTheme();
+            dict["Ink"] = GenerateInkDarkTheme();
+
+            _themes = dict;
+        }
+
+        private void ApplyCustomPrimaryToThemes(string primaryHex)
+        {
+            foreach (var theme in _themes.Values)
+                ApplyCustomPrimaryToTheme(theme, primaryHex);
+        }
+
+        private static void ApplyCustomPrimaryToTheme(MudTheme theme, string primaryHex)
+        {
+            if (theme.PaletteLight is not null)
+            {
+                theme.PaletteLight.Primary = primaryHex;
+                theme.PaletteLight.PrimaryDarken = AdjustHex(primaryHex, -0.15);
+                theme.PaletteLight.PrimaryLighten = AdjustHex(primaryHex, 0.15);
+            }
+
+            if (theme.PaletteDark is not null)
+            {
+                theme.PaletteDark.Primary = primaryHex;
+                theme.PaletteDark.PrimaryDarken = AdjustHex(primaryHex, -0.15);
+                theme.PaletteDark.PrimaryLighten = AdjustHex(primaryHex, 0.15);
+            }
+        }
+
+        public async Task SetCustomPrimaryAsync(bool enabled, string? primaryHex)
+        {
+            var normalized = NormalizeHex(primaryHex);
+
+            // save color first (optional) so when enabling you immediately apply the right value
+            if (!string.IsNullOrWhiteSpace(normalized) &&
+                NormalizeHex(_deviceState.Settings.CustomThemeColor) != normalized)
+            {
+                await _deviceState.SetCustomThemeColorAsync(normalized);
+            }
+
+            // then toggle on/off
+            if (_deviceState.Settings.IsUsingCustomThemeColors != enabled)
+            {
+                await _deviceState.ToggleUseCustomThemeColorsAsync(enabled);
+            }
+
+            // No manual refresh needed:
+            // DeviceState fires OnSettingsChanged -> ThemeService reacts -> OnThemeChanged
+        }
+
+
+        // =========================
+        //  THEME DEFINITIONS
+        // =========================
+
         private MudTheme GenerateLightTheme()
         {
             return new MudTheme
@@ -138,189 +238,6 @@ namespace StorhaugenWebsite.Services
             };
         }
 
-
-        // ========== CAFE (warm, clean brown + amber accent) ==========
-        private MudTheme GenerateCafeDarkTheme()
-        {
-            return new MudTheme
-            {
-                PaletteDark = new PaletteDark
-                {
-                    Primary = "#F0A35E",
-                    PrimaryDarken = "#E07A2E",
-                    PrimaryLighten = "#FFD2A6",
-
-                    Secondary = "#78BFA0",
-                    Tertiary = "#7CAAD0",
-                    Info = "#7CAAD0",
-                    Success = "#78BFA0",
-                    Warning = "#E6C06A",
-                    Error = "#E07B6F",
-
-                    Background = "#17120D",
-                    Surface = "#2A2118",
-                    AppbarBackground = "#241C14",
-                    DrawerBackground = "#241C14",
-                    AppbarText = "#F5F0E8",
-
-                    TextPrimary = "#F5F0E8",
-                    TextSecondary = "#B7AA9A",
-                    ActionDefault = "#B7AA9A",
-                    Divider = "#3B2F25",
-                    DividerLight = "#4A3B2F",
-                    BackgroundGray = "#201810"
-                },
-                Typography = GetTypography(),
-                LayoutProperties = new LayoutProperties { DefaultBorderRadius = "16px" }
-            };
-        }
-
-        // ========== WALNUT (deeper + sleeker contrast, still warm) ==========
-        private MudTheme GenerateWalnutDarkTheme()
-        {
-            return new MudTheme
-            {
-                PaletteDark = new PaletteDark
-                {
-                    Primary = "#E48B4A",
-                    PrimaryDarken = "#C96E33",
-                    PrimaryLighten = "#F4B789",
-
-                    Secondary = "#7DB6A3",
-                    Tertiary = "#7FA8C7",
-                    Info = "#7FA8C7",
-                    Success = "#7DB6A3",
-                    Warning = "#D7B66A",
-                    Error = "#D8786C",
-
-                    Background = "#120F0D",
-                    Surface = "#1F1914",
-                    AppbarBackground = "#1B1511",
-                    DrawerBackground = "#1B1511",
-                    AppbarText = "#F5F0E8",
-
-                    TextPrimary = "#F5F0E8",
-                    TextSecondary = "#A89B8A",
-                    ActionDefault = "#A89B8A",
-                    Divider = "#2F261F",
-                    DividerLight = "#3B3028",
-                    BackgroundGray = "#18130F"
-                },
-                Typography = GetTypography(),
-                LayoutProperties = new LayoutProperties { DefaultBorderRadius = "16px" }
-            };
-        }
-
-        // ========== CLAY (earthy, modern terracotta, warmer surfaces) ==========
-        private MudTheme GenerateClayDarkTheme()
-        {
-            return new MudTheme
-            {
-                PaletteDark = new PaletteDark
-                {
-                    Primary = "#D98A76",
-                    PrimaryDarken = "#BD6A59",
-                    PrimaryLighten = "#F0B0A2",
-
-                    Secondary = "#7FB3A0",
-                    Tertiary = "#7CAAD0",
-                    Info = "#7CAAD0",
-                    Success = "#7FB3A0",
-                    Warning = "#E0B86C",
-                    Error = "#D66B6B",
-
-                    Background = "#17100F",
-                    Surface = "#2B1B18",
-                    AppbarBackground = "#241513",
-                    DrawerBackground = "#241513",
-                    AppbarText = "#F5EEE9",
-
-                    TextPrimary = "#F5EEE9",
-                    TextSecondary = "#B09A95",
-                    ActionDefault = "#B09A95",
-                    Divider = "#3B2523",
-                    DividerLight = "#4A2F2C",
-                    BackgroundGray = "#211412"
-                },
-                Typography = GetTypography(),
-                LayoutProperties = new LayoutProperties { DefaultBorderRadius = "16px" }
-            };
-        }
-
-        // ========== MOSS (sleek brown base with muted green accent) ==========
-        private MudTheme GenerateMossDarkTheme()
-        {
-            return new MudTheme
-            {
-                PaletteDark = new PaletteDark
-                {
-                    Primary = "#79C98E",
-                    PrimaryDarken = "#55AE73",
-                    PrimaryLighten = "#A7E7B8",
-
-                    Secondary = "#E3A85B",   // warm accent to balance the green
-                    Tertiary = "#7CAAD0",
-                    Info = "#7CAAD0",
-                    Success = "#79C98E",
-                    Warning = "#E6C06A",
-                    Error = "#D8786C",
-
-                    Background = "#14130F",
-                    Surface = "#232016",
-                    AppbarBackground = "#1F1C13",
-                    DrawerBackground = "#1F1C13",
-                    AppbarText = "#F5F0E8",
-
-                    TextPrimary = "#F5F0E8",
-                    TextSecondary = "#ABA38F",
-                    ActionDefault = "#ABA38F",
-                    Divider = "#2F2C1F",
-                    DividerLight = "#3C3828",
-                    BackgroundGray = "#1B190F"
-                },
-                Typography = GetTypography(),
-                LayoutProperties = new LayoutProperties { DefaultBorderRadius = "16px" }
-            };
-        }
-
-        // ========== INK (cleaner, slightly cooler “modern” dark while staying cozy) ==========
-        private MudTheme GenerateInkDarkTheme()
-        {
-            return new MudTheme
-            {
-                PaletteDark = new PaletteDark
-                {
-                    Primary = "#5FAAD8",
-                    PrimaryDarken = "#3E8FB8",
-                    PrimaryLighten = "#92D0EE",
-
-                    Secondary = "#7FB3A0",
-                    Tertiary = "#E6B56A",   // warm counter-accent (prevents “bleak”)
-                    Info = "#5FAAD8",
-                    Success = "#7FB3A0",
-                    Warning = "#E6B56A",
-                    Error = "#D8786C",
-
-                    Background = "#131416",
-                    Surface = "#1C1E22",
-                    AppbarBackground = "#171A1E",
-                    DrawerBackground = "#171A1E",
-                    AppbarText = "#F5F0E8",
-
-                    TextPrimary = "#F5F0E8",
-                    TextSecondary = "#A7AAB0",
-                    ActionDefault = "#A7AAB0",
-                    Divider = "#2A2D33",
-                    DividerLight = "#383C44",
-                    BackgroundGray = "#16181C"
-                },
-                Typography = GetTypography(),
-                LayoutProperties = new LayoutProperties { DefaultBorderRadius = "16px" }
-            };
-        }
-
-
-        // ========== DARK THEME (Warm Dark) ==========
         private MudTheme GenerateDarkTheme()
         {
             return new MudTheme
@@ -353,7 +270,6 @@ namespace StorhaugenWebsite.Services
             };
         }
 
-        // ========== BLACK THEME ==========
         private MudTheme GenerateBlackTheme()
         {
             return new MudTheme
@@ -386,7 +302,6 @@ namespace StorhaugenWebsite.Services
             };
         }
 
-        // ========== MATERIAL THEME ==========
         private MudTheme GenerateMaterialTheme()
         {
             return new MudTheme
@@ -419,7 +334,6 @@ namespace StorhaugenWebsite.Services
             };
         }
 
-        // ========== FOREST THEME (Nattskog) ==========
         private MudTheme GenerateForestTheme()
         {
             return new MudTheme
@@ -452,6 +366,166 @@ namespace StorhaugenWebsite.Services
             };
         }
 
+        private MudTheme GenerateCafeDarkTheme()
+        {
+            return new MudTheme
+            {
+                PaletteDark = new PaletteDark
+                {
+                    Primary = "#F0A35E",
+                    PrimaryDarken = "#E07A2E",
+                    PrimaryLighten = "#FFD2A6",
+                    Secondary = "#78BFA0",
+                    Tertiary = "#7CAAD0",
+                    Info = "#7CAAD0",
+                    Success = "#78BFA0",
+                    Warning = "#E6C06A",
+                    Error = "#E07B6F",
+                    Background = "#17120D",
+                    Surface = "#2A2118",
+                    AppbarBackground = "#241C14",
+                    DrawerBackground = "#241C14",
+                    AppbarText = "#F5F0E8",
+                    TextPrimary = "#F5F0E8",
+                    TextSecondary = "#B7AA9A",
+                    ActionDefault = "#B7AA9A",
+                    Divider = "#3B2F25",
+                    DividerLight = "#4A3B2F",
+                    BackgroundGray = "#201810"
+                },
+                Typography = GetTypography(),
+                LayoutProperties = new LayoutProperties { DefaultBorderRadius = "16px" }
+            };
+        }
+
+        private MudTheme GenerateWalnutDarkTheme()
+        {
+            return new MudTheme
+            {
+                PaletteDark = new PaletteDark
+                {
+                    Primary = "#E48B4A",
+                    PrimaryDarken = "#C96E33",
+                    PrimaryLighten = "#F4B789",
+                    Secondary = "#7DB6A3",
+                    Tertiary = "#7FA8C7",
+                    Info = "#7FA8C7",
+                    Success = "#7DB6A3",
+                    Warning = "#D7B66A",
+                    Error = "#D8786C",
+                    Background = "#120F0D",
+                    Surface = "#1F1914",
+                    AppbarBackground = "#1B1511",
+                    DrawerBackground = "#1B1511",
+                    AppbarText = "#F5F0E8",
+                    TextPrimary = "#F5F0E8",
+                    TextSecondary = "#A89B8A",
+                    ActionDefault = "#A89B8A",
+                    Divider = "#2F261F",
+                    DividerLight = "#3B3028",
+                    BackgroundGray = "#18130F"
+                },
+                Typography = GetTypography(),
+                LayoutProperties = new LayoutProperties { DefaultBorderRadius = "16px" }
+            };
+        }
+
+        private MudTheme GenerateClayDarkTheme()
+        {
+            return new MudTheme
+            {
+                PaletteDark = new PaletteDark
+                {
+                    Primary = "#D98A76",
+                    PrimaryDarken = "#BD6A59",
+                    PrimaryLighten = "#F0B0A2",
+                    Secondary = "#7FB3A0",
+                    Tertiary = "#7CAAD0",
+                    Info = "#7CAAD0",
+                    Success = "#7FB3A0",
+                    Warning = "#E0B86C",
+                    Error = "#D66B6B",
+                    Background = "#17100F",
+                    Surface = "#2B1B18",
+                    AppbarBackground = "#241513",
+                    DrawerBackground = "#241513",
+                    AppbarText = "#F5EEE9",
+                    TextPrimary = "#F5EEE9",
+                    TextSecondary = "#B09A95",
+                    ActionDefault = "#B09A95",
+                    Divider = "#3B2523",
+                    DividerLight = "#4A2F2C",
+                    BackgroundGray = "#211412"
+                },
+                Typography = GetTypography(),
+                LayoutProperties = new LayoutProperties { DefaultBorderRadius = "16px" }
+            };
+        }
+
+        private MudTheme GenerateMossDarkTheme()
+        {
+            return new MudTheme
+            {
+                PaletteDark = new PaletteDark
+                {
+                    Primary = "#79C98E",
+                    PrimaryDarken = "#55AE73",
+                    PrimaryLighten = "#A7E7B8",
+                    Secondary = "#E3A85B",
+                    Tertiary = "#7CAAD0",
+                    Info = "#7CAAD0",
+                    Success = "#79C98E",
+                    Warning = "#E6C06A",
+                    Error = "#D8786C",
+                    Background = "#14130F",
+                    Surface = "#232016",
+                    AppbarBackground = "#1F1C13",
+                    DrawerBackground = "#1F1C13",
+                    AppbarText = "#F5F0E8",
+                    TextPrimary = "#F5F0E8",
+                    TextSecondary = "#ABA38F",
+                    ActionDefault = "#ABA38F",
+                    Divider = "#2F2C1F",
+                    DividerLight = "#3C3828",
+                    BackgroundGray = "#1B190F"
+                },
+                Typography = GetTypography(),
+                LayoutProperties = new LayoutProperties { DefaultBorderRadius = "16px" }
+            };
+        }
+
+        private MudTheme GenerateInkDarkTheme()
+        {
+            return new MudTheme
+            {
+                PaletteDark = new PaletteDark
+                {
+                    Primary = "#5FAAD8",
+                    PrimaryDarken = "#3E8FB8",
+                    PrimaryLighten = "#92D0EE",
+                    Secondary = "#7FB3A0",
+                    Tertiary = "#E6B56A",
+                    Info = "#5FAAD8",
+                    Success = "#7FB3A0",
+                    Warning = "#E6B56A",
+                    Error = "#D8786C",
+                    Background = "#131416",
+                    Surface = "#1C1E22",
+                    AppbarBackground = "#171A1E",
+                    DrawerBackground = "#171A1E",
+                    AppbarText = "#F5F0E8",
+                    TextPrimary = "#F5F0E8",
+                    TextSecondary = "#A7AAB0",
+                    ActionDefault = "#A7AAB0",
+                    Divider = "#2A2D33",
+                    DividerLight = "#383C44",
+                    BackgroundGray = "#16181C"
+                },
+                Typography = GetTypography(),
+                LayoutProperties = new LayoutProperties { DefaultBorderRadius = "16px" }
+            };
+        }
+
         private Typography GetTypography()
         {
             return new Typography
@@ -466,8 +540,83 @@ namespace StorhaugenWebsite.Services
                 H4 = new H4Typography { FontFamily = new[] { "Fraunces", "Georgia", "serif" }, FontWeight = "600" },
                 H5 = new H5Typography { FontFamily = new[] { "Fraunces", "Georgia", "serif" }, FontWeight = "600" },
                 H6 = new H6Typography { FontFamily = new[] { "DM Sans", "system-ui", "sans-serif" }, FontWeight = "600" },
-                Button = new ButtonTypography { FontFamily = new[] { "DM Sans", "system-ui", "sans-serif" }, FontWeight = "600", TextTransform = "none" }
+                Button = new ButtonTypography
+                {
+                    FontFamily = new[] { "DM Sans", "system-ui", "sans-serif" },
+                    FontWeight = "600",
+                    TextTransform = "none"
+                }
             };
+        }
+
+        // =========================
+        //  COLOR HELPERS
+        // =========================
+
+        private static string? NormalizeHex(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return null;
+
+            try
+            {
+                var c = new MudColor(value.Trim());
+                return $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string AdjustHex(string hex, double amount)
+        {
+            if (!TryParseHex(hex, out var r, out var g, out var b))
+                return hex;
+
+            int Lighten(int c) => (int)Math.Clamp(c + (255 - c) * amount, 0, 255);
+            int Darken(int c) => (int)Math.Clamp(c * (1.0 + amount), 0, 255);
+
+            int nr, ng, nb;
+
+            if (amount >= 0)
+            {
+                nr = Lighten(r);
+                ng = Lighten(g);
+                nb = Lighten(b);
+            }
+            else
+            {
+                nr = Darken(r);
+                ng = Darken(g);
+                nb = Darken(b);
+            }
+
+            return $"#{nr:X2}{ng:X2}{nb:X2}";
+        }
+
+        private static bool TryParseHex(string hex, out int r, out int g, out int b)
+        {
+            r = g = b = 0;
+            var n = NormalizeHex(hex);
+            if (string.IsNullOrWhiteSpace(n)) return false;
+
+            try
+            {
+                r = Convert.ToInt32(n.Substring(1, 2), 16);
+                g = Convert.ToInt32(n.Substring(3, 2), 16);
+                b = Convert.ToInt32(n.Substring(5, 2), 16);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public void Dispose()
+        {
+            _deviceState.OnSettingsChanged -= HandleDeviceSettingsChanged;
         }
     }
 }

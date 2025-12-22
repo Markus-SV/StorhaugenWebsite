@@ -4,6 +4,8 @@ namespace StorhaugenWebsite.Services
 {
     public interface ICollectionStateService
     {
+        UserDto? CurrentProfile { get; }
+
         /// <summary>
         /// All collections the current user owns or is a member of.
         /// </summary>

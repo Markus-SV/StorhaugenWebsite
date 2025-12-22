@@ -8,6 +8,7 @@ namespace StorhaugenWebsite.Services
         private readonly IApiClient _apiClient;
         private readonly IAuthService _authService;
         private Guid? _currentUserId;
+        public UserDto? CurrentProfile { get; private set; }
 
         public List<CollectionDto> UserCollections { get; private set; } = new();
         public CollectionDto? ActiveCollection { get; private set; }
@@ -52,8 +53,8 @@ namespace StorhaugenWebsite.Services
             try
             {
                 // Get current user ID
-                var profile = await _apiClient.GetMyProfileAsync();
-                _currentUserId = profile?.Id;
+                CurrentProfile = await _apiClient.GetMyProfileAsync();
+                _currentUserId = CurrentProfile?.Id;
 
                 // Load collections
                 UserCollections = await _apiClient.GetMyCollectionsAsync();

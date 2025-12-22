@@ -1,6 +1,6 @@
 ================================================================================
 PROJECT CONTEXT FILE
-Generated on: 12/19/2025 21:13:35
+Generated on: 12/22/2025 01:26:53
 ================================================================================
 PROJECT STRUCTURE:
 ==================
@@ -1718,8 +1718,8 @@ public class GlobalRecipesController : ControllerBase
             Id = recipe.Id,
             Name = recipe.Title,
             Description = recipe.Description,
-            ImageUrl = recipe.ImageUrl,
-            ImageUrls = JsonHelper.JsonToList(recipe.ImageUrls),
+            ImageUrl = recipe.IsHellofresh ? null : recipe.ImageUrl,
+            ImageUrls = recipe.IsHellofresh ? new List<string>() : JsonHelper.JsonToList(recipe.ImageUrls),
             Ingredients = JsonHelper.JsonToObject(recipe.Ingredients),
             NutritionData = JsonHelper.JsonToObject(recipe.NutritionData),
             PrepTimeMinutes = recipe.PrepTimeMinutes,
@@ -4484,6 +4484,7 @@ FILE START: \StorhaugenEats.API\Services\CollectionService.cs
 ================================================================================
 using Microsoft.EntityFrameworkCore;
 using StorhaugenEats.API.Data;
+using StorhaugenEats.API.Helpers;
 using StorhaugenEats.API.Models;
 using StorhaugenWebsite.Shared.DTOs;
 using System.Text.Json;
@@ -4680,15 +4681,19 @@ public class CollectionService : ICollectionService
             throw new InvalidOperationException("You don't have access to this collection");
 
         var recipesQuery = _context.UserRecipeCollections
-            .Where(urc => urc.CollectionId == collectionId)
-            .Include(urc => urc.UserRecipe)
-                .ThenInclude(ur => ur.User)
-            .Include(urc => urc.UserRecipe)
-                .ThenInclude(ur => ur.GlobalRecipe)
-            .Include(urc => urc.UserRecipe)
-                .ThenInclude(ur => ur.Ratings)
-                    .ThenInclude(r => r.User)
-            .AsQueryable();
+        .Where(urc => urc.CollectionId == collectionId)
+        .Include(urc => urc.UserRecipe)
+            .ThenInclude(ur => ur.User)
+        .Include(urc => urc.UserRecipe)
+            .ThenInclude(ur => ur.GlobalRecipe)
+        .Include(urc => urc.UserRecipe)
+            .ThenInclude(ur => ur.Ratings)
+                .ThenInclude(r => r.User)
+        .Include(urc => urc.UserRecipe)
+            .ThenInclude(ur => ur.UserRecipeTags)
+                .ThenInclude(rt => rt.Tag)
+        .AsQueryable();
+
 
         // Search filter
         if (!string.IsNullOrWhiteSpace(query.Search))
@@ -4726,7 +4731,7 @@ public class CollectionService : ICollectionService
             .Select(urc => urc.UserRecipe)
             .ToListAsync();
 
-        var recipeDtos = recipes.Select(r => MapUserRecipeToDto(r, userId)).ToList();
+        var recipeDtos = recipes.Select(r => MapRecipeToDto(r, userId)).ToList();
 
         return new CollectionRecipesResult
         {
@@ -4828,38 +4833,64 @@ public class CollectionService : ICollectionService
     public async Task AddMemberAsync(Guid collectionId, Guid userId, AddCollectionMemberDto dto)
     {
         var collection = await _context.Collections
-            .Include(c => c.Members)
             .FirstOrDefaultAsync(c => c.Id == collectionId);
 
         if (collection == null)
             throw new InvalidOperationException("Collection not found");
 
-        if (collection.OwnerUserId != userId)
-            throw new InvalidOperationException("Only the owner can add members");
+        // ? Allow any existing member (owner is also stored in collection_members)
+        var inviterIsMember = await _context.CollectionMembers
+            .AnyAsync(cm => cm.CollectionId == collectionId && cm.UserId == userId);
 
-        // Find user by share ID or email
-        var targetUser = await _context.Users
-            .FirstOrDefaultAsync(u => u.UniqueShareId == dto.UserIdentifier || u.Email == dto.UserIdentifier);
+        if (!inviterIsMember)
+            throw new InvalidOperationException("Only collection members can add members");
 
-        if (targetUser == null)
-            throw new InvalidOperationException("User not found");
+        if (string.IsNullOrWhiteSpace(dto.UserIdentifier))
+            throw new InvalidOperationException("User identifier is required");
 
-        // Check if already a member
-        if (collection.Members.Any(m => m.UserId == targetUser.Id))
+        var identifier = dto.UserIdentifier.Trim();
+
+        // 1) Try GUID -> user.Id
+        User? userToAdd = null;
+        if (Guid.TryParse(identifier, out var parsedUserId))
+        {
+            userToAdd = await _context.Users.FirstOrDefaultAsync(u => u.Id == parsedUserId);
+        }
+
+        // 2) Otherwise: match ShareId or Email (case-insensitive)
+        var identLower = identifier.ToLower();
+        userToAdd ??= await _context.Users.FirstOrDefaultAsync(u =>
+            u.UniqueShareId.ToLower() == identLower ||
+            u.Email.ToLower() == identLower
+        );
+
+        if (userToAdd == null)
+            throw new InvalidOperationException("User not found with that identifier");
+
+        // (Optional) prevent adding yourself
+        if (userToAdd.Id == userId)
+            throw new InvalidOperationException("You are already a member of this collection");
+
+        var alreadyMember = await _context.CollectionMembers
+            .AnyAsync(cm => cm.CollectionId == collectionId && cm.UserId == userToAdd.Id);
+
+        if (alreadyMember)
             throw new InvalidOperationException("User is already a member of this collection");
 
         _context.CollectionMembers.Add(new CollectionMember
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.NewGuid(),               // important since your model has Guid Id without DB generation
             CollectionId = collectionId,
-            UserId = targetUser.Id,
-            Role = "member",
+            UserId = userToAdd.Id,
+            Role = "member",                   //  matches your entity model
             JoinedAt = DateTime.UtcNow,
-            InvitedByUserId = userId
+            InvitedByUserId = userId           //  track who invited
         });
 
         await _context.SaveChangesAsync();
     }
+
+
 
     public async Task RemoveMemberAsync(Guid collectionId, Guid memberId, Guid userId)
     {
@@ -5046,16 +5077,42 @@ public class CollectionService : ICollectionService
         return new string(Enumerable.Range(0, 8).Select(_ => chars[random.Next(chars.Length)]).ToArray());
     }
 
-    private UserRecipeDto MapUserRecipeToDto(UserRecipe recipe, Guid userId)
+    private UserRecipeDto MapRecipeToDto(UserRecipe recipe, Guid requestingUserId)
     {
-        var myRating = recipe.Ratings?.FirstOrDefault(r => r.UserId == userId);
-        var avgRating = recipe.Ratings?.Any() == true ? recipe.Ratings.Average(r => r.Score) : 0;
+        var myRating = recipe.Ratings?.FirstOrDefault(r => r.UserId == requestingUserId);
 
-        // Build member ratings dictionary (excluding requesting user's own rating)
+        var avgRating = recipe.Ratings?.Any() == true
+            ? recipe.Ratings.Average(r => r.Score)
+            : 0;
+
         var memberRatings = recipe.Ratings?
-            .Where(r => r.User != null && r.UserId != userId)
+            .Where(r => r.User != null && r.UserId != requestingUserId)
             .ToDictionary(r => r.User!.DisplayName, r => (decimal?)r.Score)
             ?? new Dictionary<string, decimal?>();
+
+        // Ingredients (local wins over global)
+        object? ingredients = null;
+        if (!string.IsNullOrWhiteSpace(recipe.LocalIngredients))
+            ingredients = JsonHelper.JsonToObject(recipe.LocalIngredients);
+        else if (!string.IsNullOrWhiteSpace(recipe.GlobalRecipe?.Ingredients))
+            ingredients = JsonHelper.JsonToObject(recipe.GlobalRecipe.Ingredients);
+
+        // Global tags + nutrition
+        var recipeTags = JsonHelper.JsonToList(recipe.GlobalRecipe?.Tags);
+        var nutritionData = JsonHelper.JsonToObject(recipe.GlobalRecipe?.NutritionData);
+
+        // Personal organization tags (from user_recipe_tags)
+        var tags = recipe.UserRecipeTags?
+            .Where(rt => rt.Tag != null)
+            .Select(rt => new TagReferenceDto
+            {
+                Id = rt.TagId,
+                Name = rt.Tag!.Name,
+                Color = rt.Tag!.Color
+            })
+            .OrderBy(t => t.Name)
+            .ToList()
+            ?? new List<TagReferenceDto>();
 
         return new UserRecipeDto
         {
@@ -5063,24 +5120,44 @@ public class CollectionService : ICollectionService
             UserId = recipe.UserId,
             UserDisplayName = recipe.User?.DisplayName ?? "Unknown",
             UserAvatarUrl = recipe.User?.AvatarUrl,
+
             Name = recipe.LocalTitle ?? recipe.GlobalRecipe?.Title ?? "Untitled",
             Description = recipe.LocalDescription ?? recipe.GlobalRecipe?.Description,
             ImageUrls = GetImageUrls(recipe),
+            Ingredients = ingredients,
+
+            // Metadata (local wins over global)
+            PrepTimeMinutes = recipe.LocalPrepTimeMinutes ?? recipe.GlobalRecipe?.PrepTimeMinutes,
+            CookTimeMinutes = recipe.LocalCookTimeMinutes ?? recipe.GlobalRecipe?.CookTimeMinutes,
+            Servings = recipe.LocalServings ?? recipe.GlobalRecipe?.Servings,
+            Difficulty = recipe.LocalDifficulty ?? recipe.GlobalRecipe?.Difficulty,
+            Cuisine = recipe.LocalCuisine ?? recipe.GlobalRecipe?.Cuisine,
+            RecipeTags = recipeTags,
+            NutritionData = nutritionData,
+
+            IsHellofresh = recipe.GlobalRecipe?.IsHellofresh ?? false,
+            HellofreshWeek = recipe.GlobalRecipe?.HellofreshWeek,
+
             GlobalRecipeId = recipe.GlobalRecipeId,
             GlobalRecipeName = recipe.GlobalRecipe?.Title,
-            Visibility = recipe.Visibility,
-            PersonalNotes = recipe.UserId == userId ? recipe.PersonalNotes : null,
+            IsPublished = recipe.GlobalRecipe?.PublishedFromUserRecipeId == recipe.Id,
+
+            Visibility = string.IsNullOrWhiteSpace(recipe.Visibility) ? "private" : recipe.Visibility,
+            PersonalNotes = recipe.UserId == requestingUserId ? recipe.PersonalNotes : null,
+
             IsArchived = recipe.IsArchived,
             CreatedAt = recipe.CreatedAt,
             UpdatedAt = recipe.UpdatedAt,
+
             MyRating = myRating?.Score,
             AverageRating = (double)avgRating,
             RatingCount = recipe.Ratings?.Count ?? 0,
             MemberRatings = memberRatings,
-            IsHellofresh = recipe.GlobalRecipe?.IsHellofresh ?? false,
-            HellofreshWeek = recipe.GlobalRecipe?.HellofreshWeek
+
+            Tags = tags
         };
     }
+
 
     private static List<string> GetImageUrls(UserRecipe recipe)
     {
@@ -5405,7 +5482,8 @@ public class GlobalRecipeService : IGlobalRecipeService
             // Update existing
             existing.Title = recipe.Title;
             existing.Description = recipe.Description;
-            existing.ImageUrl = recipe.ImageUrl;
+            existing.ImageUrl = null;
+            existing.ImageUrls = "[]";
             existing.Ingredients = recipe.Ingredients;
             existing.NutritionData = recipe.NutritionData;
             existing.CookTimeMinutes = recipe.CookTimeMinutes;
@@ -5417,6 +5495,8 @@ public class GlobalRecipeService : IGlobalRecipeService
         {
             // Insert new
             recipe.IsHellofresh = true;
+            recipe.ImageUrl = null;
+            recipe.ImageUrls = "[]";
             recipe.CreatedAt = DateTime.UtcNow;
             recipe.UpdatedAt = DateTime.UtcNow;
             _context.GlobalRecipes.Add(recipe);
@@ -7213,8 +7293,9 @@ FILE START: \StorhaugenEats.API\Services\UserRecipeService.cs
 ================================================================================
 using Microsoft.EntityFrameworkCore;
 using StorhaugenEats.API.Data;
-using StorhaugenWebsite.Shared.DTOs;
+using StorhaugenEats.API.Helpers;
 using StorhaugenEats.API.Models;
+using StorhaugenWebsite.Shared.DTOs;
 using System.Text.Json;
 
 namespace StorhaugenEats.API.Services;
@@ -7244,6 +7325,7 @@ public class UserRecipeService : IUserRecipeService
             .Include(r => r.User)
             .Include(r => r.GlobalRecipe)
             .Include(r => r.Ratings)
+                .ThenInclude(rt => rt.User)
             .Include(r => r.UserRecipeTags)
                 .ThenInclude(rt => rt.Tag)
             .Where(r => r.UserId == userId);
@@ -7308,6 +7390,8 @@ public class UserRecipeService : IUserRecipeService
         var recipe = await _context.UserRecipes
             .Include(r => r.User)
             .Include(r => r.GlobalRecipe)
+            .Include(r => r.UserRecipeTags)
+                .ThenInclude(rt => rt.Tag)
             .Include(r => r.Ratings)
                 .ThenInclude(rt => rt.User)
             .FirstOrDefaultAsync(r => r.Id == recipeId);
@@ -7831,47 +7915,35 @@ public class UserRecipeService : IUserRecipeService
 
     private UserRecipeDto MapToDto(UserRecipe recipe, Guid requestingUserId)
     {
-        var imageUrls = new List<string>();
-        try
-        {
-            if (!string.IsNullOrEmpty(recipe.LocalImageUrl))
-            {
-                imageUrls.Add(recipe.LocalImageUrl);
-            }
-            else if (!string.IsNullOrEmpty(recipe.LocalImageUrls) && recipe.LocalImageUrls != "[]")
-            {
-                imageUrls = JsonSerializer.Deserialize<List<string>>(recipe.LocalImageUrls) ?? new();
-            }
-            else if (recipe.GlobalRecipe != null && !string.IsNullOrEmpty(recipe.GlobalRecipe.ImageUrls))
-            {
-                imageUrls = JsonSerializer.Deserialize<List<string>>(recipe.GlobalRecipe.ImageUrls) ?? new();
-            }
-        }
-        catch { }
+        var imageUrls = JsonHelper.JsonToList(recipe.DisplayImageUrls);
 
         var myRating = recipe.Ratings?.FirstOrDefault(r => r.UserId == requestingUserId);
 
-        // Exclude the requesting user's rating from memberRatings to avoid duplicates
         var memberRatings = recipe.Ratings?
             .Where(r => r.User != null && r.UserId != requestingUserId)
             .ToDictionary(r => r.User!.DisplayName, r => (decimal?)r.Score)
             ?? new Dictionary<string, decimal?>();
 
-        // Parse recipe tags from GlobalRecipe
-        var recipeTags = new List<string>();
-        if (recipe.GlobalRecipe?.Tags != null)
-        {
-            try { recipeTags = JsonSerializer.Deserialize<List<string>>(recipe.GlobalRecipe.Tags) ?? new(); }
-            catch { }
-        }
+        var recipeTags = JsonHelper.JsonToList(recipe.GlobalRecipe?.Tags);
+        var nutritionData = JsonHelper.JsonToObject(recipe.GlobalRecipe?.NutritionData);
 
-        // Parse nutrition data from GlobalRecipe
-        object? nutritionData = null;
-        if (recipe.GlobalRecipe?.NutritionData != null)
-        {
-            try { nutritionData = JsonSerializer.Deserialize<object>(recipe.GlobalRecipe.NutritionData); }
-            catch { }
-        }
+        object? ingredients = null;
+        if (!string.IsNullOrWhiteSpace(recipe.LocalIngredients))
+            ingredients = JsonHelper.JsonToObject(recipe.LocalIngredients);
+        else if (!string.IsNullOrWhiteSpace(recipe.GlobalRecipe?.Ingredients))
+            ingredients = JsonHelper.JsonToObject(recipe.GlobalRecipe.Ingredients);
+
+        var tags = recipe.UserRecipeTags?
+            .Where(rt => rt.Tag != null)
+            .Select(rt => new TagReferenceDto
+            {
+                Id = rt.TagId,
+                Name = rt.Tag!.Name,
+                Color = rt.Tag!.Color
+            })
+            .OrderBy(t => t.Name)
+            .ToList()
+            ?? new List<TagReferenceDto>();
 
         return new UserRecipeDto
         {
@@ -7879,16 +7951,12 @@ public class UserRecipeService : IUserRecipeService
             UserId = recipe.UserId,
             UserDisplayName = recipe.User?.DisplayName ?? "Unknown",
             UserAvatarUrl = recipe.User?.AvatarUrl,
+
             Name = recipe.LocalTitle ?? recipe.GlobalRecipe?.Title ?? "Untitled",
             Description = recipe.LocalDescription ?? recipe.GlobalRecipe?.Description,
             ImageUrls = imageUrls,
-            Ingredients = recipe.LocalIngredients != null
-                ? JsonSerializer.Deserialize<object>(recipe.LocalIngredients)
-                : (recipe.GlobalRecipe?.Ingredients != null
-                    ? JsonSerializer.Deserialize<object>(recipe.GlobalRecipe.Ingredients)
-                    : null),
+            Ingredients = ingredients,
 
-            // Metadata - use local values if available, otherwise fall back to GlobalRecipe
             PrepTimeMinutes = recipe.LocalPrepTimeMinutes ?? recipe.GlobalRecipe?.PrepTimeMinutes,
             CookTimeMinutes = recipe.LocalCookTimeMinutes ?? recipe.GlobalRecipe?.CookTimeMinutes,
             Servings = recipe.LocalServings ?? recipe.GlobalRecipe?.Servings,
@@ -7896,23 +7964,30 @@ public class UserRecipeService : IUserRecipeService
             Cuisine = recipe.LocalCuisine ?? recipe.GlobalRecipe?.Cuisine,
             RecipeTags = recipeTags,
             NutritionData = nutritionData,
+
             IsHellofresh = recipe.GlobalRecipe?.IsHellofresh ?? false,
             HellofreshWeek = recipe.GlobalRecipe?.HellofreshWeek,
 
             GlobalRecipeId = recipe.GlobalRecipeId,
             GlobalRecipeName = recipe.GlobalRecipe?.Title,
             IsPublished = recipe.GlobalRecipe?.PublishedFromUserRecipeId == recipe.Id,
-            Visibility = recipe.Visibility,
-            PersonalNotes = recipe.PersonalNotes,
+
+            Visibility = string.IsNullOrWhiteSpace(recipe.Visibility) ? "private" : recipe.Visibility,
+            PersonalNotes = recipe.UserId == requestingUserId ? recipe.PersonalNotes : null,
+
             IsArchived = recipe.IsArchived,
             CreatedAt = recipe.CreatedAt,
             UpdatedAt = recipe.UpdatedAt,
+
             MyRating = myRating?.Score,
             AverageRating = recipe.Ratings?.Any() == true ? (double)recipe.Ratings.Average(r => r.Score) : 0,
             RatingCount = recipe.Ratings?.Count ?? 0,
-            MemberRatings = memberRatings
+            MemberRatings = memberRatings,
+
+            Tags = tags
         };
     }
+
 }
 
 ================================================================================
@@ -8998,7 +9073,7 @@ FILE START: \StorhaugenWebsite\Components\ActivityFeed.razor
 <div class="activity-feed">
     <XFade IsLoading="@_isLoading" FirstLoadOnly="true" FadeMs="220">
         <Skeleton>
-            <RecipeSkeleton Amount="5" Height="84px" DisableImage LineAmount="0" />
+            <RecipeSkeleton Amount="5" Height="92.59px" DisableImage LineAmount="0" />
         </Skeleton>
         <ChildContent>
 
@@ -10332,10 +10407,6 @@ FILE START: \StorhaugenWebsite\Components\HelloFreshRecipeDetails.razor
         .hf-quick-info {
             grid-template-columns: 1fr;
         }
-
-        .hf-nutrition-grid {
-            grid-template-columns: repeat(2, 1fr);
-        }
     }
 </style>
 
@@ -10530,253 +10601,256 @@ FILE START: \StorhaugenWebsite\Components\InviteMemberDialog.razor
 @inject IUserColorService UserColorService
 @inject ISnackbar Snackbar
 
-<MudDialog>
+<MudDialog Class="invite-dialog">
     <DialogContent>
-        <div class="invite-dialog">
-            <MudText Typo="Typo.h6" Class="mb-2">Inviter medlem til @CollectionName</MudText>
-            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-                Velg en venn eller søk etter brukere.
-            </MudText>
+        <MudStack Spacing="2">
+            <div>
+                <MudText Typo="Typo.h6">Inviter medlem til @CollectionName</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                    Velg en venn eller søk etter brukere.
+                </MudText>
+            </div>
 
-            @* --- Search Bar --- *@
+            @* Search *@
             <MudTextField @bind-Value="_searchQuery"
-                          Placeholder="Søk etter navn eller ID..."
+                          Placeholder="Søk etter navn, e-post eller ID..."
                           Variant="Variant.Outlined"
                           Adornment="Adornment.Start"
                           AdornmentIcon="@Icons.Material.Rounded.Search"
                           Immediate="true"
                           DebounceInterval="400"
                           OnDebounceIntervalElapsed="PerformSearch"
-                          Class="mb-3"
                           Margin="Margin.Dense"
                           Clearable="true"
-                          OnClearButtonClick="@(() => { _searchQuery = string.Empty; _searchResults.Clear(); })" />
+                          OnClearButtonClick="@ClearSearch" />
 
-            @* --- Search Results --- *@
             @if (!string.IsNullOrWhiteSpace(_searchQuery))
             {
+                <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Resultater</MudText>
+
                 @if (_isSearching)
                 {
-                    <div class="d-flex justify-center py-3">
+                    <div class="d-flex justify-center py-2">
                         <MudProgressCircular Size="Size.Small" Indeterminate="true" />
                     </div>
                 }
                 else if (_searchResults.Any())
                 {
-                    <div class="friend-list mb-3">
+                    <MudStack Spacing="1">
                         @foreach (var user in _searchResults)
                         {
-                            <div class="friend-item" @onclick="@(() => InviteUser(user.Id, user.DisplayName))">
-                                <MudAvatar Size="Size.Small" Style="@($"background-color: {UserColorService.GetUserColor(user.DisplayName)}; color: white;")">
-                                    @(user.DisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
-                                </MudAvatar>
-                                <div class="friend-info">
-                                    <span class="friend-name">@user.DisplayName</span>
-                                    <span class="friend-id">ID: @user.ShareId</span>
+                            <MudPaper Class="pa-3 friend-card" Elevation="0" Outlined="true">
+                                <div class="d-flex align-center gap-3">
+                                    <MudAvatar Size="Size.Medium"
+                                               Style="@($"background-color: {UserColorService.GetUserColor(user.DisplayName)}; color: white;")">
+                                        @(user.DisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                                    </MudAvatar>
+
+                                    <div class="flex-grow-1">
+                                        <MudText Typo="Typo.body1" Style="font-weight:600;">@user.DisplayName</MudText>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">ID: @user.ShareId</MudText>
+                                    </div>
+
+                                    <MudIconButton Icon="@Icons.Material.Rounded.PersonAdd"
+                                                   Color="Color.Primary"
+                                                   Variant="Variant.Filled"
+                                                   Size="Size.Small"
+                                                   Disabled="@(_isSending || _invitingIds.Contains(user.Id))"
+                                                   OnClick="@(() => InviteUser(user.Id, user.DisplayName))" />
                                 </div>
-                                <MudIcon Icon="@Icons.Material.Rounded.PersonAdd" Size="Size.Small" Color="Color.Primary" />
-                            </div>
+                            </MudPaper>
                         }
-                    </div>
+                    </MudStack>
                 }
                 else
                 {
-                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="text-center py-2">
-                        Ingen brukere funnet
-                    </MudText>
+                    <div class="empty-state">
+                        <MudIcon Icon="@Icons.Material.Rounded.SearchOff" Size="Size.Large" Color="Color.Default" />
+                        <MudText Typo="Typo.body1" Class="mt-2">Ingen brukere funnet</MudText>
+                    </div>
                 }
             }
             else
             {
-                @* --- Friends List --- *@
+                @* Friends *@
+                <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Venner</MudText>
+
                 @if (_isLoadingFriends)
                 {
-                    <div class="d-flex justify-center py-3">
+                    <div class="d-flex justify-center py-2">
                         <MudProgressCircular Size="Size.Small" Indeterminate="true" />
                     </div>
                 }
                 else if (_friends.Any())
                 {
-                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">Venner</MudText>
-                    <div class="friend-list mb-3">
+                    <MudStack Spacing="1">
                         @foreach (var friend in _friends)
                         {
-                            <div class="friend-item" @onclick="@(() => InviteUser(friend.FriendUserId, friend.FriendDisplayName))">
-                                <MudAvatar Size="Size.Small" Style="@($"background-color: {UserColorService.GetUserColor(friend.FriendDisplayName)}; color: white;")">
-                                    @(friend.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
-                                </MudAvatar>
-                                <div class="friend-info">
-                                    <span class="friend-name">@friend.FriendDisplayName</span>
+                            <MudPaper Class="pa-3 friend-card" Elevation="0" Outlined="true">
+                                <div class="d-flex align-center gap-3">
+                                    <MudAvatar Size="Size.Medium"
+                                               Style="@($"background-color: {UserColorService.GetUserColor(friend.FriendDisplayName)}; color: white;")">
+                                        @(friend.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                                    </MudAvatar>
+
+                                    <div class="flex-grow-1">
+                                        <MudText Typo="Typo.body1" Style="font-weight:600;">@friend.FriendDisplayName</MudText>
+                                    </div>
+
+                                    <MudIconButton Icon="@Icons.Material.Rounded.PersonAdd"
+                                                   Color="Color.Primary"
+                                                   Variant="Variant.Filled"
+                                                   Size="Size.Small"
+                                                   Disabled="@(_isSending || _invitingIds.Contains(friend.FriendUserId))"
+                                                   OnClick="@(() => InviteUser(friend.FriendUserId, friend.FriendDisplayName))" />
                                 </div>
-                                <MudIcon Icon="@Icons.Material.Rounded.PersonAdd" Size="Size.Small" Color="Color.Primary" />
-                            </div>
+                            </MudPaper>
                         }
-                    </div>
+                    </MudStack>
                 }
                 else
                 {
-                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="text-center py-2 mb-2">
-                        Du har ingen venner ennå
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="text-center py-2">
+                        Du har ingen venner å invitere (eller alle er allerede i samlingen).
                     </MudText>
                 }
 
-                @* --- Manual Entry Fallback --- *@
-                <MudExpansionPanels Class="mt-2" Elevation="0">
-                    <MudExpansionPanel Text="Inviter med e-post eller Dele-ID" Dense="true" Style="background: transparent;">
-                        <MudTabs Rounded="true" Centered="true" Class="mb-3" @bind-ActivePanelIndex="_activeTab">
-                            <MudTabPanel Text="E-post" Icon="@Icons.Material.Rounded.Email">
-                                <MudForm @ref="_emailForm" @bind-IsValid="_emailIsValid" Class="mt-3">
-                                    <MudTextField @bind-Value="_email"
-                                                  Label="E-postadresse"
-                                                  Variant="Variant.Outlined"
-                                                  Required="true"
-                                                  RequiredError="E-post er påkrevd"
-                                                  Validation="@(new EmailAddressAttribute() { ErrorMessage = "Vennligst skriv inn en gyldig e-postadresse" })"
-                                                  Adornment="Adornment.Start"
-                                                  AdornmentIcon="@Icons.Material.Rounded.Email"
-                                                  HelperText="f.eks. venn@example.com"
-                                                  Immediate="true"
-                                                  Margin="Margin.Dense" />
-                                </MudForm>
-                            </MudTabPanel>
-                            <MudTabPanel Text="Dele-ID" Icon="@Icons.Material.Rounded.Tag">
-                                <MudForm @ref="_shareIdForm" @bind-IsValid="_shareIdIsValid" Class="mt-3">
-                                    <MudTextField @bind-Value="_shareId"
-                                                  Label="Dele-ID"
-                                                  Variant="Variant.Outlined"
-                                                  Required="true"
-                                                  RequiredError="Dele-ID er påkrevd"
-                                                  Adornment="Adornment.Start"
-                                                  AdornmentIcon="@Icons.Material.Rounded.Tag"
-                                                  HelperText="f.eks. ABC123XYZ"
-                                                  Immediate="true"
-                                                  Margin="Margin.Dense"
-                                                  Style="text-transform: uppercase; font-family: monospace; letter-spacing: 1px;" />
-                                </MudForm>
-                            </MudTabPanel>
-                        </MudTabs>
+                <MudDivider Class="my-2" />
 
-                        <MudButton Variant="Variant.Filled"
-                                   Color="Color.Primary"
-                                   FullWidth="true"
-                                   OnClick="SendInvite"
-                                   Disabled="_isSending || !IsCurrentFormValid()">
-                            @if (_isSending)
-                            {
-                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                                <span>Sender...</span>
-                            }
-                            else
-                            {
-                                <span>Send invitasjon</span>
-                            }
-                        </MudButton>
-                    </MudExpansionPanel>
-                </MudExpansionPanels>
+                @* Manual entry - no tabs *@
+                <MudPaper Class="pa-3" Outlined="true" Elevation="0" Style="border-radius:12px;">
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">Inviter med e-post eller Dele-ID</MudText>
+
+                    <MudSelect T="InviteMode"
+                               Label="Type"
+                               Dense="true"
+                               Variant="Variant.Outlined"
+                               Value="_inviteMode"
+                               ValueChanged="OnInviteModeChanged">
+                        <MudSelectItem Value="InviteMode.Email">E-post</MudSelectItem>
+                        <MudSelectItem Value="InviteMode.ShareId">Dele-ID</MudSelectItem>
+                    </MudSelect>
+
+                    <MudTextField Class="mt-2"
+                                  @bind-Value="_manualIdentifier"
+                                  Label="@(_inviteMode == InviteMode.Email ? "E-postadresse" : "Dele-ID")"
+                                  Variant="Variant.Outlined"
+                                  Dense="true"
+                                  Immediate="true"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@(_inviteMode == InviteMode.Email ? Icons.Material.Rounded.Email : Icons.Material.Rounded.Tag)"
+                                  HelperText="@(_inviteMode == InviteMode.Email ? "f.eks. venn@example.com" : "f.eks. ABC123XYZ")"
+                                  Style="@(_inviteMode == InviteMode.ShareId ? "text-transform:uppercase; font-family:monospace; letter-spacing:1px;" : null)" />
+
+                    <MudButton Class="mt-3"
+                               Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               FullWidth="true"
+                               Disabled="@(_isSending || string.IsNullOrWhiteSpace(_manualIdentifier))"
+                               OnClick="SendManualInvite">
+                        @if (_isSending)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                            <span>Sender...</span>
+                        }
+                        else
+                        {
+                            <span>Send invitasjon</span>
+                        }
+                    </MudButton>
+                </MudPaper>
             }
 
             @if (!string.IsNullOrEmpty(_errorMessage))
             {
-                <MudAlert Severity="Severity.Error" Class="mt-3" Dense="true" ShowCloseIcon="true" CloseIconClicked="@(() => _errorMessage = null)">
+                <MudAlert Severity="Severity.Error" Dense="true" ShowCloseIcon="true"
+                          CloseIconClicked="@(_ => _errorMessage = null)">
                     @_errorMessage
                 </MudAlert>
             }
 
             @if (!string.IsNullOrEmpty(_successMessage))
             {
-                <MudAlert Severity="Severity.Success" Class="mt-3" Dense="true">
+                <MudAlert Severity="Severity.Success" Dense="true">
                     @_successMessage
                 </MudAlert>
             }
-        </div>
+        </MudStack>
     </DialogContent>
 
     <DialogActions>
-        <MudButton OnClick="Cancel" Disabled="_isSending">Lukk</MudButton>
+        <MudButton OnClick="Close">Lukk</MudButton>
     </DialogActions>
 </MudDialog>
 
 <style>
-    .invite-dialog {
-        padding: 8px 0;
-        min-width: 300px;
+    .friend-card {
+        border-radius: 12px;
     }
 
-    .friend-list {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        max-height: 250px;
-        overflow-y: auto;
-    }
+    /* Mobile: make dialog use screen height & allow content scroll */
+    @@media (max-width: 600px) {
+        .invite-dialog.mud-dialog {
+            width: 100vw;
+            max-width: 100vw;
+            height: 100dvh;
+            max-height: 100dvh;
+            margin: 0;
+            border-radius: 0;
 
-    .friend-item {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 8px 12px;
-        background: var(--mud-palette-background-grey);
-        border-radius: 8px;
-        cursor: pointer;
-        transition: background 0.15s ease;
-    }
+        }
 
-    .friend-item:hover {
-        background: var(--mud-palette-action-default-hover);
-    }
-
-    .friend-info {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        min-width: 0;
-    }
-
-    .friend-name {
-        font-weight: 500;
-        font-size: 0.9rem;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .friend-id {
-        font-size: 0.75rem;
-        color: var(--mud-palette-text-secondary);
+        .invite-dialog .mud-dialog-content {
+            overflow-y: auto;
+            max-height: calc(100dvh - 72px); /* leaves room for header/actions */
+        }
     }
 </style>
 
 @code {
-    [CascadingParameter]
-    IMudDialogInstance? MudDialog { get; set; }
+    [CascadingParameter] IMudDialogInstance? MudDialog { get; set; }
 
-    [Parameter]
-    public Guid CollectionId { get; set; }
+    [Parameter] public Guid CollectionId { get; set; }
+    [Parameter] public string CollectionName { get; set; } = "";
+    [Parameter] public HashSet<Guid> ExistingMemberIds { get; set; } = new();
 
-    [Parameter]
-    public string CollectionName { get; set; } = "";
+    private enum InviteMode { Email, ShareId }
+    private InviteMode _inviteMode = InviteMode.Email;
+    private string _manualIdentifier = "";
 
-    private MudForm? _emailForm;
-    private MudForm? _shareIdForm;
-    private bool _emailIsValid = false;
-    private bool _shareIdIsValid = false;
-    private bool _isSending = false;
-    private int _activeTab = 0;
-    private string _email = "";
-    private string _shareId = "";
+    private bool _didChange;
+
     private string? _errorMessage;
     private string? _successMessage;
 
-    // Friend search
     private string _searchQuery = "";
     private List<UserFriendshipDto> _friends = new();
     private List<UserSearchResultDto> _searchResults = new();
     private bool _isLoadingFriends = true;
-    private bool _isSearching = false;
+    private bool _isSearching;
+    private bool _isSending;
+
+    private readonly HashSet<Guid> _invitingIds = new();
 
     protected override async Task OnInitializedAsync()
     {
         await LoadFriends();
+    }
+
+    private void OnInviteModeChanged(InviteMode mode)
+    {
+        _inviteMode = mode;
+        _manualIdentifier = "";
+        _errorMessage = null;
+        _successMessage = null;
+    }
+
+    private void ClearSearch()
+    {
+        _searchQuery = "";
+        _searchResults.Clear();
+        _errorMessage = null;
+        _successMessage = null;
     }
 
     private async Task LoadFriends()
@@ -10785,7 +10859,9 @@ FILE START: \StorhaugenWebsite\Components\InviteMemberDialog.razor
         try
         {
             var friendships = await FriendshipService.GetFriendshipsAsync();
-            _friends = friendships.Friends ?? new();
+            _friends = (friendships.Friends ?? new())
+                .Where(f => !ExistingMemberIds.Contains(f.FriendUserId))
+                .ToList();
         }
         catch (Exception ex)
         {
@@ -10796,6 +10872,7 @@ FILE START: \StorhaugenWebsite\Components\InviteMemberDialog.razor
             _isLoadingFriends = false;
         }
     }
+
 
     private async Task PerformSearch()
     {
@@ -10810,11 +10887,15 @@ FILE START: \StorhaugenWebsite\Components\InviteMemberDialog.razor
 
         try
         {
-            _searchResults = await FriendshipService.SearchUsersAsync(_searchQuery);
+            var results = await FriendshipService.SearchUsersAsync(_searchQuery);
+
+            _searchResults = (results ?? new())
+                .Where(u => !ExistingMemberIds.Contains(u.Id))
+                .ToList();
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Search error: {ex.Message}");
+            _errorMessage = $"Søk feilet: {ex.Message}";
         }
         finally
         {
@@ -10823,42 +10904,40 @@ FILE START: \StorhaugenWebsite\Components\InviteMemberDialog.razor
         }
     }
 
+
     private async Task InviteUser(Guid userId, string? displayName)
     {
+        if (ExistingMemberIds.Contains(userId) || _invitingIds.Contains(userId))
+            return;
+
         _errorMessage = null;
         _successMessage = null;
+
+        _invitingIds.Add(userId);
         _isSending = true;
         StateHasChanged();
 
         try
         {
-            // Use userId directly to add member
-            var dto = new AddCollectionMemberDto { UserIdentifier = userId.ToString() };
-            await ApiClient.AddCollectionMemberAsync(CollectionId, dto);
+            await ApiClient.AddCollectionMemberAsync(CollectionId, new AddCollectionMemberDto
+            {
+                UserIdentifier = userId.ToString()
+            });
 
-            _successMessage = $"{displayName ?? "Bruker"} lagt til!";
+            ExistingMemberIds.Add(userId);
+            _didChange = true;
+
             Snackbar.Add("Medlem lagt til!", Severity.Success);
 
-            // Remove from lists to prevent re-inviting
             _friends.RemoveAll(f => f.FriendUserId == userId);
             _searchResults.RemoveAll(s => s.Id == userId);
-
-            StateHasChanged();
         }
         catch (HttpRequestException ex)
         {
-            if (ex.StatusCode == System.Net.HttpStatusCode.BadRequest)
-            {
-                _errorMessage = "Denne brukeren er allerede medlem av samlingen";
-            }
-            else if (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
-            {
-                _errorMessage = "Bruker ikke funnet";
-            }
-            else
-            {
-                _errorMessage = $"Kunne ikke legge til medlem: {ex.Message}";
-            }
+            _errorMessage =
+                ex.StatusCode == System.Net.HttpStatusCode.BadRequest ? "Denne brukeren er allerede medlem av samlingen" :
+                ex.StatusCode == System.Net.HttpStatusCode.NotFound ? "Bruker ikke funnet" :
+                $"Kunne ikke legge til medlem: {ex.Message}";
         }
         catch (Exception ex)
         {
@@ -10866,26 +10945,29 @@ FILE START: \StorhaugenWebsite\Components\InviteMemberDialog.razor
         }
         finally
         {
+            _invitingIds.Remove(userId);
             _isSending = false;
             StateHasChanged();
         }
     }
 
-    private bool IsCurrentFormValid()
-    {
-        return _activeTab == 0 ? _emailIsValid : _shareIdIsValid;
-    }
-
-    private async Task SendInvite()
+    private async Task SendManualInvite()
     {
         _errorMessage = null;
         _successMessage = null;
 
-        // Validate the active form
-        if (_activeTab == 0)
+        var raw = _manualIdentifier?.Trim();
+        if (string.IsNullOrWhiteSpace(raw))
         {
-            await _emailForm!.Validate();
-            if (!_emailIsValid || string.IsNullOrWhiteSpace(_email))
+            _errorMessage = "Feltet kan ikke være tomt.";
+            return;
+        }
+
+        // Basic validation without MudTabs/MudForms
+        if (_inviteMode == InviteMode.Email)
+        {
+            var emailAttr = new EmailAddressAttribute();
+            if (!emailAttr.IsValid(raw))
             {
                 _errorMessage = "Vennligst skriv inn en gyldig e-postadresse";
                 return;
@@ -10893,12 +10975,7 @@ FILE START: \StorhaugenWebsite\Components\InviteMemberDialog.razor
         }
         else
         {
-            await _shareIdForm!.Validate();
-            if (!_shareIdIsValid || string.IsNullOrWhiteSpace(_shareId))
-            {
-                _errorMessage = "Vennligst skriv inn en Dele-ID";
-                return;
-            }
+            raw = raw.ToUpperInvariant();
         }
 
         _isSending = true;
@@ -10906,47 +10983,27 @@ FILE START: \StorhaugenWebsite\Components\InviteMemberDialog.razor
 
         try
         {
-            var userIdentifier = _activeTab == 0 ? _email.Trim() : _shareId.Trim().ToUpperInvariant();
-            var dto = new AddCollectionMemberDto
+            await ApiClient.AddCollectionMemberAsync(CollectionId, new AddCollectionMemberDto
             {
-                UserIdentifier = userIdentifier
-            };
-            await ApiClient.AddCollectionMemberAsync(CollectionId, dto);
+                UserIdentifier = raw
+            });
 
-            var inviteTarget = _activeTab == 0 ? _email : $"bruker med ID {_shareId.ToUpperInvariant()}";
-            _successMessage = $"Medlem lagt til: {inviteTarget}!";
+            _didChange = true;
+            _successMessage = "Medlem lagt til!";
             Snackbar.Add("Medlem lagt til!", Severity.Success);
 
-            // Clear the form for another invite
-            _email = "";
-            _shareId = "";
-            _emailForm?.ResetAsync();
-            _shareIdForm?.ResetAsync();
-
-            // Close dialog after a short delay
-            await Task.Delay(1500);
-            MudDialog?.Close(DialogResult.Ok(true));
+            _manualIdentifier = "";
         }
         catch (HttpRequestException ex)
         {
-            if (ex.StatusCode == System.Net.HttpStatusCode.BadRequest)
-            {
-                _errorMessage = "Denne brukeren er allerede medlem av samlingen";
-            }
-            else if (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
-            {
-                _errorMessage = _activeTab == 1 ? "Bruker med denne Dele-ID ble ikke funnet" : "Samling ikke funnet";
-            }
-            else
-            {
-                _errorMessage = $"Kunne ikke legge til medlem: {ex.Message}";
-            }
-            Console.WriteLine($"Error adding member: {ex}");
+            _errorMessage =
+                ex.StatusCode == System.Net.HttpStatusCode.BadRequest ? "Denne brukeren er allerede medlem av samlingen" :
+                ex.StatusCode == System.Net.HttpStatusCode.NotFound ? (_inviteMode == InviteMode.ShareId ? "Bruker med denne Dele-ID ble ikke funnet" : "Samling ikke funnet") :
+                $"Kunne ikke legge til medlem: {ex.Message}";
         }
         catch (Exception ex)
         {
             _errorMessage = $"En uventet feil oppstod: {ex.Message}";
-            Console.WriteLine($"Error adding member: {ex}");
         }
         finally
         {
@@ -10955,9 +11012,9 @@ FILE START: \StorhaugenWebsite\Components\InviteMemberDialog.razor
         }
     }
 
-    private void Cancel()
+    private void Close()
     {
-        MudDialog?.Close(DialogResult.Cancel());
+        MudDialog?.Close(_didChange); // returns bool in result.Data
     }
 }
 
@@ -11409,6 +11466,10 @@ namespace StorhaugenWebsite.Models
         public bool SortDescending { get; set; } = true;
         public List<Guid> CookbookCollectionFilters { get; set; } = new();
         public bool CookbookPersonalFilterActive { get; set; } = false;
+
+        // NEW: Custom Primary
+        public bool IsUsingCustomThemeColors { get; set; } = false;
+        public string CustomThemeColor { get; set; } = "#E07A2E"; // fallback default
     }
 }
 
@@ -12684,7 +12745,7 @@ FILE START: \StorhaugenWebsite\Pages\Browse.razor
            CrossfadeOnReload="true"
            FadeMs="220">
         <Skeleton>
-            <RecipeSkeleton Amount="6" Height="109.11px" />
+            <RecipeSkeleton Amount="6" LineAmount="0" Height="77.19px" />
         </Skeleton>
 
         <ChildContent>
@@ -12717,7 +12778,6 @@ FILE START: \StorhaugenWebsite\Pages\Browse.razor
                                 else
                                 {
                                     <div class="food-card-placeholder">
-                                        <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" />
                                     </div>
                                 }
                             }
@@ -12725,16 +12785,55 @@ FILE START: \StorhaugenWebsite\Pages\Browse.razor
                             @* --- Text Content --- *@
                             <div class="food-card-content">
                                 <div class="d-flex justify-space-between align-start gap-3">
-                                    <div class="d-flex align-center gap-2" style="min-width: 0;">
-                                        @if (recipe.IsHellofresh)
-                                        {
-                                            <MudIcon Icon="@Icons.Material.Rounded.LocalDining" Size="Size.Small" Color="Color.Success" Title="HelloFresh" Style="flex-shrink: 0;" />
-                                        }
-                                        else
-                                        {
-                                            <MudIcon Icon="@Icons.Material.Rounded.Cloud" Size="Size.Small" Color="Color.Info" Title="Fellesskapet" Style="flex-shrink: 0;" />
-                                        }
-                                        <h3 class="food-card-title">@recipe.Name</h3>
+                                    <div style="display:flex; flex-direction: column; gap: 4px;">
+                                        <div class="d-flex align-center gap-2" style="min-width: 0;">
+                                            @if (recipe.IsHellofresh)
+                                            {
+                                                <MudIcon Icon="@Icons.Material.Rounded.LocalDining" Size="Size.Small" Color="Color.Success" Title="HelloFresh" Style="flex-shrink: 0;" />
+                                            }
+                                            else
+                                            {
+                                                <MudIcon Icon="@Icons.Material.Rounded.Cloud" Size="Size.Small" Color="Color.Info" Title="Fellesskapet" Style="flex-shrink: 0;" />
+                                            }
+                                            <h3 class="food-card-title">@recipe.Name</h3>
+                                        </div>
+
+                                        <div style="display:flex; gap:4px">
+
+                                            @* Left: Difficulty + PrepTime (same order as Cookbook) *@
+                                            @if (recipe.PrepTimeMinutes.HasValue || !string.IsNullOrEmpty(recipe.Difficulty))
+                                            {
+                                                <div class="d-flex align-center flex-wrap gap-1">
+                                                    @if (!string.IsNullOrEmpty(recipe.Difficulty))
+                                                    {
+                                                        <span class="meta-chip @GetDifficultyClass(recipe.Difficulty)">
+                                                            <MudIcon Icon="@GetDifficultyIcon(recipe.Difficulty)" Size="Size.Small" />
+                                                            @GetDifficultyLabel(recipe.Difficulty)
+                                                        </span>
+                                                    }
+                                                    @if (recipe.PrepTimeMinutes.HasValue)
+                                                    {
+                                                        <span class="meta-chip">
+                                                            <MudIcon Icon="@Icons.Material.Rounded.AccessTime" Size="Size.Small" />
+                                                            @recipe.PrepTimeMinutes min
+                                                        </span>
+                                                    }
+                                                </div>
+                                            }
+
+                                            @* Right: Author (community only) *@
+                                            @if (!recipe.IsHellofresh && !string.IsNullOrEmpty(recipe.CreatedByUserName))
+                                            {
+                                                <div class="d-flex align-center gap-1">
+                                                    <MudIcon Icon="@Icons.Material.Rounded.Person" Size="Size.Small" Color="Color.Default" />
+                                                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="text-truncate" Style="font-size:0.7rem;">
+                                                        @recipe.CreatedByUserName
+                                                    </MudText>
+                                                </div>
+                                            }
+
+                                        </div>
+
                                     </div>
 
                                     @if (recipe.AverageRating > 0)
@@ -12755,33 +12854,7 @@ FILE START: \StorhaugenWebsite\Pages\Browse.razor
                                     }
                                 </div>
 
-                                @if (!recipe.IsHellofresh && !string.IsNullOrEmpty(recipe.CreatedByUserName))
-                                {
-                                    <div class="d-flex align-center gap-1">
-                                        <MudIcon Icon="@Icons.Material.Rounded.Person" Size="Size.Small" Style="font-size: 12px; opacity: 0.6;" />
-                                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="text-truncate" Style="font-size: 0.75rem;">
-                                            @recipe.CreatedByUserName
-                                        </MudText>
-                                    </div>
-                                }
-
-                                @* Recipe metadata chips - Show for both HelloFresh and Community *@
-                                <div class="food-card-meta mt-2 d-flex gap-2 align-center flex-wrap">
-                                    @if (recipe.PrepTimeMinutes.HasValue)
-                                    {
-                                        <span class="meta-chip">
-                                            <MudIcon Icon="@Icons.Material.Rounded.AccessTime" Size="Size.Small" />
-                                            @recipe.PrepTimeMinutes min
-                                        </span>
-                                    }
-                                    @if (!string.IsNullOrEmpty(recipe.Difficulty))
-                                    {
-                                        <span class="meta-chip @GetDifficultyClass(recipe.Difficulty)">
-                                            <MudIcon Icon="@GetDifficultyIcon(recipe.Difficulty)" Size="Size.Small" />
-                                            @GetDifficultyLabel(recipe.Difficulty)
-                                        </span>
-                                    }
-                                </div>
+                               
                             </div>
                         </div>
                     }
@@ -12884,7 +12957,7 @@ FILE START: \StorhaugenWebsite\Pages\Browse.razor
         display: flex;
         align-items: center;
         gap: 4px;
-        flex: 1;
+        flex-grow: 99;
         min-width: 0;
         background: var(--mud-palette-surface);
         padding: 4px 6px;
@@ -12902,6 +12975,13 @@ FILE START: \StorhaugenWebsite\Pages\Browse.razor
         -ms-overflow-style: none;
         flex: 1;
         min-width: 0;
+        overflow-y: hidden;
+        --fade: 18px;
+        -webkit-mask-image: linear-gradient( to right, transparent 0, #000 var(--fade), #000 calc(100% - var(--fade)), transparent 100% );
+        mask-image: linear-gradient( to right, transparent 0, #000 var(--fade), #000 calc(100% - var(--fade)), transparent 100% );
+        /* optional: avoid hard cutoff on some browsers */
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
     }
 
     .week-chips-scroll::-webkit-scrollbar {
@@ -13228,6 +13308,7 @@ FILE START: \StorhaugenWebsite\Pages\BrowseDetails.razor
 @using StorhaugenWebsite.Services
 @using StorhaugenWebsite.Shared.DTOs
 @using StorhaugenWebsite.Components
+@using StorhaugenWebsite.Shared.Extensions
 @inject IApiClient ApiClient
 @inject IUserRecipeService RecipeService
 @inject IFoodService FoodService
@@ -13260,26 +13341,69 @@ else if (_recipe == null)
 }
 else
 {
-    @* --- Header Image --- *@
+    @* --- IMAGE (same container class as FoodDetails) --- *@
     @if (!string.IsNullOrEmpty(GetImageUrl()) && !_recipe.IsHellofresh)
     {
-        <img src="@GetImageUrl()" class="detail-hero-image" />
+        <div class="detail-image-carousel">
+            <img src="@GetImageUrl()" class="detail-hero-image" />
+        </div>
     }
 
-    <div>
+    @* --- INFO CARD (same class as FoodDetails) --- *@
+    <div class="detail-info-card">
+
         <div class="d-flex justify-space-between align-start gap-3">
-            <h1 class="detail-title">@_recipe.Name</h1>
+            <div style="min-width:0;">
+                <h1 class="detail-title">@_recipe.Name</h1>
+
+                <div class="d-flex gap-2 mt-2 flex-wrap align-center">
+                    @if (_recipe.IsHellofresh)
+                    {
+                        <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Rounded.LocalDining" Color="Color.Success">
+                            HelloFresh
+                        </MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Rounded.Cloud" Color="Color.Info">
+                            Delt av @(_recipe.CreatedByUserName ?? "Fellesskapet")
+                        </MudChip>
+                    }
+
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="align-self-center">
+                        • @_recipe.CreatedAt.ToString("dd. MMM yyyy")
+                    </MudText>
+
+                    @if (IsOwner)
+                    {
+                        <div class="ml-auto">
+                            <MudMenu Icon="@Icons.Material.Rounded.MoreVert" Size="Size.Small" AnchorOrigin="Origin.BottomRight">
+                                <MudMenuItem Icon="@Icons.Material.Rounded.Delete" IconColor="Color.Error" OnClick="DeletePublishedRecipe">
+                                    Slett fra fellesskapet
+                                </MudMenuItem>
+                            </MudMenu>
+                        </div>
+                    }
+                </div>
+            </div>
+
             @if (_recipe.AverageRating > 0)
             {
-                <div class="d-flex flex-column align-end">
-                    <span class="rating-badge rating-high">
+                var ratingClass = _recipe.AverageRating >= 8 ? "rating-high"
+                : _recipe.AverageRating >= 5 ? "rating-medium"
+                : "rating-low";
+
+                <div class="d-flex flex-column align-end" style="flex-shrink:0;">
+                    <span class="rating-badge @ratingClass"
+                          style="font-size: 1rem; padding: 8px 14px; color:@_recipe.AverageRating.ToRatingColorHex();">
                         <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
                         @_recipe.AverageRating.ToString("0.0")
                     </span>
+
                     @if (_recipe.TotalRatings > 0)
                     {
                         <span class="rating-count-badge">
-                            <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Small" Style="font-size: 10px;" />
+                            <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Small" Style="font-size: 12px;" />
                             @_recipe.TotalRatings
                         </span>
                     }
@@ -13287,50 +13411,21 @@ else
             }
         </div>
 
-        @* --- Source Badge --- *@
-        <div class="d-flex gap-2 mt-2 flex-wrap align-center">
-            @if (_recipe.IsHellofresh)
-            {
-                <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Rounded.LocalDining" Color="Color.Success">
-                    HelloFresh
-                </MudChip>
-            }
-            else
-            {
-                <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Rounded.Cloud" Color="Color.Info">
-                    Delt av @(_recipe.CreatedByUserName ?? "Fellesskapet")
-                </MudChip>
-            }
-            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="align-self-center">• @_recipe.CreatedAt.ToString("dd. MMM yyyy")</MudText>
-
-            @* --- Owner Actions Menu --- *@
-            @if (IsOwner)
-            {
-                <div class="ml-auto">
-                    <MudMenu Icon="@Icons.Material.Rounded.MoreVert" Size="Size.Small" AnchorOrigin="Origin.BottomRight">
-                        <MudMenuItem Icon="@Icons.Material.Rounded.Delete" IconColor="Color.Error" OnClick="DeletePublishedRecipe">
-                            Slett fra fellesskapet
-                        </MudMenuItem>
-                    </MudMenu>
-                </div>
-            }
-        </div>
-
-        @* --- Quick Info Row --- *@
+        @* Quick Info Row (match FoodDetails: same classes, same gap, no “difficulty-*” special styling) *@
         @if (_recipe.PrepTimeMinutes.HasValue || _recipe.CookTimeMinutes.HasValue || !string.IsNullOrEmpty(_recipe.Difficulty) || _recipe.Servings.HasValue || !string.IsNullOrEmpty(_recipe.Cuisine))
         {
-            <div class="quick-info-row mt-4">
+            <div class="quick-info-row mt-3">
                 @if (_recipe.PrepTimeMinutes.HasValue)
                 {
                     <div class="quick-info-item">
                         <MudIcon Icon="@Icons.Material.Rounded.AccessTime" Size="Size.Small" Color="Color.Primary" />
-                        <span>@_recipe.PrepTimeMinutes min forberedelse</span>
+                        <span>@_recipe.PrepTimeMinutes min tilberedning</span>
                     </div>
                 }
                 @if (!string.IsNullOrEmpty(_recipe.Difficulty))
                 {
-                    <div class="quick-info-item @GetDifficultyClass(_recipe.Difficulty)">
-                        <MudIcon Icon="@GetDifficultyIcon(_recipe.Difficulty)" Size="Size.Small" />
+                    <div class="quick-info-item">
+                        <MudIcon Icon="@GetDifficultyIcon(_recipe.Difficulty)" Size="Size.Small" Color="Color.Secondary" />
                         <span>@GetDifficultyLabel(_recipe.Difficulty)</span>
                     </div>
                 }
@@ -13356,7 +13451,6 @@ else
             <p class="detail-description mt-4">@_recipe.Description</p>
         }
 
-        @* --- Recipe Tags --- *@
         @if (_recipe.Tags.Any())
         {
             <div class="d-flex flex-wrap gap-2 mt-3">
@@ -13366,7 +13460,11 @@ else
                 }
             </div>
         }
+    </div>
 
+
+    @* --- REST OF PAGE (unchanged) --- *@
+    <div>
         @* --- HelloFresh Recipe Details (Ingredients & Nutrition) --- *@
         @if (_recipe.IsHellofresh)
         {
@@ -13376,7 +13474,6 @@ else
         }
         else if (HasIngredients())
         {
-            @* Community Recipe Ingredients *@
             <MudExpansionPanels Class="mt-4" MultiExpansion="true">
                 <MudExpansionPanel Text="Ingredienser" Icon="@Icons.Material.Rounded.ShoppingCart" IsInitiallyExpanded="true">
                     <div class="ingredients-list">
@@ -13401,7 +13498,6 @@ else
         }
 
         <div class="action-buttons mt-6">
-            @* --- Primary Action: Add to my cookbook --- *@
             <MudButton Variant="Variant.Filled"
                        Color="@(_recipe.IsHellofresh ? Color.Success : Color.Primary)"
                        FullWidth="true"
@@ -13421,9 +13517,8 @@ else
                 }
             </MudButton>
 
-            @* --- Secondary: Copy and customize --- *@
             <MudButton Variant="Variant.Outlined"
-                       Color="Color.Default"
+                       Color="Color.Primary"
                        FullWidth="true"
                        Class="mt-3"
                        StartIcon="@Icons.Material.Rounded.Edit"
@@ -13434,139 +13529,6 @@ else
         </div>
     </div>
 }
-
-<style>
-    .detail-hero-image {
-        width: 100%;
-        height: 250px;
-        object-fit: cover;
-        border-radius: 24px;
-        margin-bottom: 16px;
-    }
-
-    .detail-hero-placeholder {
-        width: 100%;
-        height: 250px;
-        background: var(--mud-palette-background-grey);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 0 0 24px 24px;
-        color: var(--mud-palette-text-disabled);
-    }
-
-    .detail-content {
-        padding: 24px;
-    }
-
-    .detail-title {
-        font-size: 1.75rem;
-        font-weight: 700;
-        line-height: 1.2;
-        margin: 0;
-    }
-
-    .detail-description {
-        color: var(--mud-palette-text-secondary);
-        line-height: 1.6;
-    }
-
-    .action-card {
-        background: var(--mud-palette-surface);
-        border-radius: 16px;
-        padding: 16px;
-    }
-
-    .action-title {
-        font-weight: 600;
-        font-size: 1rem;
-        margin-bottom: 4px;
-    }
-
-    .action-desc {
-        font-size: 0.85rem;
-        color: var(--mud-palette-text-secondary);
-        margin-bottom: 0;
-    }
-
-    .rating-count {
-        font-size: 0.7rem;
-        color: var(--mud-palette-text-secondary);
-        margin-top: 2px;
-    }
-
-    .quick-info-row {
-        display: flex;
-        gap: 12px;
-        flex-wrap: wrap;
-    }
-
-    .quick-info-item {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 12px;
-        background: var(--mud-palette-background-grey);
-        border-radius: 8px;
-        font-size: 0.85rem;
-    }
-
-    .quick-info-item.difficulty-easy {
-        background: rgba(76, 175, 80, 0.1);
-        color: #2e7d32;
-    }
-
-    .quick-info-item.difficulty-medium {
-        background: rgba(255, 152, 0, 0.1);
-        color: #e65100;
-    }
-
-    .quick-info-item.difficulty-hard {
-        background: rgba(244, 67, 54, 0.1);
-        color: #c62828;
-    }
-
-    .ingredients-list {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-    }
-
-    .ingredient-item {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 8px;
-        background: var(--mud-palette-background-grey);
-        border-radius: 8px;
-    }
-
-    .ingredient-placeholder {
-        width: 40px;
-        height: 40px;
-        border-radius: 8px;
-        background: var(--mud-palette-divider);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: var(--mud-palette-text-disabled);
-    }
-
-    .ingredient-info {
-        display: flex;
-        flex-direction: column;
-    }
-
-    .ingredient-name {
-        font-weight: 500;
-        color: var(--mud-palette-text-primary);
-    }
-
-    .ingredient-amount {
-        font-size: 0.8rem;
-        color: var(--mud-palette-text-secondary);
-    }
-</style>
 
 @code {
     [Parameter] public Guid Id { get; set; }
@@ -13809,6 +13771,7 @@ FILE START: \StorhaugenWebsite\Pages\CollectionDetails.razor
 @using Microsoft.AspNetCore.Authorization
 @using StorhaugenWebsite.ApiClient
 @using StorhaugenWebsite.Shared.DTOs
+@using StorhaugenWebsite.Components
 @using StorhaugenWebsite.Services
 @inject IApiClient ApiClient
 @inject ICollectionStateService CollectionState
@@ -13816,6 +13779,7 @@ FILE START: \StorhaugenWebsite\Pages\CollectionDetails.razor
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject IJSRuntime JSRuntime
+@inject IUserColorService UserColorService
 @attribute [Authorize]
 
 <div class="detail-header">
@@ -13880,46 +13844,6 @@ else
         </div>
     </div>
 
-    @* Share Section *@
-    @if (_collection.IsOwner && _collection.Visibility != "private" && !string.IsNullOrEmpty(_collection.ShareCode))
-    {
-        <div class="form-section">
-            <p class="form-section-title">Del samlingen</p>
-
-            <div class="share-link-box">
-                <div class="d-flex align-center justify-space-between">
-                    <div>
-                        <MudText Typo="Typo.caption" Color="Color.Secondary">Delekode</MudText>
-                        <MudText Typo="Typo.h6" Style="font-family: monospace; letter-spacing: 2px;">
-                            @_collection.ShareCode
-                        </MudText>
-                    </div>
-
-                    <div class="d-flex gap-2">
-                        <MudIconButton Icon="@Icons.Material.Rounded.ContentCopy"
-                                       Color="Color.Primary"
-                                       OnClick="CopyShareCode"
-                                       Title="Kopier kode" />
-                        <MudIconButton Icon="@Icons.Material.Rounded.Share"
-                                       Color="Color.Primary"
-                                       OnClick="CopyShareLink"
-                                       Title="Kopier lenke" />
-                    </div>
-                </div>
-            </div>
-
-            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
-                @if (_collection.Visibility == "public")
-                {
-                    <span>Alle med denne lenken kan se samlingen</span>
-                }
-                else
-                {
-                    <span>Kun dine venner kan se samlingen med denne lenken</span>
-                }
-            </MudText>
-        </div>
-    }
 
     @* Visibility Settings *@
     @if (_collection.IsOwner)
@@ -13972,7 +13896,7 @@ else
         <div class="d-flex justify-space-between align-center mb-3">
             <p class="form-section-title" style="margin: 0;">Medlemmer (@_collection.MemberCount)</p>
 
-            @if (_collection.IsOwner)
+            @if (_collection.IsMember)
             {
                 <MudButton Variant="Variant.Text"
                            Color="Color.Primary"
@@ -13984,12 +13908,13 @@ else
             }
         </div>
 
-        <div class="d-flex flex-column gap-2">
+        <div class="d-flex flex-column">
             @foreach (var member in _collection.Members.OrderByDescending(m => m.IsOwner))
             {
                 <div class="member-row">
-                    <MudAvatar Size="Size.Medium" Style="@($"background: {GetMemberColor(member.DisplayName)}")">
-                        @(string.IsNullOrEmpty(member.DisplayName) ? '?' : member.DisplayName[0])
+                    <MudAvatar Size="Size.Medium"
+                               Style="@($"background-color: {UserColorService.GetUserColor(member.DisplayName)}; color: white;")">
+                        @(string.IsNullOrWhiteSpace(member.DisplayName) ? "?" : member.DisplayName[..1].ToUpper())
                     </MudAvatar>
 
                     <div class="flex-grow-1">
@@ -14088,26 +14013,6 @@ else
     </DialogActions>
 </MudDialog>
 
-@* Invite Dialog *@
-<MudDialog @bind-Visible="_showInviteDialog" Options="@(new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true })">
-    <TitleContent>
-        <MudText Typo="Typo.h6">Inviter medlem</MudText>
-    </TitleContent>
-    <DialogContent>
-        <MudTextField @bind-Value="_inviteIdentifier"
-                      Label="E-post eller Dele-ID"
-                      Variant="Variant.Outlined"
-                      Placeholder="navn@eksempel.no eller ABC123"
-                      HelperText="Skriv inn personens e-post eller deres unike Dele-ID" />
-    </DialogContent>
-    <DialogActions>
-        <MudButton OnClick="() => _showInviteDialog = false">Avbryt</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="InviteMember" Disabled="@(string.IsNullOrWhiteSpace(_inviteIdentifier))">
-            Inviter
-        </MudButton>
-    </DialogActions>
-</MudDialog>
-
 <style>
     .collection-header {
         background: var(--mud-palette-surface);
@@ -14155,9 +14060,6 @@ else
     private bool _showEditDialog;
     private string _editName = "";
     private string _editDescription = "";
-
-    private bool _showInviteDialog;
-    private string _inviteIdentifier = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -14244,35 +14146,40 @@ else
         }
     }
 
-    private void ShowInviteDialog()
+    private async Task ShowInviteDialog()
     {
-        _inviteIdentifier = "";
-        _showInviteDialog = true;
-    }
+        if (_collection is null) return;
 
-    private async Task InviteMember()
-    {
-        if (_collection == null || string.IsNullOrWhiteSpace(_inviteIdentifier)) return;
-
-        try
+        var parameters = new DialogParameters
         {
-            await ApiClient.AddCollectionMemberAsync(_collection.Id, new AddCollectionMemberDto
-            {
-                UserIdentifier = _inviteIdentifier.Trim()
-            });
+            ["CollectionId"] = _collection.Id,
+            ["CollectionName"] = _collection.Name,
 
-            _showInviteDialog = false;
-            Snackbar.Add("Medlem lagt til!", Severity.Success);
+            // IMPORTANT: this must be user ids
+            ["ExistingMemberIds"] = _collection.Members.Select(m => m.UserId).ToHashSet()
+        };
 
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
+
+        // MudBlazor 8.x: ShowAsync returns Task<IDialogReference>
+        var dialogRef = await DialogService.ShowAsync<InviteMemberDialog>("", parameters, options);
+
+        var result = await dialogRef.Result;
+
+        // MudBlazor DialogResult: use Canceled + Data (not result.Result)
+        if (!result.Canceled && result.Data is bool didChange && didChange)
+        {
             await LoadCollection();
             await CollectionState.RefreshCollectionsAsync();
         }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error inviting member: {ex.Message}");
-            Snackbar.Add("Kunne ikke legge til medlem. Sjekk at ID/e-post er riktig.", Severity.Error);
-        }
     }
+
+
 
     private async Task RemoveMember(CollectionMemberDto member)
     {
@@ -14409,11 +14316,6 @@ else
         _ => Color.Default
     };
 
-    private string GetMemberColor(string name)
-    {
-        var hue = Math.Abs(name.GetHashCode() % 360);
-        return $"hsl({hue}, 45%, 45%)";
-    }
 }
 
 
@@ -14560,6 +14462,7 @@ FILE START: \StorhaugenWebsite\Pages\Collections.razor
 @page "/collections"
 @using Microsoft.AspNetCore.Authorization
 @using StorhaugenWebsite.ApiClient
+@using StorhaugenWebsite.Components
 @using StorhaugenWebsite.Shared.DTOs
 @using StorhaugenWebsite.Services
 @inject IApiClient ApiClient
@@ -14579,76 +14482,79 @@ FILE START: \StorhaugenWebsite\Pages\Collections.razor
     </MudButton>
 </div>
 
-@if (_isLoading)
-{
-    <div class="d-flex justify-center mt-8">
-        <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
-    </div>
-}
-else if (!_collections.Any())
-{
-    <div class="empty-state pa-8 text-center">
-        <MudIcon Icon="@Icons.Material.Rounded.FolderOpen" Size="Size.Large" Color="Color.Default" />
-        <MudText Typo="Typo.h6" Class="mt-3">Ingen samlinger enda</MudText>
-        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-            Opprett en samling for a dele oppskrifter med andre
-        </MudText>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ShowCreateDialog">
-            Opprett din forste samling
-        </MudButton>
-    </div>
-}
-else
-{
-    <div class="d-flex flex-column gap-3">
-        @foreach (var collection in _collections)
+<XFade IsLoading="@_isLoading" FirstLoadOnly="true" FadeMs="220">
+    <Skeleton>
+        <RecipeSkeleton Amount="3" Height="87.91px" LineAmount="0" />
+    </Skeleton>
+
+    <ChildContent>
+        @if (!_collections.Any())
         {
-            <div class="collection-card clickable"
-                 role="button"
-                 tabindex="0"
-                 @onclick="() => OpenCollection(collection.Id)">
-
-                <div class="d-flex align-center gap-3">
-                    <div class="collection-icon">
-                        <MudIcon Icon="@GetVisibilityIcon(collection.Visibility)" Size="Size.Medium" />
-                    </div>
-
-                    <div class="flex-grow-1" style="min-width: 0;">
-                        <div class="d-flex align-center gap-2">
-                            <MudText Typo="Typo.subtitle1" Class="text-truncate" Style="font-weight: 600;">
-                                @collection.Name
-                            </MudText>
-
-                            @if (collection.IsOwner)
-                            {
-                                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Text">
-                                    Eier
-                                </MudChip>
-                            }
-                        </div>
-
-                        @* Meta row: members + recipes (no button) *@
-                        <div class="d-flex align-center gap-3 mt-1 collection-meta">
-                            <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Small"
-                                         Style="font-size: 14px; vertical-align: middle;" />
-                                @collection.MemberCount medlemmer
-                            </MudText>
-
-                            <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small"
-                                         Style="font-size: 14px; vertical-align: middle;" />
-                                @collection.RecipeCount @(collection.RecipeCount == 1 ? "oppskrift" : "oppskrifter")
-                            </MudText>
-                        </div>
-                    </div>
-
-                    <MudIcon Icon="@Icons.Material.Rounded.ChevronRight" Class="collection-chevron" />
-                </div>
+            <div class="empty-state pa-8 text-center">
+                <MudIcon Icon="@Icons.Material.Rounded.FolderOpen" Size="Size.Large" Color="Color.Default" />
+                <MudText Typo="Typo.h6" Class="mt-3">Ingen samlinger enda</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+                    Opprett en samling for a dele oppskrifter med andre
+                </MudText>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ShowCreateDialog">
+                    Opprett din forste samling
+                </MudButton>
             </div>
         }
-    </div>
-}
+        else
+        {
+            <div class="d-flex flex-column gap-3">
+                @foreach (var collection in _collections)
+                {
+                    <div class="collection-card clickable"
+                         role="button"
+                         tabindex="0"
+                         @onclick="() => OpenCollection(collection.Id)">
+
+                        <div class="d-flex align-center gap-3">
+                            <div class="collection-icon">
+                                <MudIcon Icon="@GetVisibilityIcon(collection.Visibility)" Size="Size.Medium" />
+                            </div>
+
+                            <div class="flex-grow-1" style="min-width: 0;">
+                                <div class="d-flex align-center gap-2">
+                                    <MudText Typo="Typo.subtitle1" Class="text-truncate" Style="font-weight: 600;">
+                                        @collection.Name
+                                    </MudText>
+
+                                    @if (collection.IsOwner)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Text">
+                                            Eier
+                                        </MudChip>
+                                    }
+                                </div>
+
+                                <div class="d-flex align-center gap-3 mt-1 collection-meta">
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Small"
+                                                 Style="font-size: 14px; vertical-align: middle;" />
+                                        @collection.MemberCount medlemmer
+                                    </MudText>
+
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Small"
+                                                 Style="font-size: 14px; vertical-align: middle;" />
+                                        @collection.RecipeCount @(collection.RecipeCount == 1 ? "oppskrift" : "oppskrifter")
+                                    </MudText>
+                                </div>
+                            </div>
+
+                            <MudIcon Icon="@Icons.Material.Rounded.ChevronRight" Class="collection-chevron" />
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </ChildContent>
+</XFade>
+
+
 
 @* Create Collection Dialog *@
 <MudDialog @bind-Visible="_showCreateDialog" Options="@(new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true })">
@@ -14948,7 +14854,7 @@ FILE START: \StorhaugenWebsite\Pages\CookBook.razor
 @* XFade wrapper (same behavior as Home/ActivityFeed: first-load-only crossfade) *@
 <XFade IsLoading="@_isLoading" FirstLoadOnly="true" FadeMs="220">
     <Skeleton>
-        <RecipeSkeleton Amount="6" Height="109.11px" />
+        <RecipeSkeleton Amount="6" Height="107.11px" />
     </Skeleton>
 
     <ChildContent>
@@ -14976,7 +14882,6 @@ FILE START: \StorhaugenWebsite\Pages\CookBook.razor
                         else
                         {
                             <div class="food-card-placeholder">
-                                <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" Style="opacity:0.3;" />
                             </div>
                         }
 
@@ -15054,37 +14959,61 @@ FILE START: \StorhaugenWebsite\Pages\CookBook.razor
                             </div>
 
                             @* Ratings Section *@
-                            <div class="d-flex align-center flex-wrap mt-2 gap-2">
-                                @if (recipe.MyRating.HasValue)
-                                {
-                                    <div class="rating-pill mine">
-                                        <div class="rating-circle" style="background-color:var(--mud-palette-primary); color:var(--mud-palette-primary-text);">
-                                            D
-                                        </div>
-                                        <span class="rating-score">@recipe.MyRating?.ToString("0.0")</span>
-                                    </div>
-                                }
-
+                            <div class="ratings-wrap mt-2">
+                                @* Track whether we rendered any pill *@
                                 @{
-                                    var otherRatings = (recipe.MemberRatings ?? new Dictionary<string, decimal?>())
-                                    .Where(r => r.Value.HasValue
-                                    && !string.Equals(r.Key, AuthService.CurrentUserName, StringComparison.OrdinalIgnoreCase)
-                                    && _allowedRaterNames.Contains(r.Key))
-                                    .DistinctBy(r => r.Key)
-                                    .Take(4);
+                                    var renderedAny = false;
                                 }
 
-                                @foreach (var rating in otherRatings)
+                                @* Me (from MyRating) *@
+                                @if (recipe.MyRating is decimal myScore)
                                 {
-                                    var initial = !string.IsNullOrEmpty(rating.Key) ? rating.Key.Substring(0, 1).ToUpper() : "?";
-                                    <div class="rating-pill">
-                                        <div class="rating-circle" style="background-color:@UserColorService.GetUserColor(rating.Key); color:white;">
-                                            @initial
+                                    renderedAny = true;
+                                    var me = AuthService.CurrentUserName ?? "Meg";
+
+                                    <div class="rating-pill" style="background-color:@myScore.ToRatingBgRgba(0.14);">
+                                        <div class="rating-circle"
+                                             style="background-color:@UserColorService.GetUserColor(me); color:white;">
+                                            @(string.IsNullOrWhiteSpace(me) ? "?" : me[..1].ToUpper())
                                         </div>
-                                        <span class="rating-score">@rating.Value?.ToString("0.0")</span>
+                                        <span class="rating-score" style="color:@myScore.ToRatingColorHex()">
+                                            @myScore.ToString("0.0")
+                                        </span>
                                     </div>
                                 }
+
+                                @* Others (from MemberRatings) *@
+                                @foreach (var r in (recipe.MemberRatings ?? new Dictionary<string, decimal?>())
+                                                        .Where(x => x.Value.HasValue)
+                                                        .Where(x => _allowedRaterNames.Contains(x.Key)))
+                                {
+                                    renderedAny = true;
+                                    var name = r.Key;
+                                    var score = r.Value!.Value;
+
+                                    <div class="rating-pill" style="background-color:@score.ToRatingBgRgba(0.14);">
+                                        <div class="rating-circle"
+                                             style="background-color:@UserColorService.GetUserColor(name); color:white;">
+                                            @(string.IsNullOrWhiteSpace(name) ? "?" : name[..1].ToUpper())
+                                        </div>
+                                        <span class="rating-score" style="color:@score.ToRatingColorHex()">
+                                            @score.ToString("0.0")
+                                        </span>
+                                    </div>
+                                }
+
+                                @* Placeholder (keeps card height consistent) *@
+                                @if (!renderedAny)
+                                {
+                                    <div class="rating-pill rating-pill-placeholder">
+                                        <div class="rating-circle rating-circle-placeholder">?</div>
+                                        <span class="rating-score rating-score-placeholder">—</span>
+                                    </div>
+                                }
+
                             </div>
+
+
                         </div>
                     </div>
                 }
@@ -15092,6 +15021,54 @@ FILE START: \StorhaugenWebsite\Pages\CookBook.razor
         }
     </ChildContent>
 </XFade>
+
+<style>
+    .ratings-fade {
+        position: relative;
+        min-width: 0;
+    }
+
+    .ratings-scroll {
+        overflow-x: auto;
+        overflow-y: hidden;
+        display: flex;
+        flex-wrap: nowrap;
+        min-width: 0;
+        --fade: 18px;
+        -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - var(--fade)), transparent 100%);
+        mask-image: linear-gradient(to right, #000 0, #000 calc(100% - var(--fade)), transparent 100%);
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+    }
+
+        .ratings-scroll::-webkit-scrollbar {
+            display: none; /* Chrome/Safari */
+        }
+
+        /* make sure each pill keeps its size */
+        .ratings-scroll .rating-pill {
+            flex: 0 0 auto;
+        }
+
+    .rating-pill-placeholder {
+        background-color: rgba(255, 255, 255, 0.06);
+    }
+
+    .rating-circle-placeholder {
+        background-color: rgba(255, 255, 255, 0.10);
+        color: rgba(255, 255, 255, 0.45);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        /* don't set width/height here if your .rating-circle already does */
+    }
+
+    .rating-score-placeholder {
+        color: rgba(255, 255, 255, 0.45);
+    }
+
+</style>
 
 @code {
     private const int PersonalPageSize = 100;
@@ -15560,9 +15537,11 @@ else
         @* HelloFresh Week Info *@
         @if (_recipe.IsHellofresh && !string.IsNullOrEmpty(_recipe.HellofreshWeek))
         {
+            var weekNumber = int.Parse(_recipe.HellofreshWeek.Split("-W")[1]);
+
             <div class="d-flex align-center gap-2 mt-2">
                 <MudIcon Icon="@Icons.Material.Rounded.CalendarMonth" Size="Size.Small" Color="Color.Success" />
-                <MudText Typo="Typo.caption" Color="Color.Secondary">HelloFresh uke @_recipe.HellofreshWeek</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">HelloFresh uke @weekNumber</MudText>
             </div>
         }
 
@@ -15596,58 +15575,67 @@ else
         }
     </div>
 
-    @* --- COLLAPSIBLE SECTIONS --- *@
-    @if (HasNutritionData || HasIngredients)
+    @* --- NUTRITION + INGREDIENTS (normal sections) --- *@
+    @if (HasNutritionData)
     {
-        <MudExpansionPanels Class="mt-4" Style="margin-bottom: 16px" MultiExpansion="true">
-            @* Nutrition Info *@
-            @if (HasNutritionData)
-            {
-                <MudExpansionPanel Text="N�ringsinformasjon" Icon="@Icons.Material.Rounded.LocalFireDepartment">
-                    <div class="nutrition-grid">
-                        @foreach (var item in ParseNutrition())
-                        {
-                            <div class="nutrition-item">
-                                <span class="nutrition-value">@item.Amount</span>
-                                <span class="nutrition-label">@item.Name</span>
-                            </div>
-                        }
-                    </div>
-                </MudExpansionPanel>
-            }
+        <div class="form-section">
+            <div class="section-title-row">
+                <MudIcon Icon="@Icons.Material.Rounded.LocalFireDepartment" Size="Size.Small" Color="Color.Primary" />
+                <p class="form-section-title" style="margin:0;">N�ringsinformasjon</p>
+            </div>
 
-            @* Ingredients *@
-            @if (HasIngredients)
-            {
-                <MudExpansionPanel Text="Ingredienser" Icon="@Icons.Material.Rounded.ShoppingCart" IsInitiallyExpanded="true">
-                    <div class="ingredients-list">
-                        @foreach (var ingredient in ParseIngredients())
+            <div class="nutrition-grid mt-2">
+                @foreach (var item in ParseNutrition())
+                {
+                    <div class="nutrition-item">
+                        <span class="nutrition-value">@item.Amount</span>
+                        <span class="nutrition-label">@item.Name</span>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    @if (HasIngredients)
+    {
+        <div class="form-section">
+            <div class="section-title-row">
+                <MudIcon Icon="@Icons.Material.Rounded.ShoppingCart" Size="Size.Small" Color="Color.Primary" />
+                <p class="form-section-title" style="margin:0;">
+                    Ingredienser (@ParseIngredients().Count)
+                </p>
+            </div>
+
+            <div class="ingredients-list mt-2">
+                @foreach (var ingredient in ParseIngredients())
+                {
+                    <div class="ingredient-item">
+                        @if (!string.IsNullOrEmpty(ingredient.Image))
                         {
-                            <div class="ingredient-item">
-                                @if (!string.IsNullOrEmpty(ingredient.Image))
-                                {
-                                    <img src="@GetIngredientImageUrl(ingredient.Image)" alt="@ingredient.Name" class="ingredient-image" />
-                                }
-                                else
-                                {
-                                    <div class="ingredient-placeholder">
-                                        <MudIcon Icon="@Icons.Material.Rounded.Egg" Size="Size.Small" />
-                                    </div>
-                                }
-                                <div class="ingredient-info">
-                                    <span class="ingredient-name">@ingredient.Name</span>
-                                    @if (!string.IsNullOrEmpty(ingredient.Amount) || !string.IsNullOrEmpty(ingredient.Unit))
-                                    {
-                                        <span class="ingredient-amount">@ingredient.Amount @ingredient.Unit</span>
-                                    }
-                                </div>
+                            <img src="@GetIngredientImageUrl(ingredient.Image)"
+                                 alt="@ingredient.Name"
+                                 class="ingredient-image" />
+                        }
+                        else
+                        {
+                            <div class="ingredient-placeholder">
+                                <MudIcon Icon="@Icons.Material.Rounded.Egg" Size="Size.Small" />
                             </div>
                         }
+
+                        <div class="ingredient-info">
+                            <span class="ingredient-name">@ingredient.Name</span>
+                            @if (!string.IsNullOrEmpty(ingredient.Amount) || !string.IsNullOrEmpty(ingredient.Unit))
+                            {
+                                <span class="ingredient-amount">@ingredient.Amount @ingredient.Unit</span>
+                            }
+                        </div>
                     </div>
-                </MudExpansionPanel>
-            }
-        </MudExpansionPanels>
+                }
+            </div>
+        </div>
     }
+
 
     @* --- ACTIONS SECTION --- *@
     <div class="form-section">
@@ -15831,18 +15819,27 @@ else
             <div class="d-flex flex-wrap gap-2">
                 @foreach (var rating in otherRatings)
                 {
-                    var initial = !string.IsNullOrEmpty(rating.Key) ? rating.Key.Substring(0, 1).ToUpper() : "?";
+                    var name = rating.Key;
+                    var score = rating.Value!.Value;
+                    var initial = string.IsNullOrWhiteSpace(name) ? "?" : name[..1].ToUpperInvariant();
 
-                    <div class="rating-pill">
-                        <div class="rating-circle" style="background-color: @UserColorService.GetUserColor(rating.Key); color: white;">
+                    <div class="rating-pill" style="background-color:@score.ToRatingBgRgba(0.18);">
+                        <div class="rating-circle"
+                             style="background-color:@UserColorService.GetUserColor(name); color:white;">
                             @initial
                         </div>
-                        <span class="rating-score">@rating.Value?.ToString("0.0")</span>
-                        <MudTooltip Text="@rating.Key" Placement="Placement.Top">
-                            <span class="rating-name">@rating.Key</span>
+
+                        <MudTooltip Text="@name" Placement="Placement.Top">
+                            <span class="rating-name">@name</span>
                         </MudTooltip>
+
+                        <span class="rating-score" style="color:@score.ToRatingColorHex()">
+                            @score.ToString("0.0")
+                        </span>
+
                     </div>
                 }
+
             </div>
         }
 
@@ -15861,20 +15858,18 @@ else
 }
 
 <style>
-    .quick-info-row {
-        display: flex;
-        gap: 16px;
-        flex-wrap: wrap;
-    }
-
-    .quick-info-item {
+    .section-title-row {
         display: flex;
         align-items: center;
-        gap: 6px;
-        padding: 6px 12px;
-        background: var(--mud-palette-background-grey);
-        border-radius: 8px;
-        font-size: 0.85rem;
+        gap: 10px;
+        margin-bottom: 6px;
+    }
+
+    /* Make nutrition grid responsive */
+    .nutrition-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
     }
 
     .nutrition-grid {
@@ -15906,61 +15901,6 @@ else
         margin-top: 2px;
     }
 
-    .ingredients-list {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-    }
-
-    .ingredient-item {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 8px;
-        background: var(--mud-palette-background-grey);
-        border-radius: 8px;
-    }
-
-    .ingredient-image {
-        width: 40px;
-        height: 40px;
-        border-radius: 8px;
-        object-fit: cover;
-        background: white;
-    }
-
-    .ingredient-placeholder {
-        width: 40px;
-        height: 40px;
-        border-radius: 8px;
-        background: var(--mud-palette-divider);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: var(--mud-palette-text-disabled);
-    }
-
-    .ingredient-info {
-        display: flex;
-        flex-direction: column;
-    }
-
-    .ingredient-name {
-        font-weight: 500;
-        color: var(--mud-palette-text-primary);
-    }
-
-    .ingredient-amount {
-        font-size: 0.8rem;
-        color: var(--mud-palette-text-secondary);
-    }
-
-    .visibility-card {
-        background: var(--mud-palette-background-grey);
-        border-radius: 12px;
-        padding: 12px;
-    }
-
     .rating-badge-colored {
         display: inline-flex;
         align-items: center;
@@ -15989,20 +15929,6 @@ else
         pointer-events: none;
     }
 
-    @@media (max-width: 600px) {
-        .nutrition-grid {
-            grid-template-columns: repeat(2, 1fr);
-        }
-
-        .quick-info-row {
-            gap: 8px;
-        }
-
-        .quick-info-item {
-            font-size: 0.8rem;
-            padding: 4px 8px;
-        }
-    }
 </style>
 
 @implements IDisposable
@@ -16366,7 +16292,11 @@ else
     private record IngredientInfo(string Name, string? Amount, string? Unit, string? Image);
 
     private bool HasNutritionData => _recipe?.NutritionData != null;
-    private bool HasIngredients => _recipe?.Ingredients != null;
+    private bool HasIngredients =>
+    _recipe?.Ingredients is JsonElement je &&
+    je.ValueKind == JsonValueKind.Array &&
+    je.GetArrayLength() > 0;
+
 
     private List<NutritionInfo> ParseNutrition()
     {
@@ -16656,16 +16586,8 @@ FILE START: \StorhaugenWebsite\Pages\FriendRatings.razor
             return;
         }
 
-        // Show collections user owns (only owners can add members)
-        var availableCollections = CollectionState.UserCollections
-            .Where(c => CollectionState.IsOwnerOf(c.Id))
-            .ToList();
-
-        if (!availableCollections.Any())
-        {
-            Snackbar.Add("Du må være eier av en samling for å legge til medlemmer.", Severity.Warning);
-            return;
-        }
+        // Show all collections you own OR are a member of
+        var availableCollections = CollectionState.UserCollections.ToList();
 
         // Use IDialogService to show the dialog component (MudBlazor 8.15 compatible)
         var parameters = new DialogParameters<AddMemberToCollectionDialog>
@@ -16746,9 +16668,11 @@ FILE START: \StorhaugenWebsite\Pages\Friends.razor
 @page "/friends"
 @using Microsoft.AspNetCore.Authorization
 @using MudBlazor
+@using StorhaugenWebsite.Components
 @using StorhaugenWebsite.Shared.DTOs
 @using StorhaugenWebsite.Services
 @using StorhaugenWebsite.ApiClient
+@using Microsoft.AspNetCore.Components.Web
 @inject IUserFriendshipService FriendshipService
 @inject ICollectionStateService CollectionState
 @inject IUserColorService UserColorService
@@ -16758,7 +16682,7 @@ FILE START: \StorhaugenWebsite\Pages\Friends.razor
 @inject IDialogService DialogService
 @attribute [Authorize]
 
-<div class="friends-container animate-in">
+<div class="friends-container">
     @* --- HEADER --- *@
     <div class="d-flex justify-space-between align-center mb-4">
         <MudText Typo="Typo.h4" Style="font-family: 'Fraunces', serif;">Venner</MudText>
@@ -16782,163 +16706,189 @@ FILE START: \StorhaugenWebsite\Pages\Friends.razor
                   Clearable="true"
                   OnClearButtonClick="@(() => _searchQuery = string.Empty)" />
 
-    @* --- LOADING STATE --- *@
-    @if (_isLoading)
-    {
-        <div class="d-flex flex-column gap-3">
-            @for (int i = 0; i < 4; i++)
+    <XFade IsLoading="@_isLoading" FirstLoadOnly="true" FadeMs="220">
+        <Skeleton>
+            <RecipeSkeleton Amount="6" LineAmount="0" Height="69.91px" />
+        </Skeleton>
+
+        <ChildContent>
+            @* --- SEARCH RESULTS MODE --- *@
+            @if (!string.IsNullOrWhiteSpace(_searchQuery))
             {
-                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="72px" Class="rounded-lg" />
-            }
-        </div>
-    }
-    @* --- SEARCH RESULTS MODE --- *@
-    else if (!string.IsNullOrWhiteSpace(_searchQuery))
-    {
-        <MudText Typo="Typo.subtitle2" Class="mb-2 ml-1" Color="Color.Secondary">Resultater</MudText>
+                <MudText Typo="Typo.subtitle2" Class="mb-2 ml-1" Color="Color.Secondary">Resultater</MudText>
 
-        @if (_searchResults.Any())
-        {
-            <div class="d-flex flex-column gap-3">
-                @foreach (var user in _searchResults)
+                @if (_searchResults.Any())
                 {
-                    <MudPaper Class="pa-3 friend-card" Elevation="0" Outlined="true">
-                        <div class="d-flex align-center gap-3">
-                            <MudAvatar Size="Size.Medium" Style="@($"background-color: {UserColorService.GetUserColor(user.DisplayName)}; color: white;")">
-                                @(user.DisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
-                            </MudAvatar>
-                            <div class="flex-grow-1">
-                                <MudText Typo="Typo.body1" Style="font-weight: 600;">@user.DisplayName</MudText>
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">ID: @user.ShareId</MudText>
-                            </div>
+                    <div class="d-flex flex-column gap-3">
+                        @for (var i = 0; i < _searchResults.Count; i++)
+                        {
+                            var user = _searchResults[i];
 
-                            @if (user.FriendshipStatus == "friends")
-                            {
-                                <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Rounded.Check">Venn</MudChip>
-                            }
-                            else if (user.FriendshipStatus == "pending_sent")
-                            {
-                                <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Text">Venter</MudChip>
-                            }
-                            else if (user.FriendshipStatus == "pending_received")
-                            {
-                                <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Text">Har sendt deg</MudChip>
-                            }
-                            else
-                            {
-                                <MudIconButton Icon="@Icons.Material.Rounded.PersonAdd"
-                                               Color="Color.Primary"
-                                               Variant="Variant.Filled"
-                                               Size="Size.Small"
-                                               OnClick="@(() => SendFriendRequest(user))" />
-                            }
-                        </div>
-                    </MudPaper>
-                }
-            </div>
-        }
-        else if (!_isSearching)
-        {
-            <div class="empty-state">
-                <MudIcon Icon="@Icons.Material.Rounded.SearchOff" Size="Size.Large" Color="Color.Default" />
-                <MudText Typo="Typo.body1" Class="mt-2">Ingen brukere funnet</MudText>
-            </div>
-        }
-    }
-    else
-    {
-        @* --- STANDARD LIST MODE --- *@
+                            <MudPaper Class="pa-3 friend-card friend-card-anim"
+                                      Style="@($"--i:{i};")"
+                                      Elevation="0"
+                                      Outlined="true"
+                                      @key="user.Id">
+                                <div class="d-flex align-center gap-3">
+                                    <MudAvatar Size="Size.Medium" Style="@($"background-color: {UserColorService.GetUserColor(user.DisplayName)}; color: white;")">
+                                        @(user.DisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                                    </MudAvatar>
+                                    <div class="flex-grow-1">
+                                        <MudText Typo="Typo.body1" Style="font-weight: 600;">@user.DisplayName</MudText>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">ID: @user.ShareId</MudText>
+                                    </div>
 
-        @* 1. INCOMING REQUESTS *@
-        @if (_pendingReceived.Any())
-        {
-            <div class="section-header">
-                <MudIcon Icon="@Icons.Material.Rounded.MarkEmailUnread" Size="Size.Small" Color="Color.Primary" />
-                <MudText Typo="Typo.subtitle2" Color="Color.Primary">Forespørsler</MudText>
-            </div>
-
-            <div class="d-flex flex-column gap-2 mb-6">
-                @foreach (var request in _pendingReceived)
-                {
-                    <MudPaper Class="pa-3 friend-card request-card" Elevation="0">
-                        <div class="d-flex align-center gap-3">
-                            <MudAvatar Size="Size.Medium" Style="@($"background-color: {UserColorService.GetUserColor(request.FriendDisplayName)}; color: white;")">
-                                @(request.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
-                            </MudAvatar>
-                            <div class="flex-grow-1">
-                                <MudText Typo="Typo.body2" Style="font-weight: 600;">@request.FriendDisplayName</MudText>
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">Vil bli venn med deg</MudText>
-                            </div>
-                        </div>
-                        <div class="d-flex gap-2 mt-3">
-                            <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Small" FullWidth="true" OnClick="@(() => AcceptRequest(request))">Godta</MudButton>
-                            <MudButton Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" FullWidth="true" OnClick="@(() => RejectRequest(request))">Avslå</MudButton>
-                        </div>
-                    </MudPaper>
-                }
-            </div>
-        }
-
-        @* 2. FRIENDS LIST *@
-        @if (_friends.Any())
-        {
-            <div class="d-flex flex-column gap-2">
-                @foreach (var friend in _friends)
-                {
-                    <MudPaper Class="pa-3 friend-card" Elevation="0" @onclick="@(() => OpenFriendProfile(friend))">
-                        <div class="d-flex align-center gap-3">
-                            <MudAvatar Size="Size.Medium" Variant="Variant.Filled" Style="@($"background-color: {UserColorService.GetUserColor(friend.FriendDisplayName)}; color: white;")">
-                                @(friend.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
-                            </MudAvatar>
-                            <div class="flex-grow-1">
-                                <MudText Typo="Typo.body1" Style="font-weight: 600;">@friend.FriendDisplayName</MudText>
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                    @friend.RecipeCount oppskrifter
-                                </MudText>
-                            </div>
-                            <MudIcon Icon="@Icons.Material.Rounded.ChevronRight" Color="Color.Default" />
-                        </div>
-                    </MudPaper>
-                }
-            </div>
-        }
-        else if (!_pendingReceived.Any() && !_pendingSent.Any())
-        {
-            <div class="empty-state mt-8">
-                <MudIcon Icon="@Icons.Material.Rounded.PersonSearch" Size="Size.Large" Color="Color.Default" />
-                <MudText Typo="Typo.h6" Class="mt-2">Ingen venner ennå</MudText>
-                <MudText Typo="Typo.body2" Color="Color.Secondary" Style="max-width: 250px;">
-                    Søk etter brukernavn eller ID i feltet over for å legge til venner.
-                </MudText>
-            </div>
-        }
-
-        @* 3. OUTGOING REQUESTS (Collapsed) *@
-        @if (_pendingSent.Any())
-        {
-            <MudExpansionPanel Text="@($"Sendte forespørsler ({_pendingSent.Count})")" Class="mt-6 shadow-none bg-transparent" DisableGutters="true">
-                <div class="d-flex flex-column gap-2 mt-2">
-                    @foreach (var request in _pendingSent)
-                    {
-                        <MudPaper Class="pa-3 friend-card" Elevation="0" Outlined="true" Style="opacity: 0.8;">
-                            <div class="d-flex align-center gap-3">
-                                <MudAvatar Size="Size.Small" Style="@($"background-color: {UserColorService.GetUserColor(request.FriendDisplayName)}; color: white;")">
-                                    @(request.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
-                                </MudAvatar>
-                                <div class="flex-grow-1">
-                                    <MudText Typo="Typo.body2">@request.FriendDisplayName</MudText>
-                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Venter...</MudText>
+                                    @if (user.FriendshipStatus == "friends")
+                                    {
+                                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Rounded.Check">Venn</MudChip>
+                                    }
+                                    else if (user.FriendshipStatus == "pending_sent")
+                                    {
+                                        <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Text">Venter</MudChip>
+                                    }
+                                    else if (user.FriendshipStatus == "pending_received")
+                                    {
+                                        <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Text">Har sendt deg</MudChip>
+                                    }
+                                    else
+                                    {
+                                        <MudIconButton Icon="@Icons.Material.Rounded.PersonAdd"
+                                                       Color="Color.Primary"
+                                                       Variant="Variant.Filled"
+                                                       Size="Size.Small"
+                                                       OnClick="@(() => SendFriendRequest(user))" />
+                                    }
                                 </div>
-                                <MudIconButton Icon="@Icons.Material.Rounded.Close" Size="Size.Small" OnClick="@(() => CancelRequest(request))" />
-                            </div>
-                        </MudPaper>
-                    }
-                </div>
-            </MudExpansionPanel>
-        }
-    }
-</div>
+                            </MudPaper>
+                        }
+                    </div>
+                }
+                else if (!_isSearching)
+                {
+                    <div class="empty-state">
+                        <MudIcon Icon="@Icons.Material.Rounded.SearchOff" Size="Size.Large" Color="Color.Default" />
+                        <MudText Typo="Typo.body1" Class="mt-2">Ingen brukere funnet</MudText>
+                    </div>
+                }
+            }
+            else
+            {
+                @* --- STANDARD LIST MODE --- *@
 
+                @* 1. INCOMING REQUESTS *@
+                @if (_pendingReceived.Any())
+                {
+                    <div class="section-header">
+                        <MudIcon Icon="@Icons.Material.Rounded.MarkEmailUnread" Size="Size.Small" Color="Color.Primary" />
+                        <MudText Typo="Typo.subtitle2" Color="Color.Primary">Forespørsler</MudText>
+                    </div>
+
+                    <div class="d-flex flex-column gap-3 mb-6">
+                        @for (var i = 0; i < _pendingReceived.Count; i++)
+                        {
+                            var request = _pendingReceived[i];
+
+                            <MudPaper Class="pa-3 friend-card request-card friend-card-anim"
+                                      Style="@($"--i:{i};")"
+                                      Elevation="0"
+                                      @key="request.Id">
+                                <div class="d-flex align-center gap-3">
+                                    <MudAvatar Size="Size.Medium" Style="@($"background-color: {UserColorService.GetUserColor(request.FriendDisplayName)}; color: white;")">
+                                        @(request.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                                    </MudAvatar>
+                                    <div class="flex-grow-1">
+                                        <MudText Typo="Typo.body2" Style="font-weight: 600;">@request.FriendDisplayName</MudText>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">Vil bli venn med deg</MudText>
+                                    </div>
+                                </div>
+                                <div class="d-flex gap-2 mt-3">
+                                    <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Small" FullWidth="true"
+                                               OnClick="@(() => AcceptRequest(request))">Godta</MudButton>
+                                    <MudButton Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" FullWidth="true"
+                                               OnClick="@(() => RejectRequest(request))">Avslå</MudButton>
+                                </div>
+                            </MudPaper>
+                        }
+                    </div>
+                }
+
+                @* 2. FRIENDS LIST *@
+                @if (_friends.Any())
+                {
+                    <div class="d-flex flex-column gap-3">
+                        @for (var i = 0; i < _friends.Count; i++)
+                        {
+                            var friend = _friends[i];
+
+                            <MudPaper Class="pa-3 friend-card friend-card-anim"
+                                      Style="@($"--i:{i};")"
+                                      Elevation="0"
+                                      @onclick="@(() => OpenFriendProfile(friend))"
+                                      @key="friend.FriendUserId">
+                                <div class="d-flex align-center gap-3">
+                                    <MudAvatar Size="Size.Medium" Variant="Variant.Filled"
+                                               Style="@($"background-color: {UserColorService.GetUserColor(friend.FriendDisplayName)}; color: white;")">
+                                        @(friend.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                                    </MudAvatar>
+                                    <div class="flex-grow-1">
+                                        <MudText Typo="Typo.body1" Style="font-weight: 600;">@friend.FriendDisplayName</MudText>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                            @friend.RecipeCount oppskrifter
+                                        </MudText>
+                                    </div>
+                                    <MudIcon Icon="@Icons.Material.Rounded.ChevronRight" Color="Color.Default" />
+                                </div>
+                            </MudPaper>
+                        }
+                    </div>
+                }
+                else if (!_pendingReceived.Any() && !_pendingSent.Any())
+                {
+                    <div class="empty-state mt-8">
+                        <MudIcon Icon="@Icons.Material.Rounded.PersonSearch" Size="Size.Large" Color="Color.Default" />
+                        <MudText Typo="Typo.h6" Class="mt-2">Ingen venner ennå</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Style="max-width: 250px;">
+                            Søk etter brukernavn eller ID i feltet over for å legge til venner.
+                        </MudText>
+                    </div>
+                }
+
+                @* 3. OUTGOING REQUESTS (Collapsed) *@
+                @if (_pendingSent.Any())
+                {
+                    <MudExpansionPanel Text="@($"Sendte forespørsler ({_pendingSent.Count})")"
+                                       Class="mt-6 shadow-none bg-transparent"
+                                       DisableGutters="true">
+                        <div class="d-flex flex-column gap-3 mt-2">
+                            @for (var i = 0; i < _pendingSent.Count; i++)
+                            {
+                                var request = _pendingSent[i];
+
+                                <MudPaper Class="pa-3 friend-card friend-card-anim"
+                                          Style="@($"--i:{i}; opacity: 0.8;")"
+                                          Elevation="0"
+                                          Outlined="true"
+                                          @key="request.Id">
+                                    <div class="d-flex align-center gap-3">
+                                        <MudAvatar Size="Size.Small"
+                                                   Style="@($"background-color: {UserColorService.GetUserColor(request.FriendDisplayName)}; color: white;")">
+                                            @(request.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                                        </MudAvatar>
+                                        <div class="flex-grow-1">
+                                            <MudText Typo="Typo.body2">@request.FriendDisplayName</MudText>
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary">Venter...</MudText>
+                                        </div>
+                                        <MudIconButton Icon="@Icons.Material.Rounded.Close" Size="Size.Small" OnClick="@(() => CancelRequest(request))" />
+                                    </div>
+                                </MudPaper>
+                            }
+                        </div>
+                    </MudExpansionPanel>
+                }
+            }
+        </ChildContent>
+    </XFade>
+</div>
 
 @code {
     private List<UserFriendshipDto> _friends = new();
@@ -17074,6 +17024,7 @@ FILE START: \StorhaugenWebsite\Pages\Friends.razor
         Navigation.NavigateTo($"friends/{friend.FriendUserId}");
     }
 }
+
 
 ================================================================================
 FILE END: \StorhaugenWebsite\Pages\Friends.razor
@@ -17482,7 +17433,16 @@ FILE START: \StorhaugenWebsite\Pages\Home.razor
     </div>
 
     @* --- ACTIVITY FEED --- *@
-    <ActivityFeed PageSize="10" />
+    <div class="feed-section">
+        <div class="d-flex align-center gap-2 mb-3">
+            <MudIcon Icon="@Icons.Material.Rounded.History" Color="Color.Secondary" Size="Size.Small" />
+            <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Style="text-transform: uppercase; letter-spacing: 1px; font-weight: 700;">
+                Siste Nytt
+            </MudText>
+        </div>
+
+        <ActivityFeed PageSize="10" />
+    </div>
 </div>
 
 <style>
@@ -18080,6 +18040,7 @@ FILE START: \StorhaugenWebsite\Pages\Settings.razor
 @using StorhaugenWebsite.ApiClient
 @using StorhaugenWebsite.Models
 @using StorhaugenWebsite.Shared.DTOs
+@using MudBlazor.Utilities
 @inject IAuthService AuthService
 @inject IDeviceStateService DeviceState
 @inject ICollectionStateService CollectionState
@@ -18088,8 +18049,8 @@ FILE START: \StorhaugenWebsite\Pages\Settings.razor
 @inject ISnackbar Snackbar
 @inject IJSRuntime JSRuntime
 @inject IThemeService ThemeService
+@inject IUserColorService UserColorService
 @attribute [Authorize]
-
 
 <div class="d-flex align-center gap-3 mb-6">
     <h1 class="page-title" style="margin-bottom: 0; font-size: 1.5rem;">Innstillinger</h1>
@@ -18100,8 +18061,8 @@ FILE START: \StorhaugenWebsite\Pages\Settings.razor
 
     <div class="setting-row">
         <div class="d-flex align-center gap-3">
-            <MudAvatar Size="Size.Medium" Style="@($"background: {GetMemberColor(AuthService.CurrentUserName ?? "")}")">
-                @(string.IsNullOrEmpty(AuthService.CurrentUserName) ? '?' : AuthService.CurrentUserName[0])
+            <MudAvatar Style="@($"background: {UserColorService.GetUserColor(_userProfile?.DisplayName ?? AuthService.CurrentUserName)}")">
+                @((_userProfile?.DisplayName ?? AuthService.CurrentUserName ?? "?")[0])
             </MudAvatar>
             <div>
                 <MudText Typo="Typo.body1" Style="font-weight: 500;">@AuthService.CurrentUserName</MudText>
@@ -18145,6 +18106,7 @@ FILE START: \StorhaugenWebsite\Pages\Settings.razor
 
 <div class="form-section">
     <p class="form-section-title">Utseende</p>
+
     <MudSelect T="string"
                Label="Fargetema"
                Value="@_currentTheme"
@@ -18172,6 +18134,33 @@ FILE START: \StorhaugenWebsite\Pages\Settings.razor
             </MudSelectItem>
         }
     </MudSelect>
+
+    <div class="setting-row" style="padding-top: 4px;">
+        <div class="flex-grow-1">
+            <MudText Typo="Typo.body2" Style="font-weight: 500;">Bruk egen hovedfarge</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">Overstyr prim�rfarge</MudText>
+        </div>
+
+        <MudSwitch Color="Color.Primary"
+                   Value="@_useCustomThemeColors"
+                   ValueChanged="@((bool b) => OnToggleUseCustomThemeColors(b))" />
+    </div>
+
+    <div class="custom-primary-row">
+        <MudColorPicker Value="@_customThemeColor"
+                        ValueChanged="OnCustomThemeColorChanged"
+                        Disabled="@(!_useCustomThemeColors)"
+                        Class="custom-color-picker-dialog"
+                        AnchorOrigin="Origin.BottomCenter"
+                        ShowToolbar="false"
+                        ShowAlpha="false"
+                        PickerVariant="PickerVariant.Dialog"
+                        Style="margin-top: 0" />
+
+        <div class="custom-color-preview"
+             style="background-color: @_customThemeColor.Value; @(!_useCustomThemeColors ? "opacity: 0.5;" : "")">
+        </div>
+    </div>
 </div>
 
 @if (CollectionState.UserCollections.Any())
@@ -18188,16 +18177,15 @@ FILE START: \StorhaugenWebsite\Pages\Settings.razor
             </MudButton>
         </div>
         <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
-            Du er med i @CollectionState.UserCollections.Count samling(er). 
+            Du er med i @CollectionState.UserCollections.Count samling(er).
         </MudText>
-       
     </div>
 }
 
 <div class="form-section mt-4">
     <div class="d-flex justify-center flex-column align-center gap-1">
         <MudText Typo="Typo.body2" Style="font-weight: 500;">Storhaugen Eats</MudText>
-        <MudText Typo="Typo.caption" Color="Color.Secondary">Versjon 2.0.1</MudText>
+        <MudText Typo="Typo.caption" Color="Color.Secondary">Version 2.1.1</MudText>
     </div>
 </div>
 
@@ -18211,7 +18199,6 @@ FILE START: \StorhaugenWebsite\Pages\Settings.razor
         Logg ut
     </MudButton>
 </div>
-
 
 <style>
     .setting-row {
@@ -18287,6 +18274,24 @@ FILE START: \StorhaugenWebsite\Pages\Settings.razor
         height: 3px;
         border-radius: 2px;
     }
+
+    .custom-primary-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 8px;
+    }
+
+    .custom-color-picker-dialog {
+        width: 125px;
+    }
+
+    .custom-color-preview {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        border: 1px solid var(--mud-palette-divider);
+    }
 </style>
 
 @code {
@@ -18295,22 +18300,19 @@ FILE START: \StorhaugenWebsite\Pages\Settings.razor
     private string _currentTheme = "Light";
     private string _viewMode = "card";
 
+    // NEW
+    private bool _useCustomThemeColors;
+    private MudColor _customThemeColor = new("#E07A2E");
+
     protected override async Task OnInitializedAsync()
     {
-        await CollectionState.InitializeAsync();
+        _userProfile = CollectionState.CurrentProfile;
+        _editDisplayName = _userProfile?.DisplayName;
 
-        try
+        if (_userProfile is null)
         {
             _userProfile = await ApiClient.GetMyProfileAsync();
-            if (_userProfile != null)
-            {
-                _editDisplayName = _userProfile.DisplayName;
-                AuthService.UpdateCachedDisplayName(_userProfile.DisplayName);
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error loading user profile: {ex.Message}");
+            _editDisplayName = _userProfile?.DisplayName;
         }
 
         _currentTheme = ThemeService.GetCurrentThemeName();
@@ -18352,20 +18354,36 @@ FILE START: \StorhaugenWebsite\Pages\Settings.razor
         }
     }
 
-    private void ToggleCollectionFilter(Guid collectionId)
-    {
-        CollectionState.ToggleCollectionFilter(collectionId);
-        StateHasChanged();
-        Snackbar.Add("Samlingsfilter oppdatert", Severity.Info);
-    }
-
     private async Task OnThemeChanged(string themeName)
     {
         _currentTheme = themeName;
         await ThemeService.SetThemeAsync(themeName);
+
+        // keep a reasonable default for the picker if user never chose one
+        if (string.IsNullOrWhiteSpace(DeviceState.Settings.CustomThemeColor))
+            _customThemeColor = new MudColor(ThemeService.GetThemeColors(themeName).Primary);
     }
 
+    private async Task OnToggleUseCustomThemeColors(bool enabled)
+    {
+        _useCustomThemeColors = enabled;
+        await DeviceState.ToggleUseCustomThemeColorsAsync(enabled);
 
+        // force theme refresh so MudThemeProvider re-renders + GetCurrentTheme runs
+        await ThemeService.SetThemeAsync(_currentTheme);
+    }
+
+    private async Task OnCustomThemeColorChanged(MudColor customColor)
+    {
+        _customThemeColor = customColor;
+
+        // save as #RRGGBB (no alpha, no rgba)
+        var hex = $"#{customColor.R:X2}{customColor.G:X2}{customColor.B:X2}";
+        await DeviceState.SetCustomThemeColorAsync(hex);
+
+        if (_useCustomThemeColors)
+            await ThemeService.SetThemeAsync(_currentTheme);
+    }
 
     private string GetThemeDisplayName(string themeName)
     {
@@ -18373,20 +18391,15 @@ FILE START: \StorhaugenWebsite\Pages\Settings.razor
         {
             "System" => "System Default",
             "Light" => "Light (Amber)",
-            "Dark" => "Dark (Rustic)",   // I renamed this slightly to distinguish it
+            "Dark" => "Dark (Rustic)",
             "Black" => "Midnight Black",
             "Material" => "Material Red",
             "Forest" => "Night Forest",
-
-            // --- NEW THEMES ---
             "Cafe" => "Dark Caf�",
             "Walnut" => "Dark Walnut",
             "Clay" => "Dark Clay",
             "Moss" => "Dark Moss",
             "Ink" => "Dark Ink",
-
-
-
             _ => themeName
         };
     }
@@ -18396,14 +18409,8 @@ FILE START: \StorhaugenWebsite\Pages\Settings.razor
         await AuthService.LogoutAsync();
         Navigation.NavigateTo("login");
     }
-
-    private string GetMemberColor(string name)
-    {
-        var hash = name.GetHashCode();
-        var hue = Math.Abs(hash % 360);
-        return $"hsl({hue}, 45%, 45%)";
-    }
 }
+
 
 ================================================================================
 FILE END: \StorhaugenWebsite\Pages\Settings.razor
@@ -19148,6 +19155,7 @@ namespace StorhaugenWebsite.Services
         private readonly IApiClient _apiClient;
         private readonly IAuthService _authService;
         private Guid? _currentUserId;
+        public UserDto? CurrentProfile { get; private set; }
 
         public List<CollectionDto> UserCollections { get; private set; } = new();
         public CollectionDto? ActiveCollection { get; private set; }
@@ -19192,8 +19200,8 @@ namespace StorhaugenWebsite.Services
             try
             {
                 // Get current user ID
-                var profile = await _apiClient.GetMyProfileAsync();
-                _currentUserId = profile?.Id;
+                CurrentProfile = await _apiClient.GetMyProfileAsync();
+                _currentUserId = CurrentProfile?.Id;
 
                 // Load collections
                 UserCollections = await _apiClient.GetMyCollectionsAsync();
@@ -19356,6 +19364,8 @@ namespace StorhaugenWebsite.Services
 {
     public interface ICollectionStateService
     {
+        UserDto? CurrentProfile { get; }
+
         /// <summary>
         /// All collections the current user owns or is a member of.
         /// </summary>
@@ -19534,6 +19544,21 @@ namespace StorhaugenWebsite.Services
             }
         }
 
+        public async Task ToggleUseCustomThemeColorsAsync(bool enabled)
+        {
+            Settings.IsUsingCustomThemeColors = enabled;
+            await SaveSettingsAsync();
+            OnSettingsChanged?.Invoke();
+        }
+
+        public async Task SetCustomThemeColorAsync(string color)
+        {
+            Settings.CustomThemeColor = color;
+            await SaveSettingsAsync();
+            OnSettingsChanged?.Invoke();
+        }
+
+
         public async Task SetCookbookFiltersAsync(List<Guid> collectionIds, bool personalActive)
         {
             Settings.CookbookCollectionFilters = collectionIds;
@@ -19580,6 +19605,11 @@ namespace StorhaugenWebsite.Services
         Task<string> GetSystemThemePreferenceAsync();
         Task SetSortAsync(string sortBy, bool descending);
         Task SetCookbookFiltersAsync(List<Guid> collectionIds, bool personalActive);
+
+        // NEW
+        Task ToggleUseCustomThemeColorsAsync(bool enabled);
+        Task SetCustomThemeColorAsync(string color);
+
     }
 }
 
@@ -19899,6 +19929,8 @@ namespace StorhaugenWebsite.Services
         Task SetThemeAsync(string themeName);
         ThemeColors GetThemeColors(string themeName);
         bool IsThemeDark(string themeName);
+        Task SetCustomPrimaryAsync(bool enabled, string? primaryHex);
+
     }
 }
 
@@ -19911,15 +19943,22 @@ FILE END: \StorhaugenWebsite\Services\Theme\IThemeService.cs
 FILE START: \StorhaugenWebsite\Services\Theme\ThemeService.cs
 ================================================================================
 using MudBlazor;
+using MudBlazor.Utilities;
 using StorhaugenWebsite.Models;
 
 namespace StorhaugenWebsite.Services
 {
-    public class ThemeService : IThemeService
+    public class ThemeService : IThemeService, IDisposable
     {
         private readonly IDeviceStateService _deviceState;
+
         private Dictionary<string, MudTheme> _themes = new();
         private string? _systemPreference;
+
+        // track only theme-related settings so we don�t rebuild on every device setting change
+        private string _lastThemeName = "";
+        private bool _lastUseCustomPrimary;
+        private string? _lastCustomPrimaryHex;
 
         public bool IsDarkMode { get; private set; }
         public event Action? OnThemeChanged;
@@ -19927,30 +19966,19 @@ namespace StorhaugenWebsite.Services
         public ThemeService(IDeviceStateService deviceState)
         {
             _deviceState = deviceState;
+            _deviceState.OnSettingsChanged += HandleDeviceSettingsChanged;
         }
 
         public async Task InitializeAsync()
         {
             _systemPreference = await _deviceState.GetSystemThemePreferenceAsync();
 
-            _themes["System"] = _systemPreference == "dark" ? GenerateDarkTheme() : GenerateLightTheme();
-            _themes["Light"] = GenerateLightTheme();
+            RebuildThemesAndApplyOverrides();
 
-            // Your existing themes
-            _themes["Dark"] = GenerateDarkTheme(); // The original rustic brown
-            _themes["Black"] = GenerateBlackTheme();
-            _themes["Material"] = GenerateMaterialTheme();
-            _themes["Forest"] = GenerateForestTheme();
-
-            // --- NEW THEMES ---
-            // --- DARK VARIANTS (modern / sleek, not bleak) ---
-            _themes["Cafe"] = GenerateCafeDarkTheme();
-            _themes["Walnut"] = GenerateWalnutDarkTheme();
-            _themes["Clay"] = GenerateClayDarkTheme();
-            _themes["Moss"] = GenerateMossDarkTheme();
-            _themes["Ink"] = GenerateInkDarkTheme();
-
-
+            // remember last seen settings
+            _lastThemeName = _deviceState.Settings.Theme;
+            _lastUseCustomPrimary = _deviceState.Settings.IsUsingCustomThemeColors;
+            _lastCustomPrimaryHex = NormalizeHex(_deviceState.Settings.CustomThemeColor);
 
             UpdateDarkModeState();
         }
@@ -19958,11 +19986,11 @@ namespace StorhaugenWebsite.Services
         public MudTheme GetCurrentTheme()
         {
             var themeName = _deviceState.Settings.Theme;
+
             if (_themes.TryGetValue(themeName, out var theme))
-            {
                 return theme;
-            }
-            return _themes["Light"];
+
+            return _themes.TryGetValue("Light", out var light) ? light : new MudTheme();
         }
 
         public IEnumerable<string> GetAvailableThemes() => _themes.Keys;
@@ -19971,19 +19999,17 @@ namespace StorhaugenWebsite.Services
 
         public async Task SetThemeAsync(string themeName)
         {
-            if (!_themes.ContainsKey(themeName)) return;
+            if (!_themes.ContainsKey(themeName))
+                return;
 
+            // DeviceState event will trigger rebuild + OnThemeChanged
             await _deviceState.SetThemeAsync(themeName);
-            UpdateDarkModeState();
-            OnThemeChanged?.Invoke();
         }
 
         public ThemeColors GetThemeColors(string themeName)
         {
             if (!_themes.TryGetValue(themeName, out var theme))
-            {
-                theme = _themes["Light"];
-            }
+                theme = _themes.TryGetValue("Light", out var light) ? light : new MudTheme();
 
             var isDark = IsThemeDark(themeName);
 
@@ -19991,24 +20017,24 @@ namespace StorhaugenWebsite.Services
 
             return new ThemeColors
             {
-                Primary = palette.Primary.ToString(),
-                Info = palette.Info.ToString(),
-                AppbarBackground = palette.AppbarBackground.ToString(),
-                Surface = palette.Surface.ToString(),
-                Background = palette.Background.ToString(),
-                BackgroundGrey = palette.BackgroundGray.ToString(), // Note: MudBlazor v7 uses 'BackgroundGray'
-                Divider = palette.Divider.ToString(),
-                TextPrimary = palette.TextPrimary.ToString(),
-                TextSecondary = palette.TextSecondary.ToString()
+                Primary = palette.Primary?.ToString() ?? "",
+                Info = palette.Info?.ToString() ?? "",
+                AppbarBackground = palette.AppbarBackground?.ToString() ?? "",
+                Surface = palette.Surface?.ToString() ?? "",
+                Background = palette.Background?.ToString() ?? "",
+                BackgroundGrey = palette.BackgroundGray?.ToString() ?? "",
+                Divider = palette.Divider?.ToString() ?? "",
+                TextPrimary = palette.TextPrimary?.ToString() ?? "",
+                TextSecondary = palette.TextSecondary?.ToString() ?? ""
             };
         }
 
         public bool IsThemeDark(string themeName)
         {
             if (themeName == "System")
-            {
                 return _systemPreference == "dark";
-            }
+
+            // your convention: Light is the only light theme
             return themeName != "Light";
         }
 
@@ -20017,7 +20043,113 @@ namespace StorhaugenWebsite.Services
             IsDarkMode = IsThemeDark(_deviceState.Settings.Theme);
         }
 
-        // ========== LIGHT THEME (Warm Amber) ==========
+        private void HandleDeviceSettingsChanged()
+        {
+            // only react to theme-related settings
+            var themeName = _deviceState.Settings.Theme;
+            var useCustom = _deviceState.Settings.IsUsingCustomThemeColors;
+            var customHex = NormalizeHex(_deviceState.Settings.CustomThemeColor);
+
+            var themeRelatedChanged =
+                themeName != _lastThemeName ||
+                useCustom != _lastUseCustomPrimary ||
+                customHex != _lastCustomPrimaryHex;
+
+            if (!themeRelatedChanged)
+                return;
+
+            _lastThemeName = themeName;
+            _lastUseCustomPrimary = useCustom;
+            _lastCustomPrimaryHex = customHex;
+
+            RebuildThemesAndApplyOverrides();
+            UpdateDarkModeState();
+
+            OnThemeChanged?.Invoke();
+        }
+
+        private void RebuildThemesAndApplyOverrides()
+        {
+            BuildThemes();
+
+            if (_deviceState.Settings.IsUsingCustomThemeColors)
+            {
+                var hex = NormalizeHex(_deviceState.Settings.CustomThemeColor);
+                if (!string.IsNullOrWhiteSpace(hex))
+                    ApplyCustomPrimaryToThemes(hex!);
+            }
+        }
+
+        private void BuildThemes()
+        {
+            var dict = new Dictionary<string, MudTheme>();
+
+            dict["System"] = _systemPreference == "dark" ? GenerateDarkTheme() : GenerateLightTheme();
+            dict["Light"] = GenerateLightTheme();
+
+            dict["Dark"] = GenerateDarkTheme();
+            dict["Black"] = GenerateBlackTheme();
+            dict["Material"] = GenerateMaterialTheme();
+            dict["Forest"] = GenerateForestTheme();
+
+            dict["Cafe"] = GenerateCafeDarkTheme();
+            dict["Walnut"] = GenerateWalnutDarkTheme();
+            dict["Clay"] = GenerateClayDarkTheme();
+            dict["Moss"] = GenerateMossDarkTheme();
+            dict["Ink"] = GenerateInkDarkTheme();
+
+            _themes = dict;
+        }
+
+        private void ApplyCustomPrimaryToThemes(string primaryHex)
+        {
+            foreach (var theme in _themes.Values)
+                ApplyCustomPrimaryToTheme(theme, primaryHex);
+        }
+
+        private static void ApplyCustomPrimaryToTheme(MudTheme theme, string primaryHex)
+        {
+            if (theme.PaletteLight is not null)
+            {
+                theme.PaletteLight.Primary = primaryHex;
+                theme.PaletteLight.PrimaryDarken = AdjustHex(primaryHex, -0.15);
+                theme.PaletteLight.PrimaryLighten = AdjustHex(primaryHex, 0.15);
+            }
+
+            if (theme.PaletteDark is not null)
+            {
+                theme.PaletteDark.Primary = primaryHex;
+                theme.PaletteDark.PrimaryDarken = AdjustHex(primaryHex, -0.15);
+                theme.PaletteDark.PrimaryLighten = AdjustHex(primaryHex, 0.15);
+            }
+        }
+
+        public async Task SetCustomPrimaryAsync(bool enabled, string? primaryHex)
+        {
+            var normalized = NormalizeHex(primaryHex);
+
+            // save color first (optional) so when enabling you immediately apply the right value
+            if (!string.IsNullOrWhiteSpace(normalized) &&
+                NormalizeHex(_deviceState.Settings.CustomThemeColor) != normalized)
+            {
+                await _deviceState.SetCustomThemeColorAsync(normalized);
+            }
+
+            // then toggle on/off
+            if (_deviceState.Settings.IsUsingCustomThemeColors != enabled)
+            {
+                await _deviceState.ToggleUseCustomThemeColorsAsync(enabled);
+            }
+
+            // No manual refresh needed:
+            // DeviceState fires OnSettingsChanged -> ThemeService reacts -> OnThemeChanged
+        }
+
+
+        // =========================
+        //  THEME DEFINITIONS
+        // =========================
+
         private MudTheme GenerateLightTheme()
         {
             return new MudTheme
@@ -20050,189 +20182,6 @@ namespace StorhaugenWebsite.Services
             };
         }
 
-
-        // ========== CAFE (warm, clean brown + amber accent) ==========
-        private MudTheme GenerateCafeDarkTheme()
-        {
-            return new MudTheme
-            {
-                PaletteDark = new PaletteDark
-                {
-                    Primary = "#F0A35E",
-                    PrimaryDarken = "#E07A2E",
-                    PrimaryLighten = "#FFD2A6",
-
-                    Secondary = "#78BFA0",
-                    Tertiary = "#7CAAD0",
-                    Info = "#7CAAD0",
-                    Success = "#78BFA0",
-                    Warning = "#E6C06A",
-                    Error = "#E07B6F",
-
-                    Background = "#17120D",
-                    Surface = "#2A2118",
-                    AppbarBackground = "#241C14",
-                    DrawerBackground = "#241C14",
-                    AppbarText = "#F5F0E8",
-
-                    TextPrimary = "#F5F0E8",
-                    TextSecondary = "#B7AA9A",
-                    ActionDefault = "#B7AA9A",
-                    Divider = "#3B2F25",
-                    DividerLight = "#4A3B2F",
-                    BackgroundGray = "#201810"
-                },
-                Typography = GetTypography(),
-                LayoutProperties = new LayoutProperties { DefaultBorderRadius = "16px" }
-            };
-        }
-
-        // ========== WALNUT (deeper + sleeker contrast, still warm) ==========
-        private MudTheme GenerateWalnutDarkTheme()
-        {
-            return new MudTheme
-            {
-                PaletteDark = new PaletteDark
-                {
-                    Primary = "#E48B4A",
-                    PrimaryDarken = "#C96E33",
-                    PrimaryLighten = "#F4B789",
-
-                    Secondary = "#7DB6A3",
-                    Tertiary = "#7FA8C7",
-                    Info = "#7FA8C7",
-                    Success = "#7DB6A3",
-                    Warning = "#D7B66A",
-                    Error = "#D8786C",
-
-                    Background = "#120F0D",
-                    Surface = "#1F1914",
-                    AppbarBackground = "#1B1511",
-                    DrawerBackground = "#1B1511",
-                    AppbarText = "#F5F0E8",
-
-                    TextPrimary = "#F5F0E8",
-                    TextSecondary = "#A89B8A",
-                    ActionDefault = "#A89B8A",
-                    Divider = "#2F261F",
-                    DividerLight = "#3B3028",
-                    BackgroundGray = "#18130F"
-                },
-                Typography = GetTypography(),
-                LayoutProperties = new LayoutProperties { DefaultBorderRadius = "16px" }
-            };
-        }
-
-        // ========== CLAY (earthy, modern terracotta, warmer surfaces) ==========
-        private MudTheme GenerateClayDarkTheme()
-        {
-            return new MudTheme
-            {
-                PaletteDark = new PaletteDark
-                {
-                    Primary = "#D98A76",
-                    PrimaryDarken = "#BD6A59",
-                    PrimaryLighten = "#F0B0A2",
-
-                    Secondary = "#7FB3A0",
-                    Tertiary = "#7CAAD0",
-                    Info = "#7CAAD0",
-                    Success = "#7FB3A0",
-                    Warning = "#E0B86C",
-                    Error = "#D66B6B",
-
-                    Background = "#17100F",
-                    Surface = "#2B1B18",
-                    AppbarBackground = "#241513",
-                    DrawerBackground = "#241513",
-                    AppbarText = "#F5EEE9",
-
-                    TextPrimary = "#F5EEE9",
-                    TextSecondary = "#B09A95",
-                    ActionDefault = "#B09A95",
-                    Divider = "#3B2523",
-                    DividerLight = "#4A2F2C",
-                    BackgroundGray = "#211412"
-                },
-                Typography = GetTypography(),
-                LayoutProperties = new LayoutProperties { DefaultBorderRadius = "16px" }
-            };
-        }
-
-        // ========== MOSS (sleek brown base with muted green accent) ==========
-        private MudTheme GenerateMossDarkTheme()
-        {
-            return new MudTheme
-            {
-                PaletteDark = new PaletteDark
-                {
-                    Primary = "#79C98E",
-                    PrimaryDarken = "#55AE73",
-                    PrimaryLighten = "#A7E7B8",
-
-                    Secondary = "#E3A85B",   // warm accent to balance the green
-                    Tertiary = "#7CAAD0",
-                    Info = "#7CAAD0",
-                    Success = "#79C98E",
-                    Warning = "#E6C06A",
-                    Error = "#D8786C",
-
-                    Background = "#14130F",
-                    Surface = "#232016",
-                    AppbarBackground = "#1F1C13",
-                    DrawerBackground = "#1F1C13",
-                    AppbarText = "#F5F0E8",
-
-                    TextPrimary = "#F5F0E8",
-                    TextSecondary = "#ABA38F",
-                    ActionDefault = "#ABA38F",
-                    Divider = "#2F2C1F",
-                    DividerLight = "#3C3828",
-                    BackgroundGray = "#1B190F"
-                },
-                Typography = GetTypography(),
-                LayoutProperties = new LayoutProperties { DefaultBorderRadius = "16px" }
-            };
-        }
-
-        // ========== INK (cleaner, slightly cooler �modern� dark while staying cozy) ==========
-        private MudTheme GenerateInkDarkTheme()
-        {
-            return new MudTheme
-            {
-                PaletteDark = new PaletteDark
-                {
-                    Primary = "#5FAAD8",
-                    PrimaryDarken = "#3E8FB8",
-                    PrimaryLighten = "#92D0EE",
-
-                    Secondary = "#7FB3A0",
-                    Tertiary = "#E6B56A",   // warm counter-accent (prevents �bleak�)
-                    Info = "#5FAAD8",
-                    Success = "#7FB3A0",
-                    Warning = "#E6B56A",
-                    Error = "#D8786C",
-
-                    Background = "#131416",
-                    Surface = "#1C1E22",
-                    AppbarBackground = "#171A1E",
-                    DrawerBackground = "#171A1E",
-                    AppbarText = "#F5F0E8",
-
-                    TextPrimary = "#F5F0E8",
-                    TextSecondary = "#A7AAB0",
-                    ActionDefault = "#A7AAB0",
-                    Divider = "#2A2D33",
-                    DividerLight = "#383C44",
-                    BackgroundGray = "#16181C"
-                },
-                Typography = GetTypography(),
-                LayoutProperties = new LayoutProperties { DefaultBorderRadius = "16px" }
-            };
-        }
-
-
-        // ========== DARK THEME (Warm Dark) ==========
         private MudTheme GenerateDarkTheme()
         {
             return new MudTheme
@@ -20265,7 +20214,6 @@ namespace StorhaugenWebsite.Services
             };
         }
 
-        // ========== BLACK THEME ==========
         private MudTheme GenerateBlackTheme()
         {
             return new MudTheme
@@ -20298,7 +20246,6 @@ namespace StorhaugenWebsite.Services
             };
         }
 
-        // ========== MATERIAL THEME ==========
         private MudTheme GenerateMaterialTheme()
         {
             return new MudTheme
@@ -20331,7 +20278,6 @@ namespace StorhaugenWebsite.Services
             };
         }
 
-        // ========== FOREST THEME (Nattskog) ==========
         private MudTheme GenerateForestTheme()
         {
             return new MudTheme
@@ -20364,6 +20310,166 @@ namespace StorhaugenWebsite.Services
             };
         }
 
+        private MudTheme GenerateCafeDarkTheme()
+        {
+            return new MudTheme
+            {
+                PaletteDark = new PaletteDark
+                {
+                    Primary = "#F0A35E",
+                    PrimaryDarken = "#E07A2E",
+                    PrimaryLighten = "#FFD2A6",
+                    Secondary = "#78BFA0",
+                    Tertiary = "#7CAAD0",
+                    Info = "#7CAAD0",
+                    Success = "#78BFA0",
+                    Warning = "#E6C06A",
+                    Error = "#E07B6F",
+                    Background = "#17120D",
+                    Surface = "#2A2118",
+                    AppbarBackground = "#241C14",
+                    DrawerBackground = "#241C14",
+                    AppbarText = "#F5F0E8",
+                    TextPrimary = "#F5F0E8",
+                    TextSecondary = "#B7AA9A",
+                    ActionDefault = "#B7AA9A",
+                    Divider = "#3B2F25",
+                    DividerLight = "#4A3B2F",
+                    BackgroundGray = "#201810"
+                },
+                Typography = GetTypography(),
+                LayoutProperties = new LayoutProperties { DefaultBorderRadius = "16px" }
+            };
+        }
+
+        private MudTheme GenerateWalnutDarkTheme()
+        {
+            return new MudTheme
+            {
+                PaletteDark = new PaletteDark
+                {
+                    Primary = "#E48B4A",
+                    PrimaryDarken = "#C96E33",
+                    PrimaryLighten = "#F4B789",
+                    Secondary = "#7DB6A3",
+                    Tertiary = "#7FA8C7",
+                    Info = "#7FA8C7",
+                    Success = "#7DB6A3",
+                    Warning = "#D7B66A",
+                    Error = "#D8786C",
+                    Background = "#120F0D",
+                    Surface = "#1F1914",
+                    AppbarBackground = "#1B1511",
+                    DrawerBackground = "#1B1511",
+                    AppbarText = "#F5F0E8",
+                    TextPrimary = "#F5F0E8",
+                    TextSecondary = "#A89B8A",
+                    ActionDefault = "#A89B8A",
+                    Divider = "#2F261F",
+                    DividerLight = "#3B3028",
+                    BackgroundGray = "#18130F"
+                },
+                Typography = GetTypography(),
+                LayoutProperties = new LayoutProperties { DefaultBorderRadius = "16px" }
+            };
+        }
+
+        private MudTheme GenerateClayDarkTheme()
+        {
+            return new MudTheme
+            {
+                PaletteDark = new PaletteDark
+                {
+                    Primary = "#D98A76",
+                    PrimaryDarken = "#BD6A59",
+                    PrimaryLighten = "#F0B0A2",
+                    Secondary = "#7FB3A0",
+                    Tertiary = "#7CAAD0",
+                    Info = "#7CAAD0",
+                    Success = "#7FB3A0",
+                    Warning = "#E0B86C",
+                    Error = "#D66B6B",
+                    Background = "#17100F",
+                    Surface = "#2B1B18",
+                    AppbarBackground = "#241513",
+                    DrawerBackground = "#241513",
+                    AppbarText = "#F5EEE9",
+                    TextPrimary = "#F5EEE9",
+                    TextSecondary = "#B09A95",
+                    ActionDefault = "#B09A95",
+                    Divider = "#3B2523",
+                    DividerLight = "#4A2F2C",
+                    BackgroundGray = "#211412"
+                },
+                Typography = GetTypography(),
+                LayoutProperties = new LayoutProperties { DefaultBorderRadius = "16px" }
+            };
+        }
+
+        private MudTheme GenerateMossDarkTheme()
+        {
+            return new MudTheme
+            {
+                PaletteDark = new PaletteDark
+                {
+                    Primary = "#79C98E",
+                    PrimaryDarken = "#55AE73",
+                    PrimaryLighten = "#A7E7B8",
+                    Secondary = "#E3A85B",
+                    Tertiary = "#7CAAD0",
+                    Info = "#7CAAD0",
+                    Success = "#79C98E",
+                    Warning = "#E6C06A",
+                    Error = "#D8786C",
+                    Background = "#14130F",
+                    Surface = "#232016",
+                    AppbarBackground = "#1F1C13",
+                    DrawerBackground = "#1F1C13",
+                    AppbarText = "#F5F0E8",
+                    TextPrimary = "#F5F0E8",
+                    TextSecondary = "#ABA38F",
+                    ActionDefault = "#ABA38F",
+                    Divider = "#2F2C1F",
+                    DividerLight = "#3C3828",
+                    BackgroundGray = "#1B190F"
+                },
+                Typography = GetTypography(),
+                LayoutProperties = new LayoutProperties { DefaultBorderRadius = "16px" }
+            };
+        }
+
+        private MudTheme GenerateInkDarkTheme()
+        {
+            return new MudTheme
+            {
+                PaletteDark = new PaletteDark
+                {
+                    Primary = "#5FAAD8",
+                    PrimaryDarken = "#3E8FB8",
+                    PrimaryLighten = "#92D0EE",
+                    Secondary = "#7FB3A0",
+                    Tertiary = "#E6B56A",
+                    Info = "#5FAAD8",
+                    Success = "#7FB3A0",
+                    Warning = "#E6B56A",
+                    Error = "#D8786C",
+                    Background = "#131416",
+                    Surface = "#1C1E22",
+                    AppbarBackground = "#171A1E",
+                    DrawerBackground = "#171A1E",
+                    AppbarText = "#F5F0E8",
+                    TextPrimary = "#F5F0E8",
+                    TextSecondary = "#A7AAB0",
+                    ActionDefault = "#A7AAB0",
+                    Divider = "#2A2D33",
+                    DividerLight = "#383C44",
+                    BackgroundGray = "#16181C"
+                },
+                Typography = GetTypography(),
+                LayoutProperties = new LayoutProperties { DefaultBorderRadius = "16px" }
+            };
+        }
+
         private Typography GetTypography()
         {
             return new Typography
@@ -20378,11 +20484,87 @@ namespace StorhaugenWebsite.Services
                 H4 = new H4Typography { FontFamily = new[] { "Fraunces", "Georgia", "serif" }, FontWeight = "600" },
                 H5 = new H5Typography { FontFamily = new[] { "Fraunces", "Georgia", "serif" }, FontWeight = "600" },
                 H6 = new H6Typography { FontFamily = new[] { "DM Sans", "system-ui", "sans-serif" }, FontWeight = "600" },
-                Button = new ButtonTypography { FontFamily = new[] { "DM Sans", "system-ui", "sans-serif" }, FontWeight = "600", TextTransform = "none" }
+                Button = new ButtonTypography
+                {
+                    FontFamily = new[] { "DM Sans", "system-ui", "sans-serif" },
+                    FontWeight = "600",
+                    TextTransform = "none"
+                }
             };
+        }
+
+        // =========================
+        //  COLOR HELPERS
+        // =========================
+
+        private static string? NormalizeHex(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return null;
+
+            try
+            {
+                var c = new MudColor(value.Trim());
+                return $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string AdjustHex(string hex, double amount)
+        {
+            if (!TryParseHex(hex, out var r, out var g, out var b))
+                return hex;
+
+            int Lighten(int c) => (int)Math.Clamp(c + (255 - c) * amount, 0, 255);
+            int Darken(int c) => (int)Math.Clamp(c * (1.0 + amount), 0, 255);
+
+            int nr, ng, nb;
+
+            if (amount >= 0)
+            {
+                nr = Lighten(r);
+                ng = Lighten(g);
+                nb = Lighten(b);
+            }
+            else
+            {
+                nr = Darken(r);
+                ng = Darken(g);
+                nb = Darken(b);
+            }
+
+            return $"#{nr:X2}{ng:X2}{nb:X2}";
+        }
+
+        private static bool TryParseHex(string hex, out int r, out int g, out int b)
+        {
+            r = g = b = 0;
+            var n = NormalizeHex(hex);
+            if (string.IsNullOrWhiteSpace(n)) return false;
+
+            try
+            {
+                r = Convert.ToInt32(n.Substring(1, 2), 16);
+                g = Convert.ToInt32(n.Substring(3, 2), 16);
+                b = Convert.ToInt32(n.Substring(5, 2), 16);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public void Dispose()
+        {
+            _deviceState.OnSettingsChanged -= HandleDeviceSettingsChanged;
         }
     }
 }
+
 
 ================================================================================
 FILE END: \StorhaugenWebsite\Services\Theme\ThemeService.cs
@@ -20979,6 +21161,7 @@ FILE END: \StorhaugenWebsite\Services\HelloFreshSyncService.cs
 FILE START: \StorhaugenWebsite\Shared\Extensions\RatingColorExtensions.cs
 ================================================================================
 using System;
+using System.Globalization;
 
 namespace StorhaugenWebsite.Shared.Extensions
 {
@@ -20987,25 +21170,20 @@ namespace StorhaugenWebsite.Shared.Extensions
         // Default 0..10 rating scale
         public static string ToRatingColorHex(this double score, double min = 0, double max = 10)
         {
-            // Clamp to range
             var x = Clamp(score, min, max);
 
-            // Color stops (position, hex)
-            // Tune these if you want different "where green starts" etc.
             var stops = new (double pos, string hex)[]
             {
-                (0.0,  "#6A1B9A"), // purple (worst)
-                (5.0,  "#F44336"), // red (below 5 fades to purple)
-                (8.2,  "#4CAF50"), // green (good)
-                (9.4,  "#4CAF50"), // keep green until "near 10"
-                (10.0, "#2196F3"), // blue (best)
+                (0.0,  "#6A1B9A"),
+                (5.0,  "#F44336"),
+                (8.2,  "#4CAF50"),
+                (9.4,  "#4CAF50"),
+                (10.0, "#2196F3"),
             };
 
-            // Normalize x to 0..10 if min/max differ
             var t = (x - min) / (max - min);
             var v = t * 10.0;
 
-            // Find segment
             for (int i = 0; i < stops.Length - 1; i++)
             {
                 var (p0, c0) = stops[i];
@@ -21021,6 +21199,25 @@ namespace StorhaugenWebsite.Shared.Extensions
 
             return stops[^1].hex;
         }
+
+        // NEW: semi-transparent background color for pills/cards etc.
+        public static string ToRatingBgRgba(this double score, double alpha = 0.14, double min = 0, double max = 10)
+        {
+            alpha = Clamp(alpha, 0, 1);
+            var hex = score.ToRatingColorHex(min, max);
+            var (r, g, b) = ParseHex(hex);
+
+            // InvariantCulture so you don�t get "0,14" on Norwegian locales
+            var a = alpha.ToString(CultureInfo.InvariantCulture);
+            return $"rgba({r}, {g}, {b}, {a})";
+        }
+
+        // Convenience overloads for decimal scores (your MemberRatings are decimal?)
+        public static string ToRatingColorHex(this decimal score, double min = 0, double max = 10)
+            => ((double)score).ToRatingColorHex(min, max);
+
+        public static string ToRatingBgRgba(this decimal score, double alpha = 0.14, double min = 0, double max = 10)
+            => ((double)score).ToRatingBgRgba(alpha, min, max);
 
         private static string LerpHex(string a, string b, double t)
         {
@@ -21172,12 +21369,21 @@ FILE END: \StorhaugenWebsite\Shared\Authorization.razor.css
 ================================================================================
 FILE START: \StorhaugenWebsite\Shared\MainLayout.razor
 ================================================================================
+@using StorhaugenWebsite.ApiClient
+@using StorhaugenWebsite.Shared
+@using StorhaugenWebsite.Components
+@using Microsoft.AspNetCore.Components.Routing
 @inherits LayoutComponentBase
+@implements IDisposable
 @inject IAuthService AuthService
 @inject IHelloFreshSyncService HelloFreshSyncService
 @inject NavigationManager Navigation
-@using StorhaugenWebsite.Shared
-@using StorhaugenWebsite.Components
+@inject IApiClient ApiClient
+@inject IThemeService ThemeService
+
+@* ? This is what makes theme updates actually apply app-wide *@
+<MudThemeProvider Theme="@ThemeService.GetCurrentTheme()"
+                  IsDarkMode="@ThemeService.IsDarkMode" />
 
 <MudLayout>
     <MudAppBar Elevation="0" Class="app-header">
@@ -21246,26 +21452,79 @@ FILE START: \StorhaugenWebsite\Shared\MainLayout.razor
 </MudLayout>
 
 @code {
-    protected override void OnInitialized()
+    private bool _helloFreshSyncTriggered;
+    private bool _isHydratingName;
+    private bool _displayNameHydrated;
+
+    protected override async Task OnInitializedAsync()
     {
         AuthService.OnAuthStateChanged += OnAuthStateChanged;
         Navigation.LocationChanged += OnLocationChanged;
 
-        // If already authenticated, trigger sync check
-        if (AuthService.IsAuthorized)
-        {
-            _ = TriggerHelloFreshSyncAsync();
-        }
+        // ? This makes the layout re-render when ThemeService fires OnThemeChanged
+        ThemeService.OnThemeChanged += OnThemeChanged;
+
+        // If we load already-authenticated, do the same work immediately.
+        await HandleAuthStateAsync();
+    }
+
+    private void OnThemeChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
     }
 
     private void OnAuthStateChanged()
     {
-        StateHasChanged();
-
-        // Trigger HelloFresh sync when user becomes authenticated
-        if (AuthService.IsAuthorized)
+        _ = InvokeAsync(async () =>
         {
-            _ = TriggerHelloFreshSyncAsync();
+            await HandleAuthStateAsync();
+            StateHasChanged();
+        });
+    }
+
+    private async Task HandleAuthStateAsync()
+    {
+        if (!AuthService.IsAuthorized)
+        {
+            // Reset per-login flags on logout
+            _helloFreshSyncTriggered = false;
+            _displayNameHydrated = false;
+            return;
+        }
+
+        // 1) Hydrate display name once per login
+        if (!_displayNameHydrated)
+            await HydrateDisplayNameAsync();
+
+        // 2) Trigger HelloFresh sync once per login
+        if (!_helloFreshSyncTriggered)
+        {
+            _helloFreshSyncTriggered = true;
+            await TriggerHelloFreshSyncAsync();
+        }
+    }
+
+    private async Task HydrateDisplayNameAsync()
+    {
+        if (_isHydratingName) return;
+        _isHydratingName = true;
+
+        try
+        {
+            var profile = await ApiClient.GetMyProfileAsync();
+            if (!string.IsNullOrWhiteSpace(profile?.DisplayName))
+            {
+                AuthService.UpdateCachedDisplayName(profile.DisplayName);
+                _displayNameHydrated = true;
+            }
+        }
+        catch
+        {
+            // ignore (don�t break layout if API is down)
+        }
+        finally
+        {
+            _isHydratingName = false;
         }
     }
 
@@ -21277,52 +21536,41 @@ FILE START: \StorhaugenWebsite\Shared\MainLayout.razor
         }
         catch
         {
-            // Silently ignore errors - this is a background operation
+            // Silently ignore errors - background operation
         }
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
-    {
-        StateHasChanged();
-    }
+        => StateHasChanged();
 
     private bool IsAccessAllowed()
     {
         if (AuthService.IsAuthorized) return true;
 
-        var currentPath = Navigation.ToBaseRelativePath(Navigation.Uri).ToLower();
-
-        if (string.IsNullOrEmpty(currentPath) || currentPath.StartsWith("login"))
-        {
-            return true;
-        }
-
-        return false;
+        var currentPath = Navigation.ToBaseRelativePath(Navigation.Uri).ToLowerInvariant();
+        return string.IsNullOrEmpty(currentPath) || currentPath.StartsWith("login");
     }
 
     private bool IsActive(string path)
     {
         var currentPath = Navigation.ToBaseRelativePath(Navigation.Uri);
 
-        // Exact match for Home ("")
         if (string.IsNullOrEmpty(path))
             return string.IsNullOrEmpty(currentPath);
 
-        // Starts with match for others (e.g. "browse" matches "browse/123")
         return currentPath.StartsWith(path, StringComparison.OrdinalIgnoreCase);
     }
 
-    private void Navigate(string path)
-    {
-        Navigation.NavigateTo(path);
-    }
+    private void Navigate(string path) => Navigation.NavigateTo(path);
 
     public void Dispose()
     {
         AuthService.OnAuthStateChanged -= OnAuthStateChanged;
         Navigation.LocationChanged -= OnLocationChanged;
+        ThemeService.OnThemeChanged -= OnThemeChanged;
     }
 }
+
 
 ================================================================================
 FILE END: \StorhaugenWebsite\Shared\MainLayout.razor
@@ -21570,10 +21818,13 @@ body {
     min-height: 80px;
 }
 
+@media (hover: hover) and (pointer: fine) {
     .activity-card:hover {
         transform: translateY(-2px);
         box-shadow: 0 6px 16px rgba(44, 36, 22, 0.1);
     }
+}
+
 
 .activity-image-layer {
     position: absolute;
@@ -22190,7 +22441,7 @@ FILE START: \StorhaugenWebsite\wwwroot\css\Food.css
 /* Image & Placeholder Fade - MOVED TO RIGHT */
 .food-card-image,
 .food-card-placeholder {
-    width: 50%;
+    width: 60%;
     height: 100%;
     position: absolute;
     right: 0; /* Changed from left: 0 */
@@ -22218,11 +22469,29 @@ FILE START: \StorhaugenWebsite\wwwroot\css\Food.css
 }
 
 .food-card-placeholder {
-    background: var(--mud-palette-divider-light);
+    position: absolute; /* you already set this in the shared rule */
+    overflow: hidden; /* so the pseudo-element doesn�t spill */
     display: flex;
     align-items: center;
     justify-content: center;
 }
+
+    .food-card-placeholder::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: rgba(var(--mud-palette-primary-rgb), 0.18); /* <- tweak alpha */
+        z-index: 0;
+        /* fade only the background, not the icon */
+        -webkit-mask-image: linear-gradient(to left, black 0%, transparent 100%);
+        mask-image: linear-gradient(to left, black 0%, transparent 100%);
+    }
+
+    /* ensure the icon stays above the background */
+    .food-card-placeholder > * {
+        position: relative;
+        z-index: 1;
+    }
 
 /* Content Section - MOVED TO LEFT */
 .food-card-content {
@@ -22271,7 +22540,7 @@ FILE START: \StorhaugenWebsite\wwwroot\css\Food.css
     background: rgba(255, 255, 255, 0.05); /* Very subtle background */
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 50px;
-    padding: 3px 10px 3px 3px;
+    padding: 2px 10px 2px 2px;
     margin-right: 6px;
     transition: all 0.2s ease;
     gap:4px;
@@ -22299,7 +22568,8 @@ FILE START: \StorhaugenWebsite\wwwroot\css\Food.css
 
 /* The Number Score */
 .rating-score {
-    font-size: 0.85rem;
+    font-size: 0.80rem;
+    margin-top: 1px;
     font-weight: 700;
     color: var(--mud-palette-text-primary);
 }
@@ -22503,6 +22773,97 @@ FILE START: \StorhaugenWebsite\wwwroot\css\Food.css
     padding: 16px;
     border-radius: 16px;
     margin-bottom: 16px;
+}
+
+/* ============================================
+   RECIPE DETAILS (shared: /food + /browse)
+   ============================================ */
+
+/* Single hero image (used by BrowseDetails when not using MudCarousel) */
+.detail-hero-image {
+    width: 100%;
+    height: 240px;
+    object-fit: cover;
+    display: block;
+}
+
+/* Quick info row (same for both pages) */
+.quick-info-row {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.quick-info-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: var(--mud-palette-background-grey);
+    border-radius: 8px;
+    font-size: 0.85rem;
+}
+
+/* Ingredients list (same for both pages) */
+.ingredients-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ingredient-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px;
+    background: var(--mud-palette-background-grey);
+    border-radius: 8px;
+}
+
+.ingredient-image {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    object-fit: cover;
+    background: white;
+}
+
+.ingredient-placeholder {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: var(--mud-palette-divider);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--mud-palette-text-disabled);
+}
+
+.ingredient-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.ingredient-name {
+    font-weight: 500;
+    color: var(--mud-palette-text-primary);
+}
+
+.ingredient-amount {
+    font-size: 0.8rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+/* Mobile tightening (same behavior you already had in FoodDetails) */
+@media (max-width: 600px) {
+    .quick-info-row {
+        gap: 8px;
+    }
+
+    .quick-info-item {
+        font-size: 0.8rem;
+        padding: 4px 8px;
+    }
 }
 
 /* Visibility Card */

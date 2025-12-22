@@ -200,16 +200,8 @@
             return;
         }
 
-        // Show collections user owns (only owners can add members)
-        var availableCollections = CollectionState.UserCollections
-            .Where(c => CollectionState.IsOwnerOf(c.Id))
-            .ToList();
-
-        if (!availableCollections.Any())
-        {
-            Snackbar.Add("Du må være eier av en samling for å legge til medlemmer.", Severity.Warning);
-            return;
-        }
+        // Show all collections you own OR are a member of
+        var availableCollections = CollectionState.UserCollections.ToList();
 
         // Use IDialogService to show the dialog component (MudBlazor 8.15 compatible)
         var parameters = new DialogParameters<AddMemberToCollectionDialog>

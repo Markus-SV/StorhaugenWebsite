@@ -631,7 +631,7 @@
             }
 
             RecipeService.InvalidateCache();
-            Navigation.NavigateTo("");
+            Navigation.NavigateTo("cookbook");
         }
         catch (Exception ex) { _errorMessage = ex.Message; }
         finally { _isSubmitting = false; }

@@ -13,5 +13,10 @@ namespace StorhaugenWebsite.Services
         Task<string> GetSystemThemePreferenceAsync();
         Task SetSortAsync(string sortBy, bool descending);
         Task SetCookbookFiltersAsync(List<Guid> collectionIds, bool personalActive);
+
+        // NEW
+        Task ToggleUseCustomThemeColorsAsync(bool enabled);
+        Task SetCustomThemeColorAsync(string color);
+
     }
 }

@@ -101,7 +101,7 @@
 @* XFade wrapper (same behavior as Home/ActivityFeed: first-load-only crossfade) *@
 <XFade IsLoading="@_isLoading" FirstLoadOnly="true" FadeMs="220">
     <Skeleton>
-        <RecipeSkeleton Amount="6" Height="103.11px" />
+        <RecipeSkeleton Amount="6" Height="107.11px" />
     </Skeleton>
 
     <ChildContent>
@@ -129,7 +129,6 @@
                         else
                         {
                             <div class="food-card-placeholder">
-                                <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" Style="opacity:0.3;" />
                             </div>
                         }
 
@@ -208,12 +207,18 @@
 
                             @* Ratings Section *@
                             <div class="ratings-wrap mt-2">
+                                @* Track whether we rendered any pill *@
+                                @{
+                                    var renderedAny = false;
+                                }
+
                                 @* Me (from MyRating) *@
                                 @if (recipe.MyRating is decimal myScore)
                                 {
+                                    renderedAny = true;
                                     var me = AuthService.CurrentUserName ?? "Meg";
 
-                                    <div class="rating-pill" style="background-color:@myScore.ToRatingBgRgba(0.18);">
+                                    <div class="rating-pill" style="background-color:@myScore.ToRatingBgRgba(0.14);">
                                         <div class="rating-circle"
                                              style="background-color:@UserColorService.GetUserColor(me); color:white;">
                                             @(string.IsNullOrWhiteSpace(me) ? "?" : me[..1].ToUpper())
@@ -229,10 +234,11 @@
                                                         .Where(x => x.Value.HasValue)
                                                         .Where(x => _allowedRaterNames.Contains(x.Key)))
                                 {
+                                    renderedAny = true;
                                     var name = r.Key;
                                     var score = r.Value!.Value;
 
-                                    <div class="rating-pill" style="background-color:@score.ToRatingBgRgba(0.18);">
+                                    <div class="rating-pill" style="background-color:@score.ToRatingBgRgba(0.14);">
                                         <div class="rating-circle"
                                              style="background-color:@UserColorService.GetUserColor(name); color:white;">
                                             @(string.IsNullOrWhiteSpace(name) ? "?" : name[..1].ToUpper())
@@ -242,7 +248,18 @@
                                         </span>
                                     </div>
                                 }
+
+                                @* Placeholder (keeps card height consistent) *@
+                                @if (!renderedAny)
+                                {
+                                    <div class="rating-pill rating-pill-placeholder">
+                                        <div class="rating-circle rating-circle-placeholder">?</div>
+                                        <span class="rating-score rating-score-placeholder">—</span>
+                                    </div>
+                                }
+
                             </div>
+
 
                         </div>
                     </div>
@@ -279,6 +296,24 @@
         .ratings-scroll .rating-pill {
             flex: 0 0 auto;
         }
+
+    .rating-pill-placeholder {
+        background-color: rgba(255, 255, 255, 0.06);
+    }
+
+    .rating-circle-placeholder {
+        background-color: rgba(255, 255, 255, 0.10);
+        color: rgba(255, 255, 255, 0.45);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        /* don't set width/height here if your .rating-circle already does */
+    }
+
+    .rating-score-placeholder {
+        color: rgba(255, 255, 255, 0.45);
+    }
 
 </style>
 

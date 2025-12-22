@@ -94,7 +94,7 @@
            CrossfadeOnReload="true"
            FadeMs="220">
         <Skeleton>
-            <RecipeSkeleton Amount="6" Height="109.11px" />
+            <RecipeSkeleton Amount="6" LineAmount="0" Height="77.19px" />
         </Skeleton>
 
         <ChildContent>
@@ -127,7 +127,6 @@
                                 else
                                 {
                                     <div class="food-card-placeholder">
-                                        <MudIcon Icon="@Icons.Material.Rounded.Restaurant" Size="Size.Large" />
                                     </div>
                                 }
                             }
@@ -135,16 +134,55 @@
                             @* --- Text Content --- *@
                             <div class="food-card-content">
                                 <div class="d-flex justify-space-between align-start gap-3">
-                                    <div class="d-flex align-center gap-2" style="min-width: 0;">
-                                        @if (recipe.IsHellofresh)
-                                        {
-                                            <MudIcon Icon="@Icons.Material.Rounded.LocalDining" Size="Size.Small" Color="Color.Success" Title="HelloFresh" Style="flex-shrink: 0;" />
-                                        }
-                                        else
-                                        {
-                                            <MudIcon Icon="@Icons.Material.Rounded.Cloud" Size="Size.Small" Color="Color.Info" Title="Fellesskapet" Style="flex-shrink: 0;" />
-                                        }
-                                        <h3 class="food-card-title">@recipe.Name</h3>
+                                    <div style="display:flex; flex-direction: column; gap: 4px;">
+                                        <div class="d-flex align-center gap-2" style="min-width: 0;">
+                                            @if (recipe.IsHellofresh)
+                                            {
+                                                <MudIcon Icon="@Icons.Material.Rounded.LocalDining" Size="Size.Small" Color="Color.Success" Title="HelloFresh" Style="flex-shrink: 0;" />
+                                            }
+                                            else
+                                            {
+                                                <MudIcon Icon="@Icons.Material.Rounded.Cloud" Size="Size.Small" Color="Color.Info" Title="Fellesskapet" Style="flex-shrink: 0;" />
+                                            }
+                                            <h3 class="food-card-title">@recipe.Name</h3>
+                                        </div>
+
+                                        <div style="display:flex; gap:4px">
+
+                                            @* Left: Difficulty + PrepTime (same order as Cookbook) *@
+                                            @if (recipe.PrepTimeMinutes.HasValue || !string.IsNullOrEmpty(recipe.Difficulty))
+                                            {
+                                                <div class="d-flex align-center flex-wrap gap-1">
+                                                    @if (!string.IsNullOrEmpty(recipe.Difficulty))
+                                                    {
+                                                        <span class="meta-chip @GetDifficultyClass(recipe.Difficulty)">
+                                                            <MudIcon Icon="@GetDifficultyIcon(recipe.Difficulty)" Size="Size.Small" />
+                                                            @GetDifficultyLabel(recipe.Difficulty)
+                                                        </span>
+                                                    }
+                                                    @if (recipe.PrepTimeMinutes.HasValue)
+                                                    {
+                                                        <span class="meta-chip">
+                                                            <MudIcon Icon="@Icons.Material.Rounded.AccessTime" Size="Size.Small" />
+                                                            @recipe.PrepTimeMinutes min
+                                                        </span>
+                                                    }
+                                                </div>
+                                            }
+
+                                            @* Right: Author (community only) *@
+                                            @if (!recipe.IsHellofresh && !string.IsNullOrEmpty(recipe.CreatedByUserName))
+                                            {
+                                                <div class="d-flex align-center gap-1">
+                                                    <MudIcon Icon="@Icons.Material.Rounded.Person" Size="Size.Small" Color="Color.Default" />
+                                                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="text-truncate" Style="font-size:0.7rem;">
+                                                        @recipe.CreatedByUserName
+                                                    </MudText>
+                                                </div>
+                                            }
+
+                                        </div>
+
                                     </div>
 
                                     @if (recipe.AverageRating > 0)
@@ -165,33 +203,7 @@
                                     }
                                 </div>
 
-                                @if (!recipe.IsHellofresh && !string.IsNullOrEmpty(recipe.CreatedByUserName))
-                                {
-                                    <div class="d-flex align-center gap-1">
-                                        <MudIcon Icon="@Icons.Material.Rounded.Person" Size="Size.Small" Style="font-size: 12px; opacity: 0.6;" />
-                                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="text-truncate" Style="font-size: 0.75rem;">
-                                            @recipe.CreatedByUserName
-                                        </MudText>
-                                    </div>
-                                }
-
-                                @* Recipe metadata chips - Show for both HelloFresh and Community *@
-                                <div class="food-card-meta mt-2 d-flex gap-2 align-center flex-wrap">
-                                    @if (recipe.PrepTimeMinutes.HasValue)
-                                    {
-                                        <span class="meta-chip">
-                                            <MudIcon Icon="@Icons.Material.Rounded.AccessTime" Size="Size.Small" />
-                                            @recipe.PrepTimeMinutes min
-                                        </span>
-                                    }
-                                    @if (!string.IsNullOrEmpty(recipe.Difficulty))
-                                    {
-                                        <span class="meta-chip @GetDifficultyClass(recipe.Difficulty)">
-                                            <MudIcon Icon="@GetDifficultyIcon(recipe.Difficulty)" Size="Size.Small" />
-                                            @GetDifficultyLabel(recipe.Difficulty)
-                                        </span>
-                                    }
-                                </div>
+                               
                             </div>
                         </div>
                     }
@@ -295,7 +307,6 @@
         align-items: center;
         gap: 4px;
         flex-grow: 99;
-        flex: 1;
         min-width: 0;
         background: var(--mud-palette-surface);
         padding: 4px 6px;

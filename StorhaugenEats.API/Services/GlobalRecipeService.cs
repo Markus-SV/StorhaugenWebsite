@@ -81,7 +81,8 @@ public class GlobalRecipeService : IGlobalRecipeService
             // Update existing
             existing.Title = recipe.Title;
             existing.Description = recipe.Description;
-            existing.ImageUrl = recipe.ImageUrl;
+            existing.ImageUrl = null;
+            existing.ImageUrls = "[]";
             existing.Ingredients = recipe.Ingredients;
             existing.NutritionData = recipe.NutritionData;
             existing.CookTimeMinutes = recipe.CookTimeMinutes;
@@ -93,6 +94,8 @@ public class GlobalRecipeService : IGlobalRecipeService
         {
             // Insert new
             recipe.IsHellofresh = true;
+            recipe.ImageUrl = null;
+            recipe.ImageUrls = "[]";
             recipe.CreatedAt = DateTime.UtcNow;
             recipe.UpdatedAt = DateTime.UtcNow;
             _context.GlobalRecipes.Add(recipe);

@@ -70,6 +70,21 @@ namespace StorhaugenWebsite.Services
             }
         }
 
+        public async Task ToggleUseCustomThemeColorsAsync(bool enabled)
+        {
+            Settings.IsUsingCustomThemeColors = enabled;
+            await SaveSettingsAsync();
+            OnSettingsChanged?.Invoke();
+        }
+
+        public async Task SetCustomThemeColorAsync(string color)
+        {
+            Settings.CustomThemeColor = color;
+            await SaveSettingsAsync();
+            OnSettingsChanged?.Invoke();
+        }
+
+
         public async Task SetCookbookFiltersAsync(List<Guid> collectionIds, bool personalActive)
         {
             Settings.CookbookCollectionFilters = collectionIds;

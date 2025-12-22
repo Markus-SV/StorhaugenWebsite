@@ -1,9 +1,11 @@
 @page "/friends"
 @using Microsoft.AspNetCore.Authorization
 @using MudBlazor
+@using StorhaugenWebsite.Components
 @using StorhaugenWebsite.Shared.DTOs
 @using StorhaugenWebsite.Services
 @using StorhaugenWebsite.ApiClient
+@using Microsoft.AspNetCore.Components.Web
 @inject IUserFriendshipService FriendshipService
 @inject ICollectionStateService CollectionState
 @inject IUserColorService UserColorService
@@ -13,7 +15,7 @@
 @inject IDialogService DialogService
 @attribute [Authorize]
 
-<div class="friends-container animate-in">
+<div class="friends-container">
     @* --- HEADER --- *@
     <div class="d-flex justify-space-between align-center mb-4">
         <MudText Typo="Typo.h4" Style="font-family: 'Fraunces', serif;">Venner</MudText>
@@ -37,163 +39,189 @@
                   Clearable="true"
                   OnClearButtonClick="@(() => _searchQuery = string.Empty)" />
 
-    @* --- LOADING STATE --- *@
-    @if (_isLoading)
-    {
-        <div class="d-flex flex-column gap-3">
-            @for (int i = 0; i < 4; i++)
+    <XFade IsLoading="@_isLoading" FirstLoadOnly="true" FadeMs="220">
+        <Skeleton>
+            <RecipeSkeleton Amount="6" LineAmount="0" Height="69.91px" />
+        </Skeleton>
+
+        <ChildContent>
+            @* --- SEARCH RESULTS MODE --- *@
+            @if (!string.IsNullOrWhiteSpace(_searchQuery))
             {
-                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="72px" Class="rounded-lg" />
-            }
-        </div>
-    }
-    @* --- SEARCH RESULTS MODE --- *@
-    else if (!string.IsNullOrWhiteSpace(_searchQuery))
-    {
-        <MudText Typo="Typo.subtitle2" Class="mb-2 ml-1" Color="Color.Secondary">Resultater</MudText>
+                <MudText Typo="Typo.subtitle2" Class="mb-2 ml-1" Color="Color.Secondary">Resultater</MudText>
 
-        @if (_searchResults.Any())
-        {
-            <div class="d-flex flex-column gap-3">
-                @foreach (var user in _searchResults)
+                @if (_searchResults.Any())
                 {
-                    <MudPaper Class="pa-3 friend-card" Elevation="0" Outlined="true">
-                        <div class="d-flex align-center gap-3">
-                            <MudAvatar Size="Size.Medium" Style="@($"background-color: {UserColorService.GetUserColor(user.DisplayName)}; color: white;")">
-                                @(user.DisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
-                            </MudAvatar>
-                            <div class="flex-grow-1">
-                                <MudText Typo="Typo.body1" Style="font-weight: 600;">@user.DisplayName</MudText>
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">ID: @user.ShareId</MudText>
-                            </div>
+                    <div class="d-flex flex-column gap-3">
+                        @for (var i = 0; i < _searchResults.Count; i++)
+                        {
+                            var user = _searchResults[i];
 
-                            @if (user.FriendshipStatus == "friends")
-                            {
-                                <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Rounded.Check">Venn</MudChip>
-                            }
-                            else if (user.FriendshipStatus == "pending_sent")
-                            {
-                                <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Text">Venter</MudChip>
-                            }
-                            else if (user.FriendshipStatus == "pending_received")
-                            {
-                                <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Text">Har sendt deg</MudChip>
-                            }
-                            else
-                            {
-                                <MudIconButton Icon="@Icons.Material.Rounded.PersonAdd"
-                                               Color="Color.Primary"
-                                               Variant="Variant.Filled"
-                                               Size="Size.Small"
-                                               OnClick="@(() => SendFriendRequest(user))" />
-                            }
-                        </div>
-                    </MudPaper>
-                }
-            </div>
-        }
-        else if (!_isSearching)
-        {
-            <div class="empty-state">
-                <MudIcon Icon="@Icons.Material.Rounded.SearchOff" Size="Size.Large" Color="Color.Default" />
-                <MudText Typo="Typo.body1" Class="mt-2">Ingen brukere funnet</MudText>
-            </div>
-        }
-    }
-    else
-    {
-        @* --- STANDARD LIST MODE --- *@
+                            <MudPaper Class="pa-3 friend-card friend-card-anim"
+                                      Style="@($"--i:{i};")"
+                                      Elevation="0"
+                                      Outlined="true"
+                                      @key="user.Id">
+                                <div class="d-flex align-center gap-3">
+                                    <MudAvatar Size="Size.Medium" Style="@($"background-color: {UserColorService.GetUserColor(user.DisplayName)}; color: white;")">
+                                        @(user.DisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                                    </MudAvatar>
+                                    <div class="flex-grow-1">
+                                        <MudText Typo="Typo.body1" Style="font-weight: 600;">@user.DisplayName</MudText>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">ID: @user.ShareId</MudText>
+                                    </div>
 
-        @* 1. INCOMING REQUESTS *@
-        @if (_pendingReceived.Any())
-        {
-            <div class="section-header">
-                <MudIcon Icon="@Icons.Material.Rounded.MarkEmailUnread" Size="Size.Small" Color="Color.Primary" />
-                <MudText Typo="Typo.subtitle2" Color="Color.Primary">Forespørsler</MudText>
-            </div>
-
-            <div class="d-flex flex-column gap-2 mb-6">
-                @foreach (var request in _pendingReceived)
-                {
-                    <MudPaper Class="pa-3 friend-card request-card" Elevation="0">
-                        <div class="d-flex align-center gap-3">
-                            <MudAvatar Size="Size.Medium" Style="@($"background-color: {UserColorService.GetUserColor(request.FriendDisplayName)}; color: white;")">
-                                @(request.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
-                            </MudAvatar>
-                            <div class="flex-grow-1">
-                                <MudText Typo="Typo.body2" Style="font-weight: 600;">@request.FriendDisplayName</MudText>
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">Vil bli venn med deg</MudText>
-                            </div>
-                        </div>
-                        <div class="d-flex gap-2 mt-3">
-                            <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Small" FullWidth="true" OnClick="@(() => AcceptRequest(request))">Godta</MudButton>
-                            <MudButton Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" FullWidth="true" OnClick="@(() => RejectRequest(request))">Avslå</MudButton>
-                        </div>
-                    </MudPaper>
-                }
-            </div>
-        }
-
-        @* 2. FRIENDS LIST *@
-        @if (_friends.Any())
-        {
-            <div class="d-flex flex-column gap-2">
-                @foreach (var friend in _friends)
-                {
-                    <MudPaper Class="pa-3 friend-card" Elevation="0" @onclick="@(() => OpenFriendProfile(friend))">
-                        <div class="d-flex align-center gap-3">
-                            <MudAvatar Size="Size.Medium" Variant="Variant.Filled" Style="@($"background-color: {UserColorService.GetUserColor(friend.FriendDisplayName)}; color: white;")">
-                                @(friend.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
-                            </MudAvatar>
-                            <div class="flex-grow-1">
-                                <MudText Typo="Typo.body1" Style="font-weight: 600;">@friend.FriendDisplayName</MudText>
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                    @friend.RecipeCount oppskrifter
-                                </MudText>
-                            </div>
-                            <MudIcon Icon="@Icons.Material.Rounded.ChevronRight" Color="Color.Default" />
-                        </div>
-                    </MudPaper>
-                }
-            </div>
-        }
-        else if (!_pendingReceived.Any() && !_pendingSent.Any())
-        {
-            <div class="empty-state mt-8">
-                <MudIcon Icon="@Icons.Material.Rounded.PersonSearch" Size="Size.Large" Color="Color.Default" />
-                <MudText Typo="Typo.h6" Class="mt-2">Ingen venner ennå</MudText>
-                <MudText Typo="Typo.body2" Color="Color.Secondary" Style="max-width: 250px;">
-                    Søk etter brukernavn eller ID i feltet over for å legge til venner.
-                </MudText>
-            </div>
-        }
-
-        @* 3. OUTGOING REQUESTS (Collapsed) *@
-        @if (_pendingSent.Any())
-        {
-            <MudExpansionPanel Text="@($"Sendte forespørsler ({_pendingSent.Count})")" Class="mt-6 shadow-none bg-transparent" DisableGutters="true">
-                <div class="d-flex flex-column gap-2 mt-2">
-                    @foreach (var request in _pendingSent)
-                    {
-                        <MudPaper Class="pa-3 friend-card" Elevation="0" Outlined="true" Style="opacity: 0.8;">
-                            <div class="d-flex align-center gap-3">
-                                <MudAvatar Size="Size.Small" Style="@($"background-color: {UserColorService.GetUserColor(request.FriendDisplayName)}; color: white;")">
-                                    @(request.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
-                                </MudAvatar>
-                                <div class="flex-grow-1">
-                                    <MudText Typo="Typo.body2">@request.FriendDisplayName</MudText>
-                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Venter...</MudText>
+                                    @if (user.FriendshipStatus == "friends")
+                                    {
+                                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Text" Icon="@Icons.Material.Rounded.Check">Venn</MudChip>
+                                    }
+                                    else if (user.FriendshipStatus == "pending_sent")
+                                    {
+                                        <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Text">Venter</MudChip>
+                                    }
+                                    else if (user.FriendshipStatus == "pending_received")
+                                    {
+                                        <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Text">Har sendt deg</MudChip>
+                                    }
+                                    else
+                                    {
+                                        <MudIconButton Icon="@Icons.Material.Rounded.PersonAdd"
+                                                       Color="Color.Primary"
+                                                       Variant="Variant.Filled"
+                                                       Size="Size.Small"
+                                                       OnClick="@(() => SendFriendRequest(user))" />
+                                    }
                                 </div>
-                                <MudIconButton Icon="@Icons.Material.Rounded.Close" Size="Size.Small" OnClick="@(() => CancelRequest(request))" />
-                            </div>
-                        </MudPaper>
-                    }
-                </div>
-            </MudExpansionPanel>
-        }
-    }
-</div>
+                            </MudPaper>
+                        }
+                    </div>
+                }
+                else if (!_isSearching)
+                {
+                    <div class="empty-state">
+                        <MudIcon Icon="@Icons.Material.Rounded.SearchOff" Size="Size.Large" Color="Color.Default" />
+                        <MudText Typo="Typo.body1" Class="mt-2">Ingen brukere funnet</MudText>
+                    </div>
+                }
+            }
+            else
+            {
+                @* --- STANDARD LIST MODE --- *@
 
+                @* 1. INCOMING REQUESTS *@
+                @if (_pendingReceived.Any())
+                {
+                    <div class="section-header">
+                        <MudIcon Icon="@Icons.Material.Rounded.MarkEmailUnread" Size="Size.Small" Color="Color.Primary" />
+                        <MudText Typo="Typo.subtitle2" Color="Color.Primary">Forespørsler</MudText>
+                    </div>
+
+                    <div class="d-flex flex-column gap-3 mb-6">
+                        @for (var i = 0; i < _pendingReceived.Count; i++)
+                        {
+                            var request = _pendingReceived[i];
+
+                            <MudPaper Class="pa-3 friend-card request-card friend-card-anim"
+                                      Style="@($"--i:{i};")"
+                                      Elevation="0"
+                                      @key="request.Id">
+                                <div class="d-flex align-center gap-3">
+                                    <MudAvatar Size="Size.Medium" Style="@($"background-color: {UserColorService.GetUserColor(request.FriendDisplayName)}; color: white;")">
+                                        @(request.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                                    </MudAvatar>
+                                    <div class="flex-grow-1">
+                                        <MudText Typo="Typo.body2" Style="font-weight: 600;">@request.FriendDisplayName</MudText>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">Vil bli venn med deg</MudText>
+                                    </div>
+                                </div>
+                                <div class="d-flex gap-2 mt-3">
+                                    <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Small" FullWidth="true"
+                                               OnClick="@(() => AcceptRequest(request))">Godta</MudButton>
+                                    <MudButton Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" FullWidth="true"
+                                               OnClick="@(() => RejectRequest(request))">Avslå</MudButton>
+                                </div>
+                            </MudPaper>
+                        }
+                    </div>
+                }
+
+                @* 2. FRIENDS LIST *@
+                @if (_friends.Any())
+                {
+                    <div class="d-flex flex-column gap-3">
+                        @for (var i = 0; i < _friends.Count; i++)
+                        {
+                            var friend = _friends[i];
+
+                            <MudPaper Class="pa-3 friend-card friend-card-anim"
+                                      Style="@($"--i:{i};")"
+                                      Elevation="0"
+                                      @onclick="@(() => OpenFriendProfile(friend))"
+                                      @key="friend.FriendUserId">
+                                <div class="d-flex align-center gap-3">
+                                    <MudAvatar Size="Size.Medium" Variant="Variant.Filled"
+                                               Style="@($"background-color: {UserColorService.GetUserColor(friend.FriendDisplayName)}; color: white;")">
+                                        @(friend.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                                    </MudAvatar>
+                                    <div class="flex-grow-1">
+                                        <MudText Typo="Typo.body1" Style="font-weight: 600;">@friend.FriendDisplayName</MudText>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                            @friend.RecipeCount oppskrifter
+                                        </MudText>
+                                    </div>
+                                    <MudIcon Icon="@Icons.Material.Rounded.ChevronRight" Color="Color.Default" />
+                                </div>
+                            </MudPaper>
+                        }
+                    </div>
+                }
+                else if (!_pendingReceived.Any() && !_pendingSent.Any())
+                {
+                    <div class="empty-state mt-8">
+                        <MudIcon Icon="@Icons.Material.Rounded.PersonSearch" Size="Size.Large" Color="Color.Default" />
+                        <MudText Typo="Typo.h6" Class="mt-2">Ingen venner ennå</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Style="max-width: 250px;">
+                            Søk etter brukernavn eller ID i feltet over for å legge til venner.
+                        </MudText>
+                    </div>
+                }
+
+                @* 3. OUTGOING REQUESTS (Collapsed) *@
+                @if (_pendingSent.Any())
+                {
+                    <MudExpansionPanel Text="@($"Sendte forespørsler ({_pendingSent.Count})")"
+                                       Class="mt-6 shadow-none bg-transparent"
+                                       DisableGutters="true">
+                        <div class="d-flex flex-column gap-3 mt-2">
+                            @for (var i = 0; i < _pendingSent.Count; i++)
+                            {
+                                var request = _pendingSent[i];
+
+                                <MudPaper Class="pa-3 friend-card friend-card-anim"
+                                          Style="@($"--i:{i}; opacity: 0.8;")"
+                                          Elevation="0"
+                                          Outlined="true"
+                                          @key="request.Id">
+                                    <div class="d-flex align-center gap-3">
+                                        <MudAvatar Size="Size.Small"
+                                                   Style="@($"background-color: {UserColorService.GetUserColor(request.FriendDisplayName)}; color: white;")">
+                                            @(request.FriendDisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
+                                        </MudAvatar>
+                                        <div class="flex-grow-1">
+                                            <MudText Typo="Typo.body2">@request.FriendDisplayName</MudText>
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary">Venter...</MudText>
+                                        </div>
+                                        <MudIconButton Icon="@Icons.Material.Rounded.Close" Size="Size.Small" OnClick="@(() => CancelRequest(request))" />
+                                    </div>
+                                </MudPaper>
+                            }
+                        </div>
+                    </MudExpansionPanel>
+                }
+            }
+        </ChildContent>
+    </XFade>
+</div>
 
 @code {
     private List<UserFriendshipDto> _friends = new();

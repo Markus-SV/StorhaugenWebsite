@@ -487,22 +487,6 @@ else
         gap: 8px;
     }
 
-    .quick-info-row {
-        display: flex;
-        gap: 16px;
-        flex-wrap: wrap;
-    }
-
-    .quick-info-item {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 12px;
-        background: var(--mud-palette-background-grey);
-        border-radius: 8px;
-        font-size: 0.85rem;
-    }
-
     .nutrition-grid {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
@@ -530,61 +514,6 @@ else
         color: var(--mud-palette-text-secondary);
         text-transform: uppercase;
         margin-top: 2px;
-    }
-
-    .ingredients-list {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-    }
-
-    .ingredient-item {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 8px;
-        background: var(--mud-palette-background-grey);
-        border-radius: 8px;
-    }
-
-    .ingredient-image {
-        width: 40px;
-        height: 40px;
-        border-radius: 8px;
-        object-fit: cover;
-        background: white;
-    }
-
-    .ingredient-placeholder {
-        width: 40px;
-        height: 40px;
-        border-radius: 8px;
-        background: var(--mud-palette-divider);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: var(--mud-palette-text-disabled);
-    }
-
-    .ingredient-info {
-        display: flex;
-        flex-direction: column;
-    }
-
-    .ingredient-name {
-        font-weight: 500;
-        color: var(--mud-palette-text-primary);
-    }
-
-    .ingredient-amount {
-        font-size: 0.8rem;
-        color: var(--mud-palette-text-secondary);
-    }
-
-    .visibility-card {
-        background: var(--mud-palette-background-grey);
-        border-radius: 12px;
-        padding: 12px;
     }
 
     .rating-badge-colored {
@@ -615,17 +544,6 @@ else
         pointer-events: none;
     }
 
-    @@media (max-width: 600px) {
-
-        .quick-info-row {
-            gap: 8px;
-        }
-
-        .quick-info-item {
-            font-size: 0.8rem;
-            padding: 4px 8px;
-        }
-    }
 </style>
 
 @implements IDisposable

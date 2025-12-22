@@ -3,6 +3,7 @@
 @using StorhaugenWebsite.ApiClient
 @using StorhaugenWebsite.Models
 @using StorhaugenWebsite.Shared.DTOs
+@using MudBlazor.Utilities
 @inject IAuthService AuthService
 @inject IDeviceStateService DeviceState
 @inject ICollectionStateService CollectionState
@@ -13,7 +14,6 @@
 @inject IThemeService ThemeService
 @inject IUserColorService UserColorService
 @attribute [Authorize]
-
 
 <div class="d-flex align-center gap-3 mb-6">
     <h1 class="page-title" style="margin-bottom: 0; font-size: 1.5rem;">Innstillinger</h1>
@@ -69,6 +69,7 @@
 
 <div class="form-section">
     <p class="form-section-title">Utseende</p>
+
     <MudSelect T="string"
                Label="Fargetema"
                Value="@_currentTheme"
@@ -96,6 +97,33 @@
             </MudSelectItem>
         }
     </MudSelect>
+
+    <div class="setting-row" style="padding-top: 4px;">
+        <div class="flex-grow-1">
+            <MudText Typo="Typo.body2" Style="font-weight: 500;">Bruk egen hovedfarge</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">Overstyr primærfarge</MudText>
+        </div>
+
+        <MudSwitch Color="Color.Primary"
+                   Value="@_useCustomThemeColors"
+                   ValueChanged="@((bool b) => OnToggleUseCustomThemeColors(b))" />
+    </div>
+
+    <div class="custom-primary-row">
+        <MudColorPicker Value="@_customThemeColor"
+                        ValueChanged="OnCustomThemeColorChanged"
+                        Disabled="@(!_useCustomThemeColors)"
+                        Class="custom-color-picker-dialog"
+                        AnchorOrigin="Origin.BottomCenter"
+                        ShowToolbar="false"
+                        ShowAlpha="false"
+                        PickerVariant="PickerVariant.Dialog"
+                        Style="margin-top: 0" />
+
+        <div class="custom-color-preview"
+             style="background-color: @_customThemeColor.Value; @(!_useCustomThemeColors ? "opacity: 0.5;" : "")">
+        </div>
+    </div>
 </div>
 
 @if (CollectionState.UserCollections.Any())
@@ -112,16 +140,15 @@
             </MudButton>
         </div>
         <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
-            Du er med i @CollectionState.UserCollections.Count samling(er). 
+            Du er med i @CollectionState.UserCollections.Count samling(er).
         </MudText>
-       
     </div>
 }
 
 <div class="form-section mt-4">
     <div class="d-flex justify-center flex-column align-center gap-1">
         <MudText Typo="Typo.body2" Style="font-weight: 500;">Storhaugen Eats</MudText>
-        <MudText Typo="Typo.caption" Color="Color.Secondary">Versjon 2.0.1</MudText>
+        <MudText Typo="Typo.caption" Color="Color.Secondary">Version 2.1.1</MudText>
     </div>
 </div>
 
@@ -135,7 +162,6 @@
         Logg ut
     </MudButton>
 </div>
-
 
 <style>
     .setting-row {
@@ -211,6 +237,24 @@
         height: 3px;
         border-radius: 2px;
     }
+
+    .custom-primary-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 8px;
+    }
+
+    .custom-color-picker-dialog {
+        width: 125px;
+    }
+
+    .custom-color-preview {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        border: 1px solid var(--mud-palette-divider);
+    }
 </style>
 
 @code {
@@ -219,22 +263,19 @@
     private string _currentTheme = "Light";
     private string _viewMode = "card";
 
+    // NEW
+    private bool _useCustomThemeColors;
+    private MudColor _customThemeColor = new("#E07A2E");
+
     protected override async Task OnInitializedAsync()
     {
-        await CollectionState.InitializeAsync();
+        _userProfile = CollectionState.CurrentProfile;
+        _editDisplayName = _userProfile?.DisplayName;
 
-        try
+        if (_userProfile is null)
         {
             _userProfile = await ApiClient.GetMyProfileAsync();
-            if (_userProfile != null)
-            {
-                _editDisplayName = _userProfile.DisplayName;
-                AuthService.UpdateCachedDisplayName(_userProfile.DisplayName);
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error loading user profile: {ex.Message}");
+            _editDisplayName = _userProfile?.DisplayName;
         }
 
         _currentTheme = ThemeService.GetCurrentThemeName();
@@ -276,20 +317,36 @@
         }
     }
 
-    private void ToggleCollectionFilter(Guid collectionId)
-    {
-        CollectionState.ToggleCollectionFilter(collectionId);
-        StateHasChanged();
-        Snackbar.Add("Samlingsfilter oppdatert", Severity.Info);
-    }
-
     private async Task OnThemeChanged(string themeName)
     {
         _currentTheme = themeName;
         await ThemeService.SetThemeAsync(themeName);
+
+        // keep a reasonable default for the picker if user never chose one
+        if (string.IsNullOrWhiteSpace(DeviceState.Settings.CustomThemeColor))
+            _customThemeColor = new MudColor(ThemeService.GetThemeColors(themeName).Primary);
     }
 
+    private async Task OnToggleUseCustomThemeColors(bool enabled)
+    {
+        _useCustomThemeColors = enabled;
+        await DeviceState.ToggleUseCustomThemeColorsAsync(enabled);
 
+        // force theme refresh so MudThemeProvider re-renders + GetCurrentTheme runs
+        await ThemeService.SetThemeAsync(_currentTheme);
+    }
+
+    private async Task OnCustomThemeColorChanged(MudColor customColor)
+    {
+        _customThemeColor = customColor;
+
+        // save as #RRGGBB (no alpha, no rgba)
+        var hex = $"#{customColor.R:X2}{customColor.G:X2}{customColor.B:X2}";
+        await DeviceState.SetCustomThemeColorAsync(hex);
+
+        if (_useCustomThemeColors)
+            await ThemeService.SetThemeAsync(_currentTheme);
+    }
 
     private string GetThemeDisplayName(string themeName)
     {
@@ -297,20 +354,15 @@
         {
             "System" => "System Default",
             "Light" => "Light (Amber)",
-            "Dark" => "Dark (Rustic)",   // I renamed this slightly to distinguish it
+            "Dark" => "Dark (Rustic)",
             "Black" => "Midnight Black",
             "Material" => "Material Red",
             "Forest" => "Night Forest",
-
-            // --- NEW THEMES ---
             "Cafe" => "Dark Café",
             "Walnut" => "Dark Walnut",
             "Clay" => "Dark Clay",
             "Moss" => "Dark Moss",
             "Ink" => "Dark Ink",
-
-
-
             _ => themeName
         };
     }
@@ -319,12 +371,5 @@
     {
         await AuthService.LogoutAsync();
         Navigation.NavigateTo("login");
-    }
-
-    private string GetMemberColor(string name)
-    {
-        var hash = name.GetHashCode();
-        var hue = Math.Abs(hash % 360);
-        return $"hsl({hue}, 45%, 45%)";
     }
 }

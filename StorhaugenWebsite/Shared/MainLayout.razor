@@ -8,7 +8,11 @@
 @inject IHelloFreshSyncService HelloFreshSyncService
 @inject NavigationManager Navigation
 @inject IApiClient ApiClient
+@inject IThemeService ThemeService
 
+@* ✅ This is what makes theme updates actually apply app-wide *@
+<MudThemeProvider Theme="@ThemeService.GetCurrentTheme()"
+                  IsDarkMode="@ThemeService.IsDarkMode" />
 
 <MudLayout>
     <MudAppBar Elevation="0" Class="app-header">
@@ -86,8 +90,16 @@
         AuthService.OnAuthStateChanged += OnAuthStateChanged;
         Navigation.LocationChanged += OnLocationChanged;
 
+        // ✅ This makes the layout re-render when ThemeService fires OnThemeChanged
+        ThemeService.OnThemeChanged += OnThemeChanged;
+
         // If we load already-authenticated, do the same work immediately.
         await HandleAuthStateAsync();
+    }
+
+    private void OnThemeChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
     }
 
     private void OnAuthStateChanged()
@@ -184,5 +196,6 @@
     {
         AuthService.OnAuthStateChanged -= OnAuthStateChanged;
         Navigation.LocationChanged -= OnLocationChanged;
+        ThemeService.OnThemeChanged -= OnThemeChanged;
     }
 }

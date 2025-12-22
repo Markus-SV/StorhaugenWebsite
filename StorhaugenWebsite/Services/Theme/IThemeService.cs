@@ -15,5 +15,7 @@ namespace StorhaugenWebsite.Services
         Task SetThemeAsync(string themeName);
         ThemeColors GetThemeColors(string themeName);
         bool IsThemeDark(string themeName);
+        Task SetCustomPrimaryAsync(bool enabled, string? primaryHex);
+
     }
 }

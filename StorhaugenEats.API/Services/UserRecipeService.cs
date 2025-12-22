@@ -1,7 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using StorhaugenEats.API.Data;
-using StorhaugenWebsite.Shared.DTOs;
+using StorhaugenEats.API.Helpers;
 using StorhaugenEats.API.Models;
+using StorhaugenWebsite.Shared.DTOs;
 using System.Text.Json;
 
 namespace StorhaugenEats.API.Services;
@@ -31,6 +32,7 @@ public class UserRecipeService : IUserRecipeService
             .Include(r => r.User)
             .Include(r => r.GlobalRecipe)
             .Include(r => r.Ratings)
+                .ThenInclude(rt => rt.User)
             .Include(r => r.UserRecipeTags)
                 .ThenInclude(rt => rt.Tag)
             .Where(r => r.UserId == userId);
@@ -95,6 +97,8 @@ public class UserRecipeService : IUserRecipeService
         var recipe = await _context.UserRecipes
             .Include(r => r.User)
             .Include(r => r.GlobalRecipe)
+            .Include(r => r.UserRecipeTags)
+                .ThenInclude(rt => rt.Tag)
             .Include(r => r.Ratings)
                 .ThenInclude(rt => rt.User)
             .FirstOrDefaultAsync(r => r.Id == recipeId);
@@ -618,47 +622,35 @@ public class UserRecipeService : IUserRecipeService
 
     private UserRecipeDto MapToDto(UserRecipe recipe, Guid requestingUserId)
     {
-        var imageUrls = new List<string>();
-        try
-        {
-            if (!string.IsNullOrEmpty(recipe.LocalImageUrl))
-            {
-                imageUrls.Add(recipe.LocalImageUrl);
-            }
-            else if (!string.IsNullOrEmpty(recipe.LocalImageUrls) && recipe.LocalImageUrls != "[]")
-            {
-                imageUrls = JsonSerializer.Deserialize<List<string>>(recipe.LocalImageUrls) ?? new();
-            }
-            else if (recipe.GlobalRecipe != null && !string.IsNullOrEmpty(recipe.GlobalRecipe.ImageUrls))
-            {
-                imageUrls = JsonSerializer.Deserialize<List<string>>(recipe.GlobalRecipe.ImageUrls) ?? new();
-            }
-        }
-        catch { }
+        var imageUrls = JsonHelper.JsonToList(recipe.DisplayImageUrls);
 
         var myRating = recipe.Ratings?.FirstOrDefault(r => r.UserId == requestingUserId);
 
-        // Exclude the requesting user's rating from memberRatings to avoid duplicates
         var memberRatings = recipe.Ratings?
             .Where(r => r.User != null && r.UserId != requestingUserId)
             .ToDictionary(r => r.User!.DisplayName, r => (decimal?)r.Score)
             ?? new Dictionary<string, decimal?>();
 
-        // Parse recipe tags from GlobalRecipe
-        var recipeTags = new List<string>();
-        if (recipe.GlobalRecipe?.Tags != null)
-        {
-            try { recipeTags = JsonSerializer.Deserialize<List<string>>(recipe.GlobalRecipe.Tags) ?? new(); }
-            catch { }
-        }
+        var recipeTags = JsonHelper.JsonToList(recipe.GlobalRecipe?.Tags);
+        var nutritionData = JsonHelper.JsonToObject(recipe.GlobalRecipe?.NutritionData);
 
-        // Parse nutrition data from GlobalRecipe
-        object? nutritionData = null;
-        if (recipe.GlobalRecipe?.NutritionData != null)
-        {
-            try { nutritionData = JsonSerializer.Deserialize<object>(recipe.GlobalRecipe.NutritionData); }
-            catch { }
-        }
+        object? ingredients = null;
+        if (!string.IsNullOrWhiteSpace(recipe.LocalIngredients))
+            ingredients = JsonHelper.JsonToObject(recipe.LocalIngredients);
+        else if (!string.IsNullOrWhiteSpace(recipe.GlobalRecipe?.Ingredients))
+            ingredients = JsonHelper.JsonToObject(recipe.GlobalRecipe.Ingredients);
+
+        var tags = recipe.UserRecipeTags?
+            .Where(rt => rt.Tag != null)
+            .Select(rt => new TagReferenceDto
+            {
+                Id = rt.TagId,
+                Name = rt.Tag!.Name,
+                Color = rt.Tag!.Color
+            })
+            .OrderBy(t => t.Name)
+            .ToList()
+            ?? new List<TagReferenceDto>();
 
         return new UserRecipeDto
         {
@@ -666,16 +658,12 @@ public class UserRecipeService : IUserRecipeService
             UserId = recipe.UserId,
             UserDisplayName = recipe.User?.DisplayName ?? "Unknown",
             UserAvatarUrl = recipe.User?.AvatarUrl,
+
             Name = recipe.LocalTitle ?? recipe.GlobalRecipe?.Title ?? "Untitled",
             Description = recipe.LocalDescription ?? recipe.GlobalRecipe?.Description,
             ImageUrls = imageUrls,
-            Ingredients = recipe.LocalIngredients != null
-                ? JsonSerializer.Deserialize<object>(recipe.LocalIngredients)
-                : (recipe.GlobalRecipe?.Ingredients != null
-                    ? JsonSerializer.Deserialize<object>(recipe.GlobalRecipe.Ingredients)
-                    : null),
+            Ingredients = ingredients,
 
-            // Metadata - use local values if available, otherwise fall back to GlobalRecipe
             PrepTimeMinutes = recipe.LocalPrepTimeMinutes ?? recipe.GlobalRecipe?.PrepTimeMinutes,
             CookTimeMinutes = recipe.LocalCookTimeMinutes ?? recipe.GlobalRecipe?.CookTimeMinutes,
             Servings = recipe.LocalServings ?? recipe.GlobalRecipe?.Servings,
@@ -683,21 +671,28 @@ public class UserRecipeService : IUserRecipeService
             Cuisine = recipe.LocalCuisine ?? recipe.GlobalRecipe?.Cuisine,
             RecipeTags = recipeTags,
             NutritionData = nutritionData,
+
             IsHellofresh = recipe.GlobalRecipe?.IsHellofresh ?? false,
             HellofreshWeek = recipe.GlobalRecipe?.HellofreshWeek,
 
             GlobalRecipeId = recipe.GlobalRecipeId,
             GlobalRecipeName = recipe.GlobalRecipe?.Title,
             IsPublished = recipe.GlobalRecipe?.PublishedFromUserRecipeId == recipe.Id,
-            Visibility = recipe.Visibility,
-            PersonalNotes = recipe.PersonalNotes,
+
+            Visibility = string.IsNullOrWhiteSpace(recipe.Visibility) ? "private" : recipe.Visibility,
+            PersonalNotes = recipe.UserId == requestingUserId ? recipe.PersonalNotes : null,
+
             IsArchived = recipe.IsArchived,
             CreatedAt = recipe.CreatedAt,
             UpdatedAt = recipe.UpdatedAt,
+
             MyRating = myRating?.Score,
             AverageRating = recipe.Ratings?.Any() == true ? (double)recipe.Ratings.Average(r => r.Score) : 0,
             RatingCount = recipe.Ratings?.Count ?? 0,
-            MemberRatings = memberRatings
+            MemberRatings = memberRatings,
+
+            Tags = tags
         };
     }
+
 }

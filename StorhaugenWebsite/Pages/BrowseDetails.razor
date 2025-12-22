@@ -4,6 +4,7 @@
 @using StorhaugenWebsite.Services
 @using StorhaugenWebsite.Shared.DTOs
 @using StorhaugenWebsite.Components
+@using StorhaugenWebsite.Shared.Extensions
 @inject IApiClient ApiClient
 @inject IUserRecipeService RecipeService
 @inject IFoodService FoodService
@@ -36,26 +37,69 @@ else if (_recipe == null)
 }
 else
 {
-    @* --- Header Image --- *@
+    @* --- IMAGE (same container class as FoodDetails) --- *@
     @if (!string.IsNullOrEmpty(GetImageUrl()) && !_recipe.IsHellofresh)
     {
-        <img src="@GetImageUrl()" class="detail-hero-image" />
+        <div class="detail-image-carousel">
+            <img src="@GetImageUrl()" class="detail-hero-image" />
+        </div>
     }
 
-    <div>
+    @* --- INFO CARD (same class as FoodDetails) --- *@
+    <div class="detail-info-card">
+
         <div class="d-flex justify-space-between align-start gap-3">
-            <h1 class="detail-title">@_recipe.Name</h1>
+            <div style="min-width:0;">
+                <h1 class="detail-title">@_recipe.Name</h1>
+
+                <div class="d-flex gap-2 mt-2 flex-wrap align-center">
+                    @if (_recipe.IsHellofresh)
+                    {
+                        <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Rounded.LocalDining" Color="Color.Success">
+                            HelloFresh
+                        </MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Rounded.Cloud" Color="Color.Info">
+                            Delt av @(_recipe.CreatedByUserName ?? "Fellesskapet")
+                        </MudChip>
+                    }
+
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="align-self-center">
+                        • @_recipe.CreatedAt.ToString("dd. MMM yyyy")
+                    </MudText>
+
+                    @if (IsOwner)
+                    {
+                        <div class="ml-auto">
+                            <MudMenu Icon="@Icons.Material.Rounded.MoreVert" Size="Size.Small" AnchorOrigin="Origin.BottomRight">
+                                <MudMenuItem Icon="@Icons.Material.Rounded.Delete" IconColor="Color.Error" OnClick="DeletePublishedRecipe">
+                                    Slett fra fellesskapet
+                                </MudMenuItem>
+                            </MudMenu>
+                        </div>
+                    }
+                </div>
+            </div>
+
             @if (_recipe.AverageRating > 0)
             {
-                <div class="d-flex flex-column align-end">
-                    <span class="rating-badge rating-high">
+                var ratingClass = _recipe.AverageRating >= 8 ? "rating-high"
+                : _recipe.AverageRating >= 5 ? "rating-medium"
+                : "rating-low";
+
+                <div class="d-flex flex-column align-end" style="flex-shrink:0;">
+                    <span class="rating-badge @ratingClass"
+                          style="font-size: 1rem; padding: 8px 14px; color:@_recipe.AverageRating.ToRatingColorHex();">
                         <MudIcon Icon="@Icons.Material.Rounded.Star" Size="Size.Small" />
                         @_recipe.AverageRating.ToString("0.0")
                     </span>
+
                     @if (_recipe.TotalRatings > 0)
                     {
                         <span class="rating-count-badge">
-                            <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Small" Style="font-size: 10px;" />
+                            <MudIcon Icon="@Icons.Material.Rounded.People" Size="Size.Small" Style="font-size: 12px;" />
                             @_recipe.TotalRatings
                         </span>
                     }
@@ -63,50 +107,21 @@ else
             }
         </div>
 
-        @* --- Source Badge --- *@
-        <div class="d-flex gap-2 mt-2 flex-wrap align-center">
-            @if (_recipe.IsHellofresh)
-            {
-                <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Rounded.LocalDining" Color="Color.Success">
-                    HelloFresh
-                </MudChip>
-            }
-            else
-            {
-                <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Rounded.Cloud" Color="Color.Info">
-                    Delt av @(_recipe.CreatedByUserName ?? "Fellesskapet")
-                </MudChip>
-            }
-            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="align-self-center">• @_recipe.CreatedAt.ToString("dd. MMM yyyy")</MudText>
-
-            @* --- Owner Actions Menu --- *@
-            @if (IsOwner)
-            {
-                <div class="ml-auto">
-                    <MudMenu Icon="@Icons.Material.Rounded.MoreVert" Size="Size.Small" AnchorOrigin="Origin.BottomRight">
-                        <MudMenuItem Icon="@Icons.Material.Rounded.Delete" IconColor="Color.Error" OnClick="DeletePublishedRecipe">
-                            Slett fra fellesskapet
-                        </MudMenuItem>
-                    </MudMenu>
-                </div>
-            }
-        </div>
-
-        @* --- Quick Info Row --- *@
+        @* Quick Info Row (match FoodDetails: same classes, same gap, no “difficulty-*” special styling) *@
         @if (_recipe.PrepTimeMinutes.HasValue || _recipe.CookTimeMinutes.HasValue || !string.IsNullOrEmpty(_recipe.Difficulty) || _recipe.Servings.HasValue || !string.IsNullOrEmpty(_recipe.Cuisine))
         {
-            <div class="quick-info-row mt-4">
+            <div class="quick-info-row mt-3">
                 @if (_recipe.PrepTimeMinutes.HasValue)
                 {
                     <div class="quick-info-item">
                         <MudIcon Icon="@Icons.Material.Rounded.AccessTime" Size="Size.Small" Color="Color.Primary" />
-                        <span>@_recipe.PrepTimeMinutes min forberedelse</span>
+                        <span>@_recipe.PrepTimeMinutes min tilberedning</span>
                     </div>
                 }
                 @if (!string.IsNullOrEmpty(_recipe.Difficulty))
                 {
-                    <div class="quick-info-item @GetDifficultyClass(_recipe.Difficulty)">
-                        <MudIcon Icon="@GetDifficultyIcon(_recipe.Difficulty)" Size="Size.Small" />
+                    <div class="quick-info-item">
+                        <MudIcon Icon="@GetDifficultyIcon(_recipe.Difficulty)" Size="Size.Small" Color="Color.Secondary" />
                         <span>@GetDifficultyLabel(_recipe.Difficulty)</span>
                     </div>
                 }
@@ -132,7 +147,6 @@ else
             <p class="detail-description mt-4">@_recipe.Description</p>
         }
 
-        @* --- Recipe Tags --- *@
         @if (_recipe.Tags.Any())
         {
             <div class="d-flex flex-wrap gap-2 mt-3">
@@ -142,7 +156,11 @@ else
                 }
             </div>
         }
+    </div>
 
+
+    @* --- REST OF PAGE (unchanged) --- *@
+    <div>
         @* --- HelloFresh Recipe Details (Ingredients & Nutrition) --- *@
         @if (_recipe.IsHellofresh)
         {
@@ -152,7 +170,6 @@ else
         }
         else if (HasIngredients())
         {
-            @* Community Recipe Ingredients *@
             <MudExpansionPanels Class="mt-4" MultiExpansion="true">
                 <MudExpansionPanel Text="Ingredienser" Icon="@Icons.Material.Rounded.ShoppingCart" IsInitiallyExpanded="true">
                     <div class="ingredients-list">
@@ -177,7 +194,6 @@ else
         }
 
         <div class="action-buttons mt-6">
-            @* --- Primary Action: Add to my cookbook --- *@
             <MudButton Variant="Variant.Filled"
                        Color="@(_recipe.IsHellofresh ? Color.Success : Color.Primary)"
                        FullWidth="true"
@@ -197,9 +213,8 @@ else
                 }
             </MudButton>
 
-            @* --- Secondary: Copy and customize --- *@
             <MudButton Variant="Variant.Outlined"
-                       Color="Color.Default"
+                       Color="Color.Primary"
                        FullWidth="true"
                        Class="mt-3"
                        StartIcon="@Icons.Material.Rounded.Edit"
@@ -210,139 +225,6 @@ else
         </div>
     </div>
 }
-
-<style>
-    .detail-hero-image {
-        width: 100%;
-        height: 250px;
-        object-fit: cover;
-        border-radius: 24px;
-        margin-bottom: 16px;
-    }
-
-    .detail-hero-placeholder {
-        width: 100%;
-        height: 250px;
-        background: var(--mud-palette-background-grey);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 0 0 24px 24px;
-        color: var(--mud-palette-text-disabled);
-    }
-
-    .detail-content {
-        padding: 24px;
-    }
-
-    .detail-title {
-        font-size: 1.75rem;
-        font-weight: 700;
-        line-height: 1.2;
-        margin: 0;
-    }
-
-    .detail-description {
-        color: var(--mud-palette-text-secondary);
-        line-height: 1.6;
-    }
-
-    .action-card {
-        background: var(--mud-palette-surface);
-        border-radius: 16px;
-        padding: 16px;
-    }
-
-    .action-title {
-        font-weight: 600;
-        font-size: 1rem;
-        margin-bottom: 4px;
-    }
-
-    .action-desc {
-        font-size: 0.85rem;
-        color: var(--mud-palette-text-secondary);
-        margin-bottom: 0;
-    }
-
-    .rating-count {
-        font-size: 0.7rem;
-        color: var(--mud-palette-text-secondary);
-        margin-top: 2px;
-    }
-
-    .quick-info-row {
-        display: flex;
-        gap: 12px;
-        flex-wrap: wrap;
-    }
-
-    .quick-info-item {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 12px;
-        background: var(--mud-palette-background-grey);
-        border-radius: 8px;
-        font-size: 0.85rem;
-    }
-
-    .quick-info-item.difficulty-easy {
-        background: rgba(76, 175, 80, 0.1);
-        color: #2e7d32;
-    }
-
-    .quick-info-item.difficulty-medium {
-        background: rgba(255, 152, 0, 0.1);
-        color: #e65100;
-    }
-
-    .quick-info-item.difficulty-hard {
-        background: rgba(244, 67, 54, 0.1);
-        color: #c62828;
-    }
-
-    .ingredients-list {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-    }
-
-    .ingredient-item {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 8px;
-        background: var(--mud-palette-background-grey);
-        border-radius: 8px;
-    }
-
-    .ingredient-placeholder {
-        width: 40px;
-        height: 40px;
-        border-radius: 8px;
-        background: var(--mud-palette-divider);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: var(--mud-palette-text-disabled);
-    }
-
-    .ingredient-info {
-        display: flex;
-        flex-direction: column;
-    }
-
-    .ingredient-name {
-        font-weight: 500;
-        color: var(--mud-palette-text-primary);
-    }
-
-    .ingredient-amount {
-        font-size: 0.8rem;
-        color: var(--mud-palette-text-secondary);
-    }
-</style>
 
 @code {
     [Parameter] public Guid Id { get; set; }
@@ -455,7 +337,7 @@ else
 
             await RecipeService.CreateRecipeAsync(dto);
             Snackbar.Add($"'{_recipe.Name}' lagt til i din kokebok!", Severity.Success);
-            Navigation.NavigateTo("");
+            Navigation.NavigateTo("cookbook");
         }
         catch (Exception ex)
         {
