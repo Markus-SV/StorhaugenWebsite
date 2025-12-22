@@ -8,10 +8,10 @@
 @attribute [Authorize]
 
 <div class="d-flex align-center gap-3 mb-6">
-    <h1 class="page-title" style="margin-bottom: 0; font-size: 1.5rem;">Arkiv</h1>
+    <h1 class="page-title">Arkiv</h1>
     @if (_archivedItems.Any())
     {
-        <p class="page-subtitle" style="margin: 0;">@_archivedItems.Count arkiverte måltider</p>
+        <p class="page-subtitle">@_archivedItems.Count arkiverte måltider</p>
     }
 </div>
 

@@ -42,7 +42,7 @@ else
                 <MudIcon Icon="@GetVisibilityIcon(_collection.Visibility)" Size="Size.Large" />
             </div>
             <div class="flex-grow-1">
-                <h1 class="page-title" style="margin: 0;">@_collection.Name</h1>
+                <h1 class="page-title">@_collection.Name</h1>
                 @if (!string.IsNullOrEmpty(_collection.Description))
                 {
                     <MudText Typo="Typo.body2" Color="Color.Secondary">@_collection.Description</MudText>

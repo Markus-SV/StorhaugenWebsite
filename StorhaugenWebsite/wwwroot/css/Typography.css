@@ -1,0 +1,26 @@
+/* Shared typography utilities */
+
+.page-title {
+    margin: 0;
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--mud-palette-text-primary);
+}
+
+.page-subtitle {
+    margin: 0;
+    font-size: 0.95rem;
+    color: var(--mud-palette-text-secondary);
+    font-weight: 500;
+    line-height: 1.5;
+}
+
+.card-subtitle {
+    margin: 2px 0 0;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.9rem;
+    font-weight: 500;
+    line-height: 1.4;
+}
