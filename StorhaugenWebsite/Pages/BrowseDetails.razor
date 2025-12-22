@@ -164,7 +164,7 @@ else
         @* --- HelloFresh Recipe Details (Ingredients & Nutrition) --- *@
         @if (_recipe.IsHellofresh)
         {
-            <div class="mt-6">
+            <div class="mt-4">
                 <HelloFreshRecipeDetails Recipe="_recipe" />
             </div>
         }
@@ -193,7 +193,7 @@ else
             </MudExpansionPanels>
         }
 
-        <div class="action-buttons mt-6">
+        <div class="action-buttons mt-4">
             <MudButton Variant="Variant.Filled"
                        Color="@(_recipe.IsHellofresh ? Color.Success : Color.Primary)"
                        FullWidth="true"
