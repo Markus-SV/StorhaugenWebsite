@@ -10,6 +10,9 @@ public class CurrentUserService : ICurrentUserService
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly AppDbContext _context;
+    private const string ShareIdCharacters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    private const int ShareIdLength = 12;
+    private const int MaxShareIdGenerationAttempts = 5;
 
     public CurrentUserService(IHttpContextAccessor httpContextAccessor, AppDbContext context)
     {
@@ -66,12 +69,40 @@ public class CurrentUserService : ICurrentUserService
                 DisplayName = displayName, // Now uses the parsed name
                 AvatarUrl = avatarUrl,
                 SupabaseUserId = subject,
-                UniqueShareId = GenerateUniqueShareId(),
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
+
+            DbUpdateException? lastException = null;
+            var userSaved = false;
+
+            for (var attempt = 0; attempt < MaxShareIdGenerationAttempts; attempt++)
+            {
+                user.UniqueShareId = await GenerateUniqueShareIdAsync();
+
+                if (await _context.Users.AnyAsync(u => u.UniqueShareId == user.UniqueShareId))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    _context.Users.Add(user);
+                    await _context.SaveChangesAsync();
+                    userSaved = true;
+                    break;
+                }
+                catch (DbUpdateException ex) when (attempt < MaxShareIdGenerationAttempts - 1)
+                {
+                    lastException = ex;
+                    _context.Entry(user).State = EntityState.Detached;
+                }
+            }
+
+            if (!userSaved)
+            {
+                throw lastException ?? new InvalidOperationException("Unable to generate a unique share ID after multiple attempts.");
+            }
         }
         else
         {
@@ -171,11 +202,23 @@ public class CurrentUserService : ICurrentUserService
         return avatar;
     }
 
-    private string GenerateUniqueShareId()
+    protected virtual string GenerateShareIdCandidate()
     {
-        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-        var random = new Random();
-        return new string(Enumerable.Repeat(chars, 12)
-            .Select(s => s[random.Next(s.Length)]).ToArray());
+        return new string(Enumerable.Range(0, ShareIdLength)
+            .Select(_ => ShareIdCharacters[Random.Shared.Next(ShareIdCharacters.Length)])
+            .ToArray());
+    }
+
+    private async Task<string> GenerateUniqueShareIdAsync()
+    {
+        string shareId;
+
+        do
+        {
+            shareId = GenerateShareIdCandidate();
+        }
+        while (await _context.Users.AnyAsync(u => u.UniqueShareId == shareId));
+
+        return shareId;
     }
 }
