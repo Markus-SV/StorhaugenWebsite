@@ -8,11 +8,11 @@
 @inject IDialogService DialogService
 @attribute [Authorize]
 
-<div class="d-flex align-center gap-3 mb-6">
-    <h1 class="page-title" style="margin-bottom: 0; font-size: 1.5rem;">Arkiv</h1>
+<div class="d-flex justify-space-between align-center mb-4">
+    <h1 class="page-title" style="margin-bottom: 0;">Arkiv</h1>
     @if (_archivedItems.Any())
     {
-        <p class="page-subtitle" style="margin: 0;">@_archivedItems.Count arkiverte måltider</p>
+        <MudText Typo="Typo.caption" Color="Color.Secondary">@_archivedItems.Count arkiverte måltider</MudText>
     }
 </div>
 
@@ -49,7 +49,7 @@ else
         <div class="d-flex align-center justify-space-between flex-wrap gap-3">
             <MudCheckBox T="bool?" TriState="true" Value="SelectAllChecked" ValueChanged="ToggleSelectAll" Label="Velg alle" />
 
-            <div class="d-flex gap-2">
+            <div style="flex-direction: column" class="d-flex gap-2">
                 <MudButton Variant="Variant.Outlined"
                            Disabled="!HasSelection || _isProcessing"
                            StartIcon="@Icons.Material.Rounded.Restore"

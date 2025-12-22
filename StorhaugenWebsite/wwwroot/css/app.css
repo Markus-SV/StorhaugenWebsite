@@ -76,10 +76,6 @@ body {
     cursor: pointer;
 }
 
-    .friend-card:hover {
-        background-color: var(--mud-palette-background-grey);
-    }
-
     .friend-card:active {
         transform: scale(0.98);
     }
