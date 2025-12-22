@@ -66,26 +66,6 @@
 </div>
 
 <div class="form-section">
-    <div class="d-flex justify-space-between align-center mb-2">
-        <p class="form-section-title" style="margin-bottom: 0;">Arkiv</p>
-        <MudButton Variant="Variant.Filled"
-                   Color="Color.Primary"
-                   Size="Size.Small"
-                   StartIcon="@Icons.Material.Rounded.Inventory2"
-                   OnClick="NavigateToArchived">
-            Åpne arkiv
-        </MudButton>
-    </div>
-    <MudText Typo="Typo.caption" Color="Color.Secondary">
-        Administrer arkiverte måltider dine. @(_loadingArchivedCount ? "" : _archivedCount > 0 ? $"{_archivedCount} arkiverte oppskrifter" : "Ingen arkiverte oppskrifter")
-        @if (_loadingArchivedCount)
-        {
-            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="ml-2" />
-        }
-    </MudText>
-</div>
-
-<div class="form-section">
     <p class="form-section-title">Utseende</p>
 
     <MudSelect T="string"
@@ -163,14 +143,31 @@
     </div>
 }
 
-<div class="form-section mt-4">
+<div class="form-section">
+    <div class="d-flex justify-space-between align-center mb-2">
+        <p class="form-section-title" style="margin-bottom: 0;">Arkiv</p>
+        <MudButton Variant="Variant.Text"
+                   Color="Color.Primary"
+                   Size="Size.Small"
+                   StartIcon="@Icons.Material.Rounded.Inventory2"
+                   OnClick="NavigateToArchived">
+            Åpne arkiv
+        </MudButton>
+    </div>
+    <MudText Typo="Typo.caption" Color="Color.Secondary">
+        @(_loadingArchivedCount ? "" : _archivedCount > 0 ? $"{_archivedCount} arkiverte oppskrifter" : "Ingen arkiverte oppskrifter")
+        @if (_loadingArchivedCount)
+        {
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="ml-2" />
+        }
+    </MudText>
+</div>
+
+<div class="form-section" style="gap: 12px; display: flex; flex-direction: column;">
     <div class="d-flex justify-center flex-column align-center gap-1">
         <MudText Typo="Typo.body2" Style="font-weight: 500;">Storhaugen Eats</MudText>
         <MudText Typo="Typo.caption" Color="Color.Secondary">Version 2.1.1</MudText>
     </div>
-</div>
-
-<div class="form-section">
     <MudButton Variant="Variant.Outlined"
                Color="Color.Error"
                FullWidth="true"
