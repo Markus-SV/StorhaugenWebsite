@@ -123,6 +123,16 @@ namespace StorhaugenWebsite.Services
             await _apiClient.RestoreUserRecipeAsync(recipeId);
         }
 
+        public async Task DeleteFoodAsync(string id)
+        {
+            ValidateAuthorization();
+
+            if (!Guid.TryParse(id, out var recipeId))
+                throw new ArgumentException("Invalid ID format.");
+
+            await _apiClient.DeleteUserRecipeAsync(recipeId);
+        }
+
         public async Task UpdateRatingAsync(string foodId, string personName, decimal rating)
         {
             ValidateAuthorization();

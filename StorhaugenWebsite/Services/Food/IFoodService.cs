@@ -10,6 +10,7 @@ namespace StorhaugenWebsite.Services
         Task<FoodItem?> GetFoodByIdAsync(string id);
         Task ArchiveFoodAsync(string id, string archivedBy);
         Task RestoreFoodAsync(string id);
+        Task DeleteFoodAsync(string id);
         Task UpdateRatingAsync(string foodId, string personName, decimal rating);
         Task<string> UploadImageAsync(byte[] imageData, string fileName);
         Task ForkRecipeAsync(string id);
