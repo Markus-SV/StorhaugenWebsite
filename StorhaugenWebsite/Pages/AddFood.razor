@@ -666,6 +666,9 @@
                 GlobalRecipeId = _newFood.GlobalRecipeId,
                 Visibility = finalVisibility,
                 MemberRatings = ratingsToSend,
+                CollectionIds = _shareWithCollection && _selectedCollectionId.HasValue
+                    ? new List<Guid> { _selectedCollectionId.Value }
+                    : new List<Guid>(),
                 // Metadata fields
                 PrepTimeMinutes = _newFood.PrepTimeMinutes,
                 Servings = _newFood.Servings,

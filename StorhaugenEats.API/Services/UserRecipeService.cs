@@ -199,26 +199,56 @@ public class UserRecipeService : IUserRecipeService
 
             await _context.SaveChangesAsync();
 
-            // 5) Optional: initial rating from creator only (keeps your existing rule)
+            // 5) Optional: initial ratings (creator can include collection members during creation)
             if (dto.MemberRatings != null && dto.MemberRatings.Any())
             {
-                var ratingsToAdd = dto.MemberRatings
-                    .Where(kvp => kvp.Key == userId)
-                    .Select(kvp => new Rating
-                    {
-                        Id = Guid.NewGuid(),
-                        UserRecipeId = recipe.Id,
-                        GlobalRecipeId = recipe.GlobalRecipeId,
-                        UserId = kvp.Key,
-                        Score = Math.Clamp(kvp.Value, 0m, 10m),
-                        CreatedAt = now,
-                        UpdatedAt = now
-                    })
+                var allowedMemberIds = await GetAllowedMemberIdsForInitialRatingsAsync(userId, dto.CollectionIds);
+
+                var requestedRatings = dto.MemberRatings
+                    .Where(kvp => allowedMemberIds.Contains(kvp.Key))
                     .ToList();
 
-                if (ratingsToAdd.Any())
+                if (requestedRatings.Any())
                 {
-                    _context.Ratings.AddRange(ratingsToAdd);
+                    var targetUserIds = requestedRatings.Select(kvp => kvp.Key).ToList();
+
+                    var existingRatings = recipe.GlobalRecipeId.HasValue
+                        ? await _context.Ratings
+                            .Where(r => r.GlobalRecipeId == recipe.GlobalRecipeId && targetUserIds.Contains(r.UserId))
+                            .ToListAsync()
+                        : await _context.Ratings
+                            .Where(r => r.UserRecipeId == recipe.Id && targetUserIds.Contains(r.UserId))
+                            .ToListAsync();
+
+                    foreach (var kvp in requestedRatings)
+                    {
+                        var clampedScore = Math.Clamp(kvp.Value, 0m, 10m);
+                        var existing = existingRatings.FirstOrDefault(r => r.UserId == kvp.Key);
+
+                        if (existing != null)
+                        {
+                            existing.UserRecipeId = recipe.Id;
+                            if (recipe.GlobalRecipeId.HasValue)
+                                existing.GlobalRecipeId = recipe.GlobalRecipeId;
+
+                            existing.Score = clampedScore;
+                            existing.UpdatedAt = now;
+                        }
+                        else
+                        {
+                            _context.Ratings.Add(new Rating
+                            {
+                                Id = Guid.NewGuid(),
+                                UserRecipeId = recipe.Id,
+                                GlobalRecipeId = recipe.GlobalRecipeId,
+                                UserId = kvp.Key,
+                                Score = clampedScore,
+                                CreatedAt = now,
+                                UpdatedAt = now
+                            });
+                        }
+                    }
+
                     await _context.SaveChangesAsync();
 
                     if (recipe.GlobalRecipeId.HasValue)
@@ -697,6 +727,34 @@ public class UserRecipeService : IUserRecipeService
 
             Tags = tags
         };
+    }
+
+    private async Task<HashSet<Guid>> GetAllowedMemberIdsForInitialRatingsAsync(
+        Guid creatorUserId,
+        List<Guid>? collectionIds)
+    {
+        var allowed = new HashSet<Guid> { creatorUserId };
+
+        if (collectionIds == null || collectionIds.Count == 0)
+            return allowed;
+
+        var creatorCollections = await _context.CollectionMembers
+            .Where(cm => collectionIds.Contains(cm.CollectionId) && cm.UserId == creatorUserId)
+            .Select(cm => cm.CollectionId)
+            .ToListAsync();
+
+        if (!creatorCollections.Any())
+            return allowed;
+
+        var memberIds = await _context.CollectionMembers
+            .Where(cm => creatorCollections.Contains(cm.CollectionId))
+            .Select(cm => cm.UserId)
+            .ToListAsync();
+
+        foreach (var memberId in memberIds)
+            allowed.Add(memberId);
+
+        return allowed;
     }
 
 }
