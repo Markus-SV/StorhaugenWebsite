@@ -512,7 +512,7 @@
 /* Image & Placeholder Fade - MOVED TO RIGHT */
 .food-card-image,
 .food-card-placeholder {
-    width: 50%;
+    width: 60%;
     height: 100%;
     position: absolute;
     right: 0; /* Changed from left: 0 */
@@ -540,11 +540,29 @@
 }
 
 .food-card-placeholder {
-    background: var(--mud-palette-divider-light);
+    position: absolute; /* you already set this in the shared rule */
+    overflow: hidden; /* so the pseudo-element doesn’t spill */
     display: flex;
     align-items: center;
     justify-content: center;
 }
+
+    .food-card-placeholder::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: rgba(var(--mud-palette-primary-rgb), 0.18); /* <- tweak alpha */
+        z-index: 0;
+        /* fade only the background, not the icon */
+        -webkit-mask-image: linear-gradient(to left, black 0%, transparent 100%);
+        mask-image: linear-gradient(to left, black 0%, transparent 100%);
+    }
+
+    /* ensure the icon stays above the background */
+    .food-card-placeholder > * {
+        position: relative;
+        z-index: 1;
+    }
 
 /* Content Section - MOVED TO LEFT */
 .food-card-content {
@@ -796,14 +814,14 @@
 .detail-image-carousel {
     border-radius: var(--card-radius, 12px);
     overflow: hidden;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
 }
 
 .detail-info-card {
     background: var(--mud-palette-surface);
     border-radius: var(--card-radius, 12px);
     padding: 20px;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
 }
 
 .detail-title {
@@ -826,6 +844,97 @@
     padding: 16px;
     border-radius: 16px;
     margin-bottom: 16px;
+}
+
+/* ============================================
+   RECIPE DETAILS (shared: /food + /browse)
+   ============================================ */
+
+/* Single hero image (used by BrowseDetails when not using MudCarousel) */
+.detail-hero-image {
+    width: 100%;
+    height: 240px;
+    object-fit: cover;
+    display: block;
+}
+
+/* Quick info row (same for both pages) */
+.quick-info-row {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.quick-info-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: var(--mud-palette-background-grey);
+    border-radius: 8px;
+    font-size: 0.85rem;
+}
+
+/* Ingredients list (same for both pages) */
+.ingredients-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ingredient-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px;
+    background: var(--mud-palette-background-grey);
+    border-radius: 8px;
+}
+
+.ingredient-image {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    object-fit: cover;
+    background: white;
+}
+
+.ingredient-placeholder {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: var(--mud-palette-divider);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--mud-palette-text-disabled);
+}
+
+.ingredient-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.ingredient-name {
+    font-weight: 500;
+    color: var(--mud-palette-text-primary);
+}
+
+.ingredient-amount {
+    font-size: 0.8rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+/* Mobile tightening (same behavior you already had in FoodDetails) */
+@media (max-width: 600px) {
+    .quick-info-row {
+        gap: 8px;
+    }
+
+    .quick-info-item {
+        font-size: 0.8rem;
+        padding: 4px 8px;
+    }
 }
 
 /* Visibility Card */
