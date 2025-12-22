@@ -46,7 +46,8 @@
                 @(_friend.DisplayName?.FirstOrDefault().ToString().ToUpper() ?? "?")
             </MudAvatar>
 
-            <MudText Typo="Typo.h5" Style="font-weight: 700;">@_friend.DisplayName</MudText>
+            <h1 class="page-title" style="margin-bottom: 0;">@_friend.DisplayName</h1>
+
 
             @if (!string.IsNullOrWhiteSpace(_friend.Bio))
             {
