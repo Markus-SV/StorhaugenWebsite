@@ -63,7 +63,6 @@
 }
 
 .empty-state-title {
-    font-family: 'Fraunces', Georgia, serif;
     font-size: 1.25rem;
     font-weight: 600;
     margin-bottom: 8px;
@@ -577,7 +576,6 @@
 }
 
 .food-card-title {
-    font-family: 'Fraunces', serif;
     font-size: 1.1rem;
     line-height: 1.2;
     margin-bottom: 4px;
@@ -825,7 +823,6 @@
 }
 
 .detail-title {
-    font-family: 'Fraunces', Georgia, serif;
     font-size: 1.5rem;
     font-weight: 600;
     margin-bottom: 8px;
