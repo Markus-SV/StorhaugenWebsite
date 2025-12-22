@@ -190,7 +190,7 @@
                 @if (_pendingSent.Any())
                 {
                     <MudExpansionPanel Text="@($"Sendte forespørsler ({_pendingSent.Count})")"
-                                       Class="mt-6 shadow-none bg-transparent"
+                                       Class="mt-4 shadow-none bg-transparent"
                                        DisableGutters="true">
                         <div class="d-flex flex-column gap-3 mt-2">
                             @for (var i = 0; i < _pendingSent.Count; i++)

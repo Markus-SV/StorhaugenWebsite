@@ -1,20 +1,16 @@
 @page "/add"
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Forms
-@using StorhaugenWebsite.ApiClient
 @using StorhaugenWebsite.Models
 @using StorhaugenWebsite.Services
 @using StorhaugenWebsite.Shared.DTOs
-@using StorhaugenWebsite.Components
 @using System.Text.Json
 @inject IAuthService AuthService
 @inject IFoodService FoodService
 @inject IUserRecipeService RecipeService
 @inject ICollectionStateService CollectionState
-@inject IApiClient ApiClient
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
-@inject IOcrService OcrService
 @inject IJSRuntime JSRuntime
 @attribute [Authorize]
 
@@ -24,41 +20,6 @@
     <h2 style="font-family: 'Fraunces', serif;">Vennligst snu telefonen</h2>
     <p style="opacity: 0.7; max-width: 300px; margin-top: 10px;">Storhaugen Eats er designet for å brukes i portrettmodus.</p>
 </div>
-
-@* --- 2. CAMERA OVERLAY UI --- *@
-@if (_showCameraOverlay)
-{
-    <div class="camera-overlay">
-        <video @ref="_videoElement" autoplay playsinline muted class="camera-video"></video>
-        <div class="camera-guide-container @GetOverlayClass()">
-            <div class="camera-guide-box">
-                @if (_currentStep == ScanStep.Front)
-                {
-                    <div class="logo-hint-zone">
-                        <svg width="60" height="80" viewBox="0 0 100 120" xmlns="http://www.w3.org/2000/svg" fill="#fff">
-                            <path d="M50 0 C25 0 5 20 5 45 C5 70 25 90 50 90 C75 90 95 70 95 45 C95 35 90 15 80 5" fill="#9ACD32" />
-                            <path d="M80 5 C85 0 95 0 95 10 C95 5 85 5 80 5 Z" fill="#76a11e" />
-                            <text x="50" y="105" font-family="Arial, sans-serif" font-weight="900" font-size="14" text-anchor="middle" letter-spacing="1">HELLO</text>
-                            <text x="50" y="118" font-family="Arial, sans-serif" font-weight="900" font-size="14" text-anchor="middle" letter-spacing="1">FRESH</text>
-                        </svg>
-                    </div>
-                    <div class="text-hint-zone"><span class="text-label">TITTEL HER</span></div>
-                }
-                <div class="scan-line"></div>
-            </div>
-            <div class="camera-instruction-pill">
-                <MudIcon Icon="@GetStepIcon()" Size="Size.Small" Class="mr-2" Style="color: #00E676;" />
-                <span class="step-text">@GetStepTitle()</span>
-            </div>
-            <p class="camera-guide-text">@GetInstructionText()</p>
-        </div>
-        <div class="camera-controls">
-            <MudIconButton Icon="@Icons.Material.Rounded.Close" Color="Color.Surface" Size="Size.Large" OnClick="StopCamera" />
-            <button class="camera-shutter @(_isProcessingOcr ? "processing" : "")" disabled="@_isProcessingOcr" @onclick="CaptureCameraImage"></button>
-            <div class="step-counter">@((int)_currentStep + 1) / 3</div>
-        </div>
-    </div>
-}
 
 <div class="app-content-container">
     <div class="d-flex justify-space-between align-center mb-4">
@@ -70,8 +31,6 @@
         </div>
     </div>
 
-    @* HelloFresh toggle removed - users should browse and add HelloFresh recipes from the Browse section *@
-
     @if (!string.IsNullOrEmpty(_errorMessage))
     {
         <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="@(() => _errorMessage = null)">@_errorMessage</MudAlert>
@@ -80,16 +39,12 @@
     <div class="form-section">
         <div class="d-flex justify-space-between align-center">
             <p class="form-section-title">Måltidsdetaljer</p>
-            @if (_isHelloFresh && _isProcessingOcr)
-            {
-                <MudChip Size="Size.Small" Color="Color.Success" T="string" Variant="Variant.Text" Icon="@Icons.Material.Rounded.AutoAwesome">Analyserer...</MudChip>
-            }
         </div>
 
         <MudTextField @bind-Value="_newFood.Name"
-                      Label="@(_isHelloFresh ? "Navn på rett" : "Hva spiste vi?")"
+                      Label="Hva spiste vi?"
                       Variant="Variant.Outlined"
-                      Placeholder="@(_isHelloFresh ? "Skann forside for å fylle ut..." : "f.eks. Bestemors lasagne")"
+                      Placeholder="f.eks. Bestemors lasagne"
                       Required="true"
                       Class="mb-4"
                       Style="--mud-default-borderradius: 12px;" />
@@ -263,19 +218,12 @@
         }
 
         <div class="d-flex gap-3 w-100">
-            @if (_isHelloFresh)
-            {
-                <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Rounded.DocumentScanner" Size="Size.Large" OnClick="StartCamera" Class="flex-1" Style="border-radius: 12px; height: 56px;">Skann</MudButton>
-            }
-            else
-            {
-                <MudFileUpload T="IReadOnlyList<IBrowserFile>" @ref="@_fileUpload" FilesChanged="OnImagesSelected" Accept="image/*" MaximumFileCount="5" Class="flex-1" @attributes="@(new Dictionary<string, object> { { "capture", "environment" } })">
-                    <ActivatorContent>
-                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.CameraAlt" Size="Size.Large" FullWidth="true" Style="border-radius: 12px; height: 56px;">Ta bilde</MudButton>
-                    </ActivatorContent>
-                </MudFileUpload>
-            }
-            <input type="file" id="galleryInput" accept="image/*, .heic" multiple style="display: none;" @onchange="OnGalleryFileSelected" />
+            <MudFileUpload T="IReadOnlyList<IBrowserFile>" @ref="@_fileUpload" FilesChanged="OnImagesSelected" Accept="image/*" MaximumFileCount="5" Class="flex-1" @attributes="@(new Dictionary<string, object> { { "capture", "environment" } })">
+                <ActivatorContent>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.CameraAlt" Size="Size.Large" FullWidth="true" Style="border-radius: 12px; height: 56px;">Ta bilde</MudButton>
+                </ActivatorContent>
+            </MudFileUpload>
+            <InputFile id="galleryInput" style="display: none;" multiple accept="image/*, .heic" OnChange="OnGalleryFileSelected" />
             <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Rounded.PhotoLibrary" Size="Size.Large" OnClick="TriggerGalleryClick" Class="flex-1" Style="border-radius: 12px; height: 56px; border-style: dashed; border-width: 2px;">Galleri</MudButton>
         </div>
     </div>
@@ -388,42 +336,48 @@
             <MudSwitch T="bool" @bind-Value="_ratingEnabled" Color="Color.Primary" Label="Gi vurdering" />
         </div>
 
-        @if (_ratingEnabled)
-        {
+        <div class="rating-toggle-container @(_ratingEnabled ? "expanded" : "collapsed")" aria-hidden="@(!_ratingEnabled)">
             <div class="d-flex flex-column gap-3">
                 @foreach (var member in _currentRatingMembers)
                 {
-                    var isMe = member.DisplayName == _currentUserName;
                     bool included = IsMemberIncluded(member.UserId);
                     decimal rating = GetMemberRating(member.UserId);
 
-                    <div class="d-flex align-center gap-2 pa-2" style="background: var(--mud-palette-background); border-radius: 12px; transition: opacity 0.2s; opacity: @(included ? 1 : 0.6);">
+                    <div class="d-flex align-center gap-2 pa-2"
+                         style="background: var(--mud-palette-background); border-radius: 12px; transition: opacity 0.2s;">
 
-                        @* Avatar *@
-                        <MudAvatar Size="Size.Medium" Style="@($"background: {GetMemberColor(member.DisplayName)}")">
-                            @(string.IsNullOrEmpty(member.DisplayName) ? '?' : member.DisplayName[0])
-                        </MudAvatar>
+                        @* Dimmed content wrapper (everything except the toggle) *@
+                        <div class="d-flex align-center flex-grow-1 gap-2"
+                             style="transition: opacity 0.2s; opacity: @(included ? 1 : 0.6);">
 
-                        @* Name & Slider *@
-                        <div class="flex-grow-1 ml-2">
-                            <div class="d-flex justify-space-between">
-                                <MudText Typo="Typo.body2" Style="font-weight: 600;">@member.DisplayName</MudText>
-                                @if (included)
-                                {
-                                    <span style="font-size: 0.8rem; font-weight: 700; color: @GetRatingTextColor((int)rating);">@rating.ToString("0.0")/10</span>
-                                }
+                            @* Avatar *@
+                            <MudAvatar Size="Size.Medium" Style="@($"background: {GetMemberColor(member.DisplayName)}")">
+                                @(string.IsNullOrEmpty(member.DisplayName) ? '?' : member.DisplayName[0])
+                            </MudAvatar>
+
+                            @* Name & Slider *@
+                            <div class="flex-grow-1 ml-2">
+                                <div class="d-flex justify-space-between">
+                                    <MudText Typo="Typo.body2" Style="font-weight: 600;">@member.DisplayName</MudText>
+                                    @if (included)
+                                    {
+                                        <span style="font-size: 0.8rem; font-weight: 700; color: @GetRatingTextColor((int)rating);">
+                                            @rating.ToString("0.0")/10
+                                        </span>
+                                    }
+                                </div>
+
+                                <MudSlider T="decimal"
+                                           Value="rating"
+                                           ValueChanged="@((decimal v) => SetMemberRating(member.UserId, v))"
+                                           Min="0" Max="10" Step="0.1M"
+                                           Color="Color.Primary"
+                                           Disabled="@(!included)"
+                                           Class="my-0" />
                             </div>
-
-                            <MudSlider T="decimal"
-                                       Value="rating"
-                                       ValueChanged="@((decimal v) => SetMemberRating(member.UserId, v))"
-                                       Min="0" Max="10" Step="0.1M"
-                                       Color="Color.Primary"
-                                       Disabled="@(!included)"
-                                       Class="my-0" />
                         </div>
 
-                        @* Toggle *@
+                        @* Toggle (always full opacity) *@
                         <MudSwitch T="bool"
                                    Value="included"
                                    ValueChanged="@((bool v) => SetMemberIncluded(member.UserId, v))"
@@ -432,14 +386,15 @@
                                    Size="Size.Medium"
                                    Class="ml-1" />
                     </div>
+
                 }
             </div>
-        }
+        </div>
     </div>
 
     <div class="form-section" style="border:none; background:transparent; padding:0;">
         <MudButton Variant="Variant.Filled"
-                   Color="@(_isHelloFresh ? Color.Success : Color.Primary)"
+                   Color="Color.Primary"
                    Size="Size.Large"
                    FullWidth="true"
                    OnClick="SubmitFood"
@@ -473,8 +428,8 @@
     private object? _removedNutritionData;
 
     private bool _ratingEnabled = true;
+    private Guid? _currentUserId;
     private string _currentUserName = "";
-    private bool _isHelloFresh = false;
 
     // Collection & Privacy State
     private bool _shareWithCollection = false;
@@ -491,15 +446,6 @@
     public class IngredientEntry { public string Name { get; set; } = ""; public string Amount { get; set; } = ""; public string Unit { get; set; } = ""; }
     #endregion
 
-    #region Camera & OCR State
-    private ElementReference _videoElement;
-    private bool _showCameraOverlay = false;
-    private bool _isProcessingOcr = false;
-    private enum ScanStep { Front, Ingredients, Back, Finished }
-    private ScanStep _currentStep = ScanStep.Front;
-    public class ProcessedImage { public string Name { get; set; } = ""; public string Data { get; set; } = ""; }
-    #endregion
-
     #region Ratings State
     private Dictionary<Guid, decimal> _memberRatings = new();
     private Dictionary<Guid, bool> _memberIncluded = new();
@@ -509,6 +455,7 @@
     {
         await CollectionState.InitializeAsync();
         _currentUserName = AuthService.CurrentUserName ?? "Unknown";
+        _currentUserId = CollectionState.CurrentProfile?.Id;
 
         // Auto-select first collection if available
         if (CollectionState.UserCollections.Any())
@@ -549,6 +496,7 @@
 
     private async Task UpdateRatingMemberListAsync()
     {
+        _currentUserId = CollectionState.CurrentProfile?.Id;
         if (_shareWithCollection && _selectedCollectionId.HasValue)
         {
             // Get members of the selected collection
@@ -566,27 +514,26 @@
             // If private, only show current user
             _currentRatingMembers = new List<CollectionMemberDto>();
 
-            // Try to get current user info from any collection they belong to
-            foreach (var collection in CollectionState.UserCollections)
+            if (_currentUserId.HasValue)
             {
-                try
-                {
-                    var members = await CollectionState.GetCollectionMembersAsync(collection.Id);
-                    var myMemberInfo = members.FirstOrDefault(m => m.DisplayName == _currentUserName);
-                    if (myMemberInfo != null)
-                    {
-                        _currentRatingMembers.Add(myMemberInfo);
-                        break;
-                    }
-                }
-                catch { /* Continue to next collection */ }
+                _currentRatingMembers.Add(new CollectionMemberDto { UserId = _currentUserId.Value, DisplayName = _currentUserName });
             }
         }
+
+        var firstInitialization = !_memberIncluded.Any();
 
         // Initialize dictionaries for new members
         foreach (var member in _currentRatingMembers)
         {
-            if (!_memberIncluded.ContainsKey(member.UserId)) _memberIncluded[member.UserId] = true;
+            bool isCurrentUser = (_currentUserId.HasValue && member.UserId == _currentUserId.Value) || member.DisplayName == _currentUserName;
+            if (!_memberIncluded.ContainsKey(member.UserId))
+            {
+                _memberIncluded[member.UserId] = isCurrentUser;
+            }
+            else if (firstInitialization && !isCurrentUser)
+            {
+                _memberIncluded[member.UserId] = false;
+            }
             if (!_memberRatings.ContainsKey(member.UserId)) _memberRatings[member.UserId] = 5m;
         }
     }
@@ -604,8 +551,6 @@
         _newFood.Ingredients = draft.Ingredients;
         _newFood.NutritionData = draft.NutritionData;
         _newFood.GlobalRecipeId = draft.GlobalRecipeId;
-        _newFood.IsHelloFresh = draft.IsHelloFresh;
-        _isHelloFresh = draft.IsHelloFresh;
         _fromDraft = true;
         if (draft.ImageUrls != null)
         {
@@ -614,8 +559,6 @@
         }
         FoodService.DraftRecipe = null;
     }
-
-    private void SetFoodType(bool isHelloFresh) => _isHelloFresh = isHelloFresh;
 
     #region Dictionary Helpers
     private bool IsMemberIncluded(Guid userId) => _memberIncluded.ContainsKey(userId) && _memberIncluded[userId];
@@ -654,7 +597,7 @@
             // Determine Visibility - only "private" or "public" now (no more "household")
             string finalVisibility = _isPublic ? "public" : "private";
 
-            // Use structured ingredients if any are filled in, otherwise use existing (from draft/OCR)
+            // Use structured ingredients if any are filled in, otherwise use existing (from draft)
             var finalIngredients = BuildIngredientsJson() ?? _newFood.Ingredients;
 
             var createDto = new CreateUserRecipeDto
@@ -694,193 +637,23 @@
     }
     #endregion
 
-    #region Image & OCR
+    #region Image Upload
     private async Task TriggerGalleryClick() => await JSRuntime.InvokeVoidAsync("eval", "document.getElementById('galleryInput').click()");
 
-    private async Task OnGalleryFileSelected()
+    private async Task OnGalleryFileSelected(InputFileChangeEventArgs args)
     {
         try
         {
-            _isSubmitting = true;
-            if (_isHelloFresh) _isProcessingOcr = true;
-            StateHasChanged();
-
-            var images = await JSRuntime.InvokeAsync<List<ProcessedImage>>("imageTools.processInputFile", "galleryInput");
-            if (images == null || images.Count == 0) return;
-
-            bool ingredientsFound = false;
-
-            for (int i = 0; i < images.Count; i++)
-            {
-                var img = images[i];
-                if (_imageData.Count < 5)
-                {
-                    var base64Pure = img.Data.Split(',')[1];
-                    _imageData.Add(Convert.FromBase64String(base64Pure));
-                    _imagePreviewUrls.Add(img.Data);
-                    _imageNames.Add(img.Name);
-                }
-
-                if (_isHelloFresh)
-                {
-                    if (i == 0 && string.IsNullOrWhiteSpace(_newFood.Name))
-                    {
-                        Snackbar.Add("Analyserer forside...", Severity.Info);
-                        await TryAutoFillTitle(img.Data);
-                    }
-                    if (!ingredientsFound && string.IsNullOrWhiteSpace(_newFood.Description))
-                    {
-                        if (i == 0 && !string.IsNullOrWhiteSpace(_newFood.Name)) continue;
-                        Snackbar.Add($"Ser etter ingredienser (Bilde {i + 1})...", Severity.Info);
-                        ingredientsFound = await TryExtractIngredients(img.Data);
-                    }
-                }
-            }
+            var remainingSlots = Math.Max(0, 5 - _imageData.Count);
+            var files = args.GetMultipleFiles(remainingSlots);
+            if (files.Count == 0) return;
+            await OnImagesSelected(files);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Feil i galleri-opplasting: {ex.Message}");
-            Snackbar.Add("Noe gikk galt med bildebehandlingen.", Severity.Error);
+            Snackbar.Add("Noe gikk galt med bildeopplastingen.", Severity.Error);
         }
-        finally
-        {
-            _isSubmitting = false;
-            _isProcessingOcr = false;
-            StateHasChanged();
-        }
-    }
-
-    private async Task TryAutoFillTitle(string dataUrl)
-    {
-        try
-        {
-            var rawText = await OcrService.RecognizeTextAsync(dataUrl);
-            if (!string.IsNullOrWhiteSpace(rawText))
-            {
-                var lines = rawText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
-                foreach (var line in lines)
-                {
-                    var cleanLine = line.Trim();
-                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"\b(HELLO|FRESH|OPPSKRIFT|RECIPE)\b", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                    cleanLine = System.Text.RegularExpressions.Regex.Replace(cleanLine, @"^[^a-zA-ZæøåÆØÅ0-9]+", "").Trim();
-
-                    if (cleanLine.Length > 5 && cleanLine.Length < 60 && cleanLine.Any(char.IsLetter))
-                    {
-                        _newFood.Name = char.ToUpper(cleanLine[0]) + cleanLine.Substring(1);
-                        Snackbar.Add($"Tittel funnet: {_newFood.Name}", Severity.Success);
-                        await InvokeAsync(StateHasChanged);
-                        break;
-                    }
-                }
-            }
-        }
-        catch (Exception ex) { Console.WriteLine($"Title OCR Error: {ex}"); }
-    }
-
-    private async Task<bool> TryExtractIngredients(string dataUrl)
-    {
-        try
-        {
-            var rawText = await OcrService.RecognizeTextAsync(dataUrl);
-            if (string.IsNullOrWhiteSpace(rawText)) return false;
-
-            var rawLines = rawText.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
-            var flattenedList = new List<string>();
-
-            foreach (var line in rawLines)
-            {
-                var columns = System.Text.RegularExpressions.Regex.Split(line, @"\s{3,}");
-                foreach (var col in columns)
-                {
-                    var trimmed = System.Text.RegularExpressions.Regex.Replace(col.Trim(), @"^[^a-zA-ZæøåÆØÅ0-9]+", "").Trim();
-                    if (trimmed.Length > 2) flattenedList.Add(trimmed);
-                }
-            }
-
-            var cleanIngredients = new List<string>();
-            int foodConfidence = 0;
-            var commonFoodWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-                "gulrot", "potet", "løk", "hvitløk", "tomat", "agurk", "salat", "kylling", "kjøtt", "biff", "svin", "fisk", "laks", "torsk",
-                "ris", "pasta", "nudler", "saus", "fløte", "rømme", "ost", "smør", "olje", "krydder", "salt", "pepper"
-            };
-
-            foreach (var currentLine in flattenedList)
-            {
-                if (currentLine.Split(' ').Any(word => commonFoodWords.Contains(word.Trim(',', '.')))) foodConfidence++;
-
-                bool isContinuation = cleanIngredients.Count > 0 && (char.IsLower(currentLine[0]) || currentLine.StartsWith("("));
-                if (isContinuation)
-                {
-                    int lastIdx = cleanIngredients.Count - 1;
-                    cleanIngredients[lastIdx] = cleanIngredients[lastIdx] + " " + currentLine;
-                }
-                else
-                {
-                    cleanIngredients.Add(char.ToUpper(currentLine[0]) + currentLine.Substring(1));
-                }
-            }
-
-            if (foodConfidence >= 2 || (cleanIngredients.Count >= 4 && cleanIngredients.All(i => i.Length < 50)))
-            {
-                cleanIngredients = cleanIngredients.Distinct().ToList();
-                if (cleanIngredients.Count > 0)
-                {
-                    _newFood.Description = "Ingredienser:\n" + string.Join("\n", cleanIngredients);
-                    await InvokeAsync(StateHasChanged);
-                    return true;
-                }
-            }
-            return false;
-        }
-        catch (Exception ex) { Console.WriteLine($"Ingredient OCR Error: {ex.Message}"); return false; }
-    }
-
-    private async Task StartCamera()
-    {
-        _currentStep = ScanStep.Front;
-        _showCameraOverlay = true;
-        await Task.Delay(100);
-        try { await JSRuntime.InvokeVoidAsync("cameraInterop.start", _videoElement); }
-        catch (Exception) { Snackbar.Add("Kunne ikke starte kamera.", Severity.Error); _showCameraOverlay = false; }
-    }
-    private async Task StopCamera() { await JSRuntime.InvokeVoidAsync("cameraInterop.stop", _videoElement); _showCameraOverlay = false; }
-
-    private async Task CaptureCameraImage()
-    {
-        if (_isProcessingOcr) return;
-        _isProcessingOcr = true;
-        StateHasChanged();
-        try
-        {
-            var base64Data = await JSRuntime.InvokeAsync<string>("cameraInterop.capture", _videoElement);
-            var cleanBase64 = base64Data.Contains(",") ? base64Data.Split(',')[1] : base64Data;
-            _imagePreviewUrls.Add(base64Data);
-            _imageData.Add(Convert.FromBase64String(cleanBase64));
-
-            if (_currentStep == ScanStep.Front)
-            {
-                _imageNames.Add("hf_front.jpg");
-                Snackbar.Add("Forside fanget! Analyserer...", Severity.Info);
-                await TryAutoFillTitle(base64Data);
-                _currentStep = ScanStep.Ingredients;
-            }
-            else if (_currentStep == ScanStep.Ingredients)
-            {
-                _imageNames.Add("hf_ingr.jpg");
-                Snackbar.Add("Ingredienser fanget!", Severity.Info);
-                await TryExtractIngredients(base64Data);
-                _currentStep = ScanStep.Back;
-            }
-            else if (_currentStep == ScanStep.Back)
-            {
-                _imageNames.Add("hf_back.jpg");
-                Snackbar.Add("Ferdig!", Severity.Success);
-                await StopCamera();
-                _currentStep = ScanStep.Finished;
-            }
-        }
-        catch { Snackbar.Add("Feil ved bildeopptak.", Severity.Error); }
-        finally { _isProcessingOcr = false; StateHasChanged(); }
     }
 
     private async Task OnImagesSelected(IReadOnlyList<IBrowserFile> files)
@@ -949,12 +722,7 @@
 
     #region Helpers
     private string GetMemberColor(string? n) => string.IsNullOrEmpty(n) ? "grey" : $"hsl({Math.Abs(n.GetHashCode() % 360)}, 45%, 45%)";
-    private string GetRatingBackground(int r) => r >= 8 ? "rgba(45,90,69,0.15)" : r >= 5 ? "rgba(212,160,23,0.15)" : "rgba(196,69,54,0.15)";
     private string GetRatingTextColor(int r) => r >= 8 ? "#2D5A45" : r >= 5 ? "#A17D00" : "#C44536";
-    private string GetOverlayClass() => _currentStep switch { ScanStep.Front => "step-landscape", ScanStep.Ingredients => "step-portrait-tall", _ => "step-portrait-normal" };
-    private string GetStepTitle() => _currentStep switch { ScanStep.Front => "1: FORSIDE (SNU)", ScanStep.Ingredients => "2: INGREDIENSER", ScanStep.Back => "3: FREMGANGSMÅTE", _ => "" };
-    private string GetInstructionText() => _currentStep == ScanStep.Front ? "Hold telefonen vannrett." : "Hold telefonen loddrett.";
-    private string GetStepIcon() => _currentStep == ScanStep.Front ? Icons.Material.Rounded.ScreenRotation : Icons.Material.Rounded.CropPortrait;
     #endregion
 
     #region Nutrition Helpers
