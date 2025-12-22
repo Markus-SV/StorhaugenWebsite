@@ -147,6 +147,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.LocalTitle).HasMaxLength(255);
             entity.Property(e => e.LocalIngredients).HasColumnType("jsonb");
             entity.Property(e => e.LocalImageUrls).HasColumnType("jsonb").HasDefaultValue("[]");
+            entity.Property(e => e.LocalNutritionDataJson).HasColumnType("jsonb");
             entity.Property(e => e.Visibility).IsRequired().HasMaxLength(20).HasDefaultValue("private");
             entity.Property(e => e.IsArchived).HasDefaultValue(false);
 

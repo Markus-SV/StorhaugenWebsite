@@ -615,7 +615,10 @@ public class CollectionService : ICollectionService
 
         // Global tags + nutrition
         var recipeTags = JsonHelper.JsonToList(recipe.GlobalRecipe?.Tags);
-        var nutritionData = JsonHelper.JsonToObject(recipe.GlobalRecipe?.NutritionData);
+        var nutritionData = JsonHelper.JsonToObject(
+            !string.IsNullOrWhiteSpace(recipe.LocalNutritionDataJson)
+                ? recipe.LocalNutritionDataJson
+                : recipe.GlobalRecipe?.NutritionData);
 
         // Personal organization tags (from user_recipe_tags)
         var tags = recipe.UserRecipeTags?

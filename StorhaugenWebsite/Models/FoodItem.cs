@@ -29,6 +29,7 @@
         public string? Difficulty { get; set; }
         public string? Cuisine { get; set; }
         public object? Ingredients { get; set; }
+        public object? NutritionData { get; set; }
 
         // Public sharing
         public bool IsPublic { get; set; }

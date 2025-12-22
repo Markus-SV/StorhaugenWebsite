@@ -197,7 +197,8 @@ namespace StorhaugenWebsite.Services
                 Servings = recipe.Servings,
                 Difficulty = recipe.Difficulty,
                 Cuisine = recipe.Cuisine,
-                Ingredients = recipe.Ingredients
+                Ingredients = recipe.Ingredients,
+                NutritionData = recipe.NutritionData
             };
         }
     }

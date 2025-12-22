@@ -166,6 +166,7 @@ public class UserRecipeService : IUserRecipeService
                 LocalTitle = dto.Name,
                 LocalDescription = dto.Description,
                 LocalIngredients = dto.Ingredients != null ? JsonSerializer.Serialize(dto.Ingredients) : null,
+                LocalNutritionDataJson = JsonHelper.ObjectToJson(dto.NutritionData),
                 LocalImageUrls = dto.ImageUrls != null ? JsonSerializer.Serialize(dto.ImageUrls) : "[]",
                 PersonalNotes = dto.PersonalNotes,
                 Visibility = dto.Visibility ?? "private",
@@ -303,6 +304,7 @@ public class UserRecipeService : IUserRecipeService
         if (dto.Description != null) recipe.LocalDescription = dto.Description;
         if (dto.Ingredients != null) recipe.LocalIngredients = JsonSerializer.Serialize(dto.Ingredients);
         if (dto.ImageUrls != null) recipe.LocalImageUrls = JsonSerializer.Serialize(dto.ImageUrls);
+        if (dto.NutritionData != null) recipe.LocalNutritionDataJson = JsonHelper.ObjectToJson(dto.NutritionData);
         if (dto.PersonalNotes != null) recipe.PersonalNotes = dto.PersonalNotes;
         if (dto.Visibility != null) recipe.Visibility = dto.Visibility;
 
@@ -361,6 +363,7 @@ public class UserRecipeService : IUserRecipeService
             Servings = recipe.LocalServings,
             Difficulty = recipe.LocalDifficulty,
             Cuisine = recipe.LocalCuisine,
+            NutritionData = recipe.DisplayNutritionDataJson,
 
             CreatedByUserId = userId,
             IsPublic = true,
@@ -410,6 +413,7 @@ public class UserRecipeService : IUserRecipeService
             recipe.LocalDescription ??= recipe.GlobalRecipe.Description;
             recipe.LocalIngredients ??= recipe.GlobalRecipe.Ingredients;
             recipe.LocalImageUrl ??= recipe.GlobalRecipe.ImageUrl;
+            recipe.LocalNutritionDataJson ??= recipe.GlobalRecipe.NutritionData;
             recipe.LocalImageUrls = string.IsNullOrEmpty(recipe.LocalImageUrls) || recipe.LocalImageUrls == "[]"
                 ? recipe.GlobalRecipe.ImageUrls
                 : recipe.LocalImageUrls;
@@ -632,7 +636,7 @@ public class UserRecipeService : IUserRecipeService
             ?? new Dictionary<string, decimal?>();
 
         var recipeTags = JsonHelper.JsonToList(recipe.GlobalRecipe?.Tags);
-        var nutritionData = JsonHelper.JsonToObject(recipe.GlobalRecipe?.NutritionData);
+        var nutritionData = JsonHelper.JsonToObject(recipe.DisplayNutritionDataJson);
 
         object? ingredients = null;
         if (!string.IsNullOrWhiteSpace(recipe.LocalIngredients))

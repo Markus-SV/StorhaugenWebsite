@@ -107,6 +107,7 @@ public class UpdateUserRecipeDto
     public int? Servings { get; set; }
     public string? Difficulty { get; set; }
     public string? Cuisine { get; set; }
+    public object? NutritionData { get; set; }
 
     // Tags (personal organization)
     public List<Guid>? TagIds { get; set; }

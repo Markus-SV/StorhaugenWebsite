@@ -46,6 +46,9 @@ public class UserRecipe
     [Column("local_image_urls", TypeName = "jsonb")]
     public string LocalImageUrls { get; set; } = "[]";
 
+    [Column("local_nutrition_data", TypeName = "jsonb")]
+    public string? LocalNutritionDataJson { get; set; }
+
     /// <summary>
     /// Personal notes visible only to the owner.
     /// </summary>
@@ -117,6 +120,12 @@ public class UserRecipe
         : (!string.IsNullOrEmpty(LocalImageUrls) && LocalImageUrls != "[]"
             ? LocalImageUrls
             : GlobalRecipe?.ImageUrls ?? "[]");
+
+    [NotMapped]
+    public string? DisplayNutritionDataJson =>
+        !string.IsNullOrWhiteSpace(LocalNutritionDataJson)
+            ? LocalNutritionDataJson
+            : GlobalRecipe?.NutritionData;
 
     // Backward compatibility
     [NotMapped]

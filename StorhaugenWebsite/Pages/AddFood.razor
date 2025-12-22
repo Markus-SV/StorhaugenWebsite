@@ -6,6 +6,7 @@
 @using StorhaugenWebsite.Services
 @using StorhaugenWebsite.Shared.DTOs
 @using StorhaugenWebsite.Components
+@using System.Text.Json
 @inject IAuthService AuthService
 @inject IFoodService FoodService
 @inject IUserRecipeService RecipeService
@@ -193,6 +194,54 @@
             </MudExpansionPanel>
         </MudExpansionPanels>
     </div>
+
+    @if (HasNutritionData)
+    {
+        <div class="form-section">
+            <div class="d-flex justify-space-between align-center">
+                <div class="section-title-row">
+                    <MudIcon Icon="@Icons.Material.Rounded.LocalFireDepartment" Size="Size.Small" Color="Color.Primary" />
+                    <p class="form-section-title" style="margin:0;">Næringsinformasjon</p>
+                </div>
+                <MudButton Variant="Variant.Text"
+                           Color="Color.Error"
+                           StartIcon="@Icons.Material.Rounded.DeleteForever"
+                           Size="Size.Small"
+                           OnClick="RemoveNutrition">
+                    Fjern
+                </MudButton>
+            </div>
+
+            <div class="nutrition-grid mt-2">
+                @foreach (var item in GetNutritionItems())
+                {
+                    <div class="nutrition-item">
+                        <span class="nutrition-value">@item.Amount</span>
+                        <span class="nutrition-label">@item.Name</span>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+    else if (_removedNutritionData != null)
+    {
+        <div class="form-section">
+            <div class="d-flex justify-space-between align-center">
+                <div class="section-title-row">
+                    <MudIcon Icon="@Icons.Material.Rounded.LocalFireDepartment" Size="Size.Small" Color="Color.Primary" />
+                    <p class="form-section-title" style="margin:0;">Næringsinformasjon fjernet</p>
+                </div>
+                <MudButton Variant="Variant.Text"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Rounded.Undo"
+                           Size="Size.Small"
+                           OnClick="RestoreNutrition">
+                    Angre
+                </MudButton>
+            </div>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">Den importerte næringsinformasjonen blir ikke lagret. Trykk Angre for å beholde den.</MudText>
+        </div>
+    }
 
     <div class="form-section">
         <p class="form-section-title">Bilder</p>
@@ -421,6 +470,7 @@
     private List<byte[]> _imageData = new();
     private List<string> _imageNames = new();
     private List<string> _draftImageUrls = new();
+    private object? _removedNutritionData;
 
     private bool _ratingEnabled = true;
     private string _currentUserName = "";
@@ -543,6 +593,7 @@
 
     private void LoadDraft(FoodItem draft)
     {
+        _removedNutritionData = null;
         _newFood.Name = draft.Name;
         _newFood.Description = draft.Description;
         _newFood.PrepTimeMinutes = draft.PrepTimeMinutes;
@@ -551,6 +602,7 @@
         _newFood.Difficulty = draft.Difficulty;
         _newFood.Cuisine = draft.Cuisine;
         _newFood.Ingredients = draft.Ingredients;
+        _newFood.NutritionData = draft.NutritionData;
         _newFood.GlobalRecipeId = draft.GlobalRecipeId;
         _newFood.IsHelloFresh = draft.IsHelloFresh;
         _isHelloFresh = draft.IsHelloFresh;
@@ -619,7 +671,8 @@
                 Servings = _newFood.Servings,
                 Difficulty = _newFood.Difficulty,
                 Cuisine = _newFood.Cuisine,
-                Ingredients = finalIngredients
+                Ingredients = finalIngredients,
+                NutritionData = _newFood.NutritionData
             };
 
             var createdRecipe = await RecipeService.CreateRecipeAsync(createDto);
@@ -899,6 +952,85 @@
     private string GetStepTitle() => _currentStep switch { ScanStep.Front => "1: FORSIDE (SNU)", ScanStep.Ingredients => "2: INGREDIENSER", ScanStep.Back => "3: FREMGANGSMÅTE", _ => "" };
     private string GetInstructionText() => _currentStep == ScanStep.Front ? "Hold telefonen vannrett." : "Hold telefonen loddrett.";
     private string GetStepIcon() => _currentStep == ScanStep.Front ? Icons.Material.Rounded.ScreenRotation : Icons.Material.Rounded.CropPortrait;
+    #endregion
+
+    #region Nutrition Helpers
+    private record NutritionInfo(string Name, string Amount);
+    private bool HasNutritionData => _newFood.NutritionData != null && GetNutritionItems().Count > 0;
+
+    private List<NutritionInfo> GetNutritionItems() => ParseNutrition(_newFood.NutritionData);
+
+    private List<NutritionInfo> ParseNutrition(object? data)
+    {
+        var items = new List<NutritionInfo>();
+        if (data == null) return items;
+
+        try
+        {
+            if (data is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var prop in jsonElement.EnumerateObject())
+                {
+                    var amount = prop.Value.ToString();
+                    if (!string.IsNullOrWhiteSpace(amount))
+                    {
+                        items.Add(new NutritionInfo(GetNutritionDisplayName(prop.Name), amount));
+                    }
+                }
+            }
+            else if (data is IDictionary<string, object?> dict)
+            {
+                foreach (var kvp in dict)
+                {
+                    var amount = kvp.Value?.ToString();
+                    if (!string.IsNullOrWhiteSpace(amount))
+                    {
+                        items.Add(new NutritionInfo(GetNutritionDisplayName(kvp.Key), amount));
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error parsing nutrition data: {ex.Message}");
+        }
+
+        return items;
+    }
+
+    private string GetNutritionDisplayName(string key)
+    {
+        return key.ToLower() switch
+        {
+            "kalorier" => "kcal",
+            "energi (kj)" => "kJ",
+            "fett" => "Fett",
+            "mettet fett" => "M. fett",
+            "karbohydrater" => "Karb.",
+            "sukker" => "Sukker",
+            "protein" => "Protein",
+            "natrium" => "Natrium",
+            _ => key.Length > 8 ? key.Substring(0, 6) + ".." : key
+        };
+    }
+
+    private void RemoveNutrition()
+    {
+        if (_newFood.NutritionData != null)
+        {
+            _removedNutritionData = _newFood.NutritionData;
+            _newFood.NutritionData = null;
+        }
+    }
+
+    private void RestoreNutrition()
+    {
+        if (_removedNutritionData != null)
+        {
+            _newFood.NutritionData = _removedNutritionData;
+            _removedNutritionData = null;
+        }
+    }
     #endregion
 
     #region Ingredients Helpers

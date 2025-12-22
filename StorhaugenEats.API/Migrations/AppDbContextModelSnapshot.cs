@@ -689,6 +689,10 @@ namespace StorhaugenEats.API.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("local_ingredients");
 
+                    b.Property<string>("LocalNutritionDataJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("local_nutrition_data");
+
                     b.Property<int?>("LocalPrepTimeMinutes")
                         .HasColumnType("integer")
                         .HasColumnName("local_prep_time_minutes");

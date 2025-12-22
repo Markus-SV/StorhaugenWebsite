@@ -332,6 +332,7 @@ else
                 Cuisine = _recipe.Cuisine,
                 Tags = _recipe.Tags,
                 Ingredients = _recipe.Ingredients,
+                NutritionData = _recipe.NutritionData,
                 Visibility = "private"
             };
 
@@ -372,7 +373,8 @@ else
             Servings = _recipe.Servings,
             Difficulty = _recipe.Difficulty,
             Cuisine = _recipe.Cuisine,
-            Ingredients = _recipe.Ingredients
+            Ingredients = _recipe.Ingredients,
+            NutritionData = _recipe.NutritionData
         };
 
         Navigation.NavigateTo("add");
