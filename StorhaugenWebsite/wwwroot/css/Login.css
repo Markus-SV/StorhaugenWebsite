@@ -21,7 +21,6 @@
     width: 64px;
     height: 64px;
     border-radius: 16px;
-    background: linear-gradient(135deg, var(--mud-palette-primary), var(--mud-palette-primary-darken));
     display: flex;
     align-items: center;
     justify-content: center;

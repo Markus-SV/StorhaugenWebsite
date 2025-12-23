@@ -10,25 +10,20 @@
 @inject IApiClient ApiClient
 @inject IThemeService ThemeService
 
-@* ✅ This is what makes theme updates actually apply app-wide *@
-<MudThemeProvider Theme="@ThemeService.GetCurrentTheme()"
-                  IsDarkMode="@ThemeService.IsDarkMode" />
+<MudThemeProvider Theme="@ThemeService.GetCurrentTheme()" IsDarkMode="@ThemeService.IsDarkMode" />
 
 <MudLayout>
     <MudAppBar Elevation="0" Class="app-header">
         <div class="d-flex align-center gap-2">
-            <div class="brand-icon">
-                <MudIcon Icon="@Icons.Material.Rounded.DinnerDining" Size="Size.Small" />
+            <div class="brand-icon-wrapper">
+                <img src="icon-192.png" alt="Logo" />
             </div>
             <MudText Typo="Typo.h6" Class="brand-text">Storhaugen</MudText>
         </div>
         <MudSpacer />
         @if (AuthService.IsAuthorized)
         {
-            <MudIconButton Icon="@Icons.Material.Rounded.Settings"
-                           Color="Color.Inherit"
-                           OnClick="@(() => Navigation.NavigateTo("settings"))"
-                           Size="Size.Medium" />
+            <MudIconButton Icon="@Icons.Material.Rounded.Settings" Color="Color.Inherit" OnClick="@(() => Navigation.NavigateTo("settings"))" Size="Size.Medium" />
         }
     </MudAppBar>
 
@@ -53,24 +48,20 @@
                     <MudIcon Icon="@(IsActive("") ? Icons.Material.Rounded.Home : Icons.Material.Outlined.Home)" Size="Size.Small" />
                     <span>Hjem</span>
                 </button>
-
                 <button class="nav-item @(IsActive("cookbook") ? "active" : "")" @onclick="@(() => Navigate("cookbook"))">
                     <MudIcon Icon="@(IsActive("cookbook") ? Icons.Material.Rounded.MenuBook : Icons.Material.Outlined.MenuBook)" Size="Size.Small" />
                     <span>Kokebok</span>
                 </button>
-
                 <button class="nav-item nav-item-add @(IsActive("add") ? "active" : "")" @onclick="@(() => Navigate("add"))">
                     <div class="add-button">
                         <MudIcon Icon="@Icons.Material.Rounded.Add" Size="Size.Medium" />
                     </div>
                     <span>Ny</span>
                 </button>
-
                 <button class="nav-item @(IsActive("friends") ? "active" : "")" @onclick="@(() => Navigate("friends"))">
                     <MudIcon Icon="@(IsActive("friends") ? Icons.Material.Rounded.People : Icons.Material.Outlined.People)" Size="Size.Small" />
                     <span>Venner</span>
                 </button>
-
                 <button class="nav-item @(IsActive("collections") ? "active" : "")" @onclick="@(() => Navigate("collections"))">
                     <MudIcon Icon="@(IsActive("collections") ? Icons.Material.Rounded.FolderShared : Icons.Material.Outlined.FolderShared)" Size="Size.Small" />
                     <span>Samlinger</span>
@@ -79,6 +70,25 @@
         </div>
     }
 </MudLayout>
+
+<style>
+    /*  NEW CSS: Makes the logo visible on orange header + adds glow */
+    .brand-icon-wrapper {
+        border-radius: 50%;
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+    }
+
+        .brand-icon-wrapper img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+</style>
 
 @code {
     private bool _helloFreshSyncTriggered;
