@@ -8,26 +8,21 @@
         // Sjekker om vi kjører på localhost eller 127.0.0.1
         var path = window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1')
             ? '/'
-            : '/StorhaugenWebsite/'; // Navnet på repoet/mappen din i production
+            : '/StorhaugenWebsite/';
 
         document.write('<base href="' + path + '" />');
     </script>
-    <!-- Favicon -->
     <link rel="icon" type="image/png" href="favicon.png" />
     <link rel="apple-touch-icon" href="icon-192.png" />
 
-    <!-- MudBlazor CSS -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
     <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
 
-    <!-- Custom Styles -->
     <link href="css/app.css" rel="stylesheet" />
     <link href="css/Food.css" rel="stylesheet" />
     <link href="css/Layout.css" rel="stylesheet" />
     <link href="css/Login.css" rel="stylesheet" />
 
-
-    <!-- PWA -->
     <link rel="manifest" href="manifest.json" />
     <meta name="theme-color" content="#0f172a" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -38,9 +33,7 @@
     <div id="app">
         <div class="app-loading-container">
             <div class="app-loading-logo">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z" />
-                </svg>
+                <img src="icon-192.png" alt="Loading..." />
             </div>
 
             <h1 class="app-loading-title">Storhaugen Eats</h1>
@@ -66,7 +59,7 @@
     <script type="importmap">{
   "imports": {
     "./_framework/blazor.webassembly.js": "./_framework/blazor.webassembly.66stpp682q.js",
-    "./_framework/dotnet.js": "./_framework/dotnet.e167t4ixc5.js",
+    "./_framework/dotnet.js": "./_framework/dotnet.fbjtqoa2km.js",
     "./_framework/dotnet.native.js": "./_framework/dotnet.native.cs8mcre4gh.js",
     "./_framework/dotnet.runtime.js": "./_framework/dotnet.runtime.0j6ezsi0n0.js"
   },
@@ -74,8 +67,8 @@
   "integrity": {
     "./_framework/blazor.webassembly.66stpp682q.js": "sha256-3lCWrko3zwspV40aQhs2S/IMkRSarnHRKIdkHhuXIBA=",
     "./_framework/blazor.webassembly.js": "sha256-3lCWrko3zwspV40aQhs2S/IMkRSarnHRKIdkHhuXIBA=",
-    "./_framework/dotnet.e167t4ixc5.js": "sha256-rrgDOX4Ulq7F0Cb2gMGkvh+HiugJBuA26fl2K7WgI1c=",
-    "./_framework/dotnet.js": "sha256-rrgDOX4Ulq7F0Cb2gMGkvh+HiugJBuA26fl2K7WgI1c=",
+    "./_framework/dotnet.fbjtqoa2km.js": "sha256-C+Gt6R0x7Ex1DuqbUFQIRsQvuHyy3UaBg40b1z8aLxs=",
+    "./_framework/dotnet.js": "sha256-C+Gt6R0x7Ex1DuqbUFQIRsQvuHyy3UaBg40b1z8aLxs=",
     "./_framework/dotnet.native.cs8mcre4gh.js": "sha256-/I3SDHIle7heAxlUGBrgxax+lkKyWyRLBVEJmTHJSCs=",
     "./_framework/dotnet.native.js": "sha256-/I3SDHIle7heAxlUGBrgxax+lkKyWyRLBVEJmTHJSCs=",
     "./_framework/dotnet.runtime.0j6ezsi0n0.js": "sha256-jCsbbdXoVd1zzGc0fQT2sz4mKuv0ANdurPVGo5Sc2jg=",
@@ -91,13 +84,13 @@
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Fraunces:wght@400;600&display=swap');
 
     :root {
-        --loading-bg: #1e1e1e; /* Dark background to match app */
+        --loading-bg: #1e1e1e;
         --loading-text: #ffffff;
-        --loading-primary: #E07A2E; /* Your Markus Orange color */
+        --loading-primary: #E07A2E;
         --loading-primary-dark: #bf6322;
     }
 
-    /* Light Mode Support - optional if you want strictly dark */
+    /* Light Mode Support */
     @media (prefers-color-scheme: light) {
         :root {
             --loading-bg: #ffffff;
@@ -107,7 +100,7 @@
 
     body {
         margin: 0;
-        background-color: var(--loading-bg); /* Prevents white flash */
+        background-color: var(--loading-bg);
     }
 
     .app-loading-container {
@@ -126,27 +119,27 @@
         z-index: 9999;
     }
 
-    /* The Logo Box - Matches your Login Page Brand Icon */
+    /* ✅ UPDATED: Removed background, shadow, and border-radius */
     .app-loading-logo {
-        width: 80px;
-        height: 80px;
-        border-radius: 20px;
-        background: linear-gradient(135deg, var(--loading-primary), var(--loading-primary-dark));
+        width: 90px; /* Increased slightly since we have no background box */
+        height: 90px;
+        /* Removed background: linear-gradient(...) */
+        /* Removed box-shadow */
+        /* Removed border-radius */
         display: flex;
         align-items: center;
         justify-content: center;
-        color: white;
         margin-bottom: 24px;
-        box-shadow: 0 10px 25px rgba(224, 122, 46, 0.4);
         animation: float 3s ease-in-out infinite;
     }
 
-        .app-loading-logo svg {
-            width: 40px;
-            height: 40px;
+        /* New rule to ensure image fits */
+        .app-loading-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
         }
 
-    /* Typography - Matches your Headers */
     .app-loading-title {
         font-size: 1.5rem;
         font-weight: 600;
@@ -155,7 +148,6 @@
         animation: fadeIn 0.8s ease-out 0.2s forwards;
     }
 
-    /* Custom Loading Bar */
     .app-loading-bar-container {
         width: 140px;
         height: 4px;
