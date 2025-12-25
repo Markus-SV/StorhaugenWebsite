@@ -67,22 +67,20 @@
 
         <MudSelect T="string"
                    @bind-Value="_sortBy"
-                   AnchorOrigin="Origin.BottomRight"
                    Variant="Variant.Outlined"
                    Margin="Margin.Dense"
                    Class="sort-select"
                    Style="width: 170px;"
                    AdornmentIcon="@Icons.Material.Rounded.Sort">
-            <MudSelectItem Value="@("date")">Nyeste</MudSelectItem>
-            <MudSelectItem Value="@("rating")">Høyest snitt</MudSelectItem>
-            <MudSelectItem Value="@("personal_rating")">Min vurdering</MudSelectItem>
-            <MudSelectItem Value="@("name")">Navn (A-Å)</MudSelectItem>
+            <MudSelectItem Style="padding: 8px 12px!important" Value="@("date")">Nyeste</MudSelectItem>
+            <MudSelectItem Style="padding: 8px 12px!important" Value="@("rating")">Høyest snitt</MudSelectItem>
+            @* <MudSelectItem Value="@("personal_rating")">Min vurdering</MudSelectItem>
+            <MudSelectItem Value="@("name")">Navn (A-Å)</MudSelectItem> *@
             @if (_sortableMembers.Any())
             {
-                <MudDivider Class="my-1" />
                 @foreach (var member in _sortableMembers)
                 {
-                    <MudSelectItem Value="@($"user_rating_{member.DisplayName}")">
+                    <MudSelectItem Style="padding: 8px 12px!important" Value="@($"user_rating_{member.DisplayName}")">
                         <div class="d-flex align-center gap-2">
                             <div class="user-sort-avatar" style="background-color: @UserColorService.GetUserColor(member.DisplayName);">
                                 @(string.IsNullOrEmpty(member.DisplayName) ? "?" : member.DisplayName[..1].ToUpper())

@@ -36,31 +36,7 @@ else if (_collection == null)
 }
 else
 {
-    <div class="collection-header mb-4">
-        <div class="d-flex align-center gap-3 mb-2">
-            <div class="collection-icon-large">
-                <MudIcon Icon="@GetVisibilityIcon(_collection.Visibility)" Size="Size.Large" />
-            </div>
-            <div class="flex-grow-1">
-                <h1 class="page-title" style="margin: 0;">@_collection.Name</h1>
-                @if (!string.IsNullOrEmpty(_collection.Description))
-                {
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">@_collection.Description</MudText>
-                }
-            </div>
-        </div>
-
-        <div class="d-flex flex-wrap gap-2 mt-3">
-            <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Rounded.Restaurant">
-                @_collection.RecipeCount oppskrifter
-            </MudChip>
-            <MudChip T="string" Size="Size.Small" Color="@GetVisibilityColor(_collection.Visibility)" Icon="@GetVisibilityIcon(_collection.Visibility)">
-                @GetVisibilityText(_collection.Visibility)
-            </MudChip>
-        </div>
-    </div>
-
-    <CollectionRecipesList CollectionId="_collection.Id" Title="Oppskrifter" PageSize="50" Members="_collection.Members" />
+    <CollectionRecipesList CollectionId="_collection.Id" Title="@(_collection.Name + " Oppskrifter")" PageSize="50" Members="_collection.Members" />
 }
 
 @code {

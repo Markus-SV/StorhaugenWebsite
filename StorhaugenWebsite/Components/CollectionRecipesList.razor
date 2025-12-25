@@ -7,7 +7,7 @@
 @inject ISnackbar Snackbar
 @inject IUserColorService UserColorService
 
-<div style="margin-bottom: 16px; border-top: 1px solid var(--mud-palette-divider); padding-top: 12px;">
+<div style="margin-bottom: 16px;">
     <div class="d-flex justify-space-between align-center mb-3">
         <p class="form-section-title" style="margin: 0;">
             @Title
@@ -34,19 +34,15 @@
         <MudSelect T="string"
                    Value="_sortBy"
                    ValueChanged="HandleSortChanged"
-                   AnchorOrigin="Origin.BottomRight"
                    Variant="Variant.Outlined"
                    Margin="Margin.Dense"
                    Class="sort-select"
                    Style="width: 170px;"
                    AdornmentIcon="@Icons.Material.Rounded.Sort">
-            <MudSelectItem Value="@("added")">Sist lagt til</MudSelectItem>
             <MudSelectItem Value="@("date")">Nyeste</MudSelectItem>
             <MudSelectItem Value="@("rating")">Høyest snitt</MudSelectItem>
-            <MudSelectItem Value="@("name")">Navn (A-Å)</MudSelectItem>
             @if (Members.Any())
             {
-                <MudDivider Class="my-1" />
                 @foreach (var member in Members.OrderBy(m => m.DisplayName))
                 {
                     <MudSelectItem Value="@($"user_rating_{member.DisplayName}")">
