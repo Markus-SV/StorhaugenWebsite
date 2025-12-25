@@ -9,6 +9,7 @@
 @inject IFoodService FoodService
 @inject IUserRecipeService RecipeService
 @inject ICollectionStateService CollectionState
+@inject IUserColorService UserColorService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @inject IJSRuntime JSRuntime
@@ -351,7 +352,7 @@
                              style="transition: opacity 0.2s; opacity: @(included ? 1 : 0.6);">
 
                             @* Avatar *@
-                            <MudAvatar Size="Size.Medium" Style="@($"background: {GetMemberColor(member.DisplayName)}")">
+                            <MudAvatar Size="Size.Medium" Style="@($"background: {UserColorService.GetUserColor(member.DisplayName)}")">
                                 @(string.IsNullOrEmpty(member.DisplayName) ? '?' : member.DisplayName[0])
                             </MudAvatar>
 
@@ -721,7 +722,6 @@
     #endregion
 
     #region Helpers
-    private string GetMemberColor(string? n) => string.IsNullOrEmpty(n) ? "grey" : $"hsl({Math.Abs(n.GetHashCode() % 360)}, 45%, 45%)";
     private string GetRatingTextColor(int r) => r >= 8 ? "#2D5A45" : r >= 5 ? "#A17D00" : "#C44536";
     #endregion
 

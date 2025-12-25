@@ -1,9 +1,11 @@
 @using MudBlazor
 @using StorhaugenWebsite.ApiClient
 @using StorhaugenWebsite.Shared.DTOs
+@using StorhaugenWebsite.Services
 @inject IApiClient ApiClient
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
+@inject IUserColorService UserColorService
 
 <div style="margin-bottom: 16px; border-top: 1px solid var(--mud-palette-divider); padding-top: 12px;">
     <div class="d-flex justify-space-between align-center mb-3">
@@ -36,12 +38,27 @@
                    Variant="Variant.Outlined"
                    Margin="Margin.Dense"
                    Class="sort-select"
-                   Style="width: 160px;"
+                   Style="width: 170px;"
                    AdornmentIcon="@Icons.Material.Rounded.Sort">
             <MudSelectItem Value="@("added")">Sist lagt til</MudSelectItem>
             <MudSelectItem Value="@("date")">Nyeste</MudSelectItem>
             <MudSelectItem Value="@("rating")">Høyest snitt</MudSelectItem>
             <MudSelectItem Value="@("name")">Navn (A-Å)</MudSelectItem>
+            @if (Members.Any())
+            {
+                <MudDivider Class="my-1" />
+                @foreach (var member in Members.OrderBy(m => m.DisplayName))
+                {
+                    <MudSelectItem Value="@($"user_rating_{member.DisplayName}")">
+                        <div class="d-flex align-center gap-2">
+                            <div class="user-sort-avatar" style="background-color: @UserColorService.GetUserColor(member.DisplayName);">
+                                @(string.IsNullOrEmpty(member.DisplayName) ? "?" : member.DisplayName[..1].ToUpper())
+                            </div>
+                            <span>@member.DisplayName</span>
+                        </div>
+                    </MudSelectItem>
+                }
+            }
         </MudSelect>
     </div>
 
@@ -63,7 +80,7 @@
     else
     {
         <div class="d-flex flex-column gap-3">
-            @foreach (var recipe in _recipes)
+            @foreach (var recipe in SortedRecipes)
             {
                 <div class="food-card animate-in" @onclick="() => OpenRecipe(recipe.Id)">
                     @* Image Section (Right Side) *@
@@ -161,10 +178,26 @@
     }
 </div>
 
+<style>
+    .user-sort-avatar {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 600;
+        color: white;
+        flex-shrink: 0;
+    }
+</style>
+
 @code {
     [Parameter] public Guid CollectionId { get; set; }
     [Parameter] public string Title { get; set; } = "Oppskrifter";
     [Parameter] public int PageSize { get; set; } = 50;
+    [Parameter] public List<CollectionMemberDto> Members { get; set; } = new();
 
     private Guid _lastCollectionId;
     private bool _isLoading;
@@ -176,6 +209,25 @@
 
     private string _searchQuery = "";
     private string _sortBy = "added";
+
+    // Computed sorted recipes (for user-based sorting)
+    private IEnumerable<UserRecipeDto> SortedRecipes => GetSortedRecipes();
+
+    private IEnumerable<UserRecipeDto> GetSortedRecipes()
+    {
+        // Handle user-specific rating sorting (client-side)
+        if (_sortBy.StartsWith("user_rating_"))
+        {
+            var userName = _sortBy.Substring("user_rating_".Length);
+            return _recipes.OrderByDescending(r =>
+                r.MemberRatings.TryGetValue(userName, out var rating) ? rating ?? 0 : 0);
+        }
+        // Standard API-based sorting - return as-is (already sorted by API)
+        return _recipes;
+    }
+
+    private bool IsUserSorting => _sortBy.StartsWith("user_rating_");
+    private string ApiSortBy => IsUserSorting ? "added" : _sortBy;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -221,7 +273,7 @@
             {
                 Page = _page,
                 PageSize = PageSize,
-                SortBy = _sortBy,
+                SortBy = ApiSortBy,
                 SortDescending = true,
                 Search = string.IsNullOrWhiteSpace(_searchQuery) ? null : _searchQuery.Trim()
             };

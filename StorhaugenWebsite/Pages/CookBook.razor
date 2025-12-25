@@ -20,19 +20,22 @@
 <div class="cookbook-header d-flex flex-column gap-3 mb-4">
 
     @* Collection Selection *@
-    @if (CollectionState.UserCollections.Any())
+    @if (CollectionState.UserCollections.Any() || _hasUncategorizedRecipes)
     {
         <div class="group-filter-section">
             <div class="horizontal-scroll-container">
 
-                @* Personal pseudo-collection *@
-                <div class="group-chip @(_personalActive ? "active" : "")" @onclick="TogglePersonal">
-                    @if (_personalActive)
-                    {
-                        <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Class="mr-1" />
-                    }
-                    <span>Personlig</span>
-                </div>
+                @* Personal pseudo-collection - only show if user has uncategorized recipes *@
+                @if (_hasUncategorizedRecipes)
+                {
+                    <div class="group-chip @(_personalActive ? "active" : "")" @onclick="TogglePersonal">
+                        @if (_personalActive)
+                        {
+                            <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" Class="mr-1" />
+                        }
+                        <span>Personlig</span>
+                    </div>
+                }
 
                 @foreach (var collection in CollectionState.UserCollections)
                 {
@@ -68,12 +71,27 @@
                    Variant="Variant.Outlined"
                    Margin="Margin.Dense"
                    Class="sort-select"
-                   Style="width: 140px;"
+                   Style="width: 170px;"
                    AdornmentIcon="@Icons.Material.Rounded.Sort">
             <MudSelectItem Value="@("date")">Nyeste</MudSelectItem>
             <MudSelectItem Value="@("rating")">Høyest snitt</MudSelectItem>
             <MudSelectItem Value="@("personal_rating")">Min vurdering</MudSelectItem>
             <MudSelectItem Value="@("name")">Navn (A-Å)</MudSelectItem>
+            @if (_sortableMembers.Any())
+            {
+                <MudDivider Class="my-1" />
+                @foreach (var member in _sortableMembers)
+                {
+                    <MudSelectItem Value="@($"user_rating_{member.DisplayName}")">
+                        <div class="d-flex align-center gap-2">
+                            <div class="user-sort-avatar" style="background-color: @UserColorService.GetUserColor(member.DisplayName);">
+                                @(string.IsNullOrEmpty(member.DisplayName) ? "?" : member.DisplayName[..1].ToUpper())
+                            </div>
+                            <span>@member.DisplayName</span>
+                        </div>
+                    </MudSelectItem>
+                }
+            }
         </MudSelect>
     </div>
 
@@ -315,6 +333,19 @@
         color: rgba(255, 255, 255, 0.45);
     }
 
+    .user-sort-avatar {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 600;
+        color: white;
+        flex-shrink: 0;
+    }
+
 </style>
 
 @code {
@@ -336,6 +367,10 @@
     private bool _personalActive = false;
     private readonly HashSet<string> _allowedRaterNames = new();
 
+    // For user-based sorting
+    private List<CollectionMemberDto> _sortableMembers = new();
+    private bool _hasUncategorizedRecipes = false;
+
     protected override async Task OnInitializedAsync()
     {
         CollectionState.OnActiveFiltersChanged += OnFiltersChanged;
@@ -356,6 +391,8 @@
 
         await LoadAllowedRaters();
         await LoadTags();
+        await UpdateSortableMembers();
+        await CheckForUncategorizedRecipes();
 
         await LoadRecipes();
     }
@@ -381,7 +418,16 @@
 
     private void OnFiltersChanged()
     {
-        _ = InvokeAsync(async () => await LoadRecipes());
+        _ = InvokeAsync(async () =>
+        {
+            await UpdateSortableMembers();
+            // Reset to default sort if current sort is by a user not in the new filter
+            if (_sortBy.StartsWith("user_rating_") && !_sortableMembers.Any(m => _sortBy == $"user_rating_{m.DisplayName}"))
+            {
+                _sortBy = "date";
+            }
+            await LoadRecipes();
+        });
     }
 
     private Task OnSearchChanged(string value) => LoadRecipes();
@@ -448,13 +494,101 @@
         }
     }
 
-    private IEnumerable<UserRecipeDto> GetSortedRecipes() => _sortBy switch
+    private async Task UpdateSortableMembers()
     {
-        "name" => _recipes.OrderBy(r => r.Name),
-        "rating" => _recipes.OrderByDescending(r => r.AverageRating),
-        "personal_rating" => _recipes.OrderByDescending(r => r.MyRating ?? 0),
-        _ => _recipes.OrderByDescending(r => r.CreatedAt)
-    };
+        var uniqueMembers = new Dictionary<Guid, CollectionMemberDto>();
+
+        // Get members from active collection filters
+        var collectionsToCheck = CollectionState.ActiveCollectionFilters.Any()
+            ? CollectionState.ActiveCollectionFilters
+            : CollectionState.UserCollections.Select(c => c.Id).ToList();
+
+        // Only include members if we have active collection filters or personal is active
+        if (!CollectionState.ActiveCollectionFilters.Any() && !_personalActive)
+        {
+            _sortableMembers = new List<CollectionMemberDto>();
+            return;
+        }
+
+        foreach (var collectionId in collectionsToCheck)
+        {
+            // Only include if collection is in the active filters (or if no filters are active)
+            if (CollectionState.ActiveCollectionFilters.Any() && !CollectionState.ActiveCollectionFilters.Contains(collectionId))
+                continue;
+
+            try
+            {
+                var members = await ApiClient.GetCollectionMembersAsync(collectionId);
+                foreach (var member in members)
+                {
+                    if (!uniqueMembers.ContainsKey(member.UserId))
+                        uniqueMembers[member.UserId] = member;
+                }
+            }
+            catch { /* ignore per collection */ }
+        }
+
+        // Add current user if personal is active
+        if (_personalActive && CollectionState.CurrentProfile != null)
+        {
+            var currentUserId = CollectionState.CurrentProfile.Id;
+            if (!uniqueMembers.ContainsKey(currentUserId))
+            {
+                uniqueMembers[currentUserId] = new CollectionMemberDto
+                {
+                    UserId = currentUserId,
+                    DisplayName = AuthService.CurrentUserName ?? "Meg"
+                };
+            }
+        }
+
+        _sortableMembers = uniqueMembers.Values.OrderBy(m => m.DisplayName).ToList();
+    }
+
+    private async Task CheckForUncategorizedRecipes()
+    {
+        try
+        {
+            // Get all recipe IDs that are in collections
+            var idsInCollections = await GetAllRecipeIdsInCollectionsAsync();
+
+            // Get user's personal recipes
+            var personalResult = await RecipeService.GetMyRecipesAsync(new GetUserRecipesQuery { PageSize = 1 });
+
+            if (personalResult.TotalCount == 0)
+            {
+                _hasUncategorizedRecipes = false;
+                return;
+            }
+
+            // Check if any personal recipe is not in a collection
+            var allPersonal = await RecipeService.GetMyRecipesAsync(new GetUserRecipesQuery { PageSize = 200 });
+            _hasUncategorizedRecipes = allPersonal.Recipes.Any(r => !idsInCollections.Contains(r.Id));
+        }
+        catch
+        {
+            _hasUncategorizedRecipes = true; // Default to showing the filter
+        }
+    }
+
+    private IEnumerable<UserRecipeDto> GetSortedRecipes()
+    {
+        // Handle user-specific rating sorting
+        if (_sortBy.StartsWith("user_rating_"))
+        {
+            var userName = _sortBy.Substring("user_rating_".Length);
+            return _recipes.OrderByDescending(r =>
+                r.MemberRatings.TryGetValue(userName, out var rating) ? rating ?? 0 : 0);
+        }
+
+        return _sortBy switch
+        {
+            "name" => _recipes.OrderBy(r => r.Name),
+            "rating" => _recipes.OrderByDescending(r => r.AverageRating),
+            "personal_rating" => _recipes.OrderByDescending(r => r.MyRating ?? 0),
+            _ => _recipes.OrderByDescending(r => r.CreatedAt)
+        };
+    }
 
     private async Task LoadRecipes()
     {
