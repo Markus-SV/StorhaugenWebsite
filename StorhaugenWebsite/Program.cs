@@ -42,7 +42,6 @@ builder.Services.AddScoped<AuthenticationStateProvider, SupabaseAuthStateProvide
 // Other Services
 builder.Services.AddScoped<IDeviceStateService, DeviceStateService>();
 builder.Services.AddScoped<IThemeService, ThemeService>();
-builder.Services.AddScoped<IOcrService, TesseractOcrService>();
 
 // Food Service - Uses ApiClient now for backward compatibility with existing pages
 builder.Services.AddScoped<IFoodService, FoodService>();
