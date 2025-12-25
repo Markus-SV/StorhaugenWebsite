@@ -600,16 +600,23 @@
     justify-content: center;
 }
 
-    .food-card-placeholder::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background: rgba(var(--mud-palette-primary-rgb), 0.18); /* <- tweak alpha */
-        z-index: 0;
-        /* fade only the background, not the icon */
-        -webkit-mask-image: linear-gradient(to left, black 0%, transparent 100%);
-        mask-image: linear-gradient(to left, black 0%, transparent 100%);
-    }
+.food-card::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 0;
+    /* 1. Make it massive so the curve looks flat, not round */
+    width: 300px;
+    height: 300px;
+    /* 2. Push 75% of it off-screen to the left. 
+       We only want the very edge of the fade. */
+    transform: translate(-75%, -50%);
+    border-radius: 50%;
+    /* 3. Lower opacity to 0.15 (or even 0.10) for subtle ambiance */
+    background: radial-gradient( circle, rgba(var(--mud-palette-primary-rgb), 0.15) 0%, transparent 70% );
+    z-index: 0;
+    pointer-events: none;
+}
 
     /* ensure the icon stays above the background */
     .food-card-placeholder > * {
