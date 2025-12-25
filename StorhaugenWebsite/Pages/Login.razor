@@ -9,152 +9,79 @@
 <div class="login-container">
     <div class="login-card animate-in">
         <div class="login-logo">
-            <MudIcon Icon="@Icons.Material.Rounded.DinnerDining" Size="Size.Large" />
+            <img src="icon-192.png" alt="Storhaugen" class="logo-glow" />
         </div>
 
         <h1 class="login-title">Storhaugen Eats</h1>
-        <p class="login-subtitle">Sporing av familiemiddager gjort enkelt</p>
 
-        @* --- ALERTS --- *@
         @if (!string.IsNullOrEmpty(_errorMessage))
         {
-            <MudAlert Severity="Severity.Error" Class="mb-4" Dense="true" ShowCloseIcon="true" CloseIconClicked="() => _errorMessage = null">
-                @_errorMessage
-            </MudAlert>
+            <MudAlert Severity="Severity.Error" Class="mb-4" Dense="true" ShowCloseIcon="true" CloseIconClicked="() => _errorMessage = null">@_errorMessage</MudAlert>
         }
-
         @if (!string.IsNullOrEmpty(_successMessage))
         {
-            <MudAlert Severity="Severity.Success" Class="mb-4" Variant="Variant.Filled" Dense="true">
-                <MudText Typo="Typo.body2">@_successMessage</MudText>
-            </MudAlert>
+            <MudAlert Severity="Severity.Success" Class="mb-4" Variant="Variant.Filled" Dense="true"><MudText Typo="Typo.body2">@_successMessage</MudText></MudAlert>
         }
 
-        @* --- FORM AREA --- *@
         <div class="form-content">
             @if (_isLoginMode)
             {
-                // *** LOGIN FORM ***
                 <MudForm @ref="_loginForm" @bind-IsValid="_loginValid" @onkeydown="@(e => HandleEnterKey(e))">
-                    <MudTextField @bind-Value="_email"
-                                  Label="E-post"
-                                  Variant="Variant.Outlined"
-                                  InputType="InputType.Email"
-                                  Required="true"
-                                  RequiredError="E-post er påkrevd"
-                                  Immediate="true"
-                                  Class="mb-3" />
-
-                    <MudTextField @bind-Value="_password"
-                                  Label="Passord"
-                                  Variant="Variant.Outlined"
-                                  InputType="@_passwordInputType"
-                                  Adornment="Adornment.End"
-                                  AdornmentIcon="@_passwordInputIcon"
-                                  OnAdornmentClick="TogglePasswordVisibility"
-                                  Required="true"
-                                  RequiredError="Passord er påkrevd"
-                                  Immediate="true"
-                                  Class="mb-4" />
-
-                    <MudButton Variant="Variant.Filled"
-                               Color="Color.Primary"
-                               FullWidth="true"
-                               Size="Size.Large"
-                               OnClick="DoEmailLogin"
-                               Disabled="@(_isLoading || !_loginValid)"
-                               Class="login-action-btn">
+                    <MudTextField @bind-Value="_email" Label="E-post" Variant="Variant.Outlined" InputType="InputType.Email" Required="true" RequiredError="E-post er påkrevd" Immediate="true" Class="mb-3" />
+                    <MudTextField @bind-Value="_password" Label="Passord" Variant="Variant.Outlined" InputType="@_passwordInputType" Adornment="Adornment.End" AdornmentIcon="@_passwordInputIcon" OnAdornmentClick="TogglePasswordVisibility" Required="true" RequiredError="Passord er påkrevd" Immediate="true" Class="mb-4" />
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Size="Size.Large" OnClick="DoEmailLogin" Disabled="@(_isLoading || !_loginValid)" Class="login-action-btn">
                         @if (_isLoading)
                         {
                             <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
                             <span>Logger inn...</span>
-                        }
-                        else
-                        {
+     }
+    else
+    {
                             <span>Logg inn</span>
                         }
                     </MudButton>
                 </MudForm>
-
-                <div class="toggle-mode-text mt-4">
-                    Har du ikke bruker? <a href="#" @onclick:preventDefault @onclick="ToggleMode" class="text-link">Opprett konto</a>
-                </div>
+                <div class="toggle-mode-text mt-4">Har du ikke bruker? <a href="#" @onclick:preventDefault @onclick="ToggleMode" class="text-link">Opprett konto</a></div>
             }
             else
             {
-                // *** REGISTER FORM ***
                 <MudForm @ref="_registerForm" @bind-IsValid="_registerValid" @onkeydown="@(e => HandleEnterKey(e))">
-                    <MudTextField @bind-Value="_regDisplayName"
-                                  Label="Navn"
-                                  Variant="Variant.Outlined"
-                                  Required="true"
-                                  RequiredError="Navn er påkrevd"
-                                  Immediate="true"
-                                  Class="mb-3" />
-
-                    <MudTextField @bind-Value="_regEmail"
-                                  Label="E-post"
-                                  Variant="Variant.Outlined"
-                                  InputType="InputType.Email"
-                                  Required="true"
-                                  RequiredError="E-post er påkrevd"
-                                  Validation="@(new EmailAddressAttribute() { ErrorMessage = "Ugyldig e-post" })"
-                                  Immediate="true"
-                                  Class="mb-3" />
-
-                    <MudTextField @bind-Value="_regPassword"
-                                  Label="Passord"
-                                  Variant="Variant.Outlined"
-                                  InputType="@_passwordInputType"
-                                  Adornment="Adornment.End"
-                                  AdornmentIcon="@_passwordInputIcon"
-                                  OnAdornmentClick="TogglePasswordVisibility"
-                                  Required="true"
-                                  RequiredError="Passord er påkrevd"
-                                  HelperText="Minst 6 tegn"
-                                  Immediate="true"
-                                  Class="mb-4" />
-
-                    <MudButton Variant="Variant.Filled"
-                               Color="Color.Secondary"
-                               FullWidth="true"
-                               Size="Size.Large"
-                               OnClick="DoEmailRegister"
-                               Disabled="@(_isLoading || !_registerValid)"
-                               Class="login-action-btn">
+                    <MudTextField @bind-Value="_regDisplayName" Label="Navn" Variant="Variant.Outlined" Required="true" RequiredError="Navn er påkrevd" Immediate="true" Class="mb-3" />
+                    <MudTextField @bind-Value="_regEmail" Label="E-post" Variant="Variant.Outlined" InputType="InputType.Email" Required="true" RequiredError="E-post er påkrevd" Validation="@(new EmailAddressAttribute() { ErrorMessage = "Ugyldig e-post" })" Immediate="true" Class="mb-3" />
+                    <MudTextField @bind-Value="_regPassword" Label="Passord" Variant="Variant.Outlined" InputType="@_passwordInputType" Adornment="Adornment.End" AdornmentIcon="@_passwordInputIcon" OnAdornmentClick="TogglePasswordVisibility" Required="true" RequiredError="Passord er påkrevd" HelperText="Minst 6 tegn" Immediate="true" Class="mb-4" />
+                    <MudButton Variant="Variant.Filled" Color="Color.Secondary" FullWidth="true" Size="Size.Large" OnClick="DoEmailRegister" Disabled="@(_isLoading || !_registerValid)" Class="login-action-btn">
                         @if (_isLoading)
                         {
                             <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
                             <span>Registrerer...</span>
-                        }
-                        else
-                        {
+     }
+    else
+    {
                             <span>Opprett konto</span>
                         }
                     </MudButton>
                 </MudForm>
-
-                <div class="toggle-mode-text mt-4">
-                    Har du allerede bruker? <a href="#" @onclick:preventDefault @onclick="ToggleMode" class="text-link">Logg inn</a>
-                </div>
+                <div class="toggle-mode-text mt-4">Har du allerede bruker? <a href="#" @onclick:preventDefault @onclick="ToggleMode" class="text-link">Logg inn</a></div>
             }
         </div>
 
         <div class="divider-text mt-6 mb-4">ELLER</div>
-
         <button class="google-btn" @onclick="DoGoogleLogin" disabled="@_isLoading">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-            </svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" /><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" /><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" /><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" /></svg>
             <span>Fortsett med Google</span>
         </button>
     </div>
 </div>
 
 <style>
+    /*  NEW CSS: Enhances the PNG logo on the login card */
+    .logo-glow {
+        width: 80px;
+        height: 80px;
+        object-fit: contain;
+    }
+
+    /* (Your existing styles remain below...) */
     .login-action-btn {
         border-radius: 12px;
         height: 48px;

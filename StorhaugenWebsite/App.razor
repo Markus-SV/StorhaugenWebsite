@@ -27,15 +27,7 @@ else
             <Found Context="routeData">
                 <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
                     <NotAuthorized>
-                        <LayoutView Layout="@typeof(MainLayout)">
-                             <div class="login-required-container">
-                                 <div class="empty-state">
-                                     <MudIcon Icon="@Icons.Material.Rounded.Lock" Size="Size.Large" />
-                                     <h3>Vennligst logg inn</h3>
-                                     <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="login">Gå til innlogging</MudButton>
-                                 </div>
-                             </div>
-                        </LayoutView>
+                        <RedirectToLogin />
                     </NotAuthorized>
                 </AuthorizeRouteView>
                 <FocusOnNavigate RouteData="@routeData" Selector="h1" />

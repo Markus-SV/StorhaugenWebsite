@@ -1,0 +1,21 @@
+﻿@inject NavigationManager Navigation
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthStateProvider
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+
+        // Double check they aren't actually logged in to prevent loops
+        if (authState.User.Identity is null || !authState.User.Identity.IsAuthenticated)
+        {
+            // Capture the current URL so we can return here after login (optional logic)
+            var returnUrl = Navigation.Uri;
+
+            // Navigate to login
+            // We use encodeURIComponent to safely pass the URL if you plan to use it later
+            Navigation.NavigateTo($"login?returnUrl={Uri.EscapeDataString(returnUrl)}");
+        }
+    }
+}
