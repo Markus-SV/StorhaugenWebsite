@@ -44,10 +44,19 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IGlobalRecipeService, GlobalRecipeService>();
 builder.Services.AddScoped<IRatingService, RatingService>();
-builder.Services.AddScoped<IStorageService, SupabaseStorageService>();
 builder.Services.AddScoped<IHelloFreshScraperService, HelloFreshScraperService>();
 // HTTP Client for scraper
 builder.Services.AddHttpClient<IHelloFreshScraperService, HelloFreshScraperService>();
+builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection("Storage"));
+builder.Services.AddScoped<IStorageService, SupabaseStorageService>();
+builder.Services.AddHttpClient<SupabaseStorageService>(client =>
+{
+    var timeoutSeconds = builder.Configuration.GetSection("Storage").GetValue<int?>("DownloadTimeoutSeconds");
+    if (timeoutSeconds is > 0)
+    {
+        client.Timeout = TimeSpan.FromSeconds(timeoutSeconds.Value);
+    }
+});
 
 // New User-Centric Services
 builder.Services.AddScoped<IUserFriendshipService, UserFriendshipService>();
