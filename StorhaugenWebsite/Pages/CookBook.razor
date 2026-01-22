@@ -26,7 +26,7 @@
             <div class="horizontal-scroll-container">
 
                 @* Personal pseudo-collection - only show if user has uncategorized recipes *@
-                @if (_hasUncategorizedRecipes)
+                @if (_personalActive || _hasUncategorizedRecipes || !CollectionState.HasCollections)
                 {
                     <div class="group-chip @(_personalActive ? "active" : "")" @onclick="TogglePersonal">
                         @if (_personalActive)
@@ -638,7 +638,7 @@
         !hasSelectedCollections || _personalActive;
 
     private bool ShowOnlyUncategorized(bool hasSelectedCollections) =>
-        _personalActive && !hasSelectedCollections;
+    _personalActive;
 
     private async Task<List<UserRecipeDto>> LoadCombinedRecipesAsync(
         bool hasSelectedCollections,

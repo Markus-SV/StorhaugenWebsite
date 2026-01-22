@@ -9,6 +9,7 @@
 @inject IUserRecipeService RecipeService
 @inject IFoodService FoodService
 @inject IAuthService AuthService
+@inject ICollectionStateService CollectionState
 @inject IDialogService DialogService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
@@ -37,7 +38,7 @@ else if (_recipe == null)
 }
 else
 {
-    @* --- IMAGE (same container class as FoodDetails) --- *@
+    @* --- IMAGE --- *@
     @if (!string.IsNullOrEmpty(GetImageUrl()) && !_recipe.IsHellofresh)
     {
         <div class="detail-image-carousel">
@@ -45,9 +46,8 @@ else
         </div>
     }
 
-    @* --- INFO CARD (same class as FoodDetails) --- *@
+    @* --- INFO CARD --- *@
     <div class="detail-info-card">
-
         <div class="d-flex justify-space-between align-start gap-3">
             <div style="min-width:0;">
                 <h1 class="detail-title">@_recipe.Name</h1>
@@ -107,7 +107,6 @@ else
             }
         </div>
 
-        @* Quick Info Row (match FoodDetails: same classes, same gap, no “difficulty-*” special styling) *@
         @if (_recipe.PrepTimeMinutes.HasValue || _recipe.CookTimeMinutes.HasValue || !string.IsNullOrEmpty(_recipe.Difficulty) || _recipe.Servings.HasValue || !string.IsNullOrEmpty(_recipe.Cuisine))
         {
             <div class="quick-info-row mt-3">
@@ -158,10 +157,7 @@ else
         }
     </div>
 
-
-    @* --- REST OF PAGE (unchanged) --- *@
     <div>
-        @* --- HelloFresh Recipe Details (Ingredients & Nutrition) --- *@
         @if (_recipe.IsHellofresh)
         {
             <div class="mt-4">
@@ -199,7 +195,7 @@ else
                        FullWidth="true"
                        Size="Size.Large"
                        StartIcon="@Icons.Material.Rounded.Add"
-                       OnClick="AddToMyList"
+                       OnClick="AddToMyListAsync"
                        Disabled="_isProcessing"
                        Style="border-radius: 12px; height: 52px;">
                 @if (_isProcessing)
@@ -236,55 +232,30 @@ else
 
     private bool IsOwner => _recipe?.CreatedByUserId == _currentUserId && _currentUserId != Guid.Empty;
 
-    private async Task GoBack()
+    protected override async Task OnInitializedAsync()
     {
-        await JSRuntime.InvokeVoidAsync("history.back");
+        await LoadCurrentUserAsync();
+        await LoadRecipeAsync();
     }
 
-    protected override async Task OnInitializedAsync()
+    private async Task GoBack()
+        => await JSRuntime.InvokeVoidAsync("history.back");
+
+    private async Task LoadCurrentUserAsync()
     {
         try
         {
             var user = await ApiClient.GetMyProfileAsync();
-            if (user != null) _currentUserId = user.Id;
+            if (user != null)
+                _currentUserId = user.Id;
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error loading user profile: {ex.Message}");
         }
-        await LoadData();
     }
 
-    private async Task DeletePublishedRecipe()
-    {
-        if (_recipe == null) return;
-
-        var confirm = await DialogService.ShowMessageBox(
-            "Slett fra fellesskapet?",
-            "Dette fjerner oppskriften fra fellesskapet. Din lokale kopi beholdes.",
-            yesText: "Slett", cancelText: "Avbryt");
-
-        if (confirm == true)
-        {
-            _isProcessing = true;
-            try
-            {
-                await ApiClient.DeleteGlobalRecipeAsync(_recipe.Id);
-                Snackbar.Add("Oppskrift slettet fra fellesskapet", Severity.Success);
-                Navigation.NavigateTo("browse");
-            }
-            catch (Exception ex)
-            {
-                Snackbar.Add($"Feil: {ex.Message}", Severity.Error);
-            }
-            finally
-            {
-                _isProcessing = false;
-            }
-        }
-    }
-
-    private async Task LoadData()
+    private async Task LoadRecipeAsync()
     {
         _isLoading = true;
         try
@@ -302,6 +273,35 @@ else
         }
     }
 
+    private async Task DeletePublishedRecipe()
+    {
+        if (_recipe == null) return;
+
+        var confirm = await DialogService.ShowMessageBox(
+            "Slett fra fellesskapet?",
+            "Dette fjerner oppskriften fra fellesskapet. Din lokale kopi beholdes.",
+            yesText: "Slett", cancelText: "Avbryt");
+
+        if (confirm != true)
+            return;
+
+        _isProcessing = true;
+        try
+        {
+            await ApiClient.DeleteGlobalRecipeAsync(_recipe.Id);
+            Snackbar.Add("Oppskrift slettet fra fellesskapet", Severity.Success);
+            Navigation.NavigateTo("browse");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Feil: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isProcessing = false;
+        }
+    }
+
     private string? GetImageUrl()
     {
         if (_recipe == null) return null;
@@ -309,36 +309,29 @@ else
         return _recipe.ImageUrls?.FirstOrDefault();
     }
 
-    // Add to my list using UserRecipes API
-    private async Task AddToMyList()
+    private async Task AddToMyListAsync()
     {
-        if (_recipe == null) return;
+        if (_recipe == null || _isProcessing)
+            return;
+
+        // 1) Choose collection (null => Personlig)
+        var selectedCollectionId = await PromptForCollectionAsync();
+        if (selectedCollectionId == PromptCanceled)
+            return;
 
         _isProcessing = true;
         try
         {
-            // Don't copy images for HelloFresh recipes (they're broken/copyrighted)
-            var imageUrls = _recipe.IsHellofresh ? new List<string>() : (_recipe.ImageUrls ?? new List<string>());
+            // 2) Create recipe
+            var created = await CreateUserRecipeFromGlobalAsync(_recipe, selectedCollectionId);
 
-            var dto = new CreateUserRecipeDto
+            // 3) Ensure it is added to the selected collection BEFORE navigating
+            if (selectedCollectionId.HasValue)
             {
-                Name = _recipe.Name,
-                Description = _recipe.Description,
-                ImageUrls = imageUrls,
-                GlobalRecipeId = _recipe.Id,
-                PrepTimeMinutes = _recipe.PrepTimeMinutes,
-                Servings = _recipe.Servings,
-                Difficulty = _recipe.Difficulty,
-                Cuisine = _recipe.Cuisine,
-                Tags = _recipe.Tags,
-                Ingredients = _recipe.Ingredients,
-                NutritionData = _recipe.NutritionData,
-                Visibility = "private"
-            };
+                await CollectionState.AddRecipeToCollectionAsync(selectedCollectionId.Value, created.Id);
+            }
 
-            await RecipeService.CreateRecipeAsync(dto);
-            Snackbar.Add($"'{_recipe.Name}' lagt til i din kokebok!", Severity.Success);
-            Navigation.NavigateTo("cookbook");
+            Navigation.NavigateTo($"/food/{created.Id}");
         }
         catch (Exception ex)
         {
@@ -351,12 +344,66 @@ else
         }
     }
 
-    // Copy and customize - creates independent copy NOT linked to HelloFresh
+    // Sentinel to distinguish "user canceled dialog" from "Personlig" (null)
+    private static readonly Guid? PromptCanceled = Guid.Empty;
+
+    private async Task<Guid?> PromptForCollectionAsync()
+    {
+        var dialogRef = await DialogService.ShowAsync<ChooseCollectionDialog>(
+            title: "Legg til i samling",
+            options: new DialogOptions
+            {
+                CloseOnEscapeKey = true,
+                MaxWidth = MaxWidth.Small,
+                FullWidth = true
+            });
+
+        var result = await dialogRef.Result;
+
+        if (result.Canceled)
+            return PromptCanceled;
+
+        // Dialog returns Guid? (boxed as Guid when HasValue)
+        return result.Data switch
+        {
+            null => (Guid?)null,     // Personlig
+            Guid g => (Guid?)g,      // collection
+            _ => (Guid?)null
+        };
+    }
+
+    private async Task<UserRecipeDto> CreateUserRecipeFromGlobalAsync(GlobalRecipeDto recipe, Guid? selectedCollectionId)
+    {
+        var imageUrls = recipe.IsHellofresh ? new List<string>() : (recipe.ImageUrls ?? new List<string>());
+
+        // Keep CollectionIds if your backend uses it for other things (e.g. allowed ratings),
+        // but collection membership is ensured via AddRecipeToCollectionAsync above.
+        var dto = new CreateUserRecipeDto
+        {
+            Name = recipe.Name,
+            Description = recipe.Description,
+            ImageUrls = imageUrls,
+            GlobalRecipeId = recipe.Id,
+            PrepTimeMinutes = recipe.PrepTimeMinutes,
+            Servings = recipe.Servings,
+            Difficulty = recipe.Difficulty,
+            Cuisine = recipe.Cuisine,
+            Tags = recipe.Tags,
+            Ingredients = recipe.Ingredients,
+            NutritionData = recipe.NutritionData,
+            Visibility = "private",
+            CollectionIds = selectedCollectionId.HasValue
+                ? new List<Guid> { selectedCollectionId.Value }
+                : new List<Guid>()
+        };
+
+        return await RecipeService.CreateRecipeAsync(dto);
+    }
+
     private void CustomizeAndAdd()
     {
         if (_recipe == null) return;
 
-        // Don't copy images for HelloFresh recipes (they're broken/copyrighted)
         var imageUrls = _recipe.IsHellofresh ? new List<string>() : (_recipe.ImageUrls ?? new List<string>());
 
         FoodService.DraftRecipe = new StorhaugenWebsite.Models.FoodItem
@@ -364,9 +411,7 @@ else
             Name = _recipe.Name,
             Description = _recipe.Description,
             ImageUrls = imageUrls,
-            // Don't link to GlobalRecipe so it's fully editable
             GlobalRecipeId = null,
-            // Not a HelloFresh recipe - it's a personal copy
             IsHelloFresh = false,
             PrepTimeMinutes = _recipe.PrepTimeMinutes,
             CookTimeMinutes = _recipe.CookTimeMinutes,
@@ -380,50 +425,31 @@ else
         Navigation.NavigateTo("add");
     }
 
-    // Difficulty helpers
     private string GetDifficultyIcon(string? difficulty)
-    {
-        return difficulty?.ToLower() switch
+        => difficulty?.ToLower() switch
         {
             "easy" or "lett" => Icons.Material.Rounded.SentimentSatisfied,
             "medium" or "middels" => Icons.Material.Rounded.Psychology,
             "hard" or "vanskelig" => Icons.Material.Rounded.LocalFireDepartment,
             _ => Icons.Material.Rounded.HelpOutline
         };
-    }
 
     private string GetDifficultyLabel(string? difficulty)
-    {
-        return difficulty?.ToLower() switch
+        => difficulty?.ToLower() switch
         {
             "easy" => "Lett",
             "medium" => "Middels",
             "hard" => "Vanskelig",
             _ => difficulty ?? ""
         };
-    }
 
-    private string GetDifficultyClass(string? difficulty)
-    {
-        return difficulty?.ToLower() switch
-        {
-            "easy" or "lett" => "difficulty-easy",
-            "medium" or "middels" => "difficulty-medium",
-            "hard" or "vanskelig" => "difficulty-hard",
-            _ => ""
-        };
-    }
-
-    // Ingredient helpers
     private record IngredientInfo(string Name, string? Amount, string? Unit);
 
     private bool HasIngredients()
     {
         if (_recipe?.Ingredients == null) return false;
         if (_recipe.Ingredients is System.Text.Json.JsonElement jsonElement)
-        {
             return jsonElement.ValueKind == System.Text.Json.JsonValueKind.Array && jsonElement.GetArrayLength() > 0;
-        }
         return false;
     }
 
@@ -434,7 +460,8 @@ else
 
         try
         {
-            if (_recipe.Ingredients is System.Text.Json.JsonElement jsonElement && jsonElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+            if (_recipe.Ingredients is System.Text.Json.JsonElement jsonElement &&
+                jsonElement.ValueKind == System.Text.Json.JsonValueKind.Array)
             {
                 foreach (var item in jsonElement.EnumerateArray())
                 {
@@ -443,9 +470,7 @@ else
                     var unit = item.TryGetProperty("unit", out var u) ? u.GetString() : null;
 
                     if (!string.IsNullOrEmpty(name))
-                    {
                         items.Add(new IngredientInfo(name!, amount, unit));
-                    }
                 }
             }
         }
@@ -453,6 +478,7 @@ else
         {
             Console.WriteLine($"Error parsing ingredients: {ex.Message}");
         }
+
         return items;
     }
 }

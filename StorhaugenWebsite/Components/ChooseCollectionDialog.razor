@@ -1,0 +1,65 @@
+@using StorhaugenWebsite.Shared.DTOs
+@inject StorhaugenWebsite.Services.ICollectionStateService CollectionState
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+            Velg hvor oppskriften skal legges til.
+        </MudText>
+
+        <MudRadioGroup T="string" @bind-Value="_selection" Class="d-flex flex-column gap-2">
+            <MudRadio T="string" Value="@PersonalValue">Personlig</MudRadio>
+
+            @if (CollectionState.UserCollections?.Any() == true)
+            {
+                @foreach (var c in CollectionState.UserCollections.OrderBy(c => c.Name))
+                {
+                    <MudRadio T="string" Value="@c.Id.ToString()">@c.Name</MudRadio>
+                }
+            }
+            else
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    Du har ingen samlinger ennå.
+                </MudText>
+            }
+        </MudRadioGroup>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel">Avbryt</MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   Disabled="@string.IsNullOrWhiteSpace(_selection)"
+                   OnClick="Ok">
+            Velg
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private const string PersonalValue = "__personal__";
+
+    // null/empty = user has not chosen yet
+    private string? _selection;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CollectionState.InitializeAsync();
+    }
+
+    private void Ok()
+    {
+        // Convert selection to Guid? (null = Personlig)
+        Guid? selectedCollectionId = null;
+
+        if (_selection != PersonalValue && Guid.TryParse(_selection, out var id))
+            selectedCollectionId = id;
+
+        MudDialog.Close(DialogResult.Ok(selectedCollectionId));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

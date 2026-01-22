@@ -6,6 +6,8 @@
 @using StorhaugenWebsite.Components
 @using StorhaugenWebsite.Shared.Extensions
 @using System.Text.Json
+@using Microsoft.AspNetCore.Components.Forms
+@inject IFoodService FoodService
 @inject IUserRecipeService RecipeService
 @inject IAuthService AuthService
 @inject IUserColorService UserColorService
@@ -49,17 +51,17 @@ else if (_recipe == null)
 else
 {
     @* --- IMAGE CAROUSEL --- *@
-    @if (_recipe.ImageUrls.Any())
+    @if (_recipe.ImageUrls?.Any() == true)
     {
         <div class="detail-image-carousel">
             <MudCarousel Class="mud-width-full"
                          Style="height: 240px; border-radius: 20px;"
-                         ShowArrows="@(_recipe.ImageUrls.Count > 1)"
-                         ShowBullets="@(_recipe.ImageUrls.Count > 1)"
+                         ShowArrows="@((_recipe.ImageUrls?.Count ?? 0) > 1)"
+                         ShowBullets="@((_recipe.ImageUrls?.Count ?? 0) > 1)"
                          EnableSwipeGesture="true"
                          AutoCycle="false"
                          TData="object">
-                @foreach (var imageUrl in _recipe.ImageUrls)
+                @foreach (var imageUrl in (_recipe.ImageUrls ?? new List<string>()))
                 {
                     <MudCarouselItem Transition="Transition.Slide" Color="@Color.Transparent">
                         <div class="d-flex" style="height:100%">
@@ -70,7 +72,60 @@ else
             </MudCarousel>
         </div>
     }
-    
+    else
+    {
+        <div class="detail-image-placeholder">
+            <div class="placeholder-content">
+                <MudIcon Icon="@Icons.Material.Rounded.AddAPhoto" Size="Size.Large" Class="mb-1" />
+                <MudText Typo="Typo.subtitle2" Class="mb-3" Style="opacity: 0.7;">Ingen bilde enda</MudText>
+
+                <div class="d-flex gap-2">
+                    @* Camera (same style as AddFood) *@
+                    <MudFileUpload T="IReadOnlyList<IBrowserFile>"
+                                   @ref="_fileUpload"
+                                   FilesChanged="OnImagesSelected"
+                                   Accept="image/*"
+                                   MaximumFileCount="1"
+                                   Class="flex-1"
+                                   @attributes="@(new Dictionary<string, object> { { "capture", "environment" } })">
+                        <ActivatorContent>
+                            <MudButton Variant="Variant.Filled"
+                                       Color="Color.Primary"
+                                       Size="Size.Small"
+                                       StartIcon="@Icons.Material.Rounded.PhotoCamera"
+                                       Disabled="_isUploadingImage">
+                                Ta bilde
+                            </MudButton>
+                        </ActivatorContent>
+                    </MudFileUpload>
+
+                    @* Gallery (same pattern as AddFood: hidden InputFile + button) *@
+                    <InputFile id="galleryInput"
+                               style="display: none;"
+                               accept="image/*, .heic"
+                               OnChange="OnGalleryFileSelected" />
+
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Primary"
+                               Size="Size.Small"
+                               StartIcon="@Icons.Material.Rounded.PhotoLibrary"
+                               OnClick="TriggerGalleryClick"
+                               Disabled="_isUploadingImage">
+                        Galleri
+                    </MudButton>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(_imageUploadError))
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Error" Class="mt-2">
+                        @_imageUploadError
+                    </MudText>
+                }
+            </div>
+        </div>
+    }
+
+
 
     @* --- INFO CARD --- *@
     <div class="detail-info-card">
@@ -266,6 +321,55 @@ else
         {
             <div class="d-flex flex-column gap-3">
 
+                @* Collection Management *@
+                <div class="visibility-card">
+                    @* Header row containing both the title and the action button *@
+                    <div class="d-flex align-center justify-space-between mb-2">
+                        <div class="d-flex align-center gap-3">
+                            <MudIcon Icon="@Icons.Material.Rounded.FolderShared" Color="Color.Primary" />
+                            <MudText Typo="Typo.subtitle2">Samlinger</MudText>
+                        </div>
+
+                        @if (CollectionState.UserCollections.Any(c => !_recipeCollections.Any(rc => rc.Id == c.Id)))
+                        {
+                            <MudButton Variant="Variant.Text"
+                                       Color="Color.Primary"
+                                       Size="Size.Small"
+                                       Style="padding: 0px"
+                                       StartIcon="@Icons.Material.Rounded.Add"
+                                       OnClick="OpenAddToCollectionMenu">
+                                Legg til i samling
+                            </MudButton>
+                        }
+                    </div>
+
+                    @* Chip list section *@
+                    @if (_recipeCollections.Any())
+                    {
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach (var collection in _recipeCollections)
+                            {
+                                <MudChip T="string"
+                                         Variant="Variant.Outlined"
+                                         Color="Color.Primary"
+                                         Size="Size.Small"
+                                         Icon="@Icons.Material.Rounded.Folder"
+                                         OnClose="@(() => RemoveFromCollection(collection.Id))"
+                                         Style="font-weight: 600; background-color: rgba(var(--mud-palette-primary-rgb), 0.1);"
+                                         Class="px-3 ma-1">
+                                    @collection.Name
+                                </MudChip>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2" Style="display: block">
+                            Ikke i noen samling
+                        </MudText>
+                    }
+                </div>
+
                 @* --- NEW: PUBLISH LOGIC --- *@
                 @if (!_recipe.IsPublished)
                 {
@@ -287,6 +391,7 @@ else
                 }
                 else
                 {
+
                     @* Published: Show Status and Unpublish Option *@
                     <div class="visibility-card" style="border: 1px solid var(--mud-palette-success); background: rgba(var(--mud-palette-success-rgb), 0.05);">
                         <div class="d-flex align-center justify-space-between">
@@ -303,52 +408,6 @@ else
                         </div>
                     </div>
                 }
-
-                @* Collection Management *@
-                <div class="visibility-card">
-                    <div class="d-flex align-center justify-space-between mb-2">
-                        <div class="d-flex align-center gap-3">
-                            <MudIcon Icon="@Icons.Material.Rounded.FolderShared" Color="Color.Primary" />
-                            <div>
-                                <MudText Typo="Typo.subtitle2">Samlinger</MudText>
-                                <MudText Typo="Typo.caption">Organiser oppskriften i samlinger</MudText>
-                            </div>
-                        </div>
-                    </div>
-
-                    @if (_recipeCollections.Any())
-                    {
-                        <div class="d-flex flex-wrap gap-2 mb-2">
-                            @foreach (var collection in _recipeCollections)
-                            {
-                                <MudChip T="string"
-                                         Color="Color.Primary"
-                                         Size="Size.Small"
-                                         OnClose="@(() => RemoveFromCollection(collection.Id))"
-                                         Icon="@Icons.Material.Rounded.Folder">
-                                    @collection.Name
-                                </MudChip>
-                            }
-                        </div>
-                    }
-                    else
-                    {
-                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2" Style="display: block">
-                            Ikke i noen samling
-                        </MudText>
-                    }
-
-                    @if (CollectionState.UserCollections.Any(c => !_recipeCollections.Any(rc => rc.Id == c.Id)))
-                    {
-                        <MudButton Variant="Variant.Text"
-                                   Color="Color.Primary"
-                                   Size="Size.Small"
-                                   StartIcon="@Icons.Material.Rounded.Add"
-                                   OnClick="OpenAddToCollectionMenu">
-                            Legg til i samling
-                        </MudButton>
-                    }
-                </div>
 
                 @* Edit / Archive Buttons *@
                 <div class="d-flex gap-2">
@@ -516,6 +575,36 @@ else
     .rating-slider .mud-slider-filled {
         pointer-events: none;
     }
+
+    .detail-image-placeholder {
+        height: 180px; /* Reduced from 240px */
+        width: 100%;
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        overflow: hidden;
+        /* Semi-transparent primary background (8% opacity) */
+        background-color: color-mix(in srgb, var(--mud-palette-primary) 14%, transparent);
+        /* Dashed border incorporating primary color */
+        border: 2px dashed color-mix(in srgb, var(--mud-palette-primary) 25%, transparent);
+        margin-bottom: 16px;
+    }
+
+    .placeholder-content {
+        display: flex;
+        flex-column;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        color: var(--mud-palette-primary);
+    }
+
+        /* Optional: Add a subtle pulse animation to the icon to make it look interactive */
+        .placeholder-content .mud-icon-root {
+            opacity: 0.5;
+        }
 
 </style>
 
@@ -820,6 +909,8 @@ else
         }
     }
 
+
+
     private async Task ArchiveRecipe()
     {
         if (_recipe == null || _recipe.IsArchived) return;
@@ -962,4 +1053,90 @@ else
         if (imagePath.StartsWith("http")) return imagePath;
         return $"https://d3hvwccx09j84u.cloudfront.net/0,0{imagePath}";
     }
+
+    // --- Image upload state ---
+    private MudFileUpload<IReadOnlyList<IBrowserFile>>? _fileUpload;
+    private bool _isUploadingImage = false;
+    private string? _imageUploadError;
+
+    private async Task TriggerGalleryClick()
+    {
+        await JSRuntime.InvokeVoidAsync("eval", "document.getElementById('galleryInput').click()");
+    }
+
+    private async Task OnGalleryFileSelected(InputFileChangeEventArgs args)
+    {
+        try
+        {
+            // Single image for FoodDetails placeholder (hero image)
+            var files = args.GetMultipleFiles(1);
+            if (files.Count == 0) return;
+
+            await OnImagesSelected(files);
+        }
+        catch (Exception ex)
+        {
+            _imageUploadError = ex.Message;
+            Snackbar.Add("Noe gikk galt med bildeopplastingen.", Severity.Error);
+        }
+    }
+
+    private async Task OnImagesSelected(IReadOnlyList<IBrowserFile> files)
+    {
+        if (_recipe == null) return;
+        if (files == null || files.Count == 0) return;
+
+        _isUploadingImage = true;
+        _imageUploadError = null;
+        StateHasChanged();
+
+        try
+        {
+            _recipe.ImageUrls ??= new List<string>();
+
+            foreach (var file in files)
+            {
+                // Same as AddFood (convert/resize to jpeg)
+                var fileToRead = await file.RequestImageFileAsync("image/jpeg", 1200, 1200);
+
+                using var stream = fileToRead.OpenReadStream(30 * 1024 * 1024); // same limit style as AddFood
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+
+                var buffer = ms.ToArray();
+
+                // Use unique filename to avoid collisions (recommended)
+                var name = $"{Guid.NewGuid():N}_{file.Name}";
+
+                // Upload and get URL
+                var url = await FoodService.UploadImageAsync(buffer, name);
+
+                if (!string.IsNullOrWhiteSpace(url))
+                    _recipe.ImageUrls.Add(url);
+            }
+
+            // Persist new ImageUrls to recipe
+            await RecipeService.UpdateRecipeAsync(_recipe.Id, new UpdateUserRecipeDto
+            {
+                ImageUrls = _recipe.ImageUrls
+            });
+
+            Snackbar.Add("Bilde lagt til.", Severity.Success);
+
+            // Ensure UI flips from placeholder -> carousel immediately
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            _imageUploadError = ex.Message;
+            Snackbar.Add("Kunne ikke laste opp bilde.", Severity.Error);
+        }
+        finally
+        {
+            _isUploadingImage = false;
+            StateHasChanged();
+        }
+    }
+
+
 }
