@@ -331,7 +331,7 @@ else
                 await CollectionState.AddRecipeToCollectionAsync(selectedCollectionId.Value, created.Id);
             }
 
-            Navigation.NavigateTo($"/food/{created.Id}");
+            Navigation.NavigateTo($"food/{created.Id}");
         }
         catch (Exception ex)
         {
